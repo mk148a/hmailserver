@@ -1,13 +1,14 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, group replacement and settings-only restore)
+## Current Authoritative Continuation (2026-08-20, isolated SQL group restore evidence)
 
-Code/test commit `6d99fbe19` adds legacy group replacement inside the restore
-transaction for non-empty group archives and settings-only group restoration
-against existing account addresses. Focused executor coverage is `24 passed, 0
-skipped, 0 failed`; the combined focused restore/store run is `38 passed, 0
-skipped, 0 failed`; the disposable LocalDB/Data full suite is `2443 passed, 10
-skipped, 0 failed` (`2453` total).
+Code/test commit `759567534` adds disposable SQL/Data integration coverage for
+legacy group replacement and rollback against real `hm_groups`,
+`hm_group_members`, and `hm_acl` tables. Focused group SQL/unit coverage is `7
+passed, 0 skipped, 0 failed`; the disposable LocalDB/Data full suite is `2446
+passed, 10 skipped, 0 failed` (`2456` total). Commit removes existing groups
+and owned ACLs before insertion; disposal rolls the transaction back, and stale
+group-member rows remain as required by legacy behavior.
 
 Legacy references are `Collection::XMLLoad`
 (`source/Server/Common/BO/Collection.h:85-130`),
@@ -15,8 +16,8 @@ Legacy references are `Collection::XMLLoad`
 (`source/Server/Common/Persistence/PersistentGroup.cpp:31-42`), and
 `IMAPConfiguration::XMLLoad`
 (`source/Server/IMAP/IMAPConfiguration.cpp:238-248`). Empty/omitted Groups
-cleanup and real SQL group-table round-trip evidence remain the next bounded
-slice. Release remains `RED`; no push was performed.
+cleanup remains the next bounded slice. Release remains `RED`; no push was
+performed.
 
 ## Historical Authoritative Continuation (2026-08-20, transaction-scoped group/member restore)
 

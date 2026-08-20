@@ -1,12 +1,12 @@
-## Current authoritative parity status (2026-08-20, group replacement and settings-only restore)
+## Current authoritative parity status (2026-08-20, isolated SQL group restore evidence)
 
-Code/test commit `6d99fbe19` adds legacy group replacement inside the restore
-transaction when the archive contains group entries, and restores settings-only
-group entries by resolving member addresses against existing accounts. Focused
-executor coverage is `24 passed, 0 skipped, 0 failed`; the combined focused
-restore/store run is `38 passed, 0 skipped, 0 failed`; full disposable Net10 is
-`2443 passed, 10 skipped, 0 failed` (`2453` total). Empty/omitted Groups
-cleanup and real SQL group-table round-trip evidence remain explicit gaps.
+Code/test commit `759567534` adds disposable SQL/Data integration coverage for
+legacy group replacement and rollback. The fixture creates real `hm_groups`,
+`hm_group_members`, and `hm_acl` tables, verifies owned ACL deletion before
+group replacement, preserves legacy stale member rows, and proves disposal
+rolls back the whole transaction. Focused coverage is `7 passed, 0 skipped, 0
+failed`; full disposable Net10 is `2446 passed, 10 skipped, 0 failed`
+(`2456` total). Empty/omitted Groups cleanup remains an explicit gap.
 Release remains **RED**.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
