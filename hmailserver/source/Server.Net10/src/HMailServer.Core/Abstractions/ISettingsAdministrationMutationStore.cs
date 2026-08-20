@@ -169,4 +169,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamMaximumMessageSizeAsync(
         int maximumMessageSize,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamDkimVerificationEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamDkimVerificationFailureScoreAsync(
+        int score,
+        CancellationToken cancellationToken);
 }

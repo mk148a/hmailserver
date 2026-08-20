@@ -262,6 +262,18 @@ SET settinginteger = @MaximumMessageSize
 WHERE settingname = N'antispammaxsize';
 """;
 
+    public const string UpdateAntiSpamDkimVerificationEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @DkimVerificationEnabled
+WHERE settingname = N'ASDKIMVerificationEnabled';
+""";
+
+    public const string UpdateAntiSpamDkimVerificationFailureScoreSql = """
+UPDATE hm_settings
+SET settinginteger = @DkimVerificationFailureScore
+WHERE settingname = N'ASDKIMVerificationFailureScore';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -961,6 +973,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamMaximumMessageSizeSql, connection);
         command.Parameters.Add("@MaximumMessageSize", SqlDbType.Int).Value = maximumMessageSize;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamDkimVerificationEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamDkimVerificationEnabledSql, connection);
+        command.Parameters.Add("@DkimVerificationEnabled", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamDkimVerificationFailureScoreAsync(
+        int score,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamDkimVerificationFailureScoreSql, connection);
+        command.Parameters.Add("@DkimVerificationFailureScore", SqlDbType.Int).Value = score;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

@@ -212,6 +212,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<string>? _publishSpamAssassinHost;
     private readonly Action<int>? _publishSpamAssassinPort;
     private readonly Action<int>? _publishMaximumMessageSize;
+    private readonly Action<bool>? _publishDkimVerificationEnabled;
+    private readonly Action<int>? _publishDkimVerificationFailureScore;
 
     public AntiSpam()
     {
@@ -234,7 +236,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishSpamAssassinMergeScore,
         Action<string>? publishSpamAssassinHost,
         Action<int>? publishSpamAssassinPort,
-        Action<int>? publishMaximumMessageSize)
+        Action<int>? publishMaximumMessageSize,
+        Action<bool>? publishDkimVerificationEnabled,
+        Action<int>? publishDkimVerificationFailureScore)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -253,6 +257,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishSpamAssassinHost = publishSpamAssassinHost;
         _publishSpamAssassinPort = publishSpamAssassinPort;
         _publishMaximumMessageSize = publishMaximumMessageSize;
+        _publishDkimVerificationEnabled = publishDkimVerificationEnabled;
+        _publishDkimVerificationFailureScore = publishDkimVerificationFailureScore;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -415,9 +421,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         };
     }
 
-    public bool DKIMVerificationEnabled { get => Snapshot.DkimVerificationEnabled; set => Unavailable(); }
+    public bool DKIMVerificationEnabled
+    {
+        get => Snapshot.DkimVerificationEnabled;
+        set => UpdateDkimVerificationEnabled(value);
+    }
 
-    public int DKIMVerificationFailureScore { get => Snapshot.DkimVerificationFailureScore; set => Unavailable(); }
+    public int DKIMVerificationFailureScore
+    {
+        get => Snapshot.DkimVerificationFailureScore;
+        set => UpdateDkimVerificationFailureScore(value);
+    }
 
     public bool BypassGreylistingOnSPFSuccess { get => Snapshot.BypassGreylistingOnSpfSuccess; set => Unavailable(); }
 
@@ -478,7 +492,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishSpamAssassinMergeScore = null,
         Action<string>? publishSpamAssassinHost = null,
         Action<int>? publishSpamAssassinPort = null,
-        Action<int>? publishMaximumMessageSize = null)
+        Action<int>? publishMaximumMessageSize = null,
+        Action<bool>? publishDkimVerificationEnabled = null,
+        Action<int>? publishDkimVerificationFailureScore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -498,7 +514,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishSpamAssassinMergeScore,
             publishSpamAssassinHost,
             publishSpamAssassinPort,
-            publishMaximumMessageSize);
+            publishMaximumMessageSize,
+            publishDkimVerificationEnabled,
+            publishDkimVerificationFailureScore);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -648,6 +666,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishMaximumMessageSize?.Invoke(value);
+    }
+
+    private void UpdateDkimVerificationEnabled(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamDkimVerificationEnabledAsync(value, CancellationToken.None),
+            "The anti-spam DKIM verification enabled update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { DkimVerificationEnabled = value };
+        }
+
+        _publishDkimVerificationEnabled?.Invoke(value);
+    }
+
+    private void UpdateDkimVerificationFailureScore(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamDkimVerificationFailureScoreAsync(value, CancellationToken.None),
+            "The anti-spam DKIM verification failure score update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { DkimVerificationFailureScore = value };
+        }
+
+        _publishDkimVerificationFailureScore?.Invoke(value);
     }
 
     private void UpdateSetting(

@@ -2190,6 +2190,20 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         {
                             _administrationSnapshot = _administrationSnapshot with { AntiSpamMaximumMessageSize = value };
                         }
+                    },
+                    publishDkimVerificationEnabled: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamDkimVerificationEnabled = value };
+                        }
+                    },
+                    publishDkimVerificationFailureScore: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamDkimVerificationFailureScore = value };
+                        }
                     });
         }
     }

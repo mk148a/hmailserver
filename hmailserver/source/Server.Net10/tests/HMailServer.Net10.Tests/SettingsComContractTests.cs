@@ -3448,6 +3448,69 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamDkimVerificationSettersPersistAndRefreshSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamDkimVerificationEnabledUpdateResult = true,
+            AntiSpamDkimVerificationFailureScoreUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamDkimVerificationEnabled: false,
+                AntiSpamDkimVerificationFailureScore: 2)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.DKIMVerificationEnabled = true;
+        antiSpam.DKIMVerificationFailureScore = 9;
+
+        Assert.AreEqual(1, store.AntiSpamDkimVerificationEnabledUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamDkimVerificationEnabled);
+        Assert.AreEqual(1, store.AntiSpamDkimVerificationFailureScoreUpdateCount);
+        Assert.AreEqual(9, store.UpdatedAntiSpamDkimVerificationFailureScore);
+        Assert.IsTrue(antiSpam.DKIMVerificationEnabled);
+        Assert.AreEqual(9, antiSpam.DKIMVerificationFailureScore);
+        Assert.IsTrue(settings.AntiSpam.DKIMVerificationEnabled);
+        Assert.AreEqual(9, settings.AntiSpam.DKIMVerificationFailureScore);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamDkimVerificationSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamDkimVerificationEnabledUpdateResult = false,
+            AntiSpamDkimVerificationFailureScoreUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedEnabled = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.DKIMVerificationEnabled = true);
+        var failedScore = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.DKIMVerificationFailureScore = 9);
+
+        Assert.AreEqual(EFail, failedEnabled.ErrorCode);
+        Assert.AreEqual(EFail, failedScore.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamDkimVerificationEnabledUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamDkimVerificationFailureScoreUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4784,6 +4847,18 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamMaximumMessageSize { get; private set; }
 
+        public bool AntiSpamDkimVerificationEnabledUpdateResult { get; set; }
+
+        public int AntiSpamDkimVerificationEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamDkimVerificationEnabled { get; private set; }
+
+        public bool AntiSpamDkimVerificationFailureScoreUpdateResult { get; set; }
+
+        public int AntiSpamDkimVerificationFailureScoreUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamDkimVerificationFailureScore { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5339,6 +5414,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamMaximumMessageSize = maximumMessageSize;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamMaximumMessageSizeUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamDkimVerificationEnabledAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamDkimVerificationEnabledUpdateCount++;
+            UpdatedAntiSpamDkimVerificationEnabled = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamDkimVerificationEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamDkimVerificationFailureScoreAsync(
+            int score,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamDkimVerificationFailureScoreUpdateCount++;
+            UpdatedAntiSpamDkimVerificationFailureScore = score;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamDkimVerificationFailureScoreUpdateResult);
         }
 
     }

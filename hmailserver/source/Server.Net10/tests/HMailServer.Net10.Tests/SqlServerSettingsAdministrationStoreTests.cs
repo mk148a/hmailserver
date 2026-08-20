@@ -422,6 +422,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamDkimVerificationSql_UsesTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @DkimVerificationEnabled\nWHERE settingname = N'ASDKIMVerificationEnabled';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamDkimVerificationEnabledSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @DkimVerificationFailureScore\nWHERE settingname = N'ASDKIMVerificationFailureScore';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamDkimVerificationFailureScoreSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;
