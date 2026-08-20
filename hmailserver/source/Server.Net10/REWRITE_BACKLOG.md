@@ -1,12 +1,23 @@
 
-## Current next slice (2026-08-20, isolated restore/rollback acceptance)
+## Current next slice (2026-08-20, populated restore semantic equivalence)
 
-Code/test commits `333eda06b`, `0dbc576cb`, `7f8664f90`, `c8466a704`, and
+Code/test commit `1d38c85a2` closes the restore message retry metadata gap;
+preceding commits `333eda06b`, `0dbc576cb`, `7f8664f90`, `c8466a704`, and
 `702caf5f5` restore legacy FETCH `FULL` behavior, repair the isolated
 delivery-queue SQL fixture, cover backup option modes `1`, `2`, `3`, and
 DB-only `6`, and verify queued failure cleanup before `OnBackupFailed`.
-Focused backup coverage is `51 passed, 1 skipped`; the disposable LocalDB/Data
-full suite is `2411 passed, 10 skipped, 0 failed`.
+Focused restore parser/store coverage is `23 passed, 0 failed`; the disposable
+restore round-trip is `21 passed, 0 failed`; the disposable LocalDB/Data full
+suite is `2411 passed, 10 skipped, 0 failed`.
+
+Legacy `Message::XMLLoad` in
+`hmailserver/source/Server/Common/BO/Message.cpp` reads the XML
+`NoOfRetries` attribute into `no_of_retries_`. Net10
+`BackupArchiveXmlSnapshotParser.ParseFolder` now carries that value into
+`MessageAdministrationSnapshot.CurrentNumberOfTries`, and
+`SqlServerMessageAdministrationStore.InsertMessageForRestoreAsync` binds it
+as `@CurrentNumberOfTries` instead of inserting literal zero. Isolated SQL
+readback verifies the archived value `9`; rollback tests remain green.
 
 Legacy backup anchors are `BackupExecuter::StartBackup` and
 `BackupExecuter::BackupDataDirectory_` in
@@ -20,7 +31,8 @@ The queued success path already passes in
 `BackupRestoreRoundTripIntegrationTests.BackupManager_StartBackupLoadBackupAndRestoreRoundTripsRealArchive`;
 the new failure path observes that XML and raw `DataBackup` are absent at
 `OnBackupFailed`. Next independent slice: complete isolated restore/rollback
-round-trip and semantic equivalence against the disposable SQL/Data pair.
+semantic-equivalence and crash/recovery evidence beyond the retry-count field
+against the disposable SQL/Data pair.
 Migration/rollback, paired C++/.NET performance, registered/out-of-process
 COM, SEC-18, and soak gates keep release **RED**.
 

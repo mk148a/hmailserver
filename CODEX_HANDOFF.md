@@ -1,8 +1,8 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, queued backup cleanup)
+## Current Authoritative Continuation (2026-08-20, restore retry metadata)
 
-Current HEAD is `702caf5f5`. The latest disposable LocalDB/Data full Net10
+Current HEAD is `1d38c85a2`. The latest disposable LocalDB/Data full Net10
 suite is `2411 passed, 10 skipped, 0 failed`; focused queued backup failure
 coverage is `1 passed, 0 failed`, and backup archive coverage is `51 passed, 1
 skipped, 0 failed`. The ACL revalidation benchmark completed
@@ -18,11 +18,17 @@ metadata combinations. `FULL` now matches the actual C++ parser: it emits
 messages seen.
 
 Queued success and failure paths now prove event ordering against the real
-archive runtime on disposable filesystems. Next slice: isolated
-restore/rollback round-trip and semantic equivalence against disposable
-SQL/Data. Release remains **RED**: paired C++/.NET load, out-of-process
-COM/DCOM, migration/installer rollback, SEC-18, and 24-hour soak are still
-unproven. No push was performed.
+archive runtime on disposable filesystems. Code/test commit `1d38c85a2` also
+preserves legacy message retry metadata: C++ `Message::XMLLoad`
+(`hmailserver/source/Server/Common/BO/Message.cpp`) reads `NoOfRetries`, and
+Net10 `BackupArchiveXmlSnapshotParser.ParseFolder` binds it through
+`SqlServerMessageAdministrationStore.InsertMessageForRestoreAsync` as
+`@CurrentNumberOfTries`. Focused parser/store coverage is `23/23`; disposable
+restore coverage is `21/21`, including SQL readback of `9` retries. Next slice:
+broaden populated restore semantic-equivalence and crash/recovery evidence.
+Release remains **RED**: paired C++/.NET load, out-of-process COM/DCOM,
+migration/installer rollback, SEC-18, and 24-hour soak are still unproven. No
+push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, reversible ACL read-only state)
 

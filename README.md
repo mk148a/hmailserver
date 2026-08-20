@@ -1,15 +1,23 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, queued backup cleanup)
+## Current authoritative parity status (2026-08-20, restore retry metadata)
 
-Current HEAD `702caf5f5` has `2411 passed, 10 skipped, 0 failed` in the
+Current HEAD `1d38c85a2` has `2411 passed, 10 skipped, 0 failed` in the
 disposable LocalDB/Data full Net10 suite. Queued backup failure cleanup is `1
 passed, 0 failed`; focused backup acceptance is `51 passed, 1 skipped, 0
 failed`; the guarded ACL revalidation benchmark is `80/80`
 with p50/p95/p99 `0.499/0.856/1.317 ms`. The ACL result measures only Net10
 selected-mailbox revalidation and does not establish C++/.NET speed or a
 production SQL forecast.
+
+Restore parity now preserves message `NoOfRetries`: legacy
+`Message::XMLLoad` (`hmailserver/source/Server/Common/BO/Message.cpp`) reads
+the XML value, and Net10 `BackupArchiveXmlSnapshotParser.ParseFolder` passes it
+to `SqlServerMessageAdministrationStore.InsertMessageForRestoreAsync` through
+`@CurrentNumberOfTries`. Focused parser/store coverage is `23 passed, 0
+failed`; disposable `BackupRestoreRoundTripIntegrationTests` is `21 passed, 0
+failed`, including SQL readback of `9` retries.
 
 Legacy `BackupExecuter::StartBackup` and `BackupDataDirectory_` are anchored in
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:48-217`.
@@ -19,11 +27,11 @@ existing raw/compressed matrix. The actual legacy `FULL` implementation emits
 `ENVELOPE` and `BODYSTRUCTURE`; Net10 no longer adds `BODY[]` or an unintended
 `\\Seen` mutation.
 
-Queued backup success and failure event ordering now have disposable filesystem
-acceptance. Next slice: isolated restore/rollback round-trip and semantic
-equivalence against disposable SQL/Data. Paired C++/.NET load, COM/DCOM,
-SEC-18, migration/rollback, and 24-hour soak evidence remain open; release is
-**RED**.
+Queued backup success and failure event ordering and restore rollback paths now
+have disposable filesystem/LocalDB acceptance. Next slice: broaden populated
+restore semantic-equivalence and crash/recovery evidence. Paired C++/.NET
+load, COM/DCOM, SEC-18, migration/rollback, and 24-hour soak evidence remain
+open; release is **RED**.
 
 ## Current authoritative parity status (2026-08-20, reversible ACL read-only state)
 
