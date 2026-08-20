@@ -116,7 +116,7 @@ public sealed class SqlServerDeliveryTargetResolverTests
                 "SqlServerDeliveryTargetResolver.cs");
 
             if (File.Exists(path))
-                return File.ReadAllText(path);
+                return File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
         }
 
         Assert.Fail("Could not locate SqlServerDeliveryTargetResolver.cs from the test output directory.");

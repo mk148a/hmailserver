@@ -5,6 +5,11 @@ namespace HMailServer.Net10.Tests;
 [TestClass]
 public sealed class SqlServerSettingsAdministrationStoreTests
 {
+    private static void AssertSql(string expected, string actual)
+    {
+        Assert.AreEqual(expected, actual.Replace("\r\n", "\n", StringComparison.Ordinal));
+    }
+
     [TestMethod]
     public void UpdateDefaultDomainSql_UpdatesOnlyTheExistingDefaultDomainRowWithAParameter()
     {
@@ -36,7 +41,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowSmtpAuthPlainSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @AllowSMTPAuthPlain\nWHERE settingname = N'authallowplaintext';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -49,7 +54,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerRequiresAuthenticationSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @SMTPRelayerRequiresAuthentication\nWHERE settingname = N'usesmtprelayerauthentication';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -62,7 +67,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settingstring = @SMTPRelayer\nWHERE settingname = N'smtprelayer';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -75,7 +80,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerUsernameSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settingstring = @SMTPRelayerUsername\nWHERE settingname = N'smtprelayerusername';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -88,7 +93,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerPasswordSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settingstring = @SMTPRelayerPassword\nWHERE settingname = N'smtprelayerpassword';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -101,7 +106,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerPortSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @SMTPRelayerPort\nWHERE settingname = N'smtprelayerport';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -114,7 +119,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpRelayerConnectionSecuritySql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @SMTPRelayerConnectionSecurity\nWHERE settingname = N'smtprelayerconnectionsecurity';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -127,7 +132,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateSmtpConnectionSecuritySql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @SMTPConnectionSecurity\nWHERE settingname = N'SmtpDeliveryConnectionSecurity';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -192,7 +197,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateTcpIpThreadsSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @TCPIPThreads\nWHERE settingname = N'tcpipthreads';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -257,7 +262,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateMaxImapConnectionsSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @MaxIMAPConnections\nWHERE settingname = N'maximapconnections';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -283,7 +288,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateMaxDeliveryThreadsSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @MaxDeliveryThreads\nWHERE settingname = N'maxdelivertythreads';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -296,7 +301,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateMaxAsynchronousThreadsSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @MaxAsynchronousThreads\nWHERE settingname = N'MaxNumberOfAsynchronousTasks';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -348,7 +353,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateVerifyRemoteSslCertificateSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @VerifyRemoteSslCertificate\nWHERE settingname = N'VerifyRemoteSslCertificate';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -361,7 +366,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @AllowMailFromNull\nWHERE settingname = N'allowmailfromnull';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
@@ -374,7 +379,7 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateRuleLoopLimitSql;
 
-        Assert.AreEqual(
+        AssertSql(
             "UPDATE hm_settings\nSET settinginteger = @RuleLoopLimit\nWHERE settingname = N'rulelooplimit';",
             sql);
         Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
