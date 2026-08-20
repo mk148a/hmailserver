@@ -98,6 +98,92 @@ public sealed class BackupRestoreMetadataWriterTests
         Assert.AreEqual(1, rollbackCalls);
     }
 
+    [TestMethod]
+    public async Task RestorePublicFolderPermissionsAsync_ResolvesAndInsertsInArchiveOrder()
+    {
+        var store = new RecordingFolderPermissionRestoreStore();
+        var permissions = new[]
+        {
+            new RestoreFolderPermissionEntry(0, 3, "user@example.test"),
+            new RestoreFolderPermissionEntry(1, 1024, "Editors"),
+            new RestoreFolderPermissionEntry(2, 2047, "ignored")
+        };
+
+        var restored = await BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync(
+            permissions,
+            folderId: 500,
+            new[] { new AccountAdministrationSnapshot(42, 7, "user@example.test", true, 0) },
+            new[] { new GroupAdministrationSnapshot(77, "Editors") },
+            store,
+            () => default,
+            CancellationToken.None);
+
+        Assert.AreEqual(3, restored);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                (FolderId: 500, Type: 0, GroupId: 0, AccountId: 42, Rights: 3),
+                (FolderId: 500, Type: 1, GroupId: 77, AccountId: 0, Rights: 1024),
+                (FolderId: 500, Type: 2, GroupId: 0, AccountId: 0, Rights: 2047)
+            },
+            store.Inserted);
+    }
+
+    [TestMethod]
+    public async Task RestorePublicFolderPermissionsAsync_ResolvesBeforeAnyInsertOnInvalidHolder()
+    {
+        var store = new RecordingFolderPermissionRestoreStore();
+        var rollbackCalls = 0;
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+            BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync(
+                new[]
+                {
+                    new RestoreFolderPermissionEntry(0, 3, "user@example.test"),
+                    new RestoreFolderPermissionEntry(1, 1024, "MissingGroup")
+                },
+                folderId: 500,
+                new[] { new AccountAdministrationSnapshot(42, 7, "user@example.test", true, 0) },
+                new[] { new GroupAdministrationSnapshot(77, "Editors") },
+                store,
+                () =>
+                {
+                    rollbackCalls++;
+                    return default;
+                },
+                CancellationToken.None).AsTask());
+
+        Assert.IsEmpty(store.Inserted);
+        Assert.AreEqual(0, rollbackCalls);
+    }
+
+    [TestMethod]
+    public async Task RestorePublicFolderPermissionsAsync_RollsBackAfterMidBatchInsertFailure()
+    {
+        var store = new RecordingFolderPermissionRestoreStore(failOnInsert: 2);
+        var rollbackCalls = 0;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync(
+                new[]
+                {
+                    new RestoreFolderPermissionEntry(0, 3, "user@example.test"),
+                    new RestoreFolderPermissionEntry(1, 1024, "Editors")
+                },
+                folderId: 500,
+                new[] { new AccountAdministrationSnapshot(42, 7, "user@example.test", true, 0) },
+                new[] { new GroupAdministrationSnapshot(77, "Editors") },
+                store,
+                () =>
+                {
+                    rollbackCalls++;
+                    return default;
+                },
+                CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, store.Inserted.Count);
+        Assert.AreEqual(1, rollbackCalls);
+    }
+
     private sealed class RecordingDomainStore : IDomainAdministrationStore
     {
         public List<DomainAdministrationSnapshot> Inserted { get; } = new();
@@ -144,6 +230,43 @@ public sealed class BackupRestoreMetadataWriterTests
             ImapFolderAdministrationSnapshot folder,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(folder with { Id = 101 });
+    }
+
+    private sealed class RecordingFolderPermissionRestoreStore
+        : IImapFolderPermissionAdministrationRestoreStore
+    {
+        private readonly int? _failOnInsert;
+
+        public RecordingFolderPermissionRestoreStore(int? failOnInsert = null)
+        {
+            _failOnInsert = failOnInsert;
+        }
+
+        public List<(int FolderId, int Type, int GroupId, int AccountId, int Rights)> Inserted { get; } = new();
+
+        public ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertFolderPermissionForRestoreAsync(
+            int folderId,
+            int permissionType,
+            int permissionGroupId,
+            int permissionAccountId,
+            int value,
+            CancellationToken cancellationToken)
+        {
+            if (_failOnInsert == Inserted.Count + 1)
+            {
+                throw new InvalidOperationException("Simulated ACL insert failure.");
+            }
+
+            Inserted.Add((folderId, permissionType, permissionGroupId, permissionAccountId, value));
+            return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(
+                new ImapFolderPermissionAdministrationSnapshot(
+                    Inserted.Count,
+                    folderId,
+                    permissionType,
+                    permissionGroupId,
+                    permissionAccountId,
+                    value));
+        }
     }
 
     private sealed class FailingMessageRestoreStore : IMessageAdministrationRestoreStore

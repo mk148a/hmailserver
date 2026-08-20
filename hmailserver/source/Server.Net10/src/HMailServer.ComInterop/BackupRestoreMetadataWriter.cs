@@ -288,6 +288,56 @@ public static class BackupRestoreMetadataWriter
         return new BackupRestoreMetadataResult(RestoredDomains: 0, RestoredAccounts: 0, RestoredAliases: 0, RestoredDistributionLists: 0, restored);
     }
 
+    public static async ValueTask<int> RestorePublicFolderPermissionsAsync(
+        IReadOnlyList<RestoreFolderPermissionEntry> permissions,
+        int folderId,
+        IReadOnlyList<AccountAdministrationSnapshot> accounts,
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        IImapFolderPermissionAdministrationRestoreStore store,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(permissions);
+        ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentNullException.ThrowIfNull(groups);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+        if (folderId <= 0)
+        {
+            throw new InvalidDataException("The public-folder ACL restore requires a persisted folder ID.");
+        }
+
+        // Resolve every holder before the first insert so an invalid archive cannot
+        // leave a partially written ACL batch outside the caller's transaction.
+        var resolved = permissions
+            .Select(permission => PublicFolderAclHolderResolver.Resolve(permission, accounts, groups))
+            .ToArray();
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var permission in resolved)
+                {
+                    var inserted = await store.InsertFolderPermissionForRestoreAsync(
+                        folderId,
+                        permission.PermissionType,
+                        permission.PermissionGroupId,
+                        permission.PermissionAccountId,
+                        permission.Rights,
+                        ct).ConfigureAwait(false);
+                    if (inserted is null)
+                    {
+                        throw new InvalidOperationException(
+                            "The public-folder ACL restore did not insert a permission row.");
+                    }
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return resolved.Length;
+    }
+
     public static async ValueTask<BackupRestoreMetadataResult> RestoreFoldersAsync(
         IReadOnlyList<RestoreFolderEntry> folders,
         int accountId,
