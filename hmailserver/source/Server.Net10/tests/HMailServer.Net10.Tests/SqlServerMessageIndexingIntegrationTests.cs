@@ -819,14 +819,14 @@ WHERE recipientmessageid = @MessageId;
                 await greyListingWhiteAddressRefreshConnection.OpenAsync().ConfigureAwait(false);
                 await using var updateGreyListingWhiteAddress = new SqlCommand(
                     """
-                    UPDATE dbo.hm_greylisting_whiteaddresses
-                    SET whiteid = 30,
-                        whiteipaddress = N'198.51.100.%',
-                        whiteipdescription = N'Refreshed network'
-                    WHERE whiteid = 10;
+                    DELETE FROM dbo.hm_greylisting_whiteaddresses WHERE whiteid = 10;
+                    SET IDENTITY_INSERT dbo.hm_greylisting_whiteaddresses ON;
+                    INSERT INTO dbo.hm_greylisting_whiteaddresses (whiteid, whiteipaddress, whiteipdescription)
+                    VALUES (30, N'198.51.100.%', N'Refreshed network');
+                    SET IDENTITY_INSERT dbo.hm_greylisting_whiteaddresses OFF;
                     """,
                     greyListingWhiteAddressRefreshConnection);
-                Assert.AreEqual(1, await updateGreyListingWhiteAddress.ExecuteNonQueryAsync().ConfigureAwait(false));
+                Assert.AreEqual(2, await updateGreyListingWhiteAddress.ExecuteNonQueryAsync().ConfigureAwait(false));
             }
 
             greyListingWhiteAddresses.Refresh();
@@ -841,6 +841,46 @@ WHERE recipientmessageid = @MessageId;
                 unchecked((int)0x8002000B),
                 Assert.ThrowsExactly<COMException>(
                     () => greyListingWhiteAddresses.get_ItemByDBID(10)).ErrorCode);
+
+            var addedGreyListingWhiteAddress = greyListingWhiteAddresses.Add();
+            addedGreyListingWhiteAddress.IPAddress = "203.0.113.*";
+            addedGreyListingWhiteAddress.Description = "Added network";
+            addedGreyListingWhiteAddress.Save();
+
+            Assert.IsTrue(addedGreyListingWhiteAddress.ID > 0);
+            Assert.AreEqual(3, greyListingWhiteAddresses.Count);
+            Assert.AreEqual(
+                "203.0.113.*",
+                greyListingWhiteAddresses.get_ItemByDBID(addedGreyListingWhiteAddress.ID).IPAddress);
+            Assert.AreEqual(
+                "Added network",
+                greyListingWhiteAddresses.get_ItemByDBID(addedGreyListingWhiteAddress.ID).Description);
+
+            await using (var greyListingWhiteAddressReadbackConnection = new SqlConnection(testConnectionString))
+            {
+                await greyListingWhiteAddressReadbackConnection.OpenAsync().ConfigureAwait(false);
+                await using var readbackCommand = new SqlCommand(
+                    "SELECT whiteipaddress, whiteipdescription FROM dbo.hm_greylisting_whiteaddresses WHERE whiteid = @WhiteId;",
+                    greyListingWhiteAddressReadbackConnection);
+                readbackCommand.Parameters.AddWithValue("@WhiteId", addedGreyListingWhiteAddress.ID);
+                await using var readback = await readbackCommand.ExecuteReaderAsync().ConfigureAwait(false);
+                Assert.IsTrue(await readback.ReadAsync().ConfigureAwait(false));
+                Assert.AreEqual("203.0.113.%", readback.GetString(0));
+                Assert.AreEqual("Added network", readback.GetString(1));
+            }
+
+            greyListingWhiteAddresses.DeleteByDBID(addedGreyListingWhiteAddress.ID);
+            Assert.AreEqual(2, greyListingWhiteAddresses.Count);
+            await using (var greyListingWhiteAddressDeleteConnection = new SqlConnection(testConnectionString))
+            {
+                await greyListingWhiteAddressDeleteConnection.OpenAsync().ConfigureAwait(false);
+                Assert.AreEqual(
+                    0L,
+                    await ExecuteScalarInt64Async(
+                        greyListingWhiteAddressDeleteConnection,
+                        "SELECT COUNT_BIG(*) FROM dbo.hm_greylisting_whiteaddresses WHERE whiteid = " +
+                        addedGreyListingWhiteAddress.ID + ";").ConfigureAwait(false));
+            }
 
             var whiteListAddresses = antiSpam.WhiteListAddresses;
             Assert.AreEqual(2, whiteListAddresses.Count);
@@ -2970,7 +3010,7 @@ CREATE TABLE dbo.hm_surblservers
 
 CREATE TABLE dbo.hm_greylisting_whiteaddresses
 (
-    whiteid bigint NOT NULL PRIMARY KEY,
+    whiteid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
     whiteipaddress nvarchar(255) NOT NULL,
     whiteipdescription nvarchar(255) NOT NULL
 );
@@ -3125,10 +3165,12 @@ VALUES
     (20, 0, N'example.surbl.test', N'Rejected by test SURBL.', 2),
     (10, 1, N'multi.surbl.org', N'Rejected by SURBL.', 4);
 
+SET IDENTITY_INSERT dbo.hm_greylisting_whiteaddresses ON;
 INSERT INTO dbo.hm_greylisting_whiteaddresses (whiteid, whiteipaddress, whiteipdescription)
 VALUES
     (20, N'203.0.113.5', N'Single address'),
     (10, N'192.0.2.%', N'Test network');
+SET IDENTITY_INSERT dbo.hm_greylisting_whiteaddresses OFF;
 
 INSERT INTO dbo.hm_greylisting_triplets (glid)
 VALUES (10), (20);
