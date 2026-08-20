@@ -204,11 +204,40 @@ WHERE
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.PublicFolderName);
     }
 
-    public ValueTask<ImapMailboxSelection?> RevalidateSelectedMailboxAsync(
+    public async ValueTask<ImapMailboxSelection?> RevalidateSelectedMailboxAsync(
         int requesterAccountId,
         ImapMailboxSelection selectedMailbox,
-        CancellationToken cancellationToken) =>
-        SelectMailboxAsync(requesterAccountId, selectedMailbox.Name, readOnly: false, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(requesterAccountId);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        var folder = await LoadFolderByIdAsync(
+            connection,
+            selectedMailbox.AccountId,
+            selectedMailbox.FolderId,
+            cancellationToken).ConfigureAwait(false);
+        if (folder is null || folder.FolderAccountId != selectedMailbox.AccountId)
+        {
+            return null;
+        }
+
+        var access = await ResolveAccessAsync(
+            connection,
+            requesterAccountId,
+            folder,
+            isPublicFolder: folder.FolderAccountId == 0,
+            cancellationToken).ConfigureAwait(false);
+        if (!access.CanRead)
+        {
+            return null;
+        }
+
+        return selectedMailbox with
+        {
+            IsReadOnly = selectedMailbox.IsReadOnly || !access.CanWrite
+        };
+    }
 
     public async ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
         int accountId,

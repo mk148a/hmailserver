@@ -38,6 +38,8 @@ public sealed class SqlServerImapAuthAndMailboxTests
     {
         StringAssert.Contains(SqlServerImapMailboxStore.FindChildFolderSql, "FROM hm_imapfolders");
         StringAssert.Contains(SqlServerImapMailboxStore.FindChildFolderSql, "folderparentid = @ParentFolderId");
+        StringAssert.Contains(SqlServerImapMailboxStore.SelectFolderByIdSql, "folderaccountid = @FolderAccountId");
+        StringAssert.Contains(SqlServerImapMailboxStore.SelectFolderByIdSql, "folderid = @FolderId");
         StringAssert.Contains(SqlServerImapMailboxStore.SelectMailboxCountersSql, "COUNT_BIG(m.messageid)");
         StringAssert.Contains(SqlServerImapMailboxStore.SelectMailboxCountersSql, "unseencount");
         StringAssert.Contains(SqlServerImapMailboxStore.ListFoldersSql, "folderissubscribed");
