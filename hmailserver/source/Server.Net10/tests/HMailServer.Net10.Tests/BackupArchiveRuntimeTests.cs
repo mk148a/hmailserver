@@ -1529,6 +1529,132 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesPublicFoldersMessagesChildrenAndAclsInLegacyOrder()
+    {
+        var root = new ImapFolderAdministrationSnapshot(
+            501,
+            0,
+            -1,
+            "Public<&\"'",
+            true,
+            7,
+            "2026-08-20 01:02:03");
+        var child = new ImapFolderAdministrationSnapshot(
+            502,
+            0,
+            501,
+            "Child",
+            false,
+            8,
+            "2026-08-20 02:03:04");
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                new SettingsAdministrationSnapshot("host", "smtp", "pop3", "imap"),
+                Domains: null,
+                PublicFolders: new[]
+                {
+                    new BackupPublicFolderEntry(
+                        root,
+                        new[]
+                        {
+                            new BackupPublicFolderEntry(
+                                child,
+                                Array.Empty<BackupPublicFolderEntry>(),
+                                Array.Empty<MessageAdministrationSnapshot>(),
+                                new[] { new BackupPublicFolderPermission(1, 1024, "Editors") })
+                        },
+                        new[]
+                        {
+                            new MessageAdministrationSnapshot(
+                                601,
+                                0,
+                                501,
+                                "public-root.eml",
+                                2,
+                                "from@example.test",
+                                100,
+                                0,
+                                3,
+                                new DateTime(2026, 8, 20, 4, 5, 6),
+                                9)
+                        },
+                        new[] { new BackupPublicFolderPermission(0, 3, "user@example.test") })
+                }));
+
+        var publicFolder = XDocument.Parse(xml).Root!.Element("PublicFolders")!.Element("Folder")!;
+        CollectionAssert.AreEqual(
+            new[] { "Messages", "Folders", "ACLs" },
+            publicFolder.Elements().Select(static element => element.Name.LocalName).ToArray());
+        Assert.AreEqual("Public<&\"'", publicFolder.Attribute("Name")?.Value);
+        Assert.AreEqual("Child", publicFolder.Element("Folders")!.Element("Folder")!.Attribute("Name")?.Value);
+        Assert.AreEqual("Editors", publicFolder.Element("Folders")!.Element("Folder")!.Element("ACLs")!
+            .Element("Permission")!.Attribute("Holder")?.Value);
+        Assert.IsTrue(xml.Contains("Name=\"Public&lt;&amp;&quot;&apos;\"", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task PayloadRuntimeCapturesPublicFolderMessagesChildrenAndResolvedAclHolders()
+    {
+        var folderStore = new RecordingImapFolderAdministrationStore(
+            new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>
+            {
+                [0] = new[]
+                {
+                    new ImapFolderAdministrationSnapshot(501, 0, -1, "Shared", true, 7, "created"),
+                    new ImapFolderAdministrationSnapshot(502, 0, 501, "Child", false, 8, "created")
+                }
+            },
+            new Dictionary<int, IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>
+            {
+                [501] = new[] { new ImapFolderPermissionAdministrationSnapshot(701, 501, 0, 0, 20, 3) },
+                [502] = new[] { new ImapFolderPermissionAdministrationSnapshot(702, 502, 1, 77, 0, 1024) }
+            });
+        var messageStore = new RecordingMessageAdministrationStore(
+            new Dictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>
+            {
+                [501] = new[]
+                {
+                    new MessageAdministrationSnapshot(601, 0, 501, "root.eml", 2, "from@example.test", 10, 0, 0,
+                        new DateTime(2026, 8, 20, 4, 5, 6), 9)
+                }
+            });
+        var accountStore = new RecordingAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+            {
+                [10] = new[] { new AccountAdministrationSnapshot(20, 10, "user@example.test", true, 0) }
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
+            new RecordingDomainAliasAdministrationStore(new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            accountStore,
+            new RecordingAliasAdministrationStore(new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            distributionListStore: null,
+            distributionListRecipientStore: null,
+            folderStore: folderStore,
+            messageStore: messageStore,
+            groupStore: new RecordingGroupAdministrationStore(new[] { new GroupAdministrationSnapshot(77, "Editors") }));
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                "unused",
+                1,
+                false,
+                true,
+                true),
+            CancellationToken.None);
+
+        Assert.IsNotNull(payload.PublicFolders);
+        Assert.AreEqual(1, payload.PublicFolders!.Count);
+        Assert.AreEqual("user@example.test", payload.PublicFolders[0].Permissions[0].Holder);
+        Assert.AreEqual("Editors", payload.PublicFolders[0].Children[0].Permissions[0].Holder);
+        CollectionAssert.AreEqual(new[] { 0 }, folderStore.RequestedAccountIds);
+        CollectionAssert.AreEqual(new[] { 501, 502 }, messageStore.RequestedFolderIds);
+    }
+
+    [TestMethod]
     public void MetadataXmlRejectsDuplicateFolderIdsBeforeWriting()
     {
         var error = Assert.ThrowsExactly<InvalidOperationException>(() =>
@@ -2579,7 +2705,8 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     private sealed class RecordingImapFolderAdministrationStore(
-        IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>> folders)
+        IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>> folders,
+        IReadOnlyDictionary<int, IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>? permissions = null)
         : IImapFolderAdministrationStore
     {
         public List<int> RequestedAccountIds { get; } = new();
@@ -2617,7 +2744,16 @@ public sealed class BackupArchiveRuntimeTests
             int folderId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(
-                Array.Empty<ImapFolderPermissionAdministrationSnapshot>());
+                permissions is not null && permissions.TryGetValue(folderId, out var folderPermissions)
+                    ? folderPermissions
+                    : Array.Empty<ImapFolderPermissionAdministrationSnapshot>());
+    }
+
+    private sealed class RecordingGroupAdministrationStore(
+        IReadOnlyList<GroupAdministrationSnapshot> groups) : IGroupAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
+            CancellationToken cancellationToken) => ValueTask.FromResult(groups);
     }
 
     private sealed class RecordingMessageAdministrationStore(

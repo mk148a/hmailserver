@@ -322,10 +322,13 @@ public sealed class SevenZipBackupArchiveRuntime
         if (payload?.SettingsProperties is not null)
         {
             WriteRawSettings(writer, payload.SettingsProperties);
-            return;
+        }
+        else
+        {
+            WriteModeledSettings(writer, payload?.Settings);
         }
 
-        WriteModeledSettings(writer, payload?.Settings);
+        WritePublicFolders(writer, payload?.PublicFolders);
     }
 
     private static void WriteRawSettings(
@@ -781,7 +784,7 @@ public sealed class SevenZipBackupArchiveRuntime
         writer.WriteEndElement();
     }
 
-    private static void ValidateFolderSnapshot(
+    internal static void ValidateFolderSnapshot(
         IReadOnlyList<ImapFolderAdministrationSnapshot> accountFolders)
     {
         var foldersById = new Dictionary<int, ImapFolderAdministrationSnapshot>();
@@ -881,6 +884,13 @@ public sealed class SevenZipBackupArchiveRuntime
             return;
         }
 
+        WriteMessages(writer, messages);
+    }
+
+    private static void WriteMessages(
+        XmlWriter writer,
+        IReadOnlyList<MessageAdministrationSnapshot> messages)
+    {
         writer.WriteStartElement("Messages");
         foreach (var message in messages)
         {
@@ -894,6 +904,63 @@ public sealed class SevenZipBackupArchiveRuntime
             WriteLegacyAttribute(writer, "Flags", message.Flags.ToString(CultureInfo.InvariantCulture));
             WriteLegacyAttribute(writer, "ID", message.Id.ToString(CultureInfo.InvariantCulture));
             WriteLegacyAttribute(writer, "UID", message.Uid.ToString(CultureInfo.InvariantCulture));
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WritePublicFolders(
+        XmlWriter writer,
+        IReadOnlyList<BackupPublicFolderEntry>? publicFolders)
+    {
+        if (publicFolders is null || publicFolders.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartElement("PublicFolders");
+        foreach (var folder in publicFolders)
+        {
+            WritePublicFolder(writer, folder);
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WritePublicFolder(
+        XmlWriter writer,
+        BackupPublicFolderEntry entry)
+    {
+        writer.WriteStartElement("Folder");
+        WriteLegacyAttribute(writer, "Name", entry.Folder.Name);
+        WriteLegacyAttribute(writer, "Subscribed", (entry.Folder.Subscribed ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+        WriteLegacyAttribute(writer, "CreateTime", entry.Folder.CreationTime);
+        WriteLegacyAttribute(writer, "CurrentUID", entry.Folder.CurrentUid.ToString(CultureInfo.InvariantCulture));
+        WriteMessages(writer, entry.Messages);
+        if (entry.Children.Count > 0)
+        {
+            writer.WriteStartElement("Folders");
+            foreach (var child in entry.Children)
+            {
+                WritePublicFolder(writer, child);
+            }
+
+            writer.WriteEndElement();
+        }
+
+        if (entry.Permissions.Count > 0)
+        {
+            writer.WriteStartElement("ACLs");
+            foreach (var permission in entry.Permissions)
+            {
+                writer.WriteStartElement("Permission");
+                WriteLegacyAttribute(writer, "Type", permission.PermissionType.ToString(CultureInfo.InvariantCulture));
+                WriteLegacyAttribute(writer, "Rights", permission.Rights.ToString(CultureInfo.InvariantCulture));
+                WriteLegacyAttribute(writer, "Holder", permission.Holder);
+                writer.WriteEndElement();
+            }
+
             writer.WriteEndElement();
         }
 
@@ -1105,7 +1172,21 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>? RuleCriterias = null,
     IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? RuleActions = null,
     IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? Folders = null,
-    IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? FolderMessages = null);
+    IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? FolderMessages = null,
+    IReadOnlyList<BackupPublicFolderEntry>? PublicFolders = null);
+
+[ComVisible(false)]
+public sealed record BackupPublicFolderPermission(
+    int PermissionType,
+    int Rights,
+    string Holder);
+
+[ComVisible(false)]
+public sealed record BackupPublicFolderEntry(
+    ImapFolderAdministrationSnapshot Folder,
+    IReadOnlyList<BackupPublicFolderEntry> Children,
+    IReadOnlyList<MessageAdministrationSnapshot> Messages,
+    IReadOnlyList<BackupPublicFolderPermission> Permissions);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -1127,6 +1208,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
+    private readonly IGroupAdministrationStore? _groupStore;
     private readonly IBackupRestoreMetadataTransactionFactory? _metadataTransactionFactory;
     private readonly bool _requireSqlTransaction;
 
@@ -1155,7 +1237,8 @@ public sealed class BackupXmlPayloadRuntime
             folderRestoreStore: null,
             messageStore: null,
             metadataTransactionFactory: null,
-            requireSqlTransaction: false)
+            requireSqlTransaction: false,
+            groupStore: null)
     {
     }
 
@@ -1178,7 +1261,8 @@ public sealed class BackupXmlPayloadRuntime
         IImapFolderAdministrationRestoreStore? folderRestoreStore = null,
         IMessageAdministrationStore? messageStore = null,
         IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
-        bool requireSqlTransaction = false)
+        bool requireSqlTransaction = false,
+        IGroupAdministrationStore? groupStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -1202,6 +1286,7 @@ public sealed class BackupXmlPayloadRuntime
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
+        _groupStore = groupStore;
         _metadataTransactionFactory = metadataTransactionFactory;
         _requireSqlTransaction = requireSqlTransaction;
     }
@@ -1236,6 +1321,7 @@ public sealed class BackupXmlPayloadRuntime
         IReadOnlyDictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>? aliases = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients = null;
+        IReadOnlyList<BackupPublicFolderEntry>? publicFolders = null;
         if (domains is not null)
         {
             var aliasesByDomainId = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
@@ -1435,6 +1521,24 @@ public sealed class BackupXmlPayloadRuntime
             }
         }
 
+        if ((evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0
+            && _folderStore is not null)
+        {
+            var publicFolderSnapshots = await _folderStore
+                .GetFoldersForAccountAsync(0, cancellationToken)
+                .ConfigureAwait(false);
+            if (publicFolderSnapshots.Count > 0)
+            {
+                var groups = _groupStore is null
+                    ? Array.Empty<GroupAdministrationSnapshot>()
+                    : await _groupStore.GetGroupsAsync(cancellationToken).ConfigureAwait(false);
+                publicFolders = await BuildPublicFoldersAsync(
+                    publicFolderSnapshots,
+                    groups,
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         return new BackupArchiveXmlPayload(
             settings,
             domains,
@@ -1451,7 +1555,108 @@ public sealed class BackupXmlPayloadRuntime
             ruleCriterias,
             ruleActions,
             folders,
-            folderMessages);
+            folderMessages,
+            publicFolders);
+    }
+
+    private async ValueTask<IReadOnlyList<BackupPublicFolderEntry>> BuildPublicFoldersAsync(
+        IReadOnlyList<ImapFolderAdministrationSnapshot> folders,
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        CancellationToken cancellationToken)
+    {
+        SevenZipBackupArchiveRuntime.ValidateFolderSnapshot(folders);
+        if (folders.Any(static folder => folder.AccountId != 0))
+        {
+            throw new InvalidDataException(
+                "The public-folder backup snapshot contains a non-public account ID.");
+        }
+
+        var foldersByParentId = folders
+            .GroupBy(static folder => folder.ParentId)
+            .ToDictionary(static group => group.Key, static group => group.ToArray());
+        var accountCache = new Dictionary<int, AccountAdministrationSnapshot?>();
+        var roots = foldersByParentId.TryGetValue(-1, out var rootFolders)
+            ? rootFolders
+            : Array.Empty<ImapFolderAdministrationSnapshot>();
+        var result = new List<BackupPublicFolderEntry>(roots.Length);
+        foreach (var root in roots)
+        {
+            result.Add(await BuildPublicFolderAsync(
+                root,
+                foldersByParentId,
+                groups,
+                accountCache,
+                cancellationToken).ConfigureAwait(false));
+        }
+
+        return result;
+    }
+
+    private async ValueTask<BackupPublicFolderEntry> BuildPublicFolderAsync(
+        ImapFolderAdministrationSnapshot folder,
+        IReadOnlyDictionary<int, ImapFolderAdministrationSnapshot[]> foldersByParentId,
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        IDictionary<int, AccountAdministrationSnapshot?> accountCache,
+        CancellationToken cancellationToken)
+    {
+        var messages = _messageStore is null
+            ? Array.Empty<MessageAdministrationSnapshot>()
+            : await _messageStore.GetFolderMessagesAsync(0, folder.Id, cancellationToken).ConfigureAwait(false);
+        var permissions = await _folderStore!
+            .GetFolderPermissionsAsync(folder.Id, cancellationToken)
+            .ConfigureAwait(false);
+        var publicPermissions = new List<BackupPublicFolderPermission>(permissions.Count);
+        foreach (var permission in permissions)
+        {
+            var holder = permission.PermissionType switch
+            {
+                0 => await ResolveAccountHolderAsync(permission.PermissionAccountId, accountCache, cancellationToken).ConfigureAwait(false),
+                1 => groups.FirstOrDefault(group => group.Id == permission.PermissionGroupId)?.Name,
+                2 => "Anyone",
+                _ => null
+            };
+            if (string.IsNullOrWhiteSpace(holder))
+            {
+                throw new InvalidDataException(
+                    "The public-folder ACL holder could not be resolved for permission type "
+                    + permission.PermissionType + ".");
+            }
+
+            publicPermissions.Add(new BackupPublicFolderPermission(
+                permission.PermissionType,
+                permission.Value,
+                holder));
+        }
+
+        var children = new List<BackupPublicFolderEntry>();
+        if (foldersByParentId.TryGetValue(folder.Id, out var childFolders))
+        {
+            foreach (var child in childFolders)
+            {
+                children.Add(await BuildPublicFolderAsync(
+                    child,
+                    foldersByParentId,
+                    groups,
+                    accountCache,
+                    cancellationToken).ConfigureAwait(false));
+            }
+        }
+
+        return new BackupPublicFolderEntry(folder, children, messages, publicPermissions);
+    }
+
+    private async ValueTask<string?> ResolveAccountHolderAsync(
+        int accountId,
+        IDictionary<int, AccountAdministrationSnapshot?> accountCache,
+        CancellationToken cancellationToken)
+    {
+        if (!accountCache.TryGetValue(accountId, out var account))
+        {
+            account = await _accountStore.GetAccountByIdAsync(accountId, cancellationToken).ConfigureAwait(false);
+            accountCache[accountId] = account;
+        }
+
+        return account?.Address;
     }
 
     internal void ConfigureRestoreRuntime(
