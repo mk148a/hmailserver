@@ -1,34 +1,37 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam CheckPTR mutation parity)
+## Current authoritative parity status (2026-08-21, AntiSpam GreyListingEnabled runtime parity)
 
-Code/test commit `c2a7f909c` implements the legacy Administrator
-`AntiSpam.CheckPTR` and `CheckPTRScore` setters through the
+Code/test commit `b012f652f` implements the legacy Administrator
+`AntiSpam.GreyListingEnabled` setter through the
 existing authenticated Settings mutation boundary, after the SPF, MX checks,
 SpamAssassin, scanner endpoint, maximum-size, DKIM verification, greylisting
-bypass, CheckHostInHelo, AddHeader, PrependSubject, and threshold pairs. The SQL
-store updates only the legacy `ascheckptr` and `ascheckptrscore` rows, reports
+bypass, CheckHostInHelo, CheckPTR, AddHeader, PrependSubject, and threshold pairs.
+The SQL store updates only the legacy `usegreylisting` row, reports
 contained missing-row failures, refreshes retained COM snapshots, and
-preserves direct activation/re-authentication denials. Focused COM/SQL
-coverage is `3 passed, 0 skipped, 0 failed`; the disposable SQL integration
-setter/readback and missing-row checks passed; full disposable Net10 is `2486
-passed, 10 skipped, 0 failed` (`2499` total).
+preserves direct activation/re-authentication denials. The runtime publisher
+updates the singleton SMTP greylisting option atomically, and startup applies
+the persisted SQL snapshot. Focused COM/SQL/security coverage is `4 passed, 0
+skipped, 0 failed`; the disposable SQL integration setter/readback and
+missing-row checks passed; full disposable Net10 is `2493 passed, 10 skipped,
+0 failed` (`2503` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_CheckPTR` and
-`put_CheckPTRScore` (`source/Server/COM/InterfaceAntiSpam.cpp:129-190`),
-`AntiSpamConfiguration::SetCheckPTR` and `SetCheckPTRScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:75-95`),
-and the legacy keys `ascheckptr`/`ascheckptrscore`
-(`source/Server/Common/Application/Constants.h:56-57`). This slice does not
-add live SMTP/POP3 PTR reconfiguration; the existing runtime consumer remains
-unchanged.
+Legacy anchors are `InterfaceAntiSpam::put_GreyListingEnabled`
+(`source/Server/COM/InterfaceAntiSpam.cpp:281-295`),
+`AntiSpamConfiguration::SetUseGreyListing`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:99-102`), and the
+legacy key `usegreylisting`
+(`source/Server/Common/Application/Constants.h:77`, seeded by
+`source/DBScripts/CreateTablesMSSQL.sql:844`). This slice does not add delay,
+lifetime, triplet-collection, cleanup, or WebAdmin behavior.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
 open. The next bounded parity slice is `AntiSpam.GreyListingEnabled`, including
 its live SMTP enable/disable configuration bridge; delay/lifetime setters,
-triplet collections, and cleanup remain separate.
+triplet collections, and cleanup remain separate. A production-hosted SMTP
+socket acceptance for enable/disable is still missing.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 
