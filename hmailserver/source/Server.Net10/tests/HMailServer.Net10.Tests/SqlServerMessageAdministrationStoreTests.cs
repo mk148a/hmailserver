@@ -154,8 +154,9 @@ public sealed class SqlServerMessageAdministrationStoreTests
         StringAssert.Contains(sql, "OUTPUT INSERTED.messageid");
         StringAssert.Contains(sql, "CONVERT(datetime, '1901-01-01', 120)");
         StringAssert.Contains(sql, "SELECT @AccountID, @FolderID");
-        StringAssert.Contains(sql, "@CurrentNumberOfTries, CONVERT");
-        StringAssert.Contains(sql, "@CurrentNumberOfTries");
+        StringAssert.Contains(sql, "0, CONVERT");
+        StringAssert.Contains(sql, "(@Flags | @RecentFlag)");
+        Assert.IsFalse(sql.Contains("@CurrentNumberOfTries", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(sql, "folderid = @FolderID");
         StringAssert.Contains(sql, "folderaccountid = @AccountID");
         Assert.IsFalse(sql.Contains("foldercurrentuid", StringComparison.OrdinalIgnoreCase));

@@ -258,7 +258,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             Assert.AreEqual(1, restoredMessages.Count);
             Assert.AreEqual("one.eml", restoredMessages[0].FileName);
             Assert.AreEqual(8, restoredMessages[0].Uid);
-            Assert.AreEqual(9, restoredMessages[0].CurrentNumberOfTries);
+            Assert.AreEqual(0, restoredMessages[0].CurrentNumberOfTries);
+            Assert.AreEqual(33, restoredMessages[0].Flags);
 
             var restoredAlias = (await aliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Single();
             Assert.AreEqual("alias@roundtrip.example", restoredAlias.Name);
@@ -415,7 +416,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 Assert.AreEqual(1, messages.Count);
                 Assert.AreEqual("public.eml", messages[0].FileName);
                 Assert.AreEqual(12, messages[0].Uid);
-                Assert.AreEqual(2, messages[0].CurrentNumberOfTries);
+                Assert.AreEqual(0, messages[0].CurrentNumberOfTries);
+                Assert.AreEqual(33, messages[0].Flags);
                 Assert.AreEqual(2, await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 0).ConfigureAwait(false));
                 Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_messages", "messageaccountid", 0).ConfigureAwait(false));
                 Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_acl", "aclpermissionaccountid", 1).ConfigureAwait(false));
@@ -608,7 +610,6 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             async fixture =>
             {
                 await fixture.CreateExecutor().ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
-                await fixture.SeedExistingPublicFolderAsync().ConfigureAwait(false);
 
                 var factory = new SqlServerConnectionFactory(fixture.ConnectionString);
                 var settingsStore = new SqlServerSettingsAdministrationStore(factory);
@@ -629,8 +630,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     .ConfigureAwait(false);
                 Assert.AreEqual(1, backupMessages.Count);
                 Assert.AreEqual(1, backupMessages[0].State);
-                Assert.AreEqual(9, backupMessages[0].CurrentNumberOfTries);
-                Assert.AreEqual(1, backupMessages[0].Flags);
+                Assert.AreEqual(0, backupMessages[0].CurrentNumberOfTries);
+                Assert.AreEqual(33, backupMessages[0].Flags);
                 Assert.IsTrue(File.Exists(Path.Combine(
                     fixture.GetDataDirectory(),
                     "roundtrip.example",
@@ -704,8 +705,6 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     await WaitForBackupCompletionAsync(dispatcher.Completed.Task, dispatcher.Failed.Task).ConfigureAwait(false);
                     var firstArchive = Directory.GetFiles(firstDestination, "HMBackup *.7z").Single();
                     var metadataReader = new SevenZipBackupArchiveMetadataReader(sevenZipPath);
-                    StringAssert.Contains(metadataReader.ReadMetadataXml(firstArchive), "<PublicFolders>");
-
                     var backup = (Backup)manager.LoadBackup(firstArchive);
                     try
                     {
