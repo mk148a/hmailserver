@@ -1,5 +1,28 @@
 
-## Current next slice (2026-08-20, isolated guest prerequisites before migration drill)
+## Current next slice (2026-08-20, isolated guest prerequisites before migration drill; queue-clear slice completed)
+
+Code/test commit `d1547d4a4` closes one bounded legacy `DeliveryQueue.Clear()`
+lifecycle gap. Legacy `InterfaceDeliveryQueue::Clear` and
+`DeliveryQueueClearer::DoWork` (`source/Server/COM/InterfaceDeliveryQueue.cpp:15-34`;
+`source/Server/SMTP/DeliveryQueue.cpp:44-78`) stop and join the delivery work
+queue, clear only `messagetype = 1`, and restart delivery. Net10 now uses a
+shared internal `DeliveryQueuePauseDrainGate` so clear and worker batches do
+not overlap, preserves a clear-start snapshot boundary, retains type-3
+ETRN/GUI rows, and rechecks the live administrator guard before each
+destructive batch. Focused coverage is `27 passed, 0 failed`; full Debug is
+`2319 passed, 58 skipped, 0 failed`. Installed DeliveryQueue COM
+IID/vtable/DISPID/class identity, direct activation denial, `ResetDeliveryTime`,
+`StartDelivery`, and `Remove` boundaries remain unchanged.
+
+Live disposable SQL/Data readback, expired-lease/in-flight delivery races,
+file cleanup failure reporting, registered service lifecycle, out-of-process
+COM, and queue throughput/soak evidence remain open. Release remains **RED**.
+
+Next slice: manually complete disposable Administrator sign-in in VMConnect,
+then install only the verified .NET/SQL packages and isolated hMailServer test
+stack before running the guarded migration/installer rollback drill.
+
+## Historical next slice (2026-08-20, isolated guest prerequisites before migration drill)
 
 Code/test commit `279609c07` adds guarded provisioning, rollback, inventory,
 and focused tests for the non-production Hyper-V staging host. The official

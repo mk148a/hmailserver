@@ -15,8 +15,21 @@ has exactly one adapter on the **Private** switch
 
 Test-only commits `11129543f` and `56eadeda4` make SQL source-shape assertions
 checkout-independent and retry scanner test-file cleanup across transient
-antivirus locks. Focused coverage is `41 + 7 passed, 0 failed`; the full Debug
-suite is `2313 passed, 58 skipped, 0 failed`.
+antivirus locks. Code/test commit `d1547d4a4` also closes the bounded
+`DeliveryQueue.Clear()` lifecycle gap: `DeliveryQueuePauseDrainGate` prevents
+worker/clear overlap, the SQL clear path targets only type 1 and honors a
+clear-start boundary, and each batch rechecks the live administrator guard.
+Focused queue coverage is `27/27`; the full Debug suite is `2319 passed, 58
+skipped, 0 failed`.
+
+Legacy anchors are `InterfaceDeliveryQueue::Clear` and
+`DeliveryQueueClearer::DoWork` (`source/Server/COM/InterfaceDeliveryQueue.cpp:15-34`;
+`source/Server/SMTP/DeliveryQueue.cpp:44-78`). Installed DeliveryQueue COM
+identity/direct activation and `ResetDeliveryTime`/`StartDelivery`/`Remove`
+boundaries are unchanged. Live disposable SQL/Data readback, expired-lease
+and in-flight delivery races, file-cleanup failure evidence, registered
+service/out-of-process COM, and queue performance/soak remain open; release is
+still **RED**.
 
 The guest first boot is complete and the VMConnect console previously reached
 `win-6tgbde5c01k\\administrator`, but it is currently at the Administrator
