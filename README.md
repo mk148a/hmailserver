@@ -3,6 +3,21 @@ hMailServer
 
 ## Current authoritative parity status (2026-08-20)
 
+Legacy IDLE parity was verified against `IMAPCommandIdle::ExecuteCommand` and
+`IMAPConnection::{AnswerCommand,EndIdleMode_,CheckPermission,
+CheckFolderPermissions}`: ACL is not asynchronously rechecked while the
+connection is idling; the next client command exits IDLE and is then checked.
+Net10 follows the same boundary after the per-command selected-mailbox ACL
+revalidation. No extra IDLE disconnect behavior was added.
+
+The current release gate remains **RED**. The latest full suite is `2341
+passed, 58 skipped, 0 failed`; C++/.NET paired performance, disposable
+migration/rollback, live SQL/Data, out-of-process COM, and soak evidence remain
+unproven. `Get-VM` currently returns no disposable VM; the running host SQL
+service was not used because disposability is not established.
+
+## Current authoritative parity status (2026-08-20)
+
 Test-only commit `17fae65c1` covers the selected-folder ACL audit: SEARCH
 denies after read revocation without tracker publication, COPY/MOVE denies
 after source revocation, and COPY/MOVE denies a read-only destination. Focused

@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T13:03:46Z` / `2026-08-20T16:03:46+03:00`
+- UTC/local timestamp: `2026-08-20T14:20:00Z` / `2026-08-20T17:20:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `17fae65c1` (`17fae65c1` selected-folder ACL command audit)
+- Current HEAD snapshot: `69370e1c5` (`69370e1c5` docs after selected-folder ACL command audit)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
 - Latest focused-test result: IMAP session/copy `49 passed, 0 failed`; previous ACL/session `76 passed, 0 failed`
 - Latest full Net10 result: Debug `2341 passed, 58 skipped, 0 failed`
@@ -9,6 +9,6 @@
 - Current bounded slice: `17fae65c1` test-only audit of selected-folder SEARCH and COPY/MOVE source/destination ACL denial. Production revalidation remains `61cb3368c`; IDLE, inherited groups, and SQL cost remain open
 - Completed milestones: backup/restore foundations, guarded installer rollback code, COM/Admin slices through current ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10-only load evidence
 - Open production blockers: direct external ACL changes and inherited-group revocation, live SQL/Data and migration/rollback, registered/out-of-process COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
-- Environment-blocked work: disposable VM guest sign-in; no guest .NET/SQL/hMailServer service is installed; registry-isolated C++ runner, live DNS/TLS, credentials/AD, IIS/SEC-18, and 24-hour soak remain unavailable
+- Environment-blocked work: no disposable VM is currently returned by `Get-VM`; host `MSSQLSERVER` is running but not proven disposable and was not used; guest .NET/SQL/hMailServer service state is therefore unavailable; registry-isolated C++ runner, live DNS/TLS, credentials/AD, IIS/SEC-18, and 24-hour soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: IDLE/inherited-group ACL propagation; benchmark per-command SQL ACL lookup; disposable VM sign-in then guarded migration/rollback drill
+- Next three independent slices: benchmark per-command SQL ACL lookup; provision/verify a disposable VM before migration/rollback; live C++/.NET paired performance matrix

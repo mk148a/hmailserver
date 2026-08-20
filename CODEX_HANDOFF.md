@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, IDLE parity verified)
+
+Read-only legacy inspection confirms `IMAPCommandIdle::ExecuteCommand` only
+starts IDLE. `IMAPConnection::AnswerCommand` consumes the next client command
+via `EndIdleMode_()` before invoking a command handler; ACL checks occur in the
+actual command paths through `CheckPermission`/`CheckFolderPermissions`.
+Net10 `HandleIdleAsync` therefore does not need an asynchronous ACL disconnect
+to preserve legacy behavior.
+
+Next slice: measure the per-command SQL ACL revalidation cost, then provision
+and verify a disposable VM before migration/rollback. `Get-VM` currently
+returns no disposable VM; host SQL is not proven disposable and was not used.
+Release remains **RED**.
+
 ## Current Authoritative Continuation (2026-08-20, IMAP ACL command audit)
 
 Test-only commit `17fae65c1` covers selected-folder ACL command boundaries:

@@ -1,5 +1,5 @@
 
-## Current next slice (2026-08-20, IDLE and inherited ACL propagation)
+## Current next slice (2026-08-20, ACL lookup benchmark and disposable gates)
 
 Test-only commit `17fae65c1` covers selected-folder ACL command boundaries:
 SEARCH denies after read revocation without tracker publication, COPY/MOVE
@@ -8,11 +8,16 @@ Focused IMAP session/copy coverage is `49 passed, 0 failed`; full Debug is
 `2341 passed, 58 skipped, 0 failed`. No production behavior or COM identity
 changed in this test-only slice.
 
-Next slice: define and test IDLE-time unsolicited ACL revocation and inherited
-group-membership changes, then measure the per-command SQL ACL lookup against
-the existing performance pack. Live SQL/Data, migration/rollback,
-out-of-process COM, paired C++ performance, and soak evidence remain open.
-Release remains **RED**.
+Legacy IDLE parity is now verified: `IMAPCommandIdle::ExecuteCommand` only
+enters IDLE; `IMAPConnection::AnswerCommand` consumes the next client command
+through `EndIdleMode_()` before dispatch, and ACL is checked by the actual
+command handlers. Net10 `HandleIdleAsync` has equivalent next-command
+revalidation, so no separate immediate ACL disconnect is required for parity.
+
+Next slice: measure the per-command SQL ACL lookup against the existing
+benchmark pack and complete the disposable VM prerequisite before migration/
+rollback. Live SQL/Data, out-of-process COM, paired C++ performance, and soak
+evidence remain open. Release remains **RED**.
 
 ## Historical completed slice (2026-08-20, IMAP ACL command coverage and performance)
 
