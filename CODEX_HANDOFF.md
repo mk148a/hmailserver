@@ -1,17 +1,15 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, STORE/EXPUNGE ACL rights)
+## Current Authoritative Continuation (2026-08-20, APPEND/COPY Insert ACL rights)
 
-Code/test commit `f4c07f05` enforces legacy `WriteSeen`, `WriteDeleted`, and
-`WriteOthers` at STORE and `Expunge` at EXPUNGE after carrying the effective
-ACL bitmask through selected mailbox state. Focused coverage is `59/59`; full
-Debug is `2349 passed, 58 skipped, 0 failed`. Denials happen before mutation.
+Code/test commit `71d812399` enforces destination `Insert` for APPEND and COPY
+from selected mailbox ACL state. APPEND denies before literal continuation;
+both commands deny before mutation. Focused coverage is `67/67`; full Debug is
+`2352 passed, 58 skipped, 0 failed`.
 
-Legacy anchors: `IMAPStore::DoAction`,
-`IMAPCommandEXPUNGE::ExecuteCommand`, and
-`IMAPConnection::CheckPermission` / `CheckFolderPermissions`. Next slice:
-destination `Insert` enforcement for APPEND and COPY. APPEND `\\Seen`
-filtering and pre-continuation authorization remain separate later work.
+Legacy anchors: `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
+`IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission`. Next slice:
+filter APPEND/COPY `\\Seen` according to destination `WriteSeen`.
 
 The guarded SQL benchmark has no qualifying disposable fixture. Paired
 C++/.NET performance, out-of-process COM/DCOM, SEC-18, migration/rollback,

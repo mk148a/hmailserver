@@ -1,18 +1,16 @@
 
-## Current next slice (2026-08-20, APPEND/COPY Insert ACL rights)
+## Current next slice (2026-08-20, APPEND/COPY WriteSeen filtering)
 
-Code/test commit `f4c07f05` extends selected mailbox state with the effective
-legacy ACL bitmask and enforces `WriteSeen`, `WriteDeleted`, and `WriteOthers`
-for STORE plus `Expunge` for EXPUNGE. Focused IMAP/SQL coverage is `59
-passed`; full Debug is `2349 passed, 58 skipped, 0 failed`.
+Code/test commit `71d812399` enforces destination `Insert` for APPEND and COPY
+from the effective selected-mailbox ACL bitmask. APPEND rejects before its
+literal continuation; both paths reject before mutation. Focused IMAP/SQL
+coverage is `67 passed`; full Debug is `2352 passed, 58 skipped, 0 failed`.
 
-Legacy behavior is anchored by `IMAPStore::DoAction`,
-`IMAPCommandAPPEND::ExecuteCommand`, `IMAPCopy::DoAction`,
-`IMAPCommandEXPUNGE::ExecuteCommand`, and
-`IMAPConnection::CheckPermission`. The next bounded gap is destination
-`Insert` enforcement for APPEND and COPY. APPEND `\\Seen` filtering and
-literal-continuation ordering remain a later slice. No SMTP, COM identity,
-SQL schema, live reconfiguration, or unrelated Admin behavior is in scope.
+Legacy behavior is anchored by `IMAPCommandAPPEND::Finish_` and
+`IMAPCopy::DoAction`: both preserve requested `\\Seen` only when destination
+`WriteSeen` is present. The next bounded gap is that flag filtering. No SMTP,
+COM identity, SQL schema, live reconfiguration, or unrelated Admin behavior is
+in scope.
 
 No qualifying disposable SQL/Data fixture exists for the guarded benchmark;
 paired C++/.NET performance, migration/rollback, SEC-18, and soak gates keep

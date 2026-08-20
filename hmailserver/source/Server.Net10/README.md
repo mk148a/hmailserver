@@ -1,19 +1,17 @@
-## Current authoritative parity status (2026-08-20, STORE/EXPUNGE ACL rights)
+## Current authoritative parity status (2026-08-20, APPEND/COPY Insert ACL rights)
 
-Code/test commit `f4c07f05` carries the effective ACL bitmask through selected
-mailbox state and enforces the legacy `WriteSeen`, `WriteDeleted`, and
-`WriteOthers` rights for STORE plus `Expunge` for EXPUNGE. Unauthorized
-mutations are rejected before the mutation store is called. Focused IMAP/SQL
-coverage is `59 passed`; full Debug is `2349 passed, 58 skipped, 0 failed`.
+Code/test commit `71d812399` enforces destination `Insert` for APPEND and COPY
+from the effective selected-mailbox ACL bitmask. APPEND rejects before its
+literal continuation and both paths reject before mutation. Focused IMAP/SQL
+coverage is `67 passed`; full Debug is `2352 passed, 58 skipped, 0 failed`.
 
-Legacy anchors are `IMAPStore::DoAction`,
-`IMAPCommandEXPUNGE::ExecuteCommand`, and
-`IMAPConnection::CheckPermission` in the C++ tree. APPEND/COPY destination
-`Insert` and APPEND `\\Seen` filtering remain open. No live SQL benchmark,
-paired C++/.NET performance evidence, COM/DCOM, SEC-18, migration/rollback,
-or 24-hour soak evidence exists; release remains **RED**.
+Legacy anchors are `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
+`IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission`. APPEND/COPY
+`\\Seen` filtering remains open. No live SQL benchmark, paired C++/.NET
+performance evidence, COM/DCOM, SEC-18, migration/rollback, or 24-hour soak
+evidence exists; release remains **RED**.
 
-Next slice: enforce destination `Insert` at APPEND and COPY boundaries.
+Next slice: suppress APPEND/COPY `\\Seen` without destination `WriteSeen`.
 
 ## Historical authoritative parity status (2026-08-20, reversible ACL read-only state)
 

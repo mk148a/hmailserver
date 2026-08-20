@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T14:18:00Z` / `2026-08-20T17:18:00+03:00`
+- UTC/local timestamp: `2026-08-20T14:42:00Z` / `2026-08-20T17:42:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `f4c07f05` (`fix: enforce IMAP STORE and EXPUNGE ACL rights`)
+- Current HEAD: `71d812399` (`fix: enforce IMAP APPEND and COPY insert ACLs`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: IMAP/SQL STORE/EXPUNGE ACL state `59 passed, 0 failed`
-- Latest full Net10 result: Debug `2349 passed, 58 skipped, 0 failed`
+- Latest focused-test result: IMAP/SQL APPEND/COPY ACL state `67 passed, 0 failed`
+- Latest full Net10 result: Debug `2352 passed, 58 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: passed Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`, isolated restore/rollback `21/21`; skipped/blocked registry/COM, installer, AD/DC, SEC-18, live C++ comparison, and 24-hour soak
-- Current bounded slice: legacy STORE/EXPUNGE individual ACL-right enforcement; APPEND/COPY Insert remains next
+- Current bounded slice: legacy APPEND/COPY destination Insert enforcement; WriteSeen flag filtering remains next
 - Completed milestones: backup/restore foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, matched-fixture Net10-only load evidence, ACL benchmark tooling, and reversible selected-mailbox ACL state
-- Open production blockers: fine-grained IMAP rights, approved live SQL/Data and migration/rollback, registered/out-of-process COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
+- Open production blockers: APPEND/COPY WriteSeen filtering and other fine-grained IMAP rights, approved live SQL/Data and migration/rollback, registered/out-of-process COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
 - Environment-blocked work: `Get-VM -Name HMailServer-SEC18-Disposable` returns no VM; host `MSSQLSERVER` is running but not proven disposable and was not used; no qualifying LocalDB/Data marker; registry-isolated C++ runner, live DNS/TLS, credentials/AD, IIS/SEC-18, and 24-hour soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: enforce destination `Insert` for APPEND/COPY; add SQL-backed ACL revalidation acceptance once a disposable fixture exists; provision/verify the disposable VM before migration/rollback
+- Next three independent slices: filter APPEND/COPY `\\Seen` by destination `WriteSeen`; add SQL-backed ACL revalidation acceptance once a disposable fixture exists; provision/verify the disposable VM before migration/rollback
