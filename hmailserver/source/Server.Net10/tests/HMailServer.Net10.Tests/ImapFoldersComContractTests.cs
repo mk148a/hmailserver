@@ -231,6 +231,78 @@ public sealed class ImapFoldersComContractTests
     }
 
     [TestMethod]
+    public void ImapFolderMutations_PublishAfterStoreAndConvergeAcrossAccountWrappers()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03"),
+                new ImapFolderAdministrationSnapshot(20, 100, -1, "Archive", true, 2, "2026-06-27 04:05:06"),
+                new ImapFolderAdministrationSnapshot(21, 100, 20, "Nested", false, 3, "2026-06-27 05:05:06"),
+                new ImapFolderAdministrationSnapshot(30, 200, -1, "Other", true, 1, "2026-06-27 06:05:06")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store, changeTracker: tracker);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var otherAccount = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(200, 20, "other@example.test", true, 2));
+        var first = account.IMAPFolders;
+        var second = account.IMAPFolders;
+
+        var added = first.Add("Projects");
+        Assert.AreEqual(1, tracker.GetGeneration(100));
+        Assert.AreEqual(3, second.Count);
+        Assert.AreEqual(added.ID, second.get_ItemByName("Projects").ID);
+
+        var archive = second.get_ItemByDBID(20);
+        archive.Name = "Renamed";
+        archive.Save();
+        Assert.AreEqual(2, tracker.GetGeneration(100));
+        Assert.AreEqual("Renamed", first.get_ItemByDBID(20).Name);
+
+        first.get_ItemByDBID(20).Delete();
+        Assert.AreEqual(3, tracker.GetGeneration(100));
+        Assert.AreEqual(2, first.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = second.get_ItemByDBID(21)).ErrorCode);
+        Assert.IsTrue(tracker.TryGetLatestChange(100, 21, out var nestedChange));
+        Assert.IsTrue(nestedChange.IsDeleted);
+        Assert.AreEqual(0, tracker.GetGeneration(200));
+        Assert.AreEqual(1, otherAccount.IMAPFolders.Count);
+    }
+
+    [TestMethod]
+    public void ImapFolderMutationFailures_DoNotPublishInvalidation()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Inbox", true, 42, "2026-06-27 01:02:03"),
+                new ImapFolderAdministrationSnapshot(20, 100, -1, "Archive", true, 2, "2026-06-27 04:05:06")
+            })
+        {
+            ReturnUpdateSuccess = false,
+            ReturnDeleteSuccess = false
+        };
+        ImapFolderAdministrationRuntimeHost.Configure(store, changeTracker: tracker);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var folder = account.IMAPFolders.get_ItemByDBID(10);
+        folder.Name = "Broken";
+
+        Assert.ThrowsExactly<COMException>(folder.Save);
+        folder = account.IMAPFolders.get_ItemByDBID(20);
+        folder.Delete();
+
+        Assert.AreEqual(0, tracker.GetGeneration(100));
+        Assert.AreEqual("Inbox", account.IMAPFolders.get_ItemByDBID(10).Name);
+        Assert.AreEqual(2, account.IMAPFolders.Count);
+    }
+
+    [TestMethod]
     public void AuthorizedImapFolder_NameStagesUtf7AndSaveReplacesSharedSnapshot()
     {
         var store = new FixedImapFolderAdministrationStore(

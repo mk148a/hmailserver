@@ -40,6 +40,78 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_RejectsSelectedDeletedSubtreeAfterSameAccountFolderChange()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var searchIndex = new CapturingSearchIndex(Array.Empty<MessageIdentity>());
+        await using var stream = new DuplexMemoryStream(
+            "A001 UID SEARCH ALL\r\nA002 LOGOUT\r\n",
+            () => tracker.PublishDeletion(10, new[] { 20, 21 }));
+        var session = CreateSession(
+            searchIndex,
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 10, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Select a mailbox first\r\n");
+        Assert.IsNull(searchIndex.LastRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_IgnoresFolderChangesForOtherAccounts()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var searchIndex = new CapturingSearchIndex(Array.Empty<MessageIdentity>());
+        await using var stream = new DuplexMemoryStream(
+            "A001 UID SEARCH ALL\r\nA002 LOGOUT\r\n",
+            () => tracker.PublishDeletion(200, new[] { 20 }));
+        var session = CreateSession(
+            searchIndex,
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 OK SEARCH completed\r\n");
+        Assert.IsNotNull(searchIndex.LastRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RefreshesSelectedMailboxNameAfterSameAccountRename()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var idleNotifier = new CapturingIdleNotifier();
+        await using var stream = new DuplexMemoryStream(
+            "A001 IDLE\r\nDONE\r\nA002 LOGOUT\r\n",
+            () => tracker.PublishUpsert(
+                new ImapFolderAdministrationSnapshot(
+                    20,
+                    100,
+                    -1,
+                    "Renamed",
+                    true,
+                    1,
+                    "2026-06-27 01:02:03")));
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            idleNotifier: idleNotifier,
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        Assert.IsNotNull(idleNotifier.LastRequest);
+        Assert.AreEqual("Renamed", idleNotifier.LastRequest.MailboxName);
+    }
+
+    [TestMethod]
     public void TryParse_ParsesUidSearchCommandLine()
     {
         var parsed = ImapCommandLine.TryParse(
@@ -929,7 +1001,8 @@ public sealed class ImapSessionTests
         ImapSessionOptions? options = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
         IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
-        IClientAwareAuthenticationService? clientAwareAuthenticationService = null)
+        IClientAwareAuthenticationService? clientAwareAuthenticationService = null,
+        IImapFolderChangeTracker? folderChangeTracker = null)
     {
         var executor = new ImapSearchExecutor(searchIndex);
         var handler = new ImapSearchCommandHandler(new ImapSearchCommandParser(), executor);
@@ -988,7 +1061,8 @@ public sealed class ImapSessionTests
             mailboxStore: mailboxStore,
             eventScriptExecutor: eventScriptExecutor,
             autoBanLogonFailureRecorder: autoBanLogonFailureRecorder,
-            clientAwareAuthenticationService: clientAwareAuthenticationService);
+            clientAwareAuthenticationService: clientAwareAuthenticationService,
+            folderChangeTracker: folderChangeTracker);
     }
 
     private sealed class CapturingSubscriptionStore : IImapMailboxSubscriptionStore
@@ -1003,6 +1077,20 @@ public sealed class ImapSessionTests
         {
             CallCount++;
             return ValueTask.FromResult(ImapMailboxSubscriptionResult.Success());
+        }
+    }
+
+    private sealed class CapturingIdleNotifier : IImapIdleNotifier
+    {
+        public ImapIdleWatchRequest? LastRequest { get; private set; }
+
+        public async IAsyncEnumerable<ImapIdleEvent> WatchAsync(
+            ImapIdleWatchRequest request,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            LastRequest = request;
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            yield break;
         }
     }
 
@@ -1474,10 +1562,13 @@ public sealed class ImapSessionTests
         private readonly MemoryStream _input;
         private readonly MemoryStream _output = new();
 
-        public DuplexMemoryStream(string input)
+        public DuplexMemoryStream(string input, Action? beforeFirstRead = null)
         {
             _input = new MemoryStream(Encoding.ASCII.GetBytes(input));
+            _beforeFirstRead = beforeFirstRead;
         }
+
+        private Action? _beforeFirstRead;
 
         public override bool CanRead => true;
 
@@ -1499,11 +1590,16 @@ public sealed class ImapSessionTests
         {
         }
 
-        public override int Read(byte[] buffer, int offset, int count) => _input.Read(buffer, offset, count);
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            Interlocked.Exchange(ref _beforeFirstRead, null)?.Invoke();
+            return _input.Read(buffer, offset, count);
+        }
 
         public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            Interlocked.Exchange(ref _beforeFirstRead, null)?.Invoke();
             return ValueTask.FromResult(_input.Read(buffer.Span));
         }
 

@@ -218,6 +218,7 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
         }
 
         state.Append(snapshot);
+        ImapFolderAdministrationRuntimeHost.PublishUpsert(snapshot);
         return IMAPFolder.CreateAuthorized(snapshot, state, _isAuthenticated, _authorizationLeaseFactory);
     }
 
@@ -246,7 +247,10 @@ public sealed class IMAPFolders : IInterfaceIMAPFolders
                 .GetResult();
             if (result.Succeeded)
             {
-                _state.RemoveTree(selected);
+                var deletedFolderIds = _state.RemoveTree(selected);
+                ImapFolderAdministrationRuntimeHost.PublishDeletion(
+                    selected.AccountId,
+                    deletedFolderIds);
             }
         }
         catch (Exception)
@@ -473,6 +477,7 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
                 ELegacyComError);
         }
 
+        ImapFolderAdministrationRuntimeHost.PublishUpsert(updated);
         _folder = updated;
         _stagedName = null;
         _stagedSubscribed = null;
@@ -505,7 +510,10 @@ public sealed class IMAPFolder : IInterfaceIMAPFolder
 
         if (result.Succeeded)
         {
-            state.RemoveTree(snapshot);
+            var deletedFolderIds = state.RemoveTree(snapshot);
+            ImapFolderAdministrationRuntimeHost.PublishDeletion(
+                snapshot.AccountId,
+                deletedFolderIds);
         }
     }
 
@@ -618,7 +626,7 @@ internal sealed class ImapFolderAdministrationState
         }
     }
 
-    public void RemoveTree(ImapFolderAdministrationSnapshot folder)
+    public IReadOnlyList<int> RemoveTree(ImapFolderAdministrationSnapshot folder)
     {
         ArgumentNullException.ThrowIfNull(folder);
         lock (_sync)
@@ -643,10 +651,16 @@ internal sealed class ImapFolderAdministrationState
                 }
             }
 
+            var removedFolderIds = folders
+                .Where(candidate => removedIds.Contains(candidate.Id)
+                    && !(preserveRootInbox && candidate.Id == folder.Id))
+                .Select(candidate => candidate.Id)
+                .ToArray();
             _snapshot = folders
                 .Where(candidate => !removedIds.Contains(candidate.Id)
                     || (preserveRootInbox && candidate.Id == folder.Id))
                 .ToArray();
+            return removedFolderIds;
         }
     }
 
@@ -671,16 +685,27 @@ public static class ImapFolderAdministrationRuntimeHost
     private static IImapFolderAdministrationStore? _store;
     private static IImapFolderMessageFileDeletionRuntime? _messageFileDeletionRuntime;
     private static readonly ConcurrentDictionary<int, ImapFolderAdministrationState> _states = new();
+    private static IImapFolderChangeTracker _changeTracker = ImapFolderChangeTracker.Shared;
 
     public static void Configure(
         IImapFolderAdministrationStore store,
-        IImapFolderMessageFileDeletionRuntime? messageFileDeletionRuntime = null)
+        IImapFolderMessageFileDeletionRuntime? messageFileDeletionRuntime = null,
+        IImapFolderChangeTracker? changeTracker = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         Volatile.Write(ref _store, store);
         Volatile.Write(ref _messageFileDeletionRuntime, messageFileDeletionRuntime);
+        Volatile.Write(ref _changeTracker, changeTracker ?? ImapFolderChangeTracker.Shared);
         _states.Clear();
     }
+
+    internal static void PublishUpsert(ImapFolderAdministrationSnapshot folder) =>
+        Volatile.Read(ref _changeTracker).PublishUpsert(folder);
+
+    internal static void PublishDeletion(
+        int accountId,
+        IReadOnlyCollection<int> deletedFolderIds) =>
+        Volatile.Read(ref _changeTracker).PublishDeletion(accountId, deletedFolderIds);
 
     internal static ImapFolderAdministrationState CreateAuthorizedState(int accountId) =>
         _states.GetOrAdd(accountId, CreateState);

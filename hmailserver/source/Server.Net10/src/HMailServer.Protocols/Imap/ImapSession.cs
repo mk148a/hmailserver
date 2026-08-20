@@ -30,6 +30,7 @@ public sealed class ImapSession
     private readonly IImapMailboxStore? _mailboxStore;
     private readonly ISmtpEventScriptExecutor? _eventScriptExecutor;
     private readonly IClientAwareAuthenticationService? _clientAwareAuthenticationService;
+    private readonly IImapFolderChangeTracker _folderChangeTracker;
 
     public ImapSession(
         ImapSearchCommandHandler searchCommandHandler,
@@ -51,7 +52,8 @@ public sealed class ImapSession
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
         IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
         IClientAwareAuthenticationService? clientAwareAuthenticationService = null,
-        ImapSubscriptionCommandHandler? subscriptionCommandHandler = null)
+        ImapSubscriptionCommandHandler? subscriptionCommandHandler = null,
+        IImapFolderChangeTracker? folderChangeTracker = null)
     {
         _searchCommandHandler = searchCommandHandler;
         _sortCommandHandler = sortCommandHandler;
@@ -75,6 +77,7 @@ public sealed class ImapSession
             ?? (accountAuthenticator is null
                 ? null
                 : new ClientAwareAuthenticationService(accountAuthenticator, autoBanLogonFailureRecorder));
+        _folderChangeTracker = folderChangeTracker ?? ImapFolderChangeTracker.Shared;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(_options.MaxLineBytes);
     }
 
@@ -89,6 +92,10 @@ public sealed class ImapSession
         await WriteAsync(stream, _options.Greeting, cancellationToken).ConfigureAwait(false);
 
         var state = new SessionState(context);
+        if (state.Account is { } account)
+        {
+            state.FolderChangeGeneration = _folderChangeTracker.GetGeneration(account.AccountId);
+        }
         await using var reader = new LineProtocolReader(stream, _options.MaxLineBytes);
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -140,6 +147,8 @@ public sealed class ImapSession
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD Unsupported UID command", cancellationToken).ConfigureAwait(false);
             return false;
         }
+
+        await ApplyFolderChangeInvalidationAsync(state, cancellationToken).ConfigureAwait(false);
 
         switch (commandLine.Command)
         {
@@ -890,10 +899,57 @@ public sealed class ImapSession
             return clientAuthentication.Disconnect;
         }
 
-        state.Account = result.Account;
+        var authenticatedAccount = result.Account
+            ?? throw new InvalidOperationException("Successful IMAP authentication did not return an account.");
+        state.Account = authenticatedAccount;
         state.SelectedMailbox = null;
+        state.FolderChangeGeneration = _folderChangeTracker.GetGeneration(authenticatedAccount.AccountId);
         await WriteTaggedAsync(stream, tag, successResponse, cancellationToken).ConfigureAwait(false);
         return false;
+    }
+
+    private ValueTask ApplyFolderChangeInvalidationAsync(
+        SessionState state,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (state.Account is not { } account)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        var changeAccountId = state.SelectedMailbox?.AccountId ?? account.AccountId;
+        var generation = _folderChangeTracker.GetGeneration(changeAccountId);
+        var previousGeneration = state.FolderChangeGeneration;
+        if (generation == previousGeneration)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        state.FolderChangeGeneration = generation;
+        if (state.SelectedMailbox is not { } selectedMailbox
+            || !_folderChangeTracker.TryGetLatestChange(
+                changeAccountId,
+                selectedMailbox.FolderId,
+                out var change)
+            || change.Generation <= previousGeneration)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        if (change.IsDeleted)
+        {
+            state.SelectedMailbox = null;
+            state.RecentUids = null;
+        }
+        else if (change.Folder is { } folder
+            && folder.AccountId == account.AccountId
+            && folder.Id == selectedMailbox.FolderId)
+        {
+            state.SelectedMailbox = selectedMailbox with { Name = folder.Name };
+        }
+
+        return ValueTask.CompletedTask;
     }
 
     private void RunClientLogonEvent(
@@ -1207,6 +1263,8 @@ public sealed class ImapSession
         public ImapMailboxSelection? SelectedMailbox { get; set; }
 
         public IReadOnlySet<long>? RecentUids { get; set; }
+
+        public long FolderChangeGeneration { get; set; }
 
         public bool IsSecureConnection { get; }
 
