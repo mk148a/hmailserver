@@ -61,4 +61,18 @@ public sealed class SqlServerGroupAdministrationStoreTests
         Assert.IsFalse(groupSql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(aclSql.Contains("WHERE groupid = ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteAllGroupsForRestoreSql_DeletesOwnedAclBeforeGroupsAndLeavesMembersToLegacyBehavior()
+    {
+        var sql = SqlServerGroupAdministrationStore.DeleteAllGroupsForRestoreSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_acl");
+        StringAssert.Contains(sql, "FROM hm_groups");
+        StringAssert.Contains(sql, "DELETE FROM hm_groups");
+        Assert.IsTrue(
+            sql.IndexOf("DELETE FROM hm_acl", StringComparison.OrdinalIgnoreCase)
+            < sql.IndexOf("DELETE FROM hm_groups", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("hm_group_members", StringComparison.OrdinalIgnoreCase));
+    }
 }

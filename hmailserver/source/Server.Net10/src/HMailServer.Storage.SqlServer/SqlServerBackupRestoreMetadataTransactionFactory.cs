@@ -41,6 +41,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     private readonly SqlTransaction _transaction;
     private readonly SqlServerDomainAdministrationStore _domainStore;
     private readonly SqlServerImapFolderAdministrationStore _publicFolderStore;
+    private readonly SqlServerGroupAdministrationStore _groupStore;
     private bool _commitStarted;
     private bool _committed;
 
@@ -53,7 +54,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         var context = new SqlServerBackupRestoreTransactionContext(connection, transaction);
         _domainStore = new SqlServerDomainAdministrationStore(context);
         _publicFolderStore = new SqlServerImapFolderAdministrationStore(context);
-        GroupStore = new SqlServerGroupAdministrationStore(context);
+        _groupStore = new SqlServerGroupAdministrationStore(context);
+        GroupStore = _groupStore;
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         DomainStore = _domainStore;
         AccountStore = new SqlServerAccountAdministrationStore(context);
@@ -105,6 +107,9 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
         _publicFolderStore.DeleteAllPublicFoldersForRestoreAsync(cancellationToken);
+
+    public ValueTask DeleteAllGroupsForRestoreAsync(CancellationToken cancellationToken) =>
+        _groupStore.DeleteAllGroupsForRestoreAsync(cancellationToken);
 
     public ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

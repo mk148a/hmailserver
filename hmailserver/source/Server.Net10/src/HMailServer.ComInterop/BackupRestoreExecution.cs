@@ -202,6 +202,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var archiveXml = _metadataReader.ReadMetadataXml(backup.ArchivePath);
         EnsureArchiveIdentity(backup);
         var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
+        var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
         if (properties.Any(static property =>
                 string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
         {
@@ -224,6 +225,31 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var settingsStore = metadataTransaction.SettingsStore
             ?? throw new InvalidOperationException(
                 "Settings-only restore requires a transaction-scoped settings store.");
+        if (archiveGroups.Count > 0)
+        {
+            var groupStore = metadataTransaction.GroupStore
+                ?? throw new InvalidOperationException(
+                    "Settings-only restore requires a transaction-scoped group store.");
+            var groupMemberStore = metadataTransaction.GroupMemberStore
+                ?? throw new InvalidOperationException(
+                    "Settings-only restore requires a transaction-scoped group-member store.");
+            var domains = await metadataTransaction.DomainStore
+                .GetDomainsAsync(cancellationToken).ConfigureAwait(false);
+            var accounts = new List<AccountAdministrationSnapshot>();
+            foreach (var domain in domains)
+            {
+                accounts.AddRange(await metadataTransaction.AccountStore
+                    .GetAccountsAsync(domain.Id, cancellationToken).ConfigureAwait(false));
+            }
+            await metadataTransaction.DeleteAllGroupsForRestoreAsync(cancellationToken).ConfigureAwait(false);
+            await BackupRestoreMetadataWriter.RestoreGroupsAsync(
+                archiveGroups,
+                accounts,
+                groupStore,
+                groupMemberStore,
+                static () => default,
+                cancellationToken).ConfigureAwait(false);
+        }
         await settingsStore
             .RestoreSettingsPropertiesAsync(properties, cancellationToken)
             .ConfigureAwait(false);
@@ -300,7 +326,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
-        var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
+        IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
+        if (backup.RestoreSettings)
+        {
+            archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
+        }
         if (backup.RestoreSettings)
         {
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
@@ -407,11 +437,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
-        var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
+        IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null;
         if (fullRestore)
         {
             publicFolders = BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(archiveXml);
+            archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
@@ -449,7 +480,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     settingsProperties: settingsProperties,
                     restorePublicFolders: fullRestore,
                     publicFolders: publicFolders,
-                    archiveGroups: fullRestore ? archiveGroups : Array.Empty<RestoreGroupEntry>()),
+                    archiveGroups: archiveGroups),
                 commitOutcomeMayBeAmbiguous: fullRestore)
             .ConfigureAwait(false);
     }
@@ -587,6 +618,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 await metadataTransaction
                     .DeleteAllDomainsForRestoreAsync(cancellationToken)
                     .ConfigureAwait(false);
+                if (archiveGroups is { Count: > 0 })
+                {
+                    await metadataTransaction
+                        .DeleteAllGroupsForRestoreAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
                 if (restorePublicFolders)
                 {
                     await metadataTransaction

@@ -142,6 +142,51 @@ public sealed class BackupRestoreExecutionTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_RestoresGroupsBeforePublicFolderGroupAcl()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var archiveXml = FullPublicArchiveXml
+            .Replace(
+                "<Permission Type=\"0\" Rights=\"3\" Holder=\"alice@restore.example\" />",
+                "<Permission Type=\"1\" Rights=\"3\" Holder=\"Editors\" />",
+                StringComparison.Ordinal)
+            .Replace(
+                "</Backup>",
+                "<Groups><Group Name=\"Editors\"><GroupMembers><Member Name=\"alice@restore.example\" /></GroupMembers></Group></Groups></Backup>",
+                StringComparison.Ordinal);
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(
+            compressed: false,
+            customXml: archiveXml);
+        var stores = new RecordingStores();
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(7, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, stores.Groups.Inserted.Count);
+        Assert.AreEqual("Editors", stores.Groups.Inserted[0].Name);
+        CollectionAssert.AreEqual(
+            new[] { (GroupId: 77, AccountId: 1) },
+            stores.GroupMembers.Inserted.Select(static member =>
+                (GroupId: member.GroupId, AccountId: member.AccountId)).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { (GroupId: 77, AccountId: 0) },
+            stores.PublicPermissions.Inserted.Select(static permission =>
+                (GroupId: permission.PermissionGroupId, AccountId: permission.PermissionAccountId)).ToArray());
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_InvokesInjectedReinitializeOnceAfterSuccessfulRestore()
     {
         if (!OperatingSystem.IsWindows())
@@ -922,6 +967,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingPublicMessageRestoreStore PublicMessages { get; } = new();
         public RecordingPublicFolderPermissionRestoreStore PublicPermissions { get; } = new();
         public RecordingGroupStore Groups { get; } = new();
+        public RecordingGroupMemberStore GroupMembers { get; } = new();
         public List<string> Events { get; set; } = [];
         public bool FailAliasInsert { get; init; }
         public bool FailDistributionListInsertAfterFirst { get; init; }
@@ -947,6 +993,7 @@ public sealed class BackupRestoreExecutionTests
                 folderRestoreStore: PublicFolders,
                 messageRestoreStore: PublicMessages,
                 groupStore: Groups,
+                groupMemberStore: GroupMembers,
                 reinitialize: reinitialize,
                 requireReinitialize: requireReinitialize);
         }
@@ -1082,8 +1129,13 @@ public sealed class BackupRestoreExecutionTests
         public IImapFolderAdministrationRestoreStore FolderRestoreStore => stores.PublicFolders;
         public IMessageAdministrationRestoreStore MessageRestoreStore => stores.PublicMessages;
         public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore => stores.PublicPermissions;
+        public IGroupAdministrationStore GroupStore => stores.Groups;
+        public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask DeleteAllGroupsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
@@ -1108,12 +1160,20 @@ public sealed class BackupRestoreExecutionTests
         public IImapFolderAdministrationRestoreStore FolderRestoreStore => stores.PublicFolders;
         public IMessageAdministrationRestoreStore MessageRestoreStore => stores.PublicMessages;
         public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore => stores.PublicPermissions;
+        public IGroupAdministrationStore GroupStore => stores.Groups;
+        public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
 
         public ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
+
+        public ValueTask DeleteAllGroupsForRestoreAsync(CancellationToken cancellationToken)
+        {
+            stores.Events.Add("delete-all-groups");
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask CommitAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
@@ -1207,10 +1267,43 @@ public sealed class BackupRestoreExecutionTests
 
     private sealed class RecordingGroupStore : IGroupAdministrationStore
     {
+        public List<GroupAdministrationSnapshot> Inserted { get; } = [];
+
         public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(
-                new[] { new GroupAdministrationSnapshot(77, "Editors") });
+                Inserted.Count == 0
+                    ? new[] { new GroupAdministrationSnapshot(77, "Editors") }
+                    : Inserted.ToArray());
+
+        public ValueTask<int> InsertGroupAsync(
+            GroupAdministrationSnapshot group,
+            CancellationToken cancellationToken)
+        {
+            var id = 77 + Inserted.Count;
+            Inserted.Add(group with { Id = id });
+            return ValueTask.FromResult(id);
+        }
+    }
+
+    private sealed class RecordingGroupMemberStore : IGroupMemberAdministrationStore
+    {
+        public List<GroupMemberAdministrationSnapshot> Inserted { get; } = [];
+
+        public ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
+            int groupId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupMemberAdministrationSnapshot>>(
+                Inserted.Where(member => member.GroupId == groupId).ToArray());
+
+        public ValueTask<int> InsertGroupMemberAsync(
+            GroupMemberAdministrationSnapshot member,
+            CancellationToken cancellationToken)
+        {
+            var id = 88 + Inserted.Count;
+            Inserted.Add(member with { Id = id });
+            return ValueTask.FromResult(id);
+        }
     }
 
     private sealed class RecordingDomainStore : IDomainAdministrationStore

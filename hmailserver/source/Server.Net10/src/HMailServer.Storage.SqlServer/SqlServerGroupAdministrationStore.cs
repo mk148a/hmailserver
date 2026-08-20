@@ -39,6 +39,19 @@ WHERE aclpermissiontype = 1
   AND aclpermissiongroupid = @id;
 """;
 
+    public const string DeleteAllGroupsForRestoreSql = """
+DELETE FROM hm_acl
+WHERE aclpermissiontype = 1
+  AND EXISTS
+  (
+      SELECT 1
+      FROM hm_groups
+      WHERE groupid = hm_acl.aclpermissiongroupid
+  );
+
+DELETE FROM hm_groups;
+""";
+
     private readonly SqlServerConnectionFactory? _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
@@ -151,5 +164,21 @@ WHERE aclpermissiontype = 1
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
+    }
+
+    internal async ValueTask DeleteAllGroupsForRestoreAsync(CancellationToken cancellationToken)
+    {
+        if (_transactionContext is not null)
+        {
+            await using var command = new SqlCommand(
+                DeleteAllGroupsForRestoreSql,
+                _transactionContext.Connection,
+                _transactionContext.Transaction);
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        throw new NotSupportedException(
+            "Group replacement requires a transaction-scoped SQL store.");
     }
 }
