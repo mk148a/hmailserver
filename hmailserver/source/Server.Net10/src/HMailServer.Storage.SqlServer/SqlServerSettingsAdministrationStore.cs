@@ -310,6 +310,18 @@ SET settinginteger = @AddHeaderReason
 WHERE settingname = N'antispamaddheaderreason';
 """;
 
+    public const string UpdateAntiSpamPrependSubjectSql = """
+UPDATE hm_settings
+SET settinginteger = @PrependSubject
+WHERE settingname = N'antispamprependsubject';
+""";
+
+    public const string UpdateAntiSpamPrependSubjectTextSql = """
+UPDATE hm_settings
+SET settingstring = @PrependSubjectText
+WHERE settingname = N'antispamprependsubjecttext';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -1097,6 +1109,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamAddHeaderReasonSql, connection);
         command.Parameters.Add("@AddHeaderReason", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamPrependSubjectAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamPrependSubjectSql, connection);
+        command.Parameters.Add("@PrependSubject", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamPrependSubjectTextAsync(
+        string text,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamPrependSubjectTextSql, connection);
+        command.Parameters.Add("@PrependSubjectText", SqlDbType.NVarChar, 4000).Value = text;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

@@ -466,6 +466,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamPrependSubjectSql_UsesTheLegacyFixedRows()
+    {
+        StringAssert.Contains(
+            "UPDATE hm_settings\nSET settinginteger = @PrependSubject\nWHERE settingname = N'antispamprependsubject';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamPrependSubjectSql);
+        StringAssert.Contains(
+            "UPDATE hm_settings\nSET settingstring = @PrependSubjectText\nWHERE settingname = N'antispamprependsubjecttext';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamPrependSubjectTextSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

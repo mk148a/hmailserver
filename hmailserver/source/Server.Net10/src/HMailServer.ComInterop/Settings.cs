@@ -2246,6 +2246,20 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         {
                             _administrationSnapshot = _administrationSnapshot with { AntiSpamAddHeaderReason = value };
                         }
+                    },
+                    publishPrependSubject: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamPrependSubject = value };
+                        }
+                    },
+                    publishPrependSubjectText: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamPrependSubjectText = value };
+                        }
                     });
         }
     }

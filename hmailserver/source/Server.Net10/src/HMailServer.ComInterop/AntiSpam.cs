@@ -220,6 +220,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<int>? _publishCheckHostInHeloScore;
     private readonly Action<bool>? _publishAddHeaderSpam;
     private readonly Action<bool>? _publishAddHeaderReason;
+    private readonly Action<bool>? _publishPrependSubject;
+    private readonly Action<string>? _publishPrependSubjectText;
 
     public AntiSpam()
     {
@@ -250,7 +252,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishCheckHostInHelo,
         Action<int>? publishCheckHostInHeloScore,
         Action<bool>? publishAddHeaderSpam,
-        Action<bool>? publishAddHeaderReason)
+        Action<bool>? publishAddHeaderReason,
+        Action<bool>? publishPrependSubject,
+        Action<string>? publishPrependSubjectText)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -277,6 +281,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishCheckHostInHeloScore = publishCheckHostInHeloScore;
         _publishAddHeaderSpam = publishAddHeaderSpam;
         _publishAddHeaderReason = publishAddHeaderReason;
+        _publishPrependSubject = publishPrependSubject;
+        _publishPrependSubjectText = publishPrependSubjectText;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -316,9 +322,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateAddHeaderReason(value);
     }
 
-    public bool PrependSubject { get => Snapshot.PrependSubject; set => Unavailable(); }
+    public bool PrependSubject
+    {
+        get => Snapshot.PrependSubject;
+        set => UpdatePrependSubject(value);
+    }
 
-    public string PrependSubjectText { get => Snapshot.PrependSubjectText; set => Unavailable(); }
+    public string PrependSubjectText
+    {
+        get => Snapshot.PrependSubjectText;
+        set => UpdatePrependSubjectText(value);
+    }
 
     public IInterfaceGreyListingWhiteAddresses GreyListingWhiteAddresses
     {
@@ -542,7 +556,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishCheckHostInHelo = null,
         Action<int>? publishCheckHostInHeloScore = null,
         Action<bool>? publishAddHeaderSpam = null,
-        Action<bool>? publishAddHeaderReason = null)
+        Action<bool>? publishAddHeaderReason = null,
+        Action<bool>? publishPrependSubject = null,
+        Action<string>? publishPrependSubjectText = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -570,7 +586,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishCheckHostInHelo,
             publishCheckHostInHeloScore,
             publishAddHeaderSpam,
-            publishAddHeaderReason);
+            publishAddHeaderReason,
+            publishPrependSubject,
+            publishPrependSubjectText);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -832,6 +850,35 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishAddHeaderReason?.Invoke(value);
+    }
+
+    private void UpdatePrependSubject(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamPrependSubjectAsync(value, CancellationToken.None),
+            "The anti-spam PrependSubject update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { PrependSubject = value };
+        }
+
+        _publishPrependSubject?.Invoke(value);
+    }
+
+    private void UpdatePrependSubjectText(string value)
+    {
+        var normalized = value ?? string.Empty;
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamPrependSubjectTextAsync(normalized, CancellationToken.None),
+            "The anti-spam PrependSubjectText update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { PrependSubjectText = normalized };
+        }
+
+        _publishPrependSubjectText?.Invoke(normalized);
     }
 
     private void UpdateSetting(

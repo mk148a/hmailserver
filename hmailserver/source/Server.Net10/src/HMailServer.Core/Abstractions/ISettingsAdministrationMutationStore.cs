@@ -201,4 +201,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamAddHeaderReasonAsync(
         bool enabled,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamPrependSubjectAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamPrependSubjectTextAsync(
+        string text,
+        CancellationToken cancellationToken);
 }

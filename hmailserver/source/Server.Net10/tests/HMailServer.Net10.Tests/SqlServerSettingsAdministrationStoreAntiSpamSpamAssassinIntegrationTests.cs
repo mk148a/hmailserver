@@ -60,6 +60,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsTrue(await store.UpdateAntiSpamCheckHostInHeloScoreAsync(7, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamAddHeaderSpamAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamAddHeaderReasonAsync(true, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamPrependSubjectAsync(true, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamPrependSubjectTextAsync("[spam]", CancellationToken.None));
             CollectionAssert.AreEqual(new[] { 1, 1, 9 }, await ReadValuesAsync(testConnectionString));
             Assert.AreEqual("scanner.example.test", await ReadHostAsync(testConnectionString));
             Assert.AreEqual(1783, await ReadPortAsync(testConnectionString));
@@ -68,6 +70,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             CollectionAssert.AreEqual(new[] { 0, 1 }, await ReadBypassGreylistingValuesAsync(testConnectionString));
             CollectionAssert.AreEqual(new[] { 1, 7 }, await ReadCheckHostInHeloValuesAsync(testConnectionString));
             CollectionAssert.AreEqual(new[] { 1, 1 }, await ReadAddHeaderValuesAsync(testConnectionString));
+            Assert.AreEqual(1, await ReadSettingIntegerAsync(testConnectionString, "antispamprependsubject"));
+            Assert.AreEqual("[spam]", await ReadSettingStringAsync(testConnectionString, "antispamprependsubjecttext"));
 
             await DeleteRowAsync(testConnectionString, "spamassassinenabled");
             Assert.IsFalse(await store.UpdateAntiSpamSpamAssassinEnabledAsync(false, CancellationToken.None));
@@ -79,6 +83,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsFalse(await store.UpdateAntiSpamCheckHostInHeloAsync(false, CancellationToken.None));
             await DeleteRowAsync(testConnectionString, "antispamaddheaderspam");
             Assert.IsFalse(await store.UpdateAntiSpamAddHeaderSpamAsync(false, CancellationToken.None));
+            await DeleteRowAsync(testConnectionString, "antispamprependsubject");
+            Assert.IsFalse(await store.UpdateAntiSpamPrependSubjectAsync(false, CancellationToken.None));
         }
         finally
         {
@@ -133,7 +139,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
                 (N'ASDKIMVerificationEnabled', N'', 0), (N'ASDKIMVerificationFailureScore', N'', 4),
                 (N'BypassGreylistingOnSPFSuccess', N'', 0), (N'BypassGreylistingOnMailFromMX', N'', 1),
                 (N'ascheckhostinhelo', N'', 0), (N'ascheckhostinheloscore', N'', 2),
-                (N'antispamaddheaderspam', N'', 0), (N'antispamaddheaderreason', N'', 0);
+                (N'antispamaddheaderspam', N'', 0), (N'antispamaddheaderreason', N'', 0),
+                (N'antispamprependsubject', N'', 0), (N'antispamprependsubjecttext', N'[old]', 0);
             """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -291,6 +298,28 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
         }
 
         return values.ToArray();
+    }
+
+    private static async Task<int> ReadSettingIntegerAsync(string connectionString, string settingName)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT settinginteger FROM dbo.hm_settings WHERE settingname = @SettingName;",
+            connection);
+        command.Parameters.AddWithValue("@SettingName", settingName);
+        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
+    }
+
+    private static async Task<string> ReadSettingStringAsync(string connectionString, string settingName)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT settingstring FROM dbo.hm_settings WHERE settingname = @SettingName;",
+            connection);
+        command.Parameters.AddWithValue("@SettingName", settingName);
+        return Convert.ToString(await command.ExecuteScalarAsync().ConfigureAwait(false)) ?? string.Empty;
     }
 
     private static async Task DropDatabaseAsync(string connectionString, string databaseName)
