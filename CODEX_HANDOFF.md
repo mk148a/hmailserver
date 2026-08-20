@@ -1,14 +1,14 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, APPEND/COPY WriteSeen filtering)
+## Current Authoritative Continuation (2026-08-20, FETCH Seen parity)
 
-Code/test commit `12e81ded0` filters `\\Seen` for APPEND/COPY when destination
-`WriteSeen` is absent, preserving other flags. Focused coverage is `74/74`; full
-Debug is `2355 passed, 58 skipped, 0 failed`.
+Code/test commits `d5190f59d` and `18afca944` restore FETCH `\\Seen` mutation
+parity and legacy `FULL` BODY expansion. Focused FETCH/IMAP coverage is `59/59`;
+full Debug is `2359 passed, 58 skipped, 0 failed`.
 
-Legacy anchors: `IMAPCommandAPPEND::Finish_`, `IMAPCopy::DoAction`, and
-`IMAPConnection::CheckPermission`. Next slice: enforce FETCH `\\Seen`
-permission at the command boundary.
+Legacy anchors: `IMAPFetch::DoAction`, `IMAPFetchParser`, and
+`IMAPConnection::CheckPermission`. Next slice: run the guarded ACL benchmark
+after an approved disposable SQL/Data fixture exists.
 
 The guarded SQL benchmark has no qualifying disposable fixture. Paired
 C++/.NET performance, out-of-process COM/DCOM, SEC-18, migration/rollback,

@@ -1,13 +1,13 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, APPEND/COPY WriteSeen filtering)
+## Current authoritative parity status (2026-08-20, FETCH Seen parity)
 
-Code/test commit `12e81ded0` preserves legacy APPEND/COPY `\\Seen` behavior:
-APPEND clears requested `\\Seen` without destination `WriteSeen`, and COPY
-clears copied `\\Seen` before SQL insertion. Other flags remain unchanged.
-Focused IMAP/SQL coverage is `74 passed`; full Debug is `2355 passed, 58
-skipped, 0 failed`.
+Code/test commits `d5190f59d` and `18afca944` restore FETCH `\\Seen` mutation
+parity and the legacy `FULL` macro. `BODY[]`/`RFC822` marks unseen messages
+only when the selected mailbox is writable with `WriteSeen`; `BODY.PEEK` does
+not. `FULL` includes BODY. Focused FETCH/IMAP coverage is `59 passed`; full
+Debug is `2359 passed, 58 skipped, 0 failed`.
 
 Legacy anchors are `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
 `IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission` in
@@ -18,7 +18,8 @@ Legacy anchors are `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
 paired load test, COM/DCOM, SEC-18, migration/rollback, or 24-hour soak
 evidence exists; release remains **RED**.
 
-Next slice: enforce legacy FETCH `\\Seen` write permission at the command boundary.
+Next slice: run the guarded ACL revalidation benchmark after an approved
+disposable SQL/Data fixture exists.
 
 ## Current authoritative parity status (2026-08-20, reversible ACL read-only state)
 

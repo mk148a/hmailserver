@@ -1,15 +1,16 @@
 
-## Current next slice (2026-08-20, FETCH WriteSeen permission)
+## Current next slice (2026-08-20, guarded ACL benchmark acceptance)
 
-Code/test commit `12e81ded0` preserves legacy APPEND/COPY `\\Seen` filtering
-using destination `WriteSeen`, while retaining other requested/source flags.
-Focused IMAP/SQL coverage is `74 passed`; full Debug is `2355 passed, 58
-skipped, 0 failed`.
+Code/test commits `d5190f59d` and `18afca944` restore FETCH `\\Seen` mutation
+parity and the legacy `FULL` BODY macro. Focused FETCH/IMAP coverage is `59
+passed`; full Debug is `2359 passed, 58 skipped, 0 failed`.
 
-Legacy behavior is anchored by `IMAPFetch::Fetch`/`SetFlagSeen` and
-`IMAPConnection::CheckPermission`; FETCH requests that set `\\Seen` require
-`WriteSeen`. No SMTP, COM identity, SQL schema, live reconfiguration, or
-unrelated Admin behavior is in scope.
+Legacy behavior is anchored by `IMAPFetch::DoAction`, `IMAPFetchParser`, and
+`IMAPConnection::CheckPermission`. The next independent acceptance slice is
+the existing guarded ACL revalidation benchmark, but it requires an approved
+disposable SQL/Data fixture and must not use `MSSQLSERVER` or production data.
+No SMTP, COM identity, SQL schema, live reconfiguration, or unrelated Admin
+behavior is in scope.
 
 No qualifying disposable SQL/Data fixture exists for the guarded benchmark;
 paired C++/.NET performance, migration/rollback, SEC-18, and soak gates keep
