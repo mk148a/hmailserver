@@ -13,8 +13,9 @@ has exactly one adapter on the **Private** switch
 `HMailServer-SEC18-Private`; inventory is recorded at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
-The guest first boot is complete and the VMConnect console is usable as
-`win-6tgbde5c01k\\administrator`. Guest Services is enabled for the private VM
+The guest first boot is complete and the VMConnect console previously reached
+`win-6tgbde5c01k\\administrator`, but it is currently at the Administrator
+password prompt. Guest Services is enabled for the private VM
 channel. The host-built staging payload was extracted offline into guest
 `C:\SEC18\Payload` (171 files, 43,773,872 bytes); source and transfer SHA-256
 are `C16C00B65C13189130B548EFEDE587D50875CE6323B2A429ACD0BB559D6053A9`.

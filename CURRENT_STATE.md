@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: 2026-08-20T09:31:00Z / 2026-08-20T12:31:00+03:00
+- UTC/local timestamp: 2026-08-20T09:38:43Z / 2026-08-20T12:38:43+03:00
 - Branch/upstream: `net10-installer-rollback-guard` / no upstream; `net10-modernization` in the original worktree remains PUSH-BLOCKED at 1 ahead / 1 behind
-- Current HEAD at the last state snapshot: `a22a4eb62`; this state update is recorded by the following documentation commit
+- Current HEAD at the last state snapshot: `ccef02822`; this state update is recorded by the following documentation commit
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and not pushed
 - Latest focused-test result: SEC18 Hyper-V script test passed; rollback/preflight PowerShell test passed; BackupRestoreRoundTripIntegrationTests 21 passed, 0 failed; COM contract 16 passed, 0 failed
 - Latest full Net10 result: normal Debug `2313 passed, 58 skipped, 0 failed` (verified 2026-08-20 after temporary LF-only test normalization; all three source files restored unchanged)
