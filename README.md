@@ -23,8 +23,8 @@ evidence is outside the repository at
 Test-only commits `11129543f` and `56eadeda4` make SQL source-shape assertions
 checkout-independent and retry scanner test-file cleanup across transient
 antivirus locks. Focused coverage is `41 + 7 passed, 0 failed`; the full Debug
-suite is now `2319 passed, 58 skipped, 0 failed` after code/test commit
-`d1547d4a4`.
+suite is now `2324 passed, 58 skipped, 0 failed` after code/test commits
+`d1547d4a4` and `b278c212e`.
 
 That bounded queue slice matches legacy `InterfaceDeliveryQueue::Clear` and
 `DeliveryQueueClearer::DoWork`: an internal pause/drain gate prevents worker
@@ -32,6 +32,15 @@ overlap, clear targets only type-1 delivery rows, uses a clear-start boundary,
 and rechecks the live administrator guard before each batch. Focused queue
 coverage is `27/27`. Live disposable SQL/Data cleanup, registered service and
 out-of-process COM lifecycle, and queue performance/soak evidence remain open.
+
+Code/test commit `b278c212e` adds an in-process, account-scoped IMAP folder
+change tracker. Successful `IMAPFolders.Add`/`DeleteByDBID` and
+`IMAPFolder.Save`/`Delete` mutations publish after persistence; `ImapSession`
+checks the selected mailbox storage-owner generation before commands, updates
+renamed selections, and drops deleted subtrees. Focused COM/session coverage is
+`63/63`. Public-folder ACL revocation, account-wide deletion, concurrent
+publication ordering, live SQL/Data, and out-of-process COM propagation remain
+unproven.
 
 Windows guest first boot is complete, but the VMConnect console is currently
 at the disposable Administrator password prompt. The blank-password Enter

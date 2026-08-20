@@ -1,5 +1,30 @@
 
-## Current next slice (2026-08-20, isolated guest prerequisites before migration drill; queue-clear slice completed)
+## Current next slice (2026-08-20, isolated guest prerequisites before migration drill; IMAP folder session invalidation completed)
+
+Code/test commit `b278c212e` closes one bounded COM/protocol lifetime gap for
+authenticated IMAP folder mutations. Legacy anchors are
+`InterfaceIMAPFolders::{Add,DeleteByDBID}`, `InterfaceIMAPFolder::{Save,Delete}`
+(`source/Server/COM/InterfaceIMAPFolders.cpp`;
+`source/Server/COM/InterfaceIMAPFolder.cpp`) and the attached-folder tree
+behavior in `PersistentIMAPFolder::{SaveObject,DeleteObject}`. Net10 now
+publishes an account-scoped change generation only after successful store
+mutation for `Add`, `DeleteByDBID`, `Save`, and `Delete`; `ImapSession` checks
+the selected mailbox's storage-owner generation before each command, refreshes
+renames, and rejects deleted selected subtrees. The tracker is shared in-process
+and retains installed IMAPFolders/IMAPFolder IID/vtable/DISPID/ProgID and direct
+activation boundaries. Focused COM/session coverage is `63 passed, 0 failed`;
+full Debug is `2324 passed, 58 skipped, 0 failed`.
+
+Public-folder ACL revocation, account-wide deletion, concurrent mutation
+publication ordering, live SQL/Data readback, registered service and
+out-of-process COM propagation, and performance/soak evidence remain open.
+Release remains **RED**.
+
+Next slice: manually complete disposable Administrator sign-in in VMConnect,
+then install only the verified .NET/SQL packages and isolated hMailServer test
+stack before running the guarded migration/installer rollback drill.
+
+## Historical completed slice (2026-08-20, DeliveryQueue.Clear lifecycle)
 
 Code/test commit `d1547d4a4` closes one bounded legacy `DeliveryQueue.Clear()`
 lifecycle gap. Legacy `InterfaceDeliveryQueue::Clear` and

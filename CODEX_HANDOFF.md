@@ -20,7 +20,13 @@ antivirus locks. Code/test commit `d1547d4a4` also closes the bounded
 worker/clear overlap, the SQL clear path targets only type 1 and honors a
 clear-start boundary, and each batch rechecks the live administrator guard.
 Focused queue coverage is `27/27`; the full Debug suite is `2319 passed, 58
-skipped, 0 failed`.
+skipped, 0 failed`. Code/test commit `b278c212e` then adds an in-process,
+account-scoped IMAP folder change tracker. Successful `IMAPFolders.Add`/
+`DeleteByDBID` and `IMAPFolder.Save`/`Delete` mutations publish after store
+success; `ImapSession` checks the selected mailbox storage-owner generation,
+refreshes renames, and rejects deleted selected subtrees. Focused COM/session
+coverage is `63/63`; the current full Debug suite is `2324 passed, 58 skipped,
+0 failed`.
 
 Legacy anchors are `InterfaceDeliveryQueue::Clear` and
 `DeliveryQueueClearer::DoWork` (`source/Server/COM/InterfaceDeliveryQueue.cpp:15-34`;
@@ -30,6 +36,14 @@ boundaries are unchanged. Live disposable SQL/Data readback, expired-lease
 and in-flight delivery races, file-cleanup failure evidence, registered
 service/out-of-process COM, and queue performance/soak remain open; release is
 still **RED**.
+
+The IMAP folder tracker is intentionally an in-process signal. Public-folder
+ACL revocation, account-wide deletion, concurrent publication ordering, live
+SQL/Data readback, registered service lifecycle, and cross-process COM/session
+propagation remain unproven. Legacy anchors for the folder mutation boundary
+are `InterfaceIMAPFolders::{Add,DeleteByDBID}` and
+`InterfaceIMAPFolder::{Save,Delete}` in `source/Server/COM`, with persistence
+in `PersistentIMAPFolder::{SaveObject,DeleteObject}`.
 
 The guest first boot is complete and the VMConnect console previously reached
 `win-6tgbde5c01k\\administrator`, but it is currently at the Administrator
