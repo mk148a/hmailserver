@@ -28,7 +28,11 @@ credential and also rejects an empty Administrator password with
 `PSDirectException: The credential is invalid`. The Windows blank-password
 remote restriction remains enabled; do not weaken it. The next executable
 step requires a non-empty disposable guest Administrator password entered in
-the VM console, then payload extraction and isolated stack setup.
+the VM console, then guest-side execution and isolated stack setup. The
+payload has now been extracted offline into guest `C:\SEC18\Payload` (171
+files, 43,773,872 bytes); evidence is
+`C:\Users\Public\sec18-offline-payload-report-3.json`. No guest command,
+service, SQL/Data, COM, DCOM, or firewall mutation has run.
 
 Next slice: finish guest setup, install only the isolated test stack, and run
 the forced-failure migration/rollback drill.
