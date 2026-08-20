@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: 2026-08-20T10:13:51Z / 2026-08-20T13:13:51+03:00
+- UTC/local timestamp: 2026-08-20T10:18:01Z / 2026-08-20T13:18:01+03:00
 - Branch/upstream: `net10-installer-rollback-guard` / no upstream; `net10-modernization` in the original worktree remains PUSH-BLOCKED at 1 ahead / 1 behind
-- Current HEAD at the last state snapshot: `56eadeda4`; this state update is recorded by the following documentation commit
+- Current HEAD at the last state snapshot: `193c0d71b`; this state update is recorded by the following documentation commit
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and not pushed
 - Latest focused-test result: BlockedAttachments COM contract `15 passed, 0 failed`; scanner runtime tests `7 passed, 0 failed`; SQL shape/source tests `41 passed, 0 failed`; SEC18 Hyper-V script test passed; rollback/preflight PowerShell test passed; BackupRestoreRoundTripIntegrationTests 21 passed, 0 failed; COM contract 16 passed, 0 failed
 - Latest full Net10 result: Debug `2313 passed, 58 skipped, 0 failed` after bounded scanner cleanup retry in `56eadeda4` and SQL source-shape normalization in `11129543f`.
