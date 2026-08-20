@@ -13,6 +13,11 @@ has exactly one adapter on the **Private** switch
 `HMailServer-SEC18-Private`; inventory is recorded at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
+Test-only commit `11129543f` makes SQL source-shape assertions independent of
+CRLF/LF checkout format. Focused coverage is `41 passed, 0 failed`; the full
+Debug suite is `2311 passed, 58 skipped, 2 failed`, with only the two known
+host-antivirus EICAR cleanup locks remaining.
+
 The guest first boot is complete and the VMConnect console previously reached
 `win-6tgbde5c01k\\administrator`, but it is currently at the Administrator
 password prompt. Guest Services is enabled for the private VM
