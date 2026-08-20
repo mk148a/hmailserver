@@ -1,11 +1,12 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, backup matrix and opt-in suite)
+## Current authoritative parity status (2026-08-20, queued backup cleanup)
 
-Current HEAD `c8466a704` has `2410 passed, 10 skipped, 0 failed` in the
-disposable LocalDB/Data full Net10 suite. Focused backup acceptance is `51
-passed, 1 skipped, 0 failed`; the guarded ACL revalidation benchmark is `80/80`
+Current HEAD `702caf5f5` has `2411 passed, 10 skipped, 0 failed` in the
+disposable LocalDB/Data full Net10 suite. Queued backup failure cleanup is `1
+passed, 0 failed`; focused backup acceptance is `51 passed, 1 skipped, 0
+failed`; the guarded ACL revalidation benchmark is `80/80`
 with p50/p95/p99 `0.499/0.856/1.317 ms`. The ACL result measures only Net10
 selected-mailbox revalidation and does not establish C++/.NET speed or a
 production SQL forecast.
@@ -18,8 +19,9 @@ existing raw/compressed matrix. The actual legacy `FULL` implementation emits
 `ENVELOPE` and `BODYSTRUCTURE`; Net10 no longer adds `BODY[]` or an unintended
 `\\Seen` mutation.
 
-Next slice: authenticated queued backup acceptance proving durable archive
-completion/failure event ordering and cleanup. Paired C++/.NET load, COM/DCOM,
+Queued backup success and failure event ordering now have disposable filesystem
+acceptance. Next slice: isolated restore/rollback round-trip and semantic
+equivalence against disposable SQL/Data. Paired C++/.NET load, COM/DCOM,
 SEC-18, migration/rollback, and 24-hour soak evidence remain open; release is
 **RED**.
 

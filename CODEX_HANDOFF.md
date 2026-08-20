@@ -1,10 +1,11 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, backup matrix and opt-in suite)
+## Current Authoritative Continuation (2026-08-20, queued backup cleanup)
 
-Current HEAD is `c8466a704`. The latest disposable LocalDB/Data full Net10
-suite is `2410 passed, 10 skipped, 0 failed`; focused backup coverage is
-`51 passed, 1 skipped, 0 failed`. The ACL revalidation benchmark completed
+Current HEAD is `702caf5f5`. The latest disposable LocalDB/Data full Net10
+suite is `2411 passed, 10 skipped, 0 failed`; focused queued backup failure
+coverage is `1 passed, 0 failed`, and backup archive coverage is `51 passed, 1
+skipped, 0 failed`. The ACL revalidation benchmark completed
 `80/80` with p50/p95/p99 `0.499/0.856/1.317 ms` in
 `artifacts/benchmarks/acl-revalidation-localdb/`; this is Net10-only evidence,
 not a C++ performance comparison.
@@ -16,9 +17,11 @@ metadata combinations. `FULL` now matches the actual C++ parser: it emits
 `ENVELOPE` and `BODYSTRUCTURE`, not a raw `BODY[]` response, and does not mark
 messages seen.
 
-Next slice: authenticated queued backup acceptance with durable archive/event
-ordering and failure cleanup. Release remains **RED**: paired C++/.NET load,
-out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak are still
+Queued success and failure paths now prove event ordering against the real
+archive runtime on disposable filesystems. Next slice: isolated
+restore/rollback round-trip and semantic equivalence against disposable
+SQL/Data. Release remains **RED**: paired C++/.NET load, out-of-process
+COM/DCOM, migration/installer rollback, SEC-18, and 24-hour soak are still
 unproven. No push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, reversible ACL read-only state)

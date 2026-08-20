@@ -1,11 +1,12 @@
 
-## Current next slice (2026-08-20, queued backup acceptance)
+## Current next slice (2026-08-20, isolated restore/rollback acceptance)
 
-Code/test commits `333eda06b`, `0dbc576cb`, `7f8664f90`, and `c8466a704`
-restore legacy FETCH `FULL` behavior, repair the isolated delivery-queue SQL
-fixture, and cover backup option modes `1`, `2`, `3`, and DB-only `6`.
+Code/test commits `333eda06b`, `0dbc576cb`, `7f8664f90`, `c8466a704`, and
+`702caf5f5` restore legacy FETCH `FULL` behavior, repair the isolated
+delivery-queue SQL fixture, cover backup option modes `1`, `2`, `3`, and
+DB-only `6`, and verify queued failure cleanup before `OnBackupFailed`.
 Focused backup coverage is `51 passed, 1 skipped`; the disposable LocalDB/Data
-full suite is `2410 passed, 10 skipped, 0 failed`.
+full suite is `2411 passed, 10 skipped, 0 failed`.
 
 Legacy backup anchors are `BackupExecuter::StartBackup` and
 `BackupExecuter::BackupDataDirectory_` in
@@ -15,12 +16,13 @@ implementation item: `SevenZipBackupArchiveRuntime.CreateAsync` and its
 `CreatesRawMessageArchiveWithExternalDataBackupDirectory` acceptance test were
 implemented in `50d8cefc3`; the old "next raw staging" paragraph is historical.
 
-Next independent slice: run an authenticated queued backup through the real
-archive runtime and prove that `OnBackupCompleted` is dispatched only after the
-archive is durable and that `OnBackupFailed` follows durable cleanup. This must
-remain on disposable filesystem/SQL resources. Paired C++/.NET performance,
-registered/out-of-process COM, migration/rollback, SEC-18, and soak gates keep
-release **RED**.
+The queued success path already passes in
+`BackupRestoreRoundTripIntegrationTests.BackupManager_StartBackupLoadBackupAndRestoreRoundTripsRealArchive`;
+the new failure path observes that XML and raw `DataBackup` are absent at
+`OnBackupFailed`. Next independent slice: complete isolated restore/rollback
+round-trip and semantic equivalence against the disposable SQL/Data pair.
+Migration/rollback, paired C++/.NET performance, registered/out-of-process
+COM, SEC-18, and soak gates keep release **RED**.
 
 ## Historical current slice (2026-08-20, fine-grained IMAP ACL rights)
 
