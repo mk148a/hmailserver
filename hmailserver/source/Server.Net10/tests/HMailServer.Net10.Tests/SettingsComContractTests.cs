@@ -3757,6 +3757,66 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamThresholdSettersPersistAndRefreshSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamMarkThresholdUpdateResult = true,
+            AntiSpamSpamDeleteThresholdUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamSpamMarkThreshold: 5,
+                AntiSpamSpamDeleteThreshold: 20)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        settings.AntiSpam.SpamMarkThreshold = 7;
+        settings.AntiSpam.SpamDeleteThreshold = 21;
+
+        Assert.AreEqual(1, store.AntiSpamSpamMarkThresholdUpdateCount);
+        Assert.AreEqual(7, store.UpdatedAntiSpamSpamMarkThreshold);
+        Assert.AreEqual(1, store.AntiSpamSpamDeleteThresholdUpdateCount);
+        Assert.AreEqual(21, store.UpdatedAntiSpamSpamDeleteThreshold);
+        Assert.AreEqual(7, settings.AntiSpam.SpamMarkThreshold);
+        Assert.AreEqual(21, settings.AntiSpam.SpamDeleteThreshold);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamThresholdSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamMarkThresholdUpdateResult = false,
+            AntiSpamSpamDeleteThresholdUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedMark = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.SpamMarkThreshold = 7);
+        var failedDelete = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.SpamDeleteThreshold = 21);
+
+        Assert.AreEqual(EFail, failedMark.ErrorCode);
+        Assert.AreEqual(EFail, failedDelete.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamSpamMarkThresholdUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamSpamDeleteThresholdUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5153,6 +5213,18 @@ public sealed class SettingsComContractTests
 
         public string UpdatedAntiSpamPrependSubjectText { get; private set; } = string.Empty;
 
+        public bool AntiSpamSpamMarkThresholdUpdateResult { get; set; }
+
+        public int AntiSpamSpamMarkThresholdUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamSpamMarkThreshold { get; private set; }
+
+        public bool AntiSpamSpamDeleteThresholdUpdateResult { get; set; }
+
+        public int AntiSpamSpamDeleteThresholdUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamSpamDeleteThreshold { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5808,6 +5880,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamPrependSubjectText = text;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamPrependSubjectTextUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamSpamMarkThresholdAsync(
+            int threshold,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamSpamMarkThresholdUpdateCount++;
+            UpdatedAntiSpamSpamMarkThreshold = threshold;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamSpamMarkThresholdUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamSpamDeleteThresholdAsync(
+            int threshold,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamSpamDeleteThresholdUpdateCount++;
+            UpdatedAntiSpamSpamDeleteThreshold = threshold;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamSpamDeleteThresholdUpdateResult);
         }
 
     }

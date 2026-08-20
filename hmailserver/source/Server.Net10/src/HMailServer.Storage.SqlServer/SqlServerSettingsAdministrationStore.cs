@@ -322,6 +322,18 @@ SET settingstring = @PrependSubjectText
 WHERE settingname = N'antispamprependsubjecttext';
 """;
 
+    public const string UpdateAntiSpamSpamMarkThresholdSql = """
+UPDATE hm_settings
+SET settinginteger = @SpamMarkThreshold
+WHERE settingname = N'spammarkthreshold';
+""";
+
+    public const string UpdateAntiSpamSpamDeleteThresholdSql = """
+UPDATE hm_settings
+SET settinginteger = @SpamDeleteThreshold
+WHERE settingname = N'spamdeletethreshold';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -1131,6 +1143,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamPrependSubjectTextSql, connection);
         command.Parameters.Add("@PrependSubjectText", SqlDbType.NVarChar, 4000).Value = text;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamSpamMarkThresholdAsync(
+        int threshold,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamSpamMarkThresholdSql, connection);
+        command.Parameters.Add("@SpamMarkThreshold", SqlDbType.Int).Value = threshold;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamSpamDeleteThresholdAsync(
+        int threshold,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamSpamDeleteThresholdSql, connection);
+        command.Parameters.Add("@SpamDeleteThreshold", SqlDbType.Int).Value = threshold;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

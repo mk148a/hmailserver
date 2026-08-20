@@ -477,6 +477,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamThresholdSql_UsesTheLegacyFixedRows()
+    {
+        StringAssert.Contains(
+            "UPDATE hm_settings\nSET settinginteger = @SpamMarkThreshold\nWHERE settingname = N'spammarkthreshold';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamSpamMarkThresholdSql);
+        StringAssert.Contains(
+            "UPDATE hm_settings\nSET settinginteger = @SpamDeleteThreshold\nWHERE settingname = N'spamdeletethreshold';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamSpamDeleteThresholdSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

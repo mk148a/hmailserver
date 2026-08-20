@@ -222,6 +222,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<bool>? _publishAddHeaderReason;
     private readonly Action<bool>? _publishPrependSubject;
     private readonly Action<string>? _publishPrependSubjectText;
+    private readonly Action<int>? _publishSpamMarkThreshold;
+    private readonly Action<int>? _publishSpamDeleteThreshold;
 
     public AntiSpam()
     {
@@ -254,7 +256,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishAddHeaderSpam,
         Action<bool>? publishAddHeaderReason,
         Action<bool>? publishPrependSubject,
-        Action<string>? publishPrependSubjectText)
+        Action<string>? publishPrependSubjectText,
+        Action<int>? publishSpamMarkThreshold,
+        Action<int>? publishSpamDeleteThreshold)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -283,6 +287,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishAddHeaderReason = publishAddHeaderReason;
         _publishPrependSubject = publishPrependSubject;
         _publishPrependSubjectText = publishPrependSubjectText;
+        _publishSpamMarkThreshold = publishSpamMarkThreshold;
+        _publishSpamDeleteThreshold = publishSpamDeleteThreshold;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -358,9 +364,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateCheckHostInHeloScore(value);
     }
 
-    public int SpamMarkThreshold { get => Snapshot.SpamMarkThreshold; set => Unavailable(); }
+    public int SpamMarkThreshold
+    {
+        get => Snapshot.SpamMarkThreshold;
+        set => UpdateSpamMarkThreshold(value);
+    }
 
-    public int SpamDeleteThreshold { get => Snapshot.SpamDeleteThreshold; set => Unavailable(); }
+    public int SpamDeleteThreshold
+    {
+        get => Snapshot.SpamDeleteThreshold;
+        set => UpdateSpamDeleteThreshold(value);
+    }
 
     public bool UseSPF
     {
@@ -558,7 +572,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishAddHeaderSpam = null,
         Action<bool>? publishAddHeaderReason = null,
         Action<bool>? publishPrependSubject = null,
-        Action<string>? publishPrependSubjectText = null)
+        Action<string>? publishPrependSubjectText = null,
+        Action<int>? publishSpamMarkThreshold = null,
+        Action<int>? publishSpamDeleteThreshold = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -588,7 +604,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishAddHeaderSpam,
             publishAddHeaderReason,
             publishPrependSubject,
-            publishPrependSubjectText);
+            publishPrependSubjectText,
+            publishSpamMarkThreshold,
+            publishSpamDeleteThreshold);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -879,6 +897,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishPrependSubjectText?.Invoke(normalized);
+    }
+
+    private void UpdateSpamMarkThreshold(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamSpamMarkThresholdAsync(value, CancellationToken.None),
+            "The anti-spam SpamMarkThreshold update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { SpamMarkThreshold = value };
+        }
+
+        _publishSpamMarkThreshold?.Invoke(value);
+    }
+
+    private void UpdateSpamDeleteThreshold(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamSpamDeleteThresholdAsync(value, CancellationToken.None),
+            "The anti-spam SpamDeleteThreshold update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { SpamDeleteThreshold = value };
+        }
+
+        _publishSpamDeleteThreshold?.Invoke(value);
     }
 
     private void UpdateSetting(

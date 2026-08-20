@@ -209,4 +209,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamPrependSubjectTextAsync(
         string text,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamSpamMarkThresholdAsync(
+        int threshold,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamSpamDeleteThresholdAsync(
+        int threshold,
+        CancellationToken cancellationToken);
 }

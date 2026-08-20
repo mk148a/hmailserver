@@ -62,6 +62,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsTrue(await store.UpdateAntiSpamAddHeaderReasonAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamPrependSubjectAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamPrependSubjectTextAsync("[spam]", CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamSpamMarkThresholdAsync(7, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamSpamDeleteThresholdAsync(21, CancellationToken.None));
             CollectionAssert.AreEqual(new[] { 1, 1, 9 }, await ReadValuesAsync(testConnectionString));
             Assert.AreEqual("scanner.example.test", await ReadHostAsync(testConnectionString));
             Assert.AreEqual(1783, await ReadPortAsync(testConnectionString));
@@ -72,6 +74,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             CollectionAssert.AreEqual(new[] { 1, 1 }, await ReadAddHeaderValuesAsync(testConnectionString));
             Assert.AreEqual(1, await ReadSettingIntegerAsync(testConnectionString, "antispamprependsubject"));
             Assert.AreEqual("[spam]", await ReadSettingStringAsync(testConnectionString, "antispamprependsubjecttext"));
+            Assert.AreEqual(7, await ReadSettingIntegerAsync(testConnectionString, "spammarkthreshold"));
+            Assert.AreEqual(21, await ReadSettingIntegerAsync(testConnectionString, "spamdeletethreshold"));
 
             await DeleteRowAsync(testConnectionString, "spamassassinenabled");
             Assert.IsFalse(await store.UpdateAntiSpamSpamAssassinEnabledAsync(false, CancellationToken.None));
@@ -85,6 +89,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsFalse(await store.UpdateAntiSpamAddHeaderSpamAsync(false, CancellationToken.None));
             await DeleteRowAsync(testConnectionString, "antispamprependsubject");
             Assert.IsFalse(await store.UpdateAntiSpamPrependSubjectAsync(false, CancellationToken.None));
+            await DeleteRowAsync(testConnectionString, "spammarkthreshold");
+            Assert.IsFalse(await store.UpdateAntiSpamSpamMarkThresholdAsync(5, CancellationToken.None));
         }
         finally
         {
@@ -140,7 +146,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
                 (N'BypassGreylistingOnSPFSuccess', N'', 0), (N'BypassGreylistingOnMailFromMX', N'', 1),
                 (N'ascheckhostinhelo', N'', 0), (N'ascheckhostinheloscore', N'', 2),
                 (N'antispamaddheaderspam', N'', 0), (N'antispamaddheaderreason', N'', 0),
-                (N'antispamprependsubject', N'', 0), (N'antispamprependsubjecttext', N'[old]', 0);
+                (N'antispamprependsubject', N'', 0), (N'antispamprependsubjecttext', N'[old]', 0),
+                (N'spammarkthreshold', N'', 5), (N'spamdeletethreshold', N'', 20);
             """;
 
         await using var connection = new SqlConnection(connectionString);
