@@ -968,12 +968,11 @@ public sealed class ImapSession
         }
 
         var generation = _folderChangeTracker.GetAclGeneration(selectedMailbox.FolderId);
-        if (generation <= state.AclChangeGeneration)
+        if (generation > state.AclChangeGeneration)
         {
-            return;
+            state.AclChangeGeneration = generation;
         }
 
-        state.AclChangeGeneration = generation;
         if (_mailboxStore is not IImapSelectedMailboxAuthorization authorization)
         {
             return;

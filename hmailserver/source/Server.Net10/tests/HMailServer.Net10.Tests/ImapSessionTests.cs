@@ -87,7 +87,7 @@ public sealed class ImapSessionTests
         var tracker = new ImapFolderChangeTracker();
         var mailboxStore = new AclRevalidatingMailboxStore(null);
         await using var stream = new DuplexMemoryStream(
-            "A001 STORE 1 +FLAGS (\\Seen)\r\nA002 LOGOUT\r\n",
+            "A001 STORE 1 +FLAGS (\\Seen)\r\n",
             () => tracker.PublishAclChange(20));
         var session = CreateSession(
             new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
@@ -111,7 +111,7 @@ public sealed class ImapSessionTests
         var mailboxStore = new AclRevalidatingMailboxStore(
             new ImapMailboxSelection(0, 20, "#Public", 1, 0, 1, 2, null, IsReadOnly: true));
         await using var stream = new DuplexMemoryStream(
-            "A001 STORE 1 +FLAGS (\\Seen)\r\nA002 LOGOUT\r\n",
+            "A001 STORE 1 +FLAGS (\\Seen)\r\n",
             () => tracker.PublishAclChange(20));
         var session = CreateSession(
             new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
@@ -126,6 +126,29 @@ public sealed class ImapSessionTests
 
         StringAssert.Contains(stream.GetOutputText(), "A001 NO Store command on read-only folder\r\n");
         Assert.AreEqual(1, mailboxStore.RevalidationCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_ExternalACLRevocationIsRejectedWithoutTrackerPublication()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var mailboxStore = new AclRevalidatingMailboxStore(null);
+        await using var stream = new DuplexMemoryStream(
+            "A001 STORE 1 +FLAGS (\\Seen)\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: new FakeMutationStore(),
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Select a mailbox first\r\n");
+        Assert.AreEqual(1, mailboxStore.RevalidationCount);
+        Assert.AreEqual(0, tracker.GetAclGeneration(20));
     }
 
     [TestMethod]
