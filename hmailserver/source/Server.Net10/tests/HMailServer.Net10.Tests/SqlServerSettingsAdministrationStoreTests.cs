@@ -482,6 +482,14 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamGreyListingInitialDeleteSql_UsesTheLegacyFixedRow()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @GreyListingInitialDelete\nWHERE settingname = N'greylistinginitialdelete';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamGreyListingInitialDeleteSql);
+    }
+
+    [TestMethod]
     public void UpdateAntiSpamAddHeaderSql_UsesTheLegacyFixedRows()
     {
         StringAssert.Contains(

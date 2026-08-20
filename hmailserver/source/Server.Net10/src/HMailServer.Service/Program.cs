@@ -126,6 +126,8 @@ SettingsAdministrationRuntimeHost.Configure(
             host.Services.GetRequiredService<SmtpGreylistingOptions>().Enabled = value,
         GreyListingInitialDelayPublisher: value =>
             host.Services.GetRequiredService<SmtpGreylistingOptions>().InitialDelay = TimeSpan.FromMinutes(value),
+        GreyListingInitialDeletePublisher: value =>
+            host.Services.GetRequiredService<SmtpGreylistingOptions>().InitialRecordLifetime = TimeSpan.FromHours(value),
         SpamAssassinConnectionTestRuntime:
             host.Services.GetRequiredService<ISpamAssassinConnectionTestRuntime>(),
         LogonFailureAdministrationStore:

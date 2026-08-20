@@ -62,6 +62,7 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsTrue(await store.UpdateAntiSpamCheckPtrScoreAsync(6, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamGreyListingEnabledAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamGreyListingInitialDelayAsync(10, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamGreyListingInitialDeleteAsync(10, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamAddHeaderSpamAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamAddHeaderReasonAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamPrependSubjectAsync(true, CancellationToken.None));
@@ -79,6 +80,7 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.AreEqual(6, await ReadSettingIntegerAsync(testConnectionString, "ascheckptrscore"));
             Assert.AreEqual(1, await ReadSettingIntegerAsync(testConnectionString, "usegreylisting"));
             Assert.AreEqual(10, await ReadSettingIntegerAsync(testConnectionString, "greylistinginitialdelay"));
+            Assert.AreEqual(10, await ReadSettingIntegerAsync(testConnectionString, "greylistinginitialdelete"));
             CollectionAssert.AreEqual(new[] { 1, 1 }, await ReadAddHeaderValuesAsync(testConnectionString));
             Assert.AreEqual(1, await ReadSettingIntegerAsync(testConnectionString, "antispamprependsubject"));
             Assert.AreEqual("[spam]", await ReadSettingStringAsync(testConnectionString, "antispamprependsubjecttext"));
@@ -101,6 +103,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsFalse(await store.UpdateAntiSpamGreyListingEnabledAsync(false, CancellationToken.None));
             await DeleteRowAsync(testConnectionString, "greylistinginitialdelay");
             Assert.IsFalse(await store.UpdateAntiSpamGreyListingInitialDelayAsync(30, CancellationToken.None));
+            await DeleteRowAsync(testConnectionString, "greylistinginitialdelete");
+            Assert.IsFalse(await store.UpdateAntiSpamGreyListingInitialDeleteAsync(30, CancellationToken.None));
             await DeleteRowAsync(testConnectionString, "antispamaddheaderspam");
             Assert.IsFalse(await store.UpdateAntiSpamAddHeaderSpamAsync(false, CancellationToken.None));
             await DeleteRowAsync(testConnectionString, "antispamprependsubject");
@@ -164,6 +168,7 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
                 (N'ascheckptr', N'', 0), (N'ascheckptrscore', N'', 1),
                 (N'usegreylisting', N'', 0),
                 (N'greylistinginitialdelay', N'', 30),
+                (N'greylistinginitialdelete', N'', 24),
                 (N'antispamaddheaderspam', N'', 0), (N'antispamaddheaderreason', N'', 0),
                 (N'antispamprependsubject', N'', 0), (N'antispamprependsubjecttext', N'[old]', 0),
                 (N'spammarkthreshold', N'', 5), (N'spamdeletethreshold', N'', 20);

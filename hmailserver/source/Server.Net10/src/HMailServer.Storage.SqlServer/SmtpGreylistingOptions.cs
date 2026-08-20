@@ -22,7 +22,13 @@ public sealed record SmtpGreylistingOptions
         set => Volatile.Write(ref _initialDelayTicks, value.Ticks);
     }
 
-    public TimeSpan InitialRecordLifetime { get; init; } = TimeSpan.FromHours(24);
+    private long _initialRecordLifetimeTicks = TimeSpan.FromHours(24).Ticks;
+
+    public TimeSpan InitialRecordLifetime
+    {
+        get => TimeSpan.FromTicks(Volatile.Read(ref _initialRecordLifetimeTicks));
+        set => Volatile.Write(ref _initialRecordLifetimeTicks, value.Ticks);
+    }
 
     public TimeSpan PassedRecordLifetime { get; init; } = TimeSpan.FromDays(36);
 

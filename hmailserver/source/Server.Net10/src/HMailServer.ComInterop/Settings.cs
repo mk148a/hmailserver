@@ -2265,6 +2265,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
 
                         _runtimeConfiguration.GreyListingInitialDelayPublisher?.Invoke(value);
                     },
+                    publishGreyListingInitialDelete: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamGreyListingInitialDelete = value };
+                        }
+
+                        _runtimeConfiguration.GreyListingInitialDeletePublisher?.Invoke(value);
+                    },
                     publishAddHeaderSpam: value =>
                     {
                         if (_administrationSnapshot is not null)
@@ -2731,6 +2740,7 @@ public sealed record SettingsRuntimeConfiguration(
     IGreyListingTripletAdministrationStore? GreyListingTripletAdministrationStore = null,
     Action<bool>? GreyListingEnabledPublisher = null,
     Action<int>? GreyListingInitialDelayPublisher = null,
+    Action<int>? GreyListingInitialDeletePublisher = null,
     ISpamAssassinConnectionTestRuntime? SpamAssassinConnectionTestRuntime = null,
     ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null);
 
@@ -2765,6 +2775,7 @@ public static class SettingsAdministrationRuntimeHost
         var runtimeSettings = settings ?? new SettingsRuntimeConfiguration();
         runtimeSettings.GreyListingEnabledPublisher?.Invoke(snapshot.AntiSpamGreyListingEnabled);
         runtimeSettings.GreyListingInitialDelayPublisher?.Invoke(snapshot.AntiSpamGreyListingInitialDelay);
+        runtimeSettings.GreyListingInitialDeletePublisher?.Invoke(snapshot.AntiSpamGreyListingInitialDelete);
 
         Volatile.Write(
             ref _configuration,
