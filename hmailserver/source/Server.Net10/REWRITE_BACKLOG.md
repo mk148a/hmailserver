@@ -1,5 +1,40 @@
 
-## Current next slice (2026-08-20, live ACL authorization and environment gates)
+## Current next slice (2026-08-20, IMAP ACL command coverage and performance)
+
+Code/test commit `61cb3368c` adds per-dispatch selected-mailbox ACL
+revalidation for SQL-backed IMAP sessions. Legacy
+`IMAPConnection::CheckPermission` resolves ACL permission at command
+boundaries; Net10 now observes external ACL revocation without requiring a
+tracker publication. Read revocation clears selection/recent state and write
+revocation makes the selection read-only. Focused coverage is `76 passed, 0
+failed`; full Debug is `2338 passed, 58 skipped, 0 failed`.
+
+This is not a release-gate pass. The SQL lookup cost must be measured, and
+COPY/MOVE source and destination authorization, IDLE-time unsolicited
+revocation, inherited group membership changes, live SQL/Data,
+migration/rollback, out-of-process COM, paired C++ performance, and soak
+evidence remain open. Release remains **RED**.
+
+Next slice: audit and test selected-folder read commands plus COPY/MOVE source
+and destination authorization, then add a benchmark threshold for the
+per-dispatch ACL lookup. Environment priority remains the disposable VM
+Administrator sign-in and guarded migration/rollback drill.
+
+## Historical completed slice (2026-08-20, live ACL authorization and environment gates)
+
+Test-only commit `c07c386ac` records the tracker contract: 128 concurrent ACL
+publications for one folder are lossless, ACL and folder-tree generations are
+separate, and folder changes retain only the latest snapshot per account/folder
+key. Focused tracker/session coverage is `75 passed, 0 failed`; full Debug is
+`2337 passed, 58 skipped, 0 failed`.
+
+The next production-parity slice is a live selected-mailbox authorization
+check for read commands and COPY/MOVE source/destination, or a separately
+approved external-SQL synchronization design. The current tracker only reacts
+to published Net10 mutation paths; it does not detect direct SQL changes,
+inherited group-membership changes, or IDLE-time unsolicited revocation.
+Environment priority remains the disposable VM Administrator sign-in and
+guarded migration/rollback drill. Release remains **RED**.
 
 Test-only commit `c07c386ac` records the current tracker contract: 128
 concurrent ACL publications for one folder are lossless, ACL and folder-tree

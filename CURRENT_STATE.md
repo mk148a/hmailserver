@@ -1,14 +1,14 @@
 # Current State
 - UTC/local timestamp: `2026-08-20T13:03:46Z` / `2026-08-20T16:03:46+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `c07c386ac` (`c07c386ac` test-only tracker boundaries)
+- Current HEAD: `61cb3368c` (`61cb3368c` live selected-mailbox ACL revalidation)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: tracker/session `75 passed, 0 failed`; previous ACL/session/COM/SQL shape `108 passed, 0 failed`
-- Latest full Net10 result: Debug `2337 passed, 58 skipped, 0 failed`
+- Latest focused-test result: IMAP session/ACL `76 passed, 0 failed`; previous tracker/session `75 passed, 0 failed`
+- Latest full Net10 result: Debug `2338 passed, 58 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: passed Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`, isolated restore/rollback `21/21`; skipped/blocked registry/COM, installer, AD/DC, SEC-18, live C++ comparison, and 24-hour soak
-- Current bounded slice: `c07c386ac` test-only tracker boundary coverage; 128 concurrent ACL publications are lossless, ACL and folder-tree generations are separate, and folder changes retain only the latest snapshot per key. Production ACL invalidation remains `bce828b9f`
+- Current bounded slice: `61cb3368c` revalidates selected SQL-backed IMAP mailbox ACL on every command dispatch; read revocation clears selection and write revocation sets read-only. The per-command SQL cost, COPY/MOVE source/destination, IDLE, and inherited-group cases remain open
 - Completed milestones: backup/restore foundations, guarded installer rollback code, COM/Admin slices through current ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10-only load evidence
 - Open production blockers: direct external ACL changes and inherited-group revocation, live SQL/Data and migration/rollback, registered/out-of-process COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
 - Environment-blocked work: disposable VM guest sign-in; no guest .NET/SQL/hMailServer service is installed; registry-isolated C++ runner, live DNS/TLS, credentials/AD, IIS/SEC-18, and 24-hour soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: live selected-folder read and COPY/MOVE authorization; approved external-SQL/inherited-group synchronization design; disposable VM sign-in then guarded migration/rollback drill
+- Next three independent slices: audit selected-folder reads and COPY/MOVE source/destination authorization with thresholds; IDLE/inherited-group revocation design; disposable VM sign-in then guarded migration/rollback drill

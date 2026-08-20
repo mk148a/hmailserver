@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, live ACL revalidation)
+
+Code/test commit `61cb3368c` adds per-command selected-mailbox ACL
+revalidation for SQL-backed IMAP sessions. It closes the specific external-ACL
+revocation gap against legacy `IMAPConnection::CheckPermission`: read
+revocation clears selection/recent state and write revocation changes the
+selection to read-only without requiring a tracker publication. Focused
+coverage is `76/76`; full Debug is `2338 passed, 58 skipped, 0 failed`.
+
+Residual risk is explicit: the SQL lookup cost is unbenchmarked, COPY/MOVE
+source/destination checks need a handler-level audit, and IDLE-time unsolicited
+revocation and inherited group membership remain open. Live SQL/Data,
+migration/rollback, cross-process COM, paired C++ performance, and soak remain
+open; release is **RED**.
+
+Next slice: audit the selected-folder read commands and COPY/MOVE source and
+destination authorization, then establish a measurable ACL lookup threshold.
+
 ## Current Authoritative Continuation (2026-08-20, tracker concurrency boundaries)
 
 Test-only commit `c07c386ac` records 128 concurrent ACL publications for one
