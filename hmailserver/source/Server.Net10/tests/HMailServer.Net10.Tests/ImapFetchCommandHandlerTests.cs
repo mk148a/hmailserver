@@ -105,15 +105,6 @@ public sealed class ImapFetchCommandHandlerTests
     }
 
     [TestMethod]
-    public void FetchParser_FullIncludesBodyAndMarksSeen()
-    {
-        var request = new ImapFetchCommandParser().Parse(10, 20, "1 FULL", useUid: false);
-
-        CollectionAssert.Contains(request.Items.ToArray(), ImapFetchDataItem.Body);
-        Assert.IsTrue(request.MarksSeen);
-    }
-
-    [TestMethod]
     public async Task HandleAsync_BodyMarksOnlyUnseenMessagesWhenMailboxAllowsWriteSeen()
     {
         var fetchStore = new CapturingFetchStore(
