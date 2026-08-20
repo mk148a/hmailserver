@@ -313,29 +313,64 @@ public static class BackupRestoreMetadataWriter
             .Select(permission => PublicFolderAclHolderResolver.Resolve(permission, accounts, groups))
             .ToArray();
         await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: ct => RestorePublicFolderPermissionsCoreAsync(folderId, resolved, store, ct),
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return resolved.Length;
+    }
+
+    public static async ValueTask<BackupRestoreMetadataResult> RestorePublicFoldersAsync(
+        IReadOnlyList<RestorePublicFolderEntry> folders,
+        IReadOnlyList<AccountAdministrationSnapshot> accounts,
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        IImapFolderAdministrationRestoreStore folderStore,
+        IMessageAdministrationRestoreStore messageStore,
+        IImapFolderPermissionAdministrationRestoreStore permissionStore,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(folders);
+        ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentNullException.ThrowIfNull(groups);
+        ArgumentNullException.ThrowIfNull(folderStore);
+        ArgumentNullException.ThrowIfNull(messageStore);
+        ArgumentNullException.ThrowIfNull(permissionStore);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var restoredFolders = 0;
+        var restoredMessages = 0;
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
             mutateAsync: async ct =>
             {
-                foreach (var permission in resolved)
+                foreach (var root in folders)
                 {
-                    var inserted = await store.InsertFolderPermissionForRestoreAsync(
-                        folderId,
-                        permission.PermissionType,
-                        permission.PermissionGroupId,
-                        permission.PermissionAccountId,
-                        permission.Rights,
+                    await RestorePublicFolderAsync(
+                        root,
+                        parentFolderId: -1,
+                        accounts,
+                        groups,
+                        folderStore,
+                        messageStore,
+                        permissionStore,
                         ct).ConfigureAwait(false);
-                    if (inserted is null)
-                    {
-                        throw new InvalidOperationException(
-                            "The public-folder ACL restore did not insert a permission row.");
-                    }
+                    restoredFolders += CountPublicFolders(root);
+                    restoredMessages += CountPublicMessages(root);
                 }
             },
             commitAsync: _ => default,
             rollbackAsync: rollbackAsync,
             cancellationToken: cancellationToken).ConfigureAwait(false);
 
-        return resolved.Length;
+        return new BackupRestoreMetadataResult(
+            RestoredDomains: 0,
+            RestoredAccounts: 0,
+            RestoredAliases: 0,
+            RestoredDistributionLists: 0,
+            RestoredRecipients: 0,
+            RestoredFolders: restoredFolders,
+            RestoredMessages: restoredMessages);
     }
 
     public static async ValueTask<BackupRestoreMetadataResult> RestoreFoldersAsync(
@@ -423,9 +458,84 @@ public static class BackupRestoreMetadataWriter
         return inserted.Id;
     }
 
+    private static async ValueTask RestorePublicFolderAsync(
+        RestorePublicFolderEntry entry,
+        int parentFolderId,
+        IReadOnlyList<AccountAdministrationSnapshot> accounts,
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        IImapFolderAdministrationRestoreStore folderStore,
+        IMessageAdministrationRestoreStore messageStore,
+        IImapFolderPermissionAdministrationRestoreStore permissionStore,
+        CancellationToken cancellationToken)
+    {
+        var inserted = await folderStore.InsertFolderForRestoreAsync(
+            entry.Folder with { AccountId = 0, ParentId = parentFolderId },
+            cancellationToken).ConfigureAwait(false);
+
+        foreach (var message in entry.Messages)
+        {
+            await messageStore.InsertMessageForRestoreAsync(
+                accountId: 0,
+                folderId: inserted.Id,
+                message with { AccountId = 0, FolderId = inserted.Id },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        foreach (var child in entry.Children)
+        {
+            await RestorePublicFolderAsync(
+                child,
+                inserted.Id,
+                accounts,
+                groups,
+                folderStore,
+                messageStore,
+                permissionStore,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var resolved = entry.Permissions
+            .Select(permission => PublicFolderAclHolderResolver.Resolve(permission, accounts, groups))
+            .ToArray();
+        await RestorePublicFolderPermissionsCoreAsync(
+            inserted.Id,
+            resolved,
+            permissionStore,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static async ValueTask RestorePublicFolderPermissionsCoreAsync(
+        int folderId,
+        IReadOnlyList<ResolvedPublicFolderAclPermission> permissions,
+        IImapFolderPermissionAdministrationRestoreStore store,
+        CancellationToken cancellationToken)
+    {
+        foreach (var permission in permissions)
+        {
+            var inserted = await store.InsertFolderPermissionForRestoreAsync(
+                folderId,
+                permission.PermissionType,
+                permission.PermissionGroupId,
+                permission.PermissionAccountId,
+                permission.Rights,
+                cancellationToken).ConfigureAwait(false);
+            if (inserted is null)
+            {
+                throw new InvalidOperationException(
+                    "The public-folder ACL restore did not insert a permission row.");
+            }
+        }
+    }
+
     private static int CountFolders(RestoreFolderEntry entry) =>
         1 + entry.Children.Sum(CountFolders);
 
     private static int CountMessages(RestoreFolderEntry entry) =>
         entry.Messages.Count + entry.Children.Sum(CountMessages);
+
+    private static int CountPublicFolders(RestorePublicFolderEntry entry) =>
+        1 + entry.Children.Sum(CountPublicFolders);
+
+    private static int CountPublicMessages(RestorePublicFolderEntry entry) =>
+        entry.Messages.Count + entry.Children.Sum(CountPublicMessages);
 }

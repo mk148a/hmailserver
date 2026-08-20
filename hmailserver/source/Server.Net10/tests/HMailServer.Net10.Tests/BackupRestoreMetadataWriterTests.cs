@@ -184,6 +184,55 @@ public sealed class BackupRestoreMetadataWriterTests
         Assert.AreEqual(1, rollbackCalls);
     }
 
+    [TestMethod]
+    public async Task RestorePublicFoldersAsync_ProcessesMessagesChildrenThenAclInLegacyOrder()
+    {
+        var events = new List<string>();
+        var folderStore = new RecordingPublicFolderRestoreStore(events);
+        var messageStore = new RecordingPublicMessageRestoreStore(events);
+        var permissionStore = new RecordingFolderPermissionRestoreStore(events: events);
+        var root = new RestorePublicFolderEntry(
+            new ImapFolderAdministrationSnapshot(0, 0, -1, "Shared", true, 4, "2026-07-01 12:30:00"),
+            new[]
+            {
+                new RestorePublicFolderEntry(
+                    new ImapFolderAdministrationSnapshot(0, 0, -1, "Child", true, 2, "2026-07-01 12:31:00"),
+                    Array.Empty<RestorePublicFolderEntry>(),
+                    Array.Empty<MessageAdministrationSnapshot>(),
+                    new[] { new RestoreFolderPermissionEntry(1, 1024, "Editors") })
+            },
+            new[]
+            {
+                new MessageAdministrationSnapshot(
+                    0, 0, 0, "root.eml", 2, "sender@example.test", 42, 0, 1,
+                    new DateTime(2026, 7, 1, 12, 32, 0), 8)
+            },
+            new[] { new RestoreFolderPermissionEntry(0, 3, "user@example.test") });
+
+        var result = await BackupRestoreMetadataWriter.RestorePublicFoldersAsync(
+            new[] { root },
+            new[] { new AccountAdministrationSnapshot(42, 7, "user@example.test", true, 0) },
+            new[] { new GroupAdministrationSnapshot(77, "Editors") },
+            folderStore,
+            messageStore,
+            permissionStore,
+            () => default,
+            CancellationToken.None);
+
+        Assert.AreEqual(2, result.RestoredFolders);
+        Assert.AreEqual(1, result.RestoredMessages);
+        CollectionAssert.AreEqual(
+            new[]
+            {
+                "folder:Shared:0:-1",
+                "message:500:root.eml:0",
+                "folder:Child:0:500",
+                "acl:501:1:77:0:1024",
+                "acl:500:0:0:42:3"
+            },
+            events);
+    }
+
     private sealed class RecordingDomainStore : IDomainAdministrationStore
     {
         public List<DomainAdministrationSnapshot> Inserted { get; } = new();
@@ -236,10 +285,14 @@ public sealed class BackupRestoreMetadataWriterTests
         : IImapFolderPermissionAdministrationRestoreStore
     {
         private readonly int? _failOnInsert;
+        private readonly List<string>? _events;
 
-        public RecordingFolderPermissionRestoreStore(int? failOnInsert = null)
+        public RecordingFolderPermissionRestoreStore(
+            int? failOnInsert = null,
+            List<string>? events = null)
         {
             _failOnInsert = failOnInsert;
+            _events = events;
         }
 
         public List<(int FolderId, int Type, int GroupId, int AccountId, int Rights)> Inserted { get; } = new();
@@ -258,6 +311,7 @@ public sealed class BackupRestoreMetadataWriterTests
             }
 
             Inserted.Add((folderId, permissionType, permissionGroupId, permissionAccountId, value));
+            _events?.Add($"acl:{folderId}:{permissionType}:{permissionGroupId}:{permissionAccountId}:{value}");
             return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(
                 new ImapFolderPermissionAdministrationSnapshot(
                     Inserted.Count,
@@ -266,6 +320,47 @@ public sealed class BackupRestoreMetadataWriterTests
                     permissionGroupId,
                     permissionAccountId,
                     value));
+        }
+    }
+
+    private sealed class RecordingPublicFolderRestoreStore : IImapFolderAdministrationRestoreStore
+    {
+        private readonly List<string> _events;
+        private int _nextId = 500;
+
+        public RecordingPublicFolderRestoreStore(List<string> events)
+        {
+            _events = events;
+        }
+
+        public ValueTask<ImapFolderAdministrationSnapshot> InsertFolderForRestoreAsync(
+            ImapFolderAdministrationSnapshot folder,
+            CancellationToken cancellationToken)
+        {
+            var inserted = folder with { Id = _nextId++ };
+            _events.Add($"folder:{inserted.Name}:{inserted.AccountId}:{inserted.ParentId}");
+            return ValueTask.FromResult(inserted);
+        }
+    }
+
+    private sealed class RecordingPublicMessageRestoreStore : IMessageAdministrationRestoreStore
+    {
+        private readonly List<string> _events;
+        private long _nextId = 700;
+
+        public RecordingPublicMessageRestoreStore(List<string> events)
+        {
+            _events = events;
+        }
+
+        public ValueTask<MessageAdministrationInsertResult> InsertMessageForRestoreAsync(
+            int accountId,
+            int folderId,
+            MessageAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            _events.Add($"message:{folderId}:{snapshot.FileName}:{accountId}");
+            return ValueTask.FromResult(new MessageAdministrationInsertResult(_nextId++, snapshot.Uid, snapshot.State));
         }
     }
 
