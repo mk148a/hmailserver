@@ -1,28 +1,28 @@
 
-## Current next slice (2026-08-21, AntiSpam GreyListingInitialDelay runtime parity)
+## Current next slice (2026-08-21, AntiSpam GreyListingInitialDelete runtime parity)
 
-Code/test commit `b012f652f` closes the legacy Administrator
-`AntiSpam.GreyListingEnabled` mutation/runtime gap after the SPF,
+Code/test commit `64204acf5` closes the legacy Administrator
+`AntiSpam.GreyListingInitialDelay` mutation/runtime gap after the SPF,
 MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
 greylisting bypass, CheckHostInHelo, and AddHeader pairs. The existing
-authenticated Settings boundary now persists only `usegreylisting`, refreshes retained
+authenticated Settings boundary now persists only `greylistinginitialdelay`, refreshes retained
 object snapshots, and fails closed on missing rows or reauthentication.
 Focused COM/SQL/security coverage is `4 passed, 0 skipped, 0 failed`; the disposable
 SQL integration setter/readback and missing-row checks passed; full disposable
-LocalDB/Data is `2493 passed, 10 skipped, 0 failed` (`2503` total).
+LocalDB/Data is `2497 passed, 10 skipped, 0 failed` (`2507` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_GreyListingEnabled`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:281-295`),
-`AntiSpamConfiguration::SetUseGreyListing`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:99-102`),
-and key `usegreylisting`
-(`hmailserver/source/Server/Common/Application/Constants.h:77`). The next
-bounded slice is `AntiSpam.GreyListingInitialDelay` with the same SQL/runtime
+Legacy anchors are `InterfaceAntiSpam::put_GreyListingInitialDelay`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:313-327`),
+`AntiSpamConfiguration::SetGreyListingInitialDelay`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:117-120`),
+and key `greylistinginitialdelay`
+(`hmailserver/source/Server/Common/Application/Constants.h:78`). The next
+bounded slice is `AntiSpam.GreyListingInitialDelete` with the same SQL/runtime
 bridge;
 preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
-or live SMTP/POP3 GreyListingEnabled reconfiguration in that slice. Lifetime
-setters, triplet collections, cleanup, and production-hosted SMTP socket
+or live SMTP/POP3 GreyListingInitialDelay reconfiguration in that slice. Final
+delete, triplet collections, cleanup, and production-hosted SMTP socket
 acceptance remain separate. In parallel, the migration/installer
 drill remains environment-gated: `Get-VM` is access-denied and MSSQLSERVER is
 not approved as disposable. Do not touch production service, SQL/Data,

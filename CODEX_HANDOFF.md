@@ -1,25 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AntiSpam GreyListingEnabled runtime parity)
+## Current Authoritative Continuation (2026-08-21, AntiSpam GreyListingInitialDelay runtime parity)
 
-Code/test commit `b012f652f` implements the authenticated Administrator
-`AntiSpam.GreyListingEnabled` SQL/runtime mutation slice after
+Code/test commit `64204acf5` implements the authenticated Administrator
+`AntiSpam.GreyListingInitialDelay` SQL/runtime mutation slice after
 the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
 verification, greylisting bypass, CheckHostInHelo, and AddHeader pairs.
 Focused COM/SQL/security coverage is `4 passed, 0 skipped, 0 failed`; the disposable SQL
 integration setter/readback and missing-row checks passed; the disposable
-LocalDB/Data full suite is `2493 passed, 10 skipped, 0 failed` (`2503` total).
+LocalDB/Data full suite is `2497 passed, 10 skipped, 0 failed` (`2507` total).
 Direct activation, failed reauthentication, missing-row failure, retained
 object snapshots, and existing COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_GreyListingEnabled`
-(`source/Server/COM/InterfaceAntiSpam.cpp:281-295`),
-`AntiSpamConfiguration::SetUseGreyListing`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:99-102`), and the
-legacy key `usegreylisting`. The next unblocked parity slice is
-`AntiSpam.GreyListingInitialDelay` with the same SQL/runtime bridge; lifetime,
-triplet collections, cleanup, and production-hosted SMTP socket acceptance
-remain separate. The socket acceptance gap keeps the overall release `RED`.
+Legacy references are `InterfaceAntiSpam::put_GreyListingInitialDelay`
+(`source/Server/COM/InterfaceAntiSpam.cpp:313-327`),
+`AntiSpamConfiguration::SetGreyListingInitialDelay`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:117-120`), and the
+legacy key `greylistinginitialdelay`. The next unblocked parity slice is
+`AntiSpam.GreyListingInitialDelete` with the same SQL/runtime bridge; final
+delete, triplet collections, cleanup, and production-hosted SMTP socket
+acceptance remain separate. Release remains `RED`.
 the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
 disposable target. Live anti-spam reconfiguration is still unproven. Release
