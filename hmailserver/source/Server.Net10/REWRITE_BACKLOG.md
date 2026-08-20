@@ -1,5 +1,24 @@
 
-## Current next slice (2026-08-20, fine-grained IMAP ACL rights)
+## Current next slice (2026-08-20, APPEND/COPY Insert ACL rights)
+
+Code/test commit `f4c07f05` extends selected mailbox state with the effective
+legacy ACL bitmask and enforces `WriteSeen`, `WriteDeleted`, and `WriteOthers`
+for STORE plus `Expunge` for EXPUNGE. Focused IMAP/SQL coverage is `59
+passed`; full Debug is `2349 passed, 58 skipped, 0 failed`.
+
+Legacy behavior is anchored by `IMAPStore::DoAction`,
+`IMAPCommandAPPEND::ExecuteCommand`, `IMAPCopy::DoAction`,
+`IMAPCommandEXPUNGE::ExecuteCommand`, and
+`IMAPConnection::CheckPermission`. The next bounded gap is destination
+`Insert` enforcement for APPEND and COPY. APPEND `\\Seen` filtering and
+literal-continuation ordering remain a later slice. No SMTP, COM identity,
+SQL schema, live reconfiguration, or unrelated Admin behavior is in scope.
+
+No qualifying disposable SQL/Data fixture exists for the guarded benchmark;
+paired C++/.NET performance, migration/rollback, SEC-18, and soak gates keep
+release **RED**.
+
+## Historical current slice (2026-08-20, fine-grained IMAP ACL rights)
 
 Code/test commit `778cadfcd` separates client-requested EXAMINE read-only state
 from ACL-derived SELECT writeability. Legacy-compatible SELECT behavior now

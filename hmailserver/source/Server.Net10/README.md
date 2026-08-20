@@ -1,4 +1,21 @@
-## Current authoritative parity status (2026-08-20, reversible ACL read-only state)
+## Current authoritative parity status (2026-08-20, STORE/EXPUNGE ACL rights)
+
+Code/test commit `f4c07f05` carries the effective ACL bitmask through selected
+mailbox state and enforces the legacy `WriteSeen`, `WriteDeleted`, and
+`WriteOthers` rights for STORE plus `Expunge` for EXPUNGE. Unauthorized
+mutations are rejected before the mutation store is called. Focused IMAP/SQL
+coverage is `59 passed`; full Debug is `2349 passed, 58 skipped, 0 failed`.
+
+Legacy anchors are `IMAPStore::DoAction`,
+`IMAPCommandEXPUNGE::ExecuteCommand`, and
+`IMAPConnection::CheckPermission` in the C++ tree. APPEND/COPY destination
+`Insert` and APPEND `\\Seen` filtering remain open. No live SQL benchmark,
+paired C++/.NET performance evidence, COM/DCOM, SEC-18, migration/rollback,
+or 24-hour soak evidence exists; release remains **RED**.
+
+Next slice: enforce destination `Insert` at APPEND and COPY boundaries.
+
+## Historical authoritative parity status (2026-08-20, reversible ACL read-only state)
 
 Code/test commit `778cadfcd` keeps a separate `RequestedReadOnly` selection
 marker. SQL-backed ACL revalidation now recomputes SELECT writeability from the

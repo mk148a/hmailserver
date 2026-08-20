@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, STORE/EXPUNGE ACL rights)
+
+Code/test commit `f4c07f05` enforces legacy `WriteSeen`, `WriteDeleted`, and
+`WriteOthers` at STORE and `Expunge` at EXPUNGE after carrying the effective
+ACL bitmask through selected mailbox state. Focused coverage is `59/59`; full
+Debug is `2349 passed, 58 skipped, 0 failed`. Denials happen before mutation.
+
+Legacy anchors: `IMAPStore::DoAction`,
+`IMAPCommandEXPUNGE::ExecuteCommand`, and
+`IMAPConnection::CheckPermission` / `CheckFolderPermissions`. Next slice:
+destination `Insert` enforcement for APPEND and COPY. APPEND `\\Seen`
+filtering and pre-continuation authorization remain separate later work.
+
+The guarded SQL benchmark has no qualifying disposable fixture. Paired
+C++/.NET performance, out-of-process COM/DCOM, SEC-18, migration/rollback,
+and 24-hour soak remain unproven; release is **RED** and no push was done.
+
 ## Current Authoritative Continuation (2026-08-20, reversible ACL read-only state)
 
 Code/test commit `778cadfcd` makes selected-mailbox ACL writeability reversible

@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-20, STORE/EXPUNGE ACL rights)
+
+Code/test commit `f4c07f05` carries the legacy ACL bitmask through selected
+mailbox state and enforces `WriteSeen`, `WriteDeleted`, and `WriteOthers` at
+STORE, plus `Expunge` at EXPUNGE. Denials occur before mutation and ACL state
+is refreshed with the selected mailbox. Focused IMAP/SQL coverage is `59
+passed`; full Debug is `2349 passed, 58 skipped, 0 failed`.
+
+Legacy anchors are `IMAPStore::DoAction`, `IMAPCommandEXPUNGE::ExecuteCommand`,
+and `IMAPConnection::CheckPermission` in
+`hmailserver/source/Server/IMAP/IMAPStore.cpp`,
+`hmailserver/source/Server/IMAP/IMAPCommandExpunge.cpp`, and
+`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`. APPEND/COPY
+destination `Insert` and APPEND `\\Seen` filtering remain open. No live SQL
+benchmark, C++/.NET paired load test, COM/DCOM, SEC-18, migration/rollback, or
+24-hour soak evidence exists; release remains **RED**.
+
+Next slice: enforce destination `Insert` for APPEND and COPY, with no broader
+message-flag or protocol mutation changes.
+
 ## Current authoritative parity status (2026-08-20, reversible ACL read-only state)
 
 Code/test commit `778cadfcd` separates client-requested read-only selection
