@@ -243,6 +243,105 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
+    [DataRow(6)]
+    public async Task CreatesMissingLegacyOptionArchivesWithExpectedMetadataAndCleanup(
+        int backupOptions)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var destination = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-backup-missing-options-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(destination);
+
+        var timestamp = new DateTime(2026, 8, 2, 0, backupOptions, 0);
+        var archivePath = Path.Combine(
+            destination,
+            $"HMBackup {timestamp:yyyy-MM-dd HHmmss}.7z");
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                () => timestamp,
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: new SettingsAdministrationSnapshot(
+                            "mail.example.test",
+                            "smtp",
+                            "pop3",
+                            "imap"),
+                        Domains: new[]
+                        {
+                            new DomainAdministrationSnapshot(10, "example.test", true)
+                        })));
+
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: backupOptions,
+                    BackupMessagesDbOnly: backupOptions == 6,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true),
+                CancellationToken.None);
+
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsFalse(File.Exists(
+                Path.Combine(destination, "hMailServerBackup.xml")));
+
+            var metadata = XDocument.Parse(
+                await ReadMetadataXmlAsync(sevenZipPath, archivePath));
+            var root = metadata.Root!;
+            var information = root.Element("BackupInformation")!;
+            Assert.AreEqual(
+                backupOptions.ToString(),
+                information.Attribute("Mode")?.Value);
+
+            var expectedRootElements = backupOptions switch
+            {
+                1 => new[] { "BackupInformation", "Properties" },
+                2 => new[] { "BackupInformation", "Domains" },
+                3 => new[] { "BackupInformation", "Domains", "Properties" },
+                6 => new[] { "BackupInformation", "Domains" },
+                _ => throw new AssertFailedException()
+            };
+            CollectionAssert.AreEqual(
+                expectedRootElements,
+                root.Elements().Select(element => element.Name.LocalName).ToArray());
+
+            var dataFiles = information.Element("DataFiles");
+            if (backupOptions == 6)
+            {
+                Assert.IsNotNull(dataFiles);
+                Assert.AreEqual("Raw", dataFiles.Attribute("Format")?.Value);
+                Assert.AreEqual(
+                    "DataBackup",
+                    dataFiles.Attribute("FolderName")?.Value);
+                Assert.IsNull(dataFiles.Attribute("Size"));
+                Assert.IsFalse(Directory.Exists(
+                    Path.Combine(destination, "DataBackup")));
+            }
+            else
+            {
+                Assert.IsNull(dataFiles);
+            }
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public async Task RejectsPayloadOptionsBeforeCreatingAnyFile()
     {
         var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
