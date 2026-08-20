@@ -1,29 +1,28 @@
 
-## Current next slice (2026-08-20, non-delivered message round-trip evidence)
+## Current next slice (2026-08-20, legacy non-delivered restore normalization)
 
-Code/test commit `08be60cdc` adds a backup-only SQL projection for all
-`hm_messages` states in an account/folder and keeps the shared IMAP/COM read
-projection delivered-only. The parser preserves non-delivered `State` values
-for domain and public-folder messages. Focused backup parser/store/runtime
-coverage is `81 passed, 1 skipped, 0 failed`; the disposable LocalDB/Data Debug
-suite is `2433 passed, 10 skipped, 0 failed` (`2443` total).
+Test commit `04c282bd3` adds disposable SQL/Data backup -> restore -> backup
+coverage for a non-delivered account-folder message (`State=1`) and its nested
+`.eml` file. The backup-only store includes the row while shared IMAP/COM
+folder reads remain delivered-only. The integration group is `22 passed, 0
+skipped, 0 failed`; the disposable LocalDB/Data Debug suite is `2433 passed,
+10 skipped, 0 failed` (`2443` total).
 
-Legacy references are `IMAPFolder::XMLStore` at
-`hmailserver/source/Server/Common/BO/IMAPFolder.cpp:124`,
-`Collection<T,P>::XMLStore` at
-`hmailserver/source/Server/Common/BO/Collection.h:61`,
-`Message::XMLStore` at
-`hmailserver/source/Server/Common/BO/Message.cpp:200`, and
-`Messages::Refresh` at
-`hmailserver/source/Server/Common/BO/Messages.cpp:144`. They establish that
-backup serializes the complete folder message collection and writes `State`,
-while the folder query is scoped by account/folder rather than `messagetype`.
-The existing restore order remains messages -> child folders -> ACL. COM
-identity, SMTP behavior, and shared IMAP/COM reads are unchanged.
+Legacy references are `Messages::Refresh` at
+`hmailserver/source/Server/Common/BO/Messages.cpp:165-197`,
+`Message::XMLStore/XMLLoad` at
+`hmailserver/source/Server/Common/BO/Message.cpp:200-230`,
+`PersistentMessage::AddObject` at
+`hmailserver/source/Server/Common/Persistence/PersistentMessage.cpp:574-646`,
+and `BackupExecuter::BackupDataDirectory_/RestoreDataDirectory_` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196-216, 372-386`.
+They establish full folder-state serialization, nested file staging, and the
+legacy restore normalization that remains open.
 
-Remaining restore risk is that a non-delivered message's file and state have
-not yet passed a disposable backup -> restore -> backup semantic-equivalence
-test. Next slice: add that isolated test, including rollback/failure cleanup.
+Remaining restore risk: legacy resets restored `messagecurnooftries` to `0`
+and adds `32` (`\\Recent`) to `messageflags` in `PersistentMessage::AddObject`,
+while Net10 preserves archived values. Next slice: implement and test that
+normalization, including failure cleanup; then address UID-zero allocation.
 Target-preexisting group dependency, migration/installer, COM/DCOM, SEC-18,
 paired C++/.NET performance, and soak gates remain **RED**.
 

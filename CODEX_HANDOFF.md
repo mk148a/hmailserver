@@ -1,27 +1,28 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, all-state folder-message backup projection)
+## Current Authoritative Continuation (2026-08-20, non-delivered message round trip)
 
-Code/test commit `08be60cdc` adds a backup-only message-store path that reads
-all `hm_messages` states for the selected account/folder. The shared
-IMAP/COM folder-read SQL remains delivered-only (`messagetype = 2`), and the
-parser preserves legacy `State` values for domain and public-folder messages.
-Focused coverage is `81 passed, 1 skipped, 0 failed`; the full disposable
-LocalDB/Data suite is `2433 passed, 10 skipped, 0 failed` (`2443` total).
+Test commit `04c282bd3` adds disposable SQL/Data backup -> restore -> backup
+coverage for a non-delivered account-folder message (`State=1`) and its nested
+`.eml` file. The backup-only store includes the row while shared IMAP/COM
+folder reads remain delivered-only. The integration group is `22 passed, 0
+skipped, 0 failed`; the full disposable LocalDB/Data suite is `2433 passed,
+10 skipped, 0 failed` (`2443` total).
 
-Legacy anchors are `IMAPFolder::XMLStore` (`source/Server/Common/BO/IMAPFolder.cpp:124`),
-`Collection<T,P>::XMLStore` (`source/Server/Common/BO/Collection.h:61`),
-`Message::XMLStore` (`source/Server/Common/BO/Message.cpp:200`), and
-`Messages::Refresh` (`source/Server/Common/BO/Messages.cpp:144`). They show
-that backup serializes the full folder collection and preserves `State`, while
-the folder query is scoped by account/folder rather than delivery state. No
-COM/IDL identity, SMTP trust, shared IMAP/COM read behavior, production
-service, production SQL/Data, or installed registration changed.
+Legacy anchors are `Messages::Refresh` (`source/Server/Common/BO/Messages.cpp:165-197`),
+`Message::XMLStore/XMLLoad` (`source/Server/Common/BO/Message.cpp:200-230`),
+`PersistentMessage::AddObject` (`source/Server/Common/Persistence/PersistentMessage.cpp:574-646`),
+and `BackupExecuter::BackupDataDirectory_/RestoreDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:196-216, 372-386`).
+Net10 now proves all-state nested-file round trip, but still preserves archived
+retries/flags where legacy resets retries to `0` and adds `32` (`\\Recent`) to
+flags. No COM/IDL identity, SMTP trust, shared IMAP/COM read behavior,
+production service, production SQL/Data, or installed registration changed.
 
-Next slice: add disposable backup -> restore -> backup evidence for a
-non-delivered message and its file/state metadata. Group dependency, restore/
-migration, COM/DCOM, SEC-18, paired C++/.NET performance, and soak remain open;
-release remains **RED** and no push was performed.
+Next slice: implement legacy restore normalization for non-delivered message
+retries and flags, with negative/failure coverage. UID-zero allocation, group
+dependency, restore/migration, COM/DCOM, SEC-18, paired C++/.NET performance,
+and soak remain open; release remains **RED** and no push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 

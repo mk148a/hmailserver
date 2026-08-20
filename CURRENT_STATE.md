@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T18:46:54Z` / `2026-08-20T21:46:54+03:00`
+- UTC/local timestamp: `2026-08-20T19:04:27Z` / `2026-08-20T22:04:27+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
 - Current HEAD: this slice's documentation commit (`docs: record all-state backup projection parity`; code/test `08be60cdc`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: backup parser/store/runtime filter `81 passed, 1 skipped, 0 failed` (`82` total)
+- Latest focused-test result: non-delivered backup/restore round trip plus backup parser/store/runtime filter `22 passed, 0 skipped, 0 failed` for the SQL/Data integration group
 - Latest full Net10 result: disposable LocalDB/Data Debug `2433 passed, 10 skipped, 0 failed` (`2443` total)
 - Opt-in tests passed/skipped/blocked: disposable SQL/Data full run `2433/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: backup-only folder message projection now preserves every `hm_messages` state while shared IMAP/COM reads retain delivered-only filtering
+- Current bounded slice: disposable backup -> restore -> backup evidence now covers a non-delivered account-folder message and nested `.eml` file; shared IMAP/COM reads remain delivered-only
 - Completed milestones: backup raw/compressed staging and metadata foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, Net10-only load evidence, ACL revalidation benchmark, IMAP STORE/APPEND/COPY/EXPUNGE/FETCH rights parity slices, live public-folder ACL SQL commit/rollback evidence, holder-name resolution evidence, writer-level ACL restore evidence, legacy-order public-folder traversal evidence, and populated public-folder SQL/Data round trip
-- Open production blockers: non-delivered message file/state round-trip acceptance, target-preexisting group dependency, isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
+- Open production blockers: legacy restore normalization for non-delivered message retries/flags, UID-zero restore allocation parity, target-preexisting group dependency, isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
 - Environment-blocked work: Hyper-V disposable VM presence is still unproven (`Get-VM` access denied); LocalDB disposable SQL/Data is available and passed the current opt-in tests; registry-isolated C++ runner, live DNS/TLS, AD credentials, IIS/SEC-18 cutover, and long soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: add backup -> restore -> backup evidence for non-delivered message state/file metadata; resolve or explicitly scope archive group dependency with legacy evidence; complete isolated migration/installer rollback drill once a disposable VM is usable
+- Next three independent slices: implement/test legacy non-delivered restore normalization for retries/flags; add UID-zero restore allocation parity; resolve or explicitly scope archive group dependency with legacy evidence
