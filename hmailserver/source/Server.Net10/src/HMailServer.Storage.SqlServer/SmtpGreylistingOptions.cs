@@ -14,7 +14,13 @@ public sealed record SmtpGreylistingOptions
 
     public bool BypassOnSpfPass { get; init; }
 
-    public TimeSpan InitialDelay { get; init; } = TimeSpan.FromMinutes(30);
+    private long _initialDelayTicks = TimeSpan.FromMinutes(30).Ticks;
+
+    public TimeSpan InitialDelay
+    {
+        get => TimeSpan.FromTicks(Volatile.Read(ref _initialDelayTicks));
+        set => Volatile.Write(ref _initialDelayTicks, value.Ticks);
+    }
 
     public TimeSpan InitialRecordLifetime { get; init; } = TimeSpan.FromHours(24);
 

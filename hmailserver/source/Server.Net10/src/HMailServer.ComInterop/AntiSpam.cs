@@ -221,6 +221,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<bool>? _publishCheckPtr;
     private readonly Action<int>? _publishCheckPtrScore;
     private readonly Action<bool>? _publishGreyListingEnabled;
+    private readonly Action<int>? _publishGreyListingInitialDelay;
     private readonly Action<bool>? _publishAddHeaderSpam;
     private readonly Action<bool>? _publishAddHeaderReason;
     private readonly Action<bool>? _publishPrependSubject;
@@ -259,6 +260,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishCheckPtr,
         Action<int>? publishCheckPtrScore,
         Action<bool>? publishGreyListingEnabled,
+        Action<int>? publishGreyListingInitialDelay,
         Action<bool>? publishAddHeaderSpam,
         Action<bool>? publishAddHeaderReason,
         Action<bool>? publishPrependSubject,
@@ -292,6 +294,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishCheckPtr = publishCheckPtr;
         _publishCheckPtrScore = publishCheckPtrScore;
         _publishGreyListingEnabled = publishGreyListingEnabled;
+        _publishGreyListingInitialDelay = publishGreyListingInitialDelay;
         _publishAddHeaderSpam = publishAddHeaderSpam;
         _publishAddHeaderReason = publishAddHeaderReason;
         _publishPrependSubject = publishPrependSubject;
@@ -306,7 +309,12 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateGreyListingEnabled(value);
     }
 
-    public int GreyListingInitialDelay { get => Snapshot.GreyListingInitialDelay; set => Unavailable(); }
+    public int GreyListingInitialDelay
+    {
+        get => Snapshot.GreyListingInitialDelay;
+        set => UpdateGreyListingInitialDelay(value);
+    }
+
 
     public int GreyListingInitialDelete { get => Snapshot.GreyListingInitialDelete; set => Unavailable(); }
 
@@ -593,6 +601,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishCheckPtr = null,
         Action<int>? publishCheckPtrScore = null,
         Action<bool>? publishGreyListingEnabled = null,
+        Action<int>? publishGreyListingInitialDelay = null,
         Action<bool>? publishAddHeaderSpam = null,
         Action<bool>? publishAddHeaderReason = null,
         Action<bool>? publishPrependSubject = null,
@@ -628,6 +637,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishCheckPtr,
             publishCheckPtrScore,
             publishGreyListingEnabled,
+            publishGreyListingInitialDelay,
             publishAddHeaderSpam,
             publishAddHeaderReason,
             publishPrependSubject,
@@ -909,6 +919,20 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishGreyListingEnabled?.Invoke(value);
+    }
+
+    private void UpdateGreyListingInitialDelay(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamGreyListingInitialDelayAsync(value, CancellationToken.None),
+            "The anti-spam GreyListingInitialDelay update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { GreyListingInitialDelay = value };
+        }
+
+        _publishGreyListingInitialDelay?.Invoke(value);
     }
 
     private void UpdateAddHeaderSpam(bool value)

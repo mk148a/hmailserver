@@ -3957,6 +3957,87 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamGreyListingInitialDelayPersistsRefreshesAndPublishesRuntimeState()
+    {
+        var published = new List<int>();
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamGreyListingInitialDelayUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamGreyListingInitialDelay: 30)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                GreyListingInitialDelayPublisher: published.Add),
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        settings.AntiSpam.GreyListingInitialDelay = 10;
+
+        Assert.AreEqual(1, store.AntiSpamGreyListingInitialDelayUpdateCount);
+        Assert.AreEqual(10, store.UpdatedAntiSpamGreyListingInitialDelay);
+        Assert.AreEqual(10, settings.AntiSpam.GreyListingInitialDelay);
+        CollectionAssert.AreEqual(new[] { 10 }, published);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamGreyListingInitialDelayFailsClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamGreyListingInitialDelayUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamGreyListingInitialDelay: 30)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failure = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.GreyListingInitialDelay = 10);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamGreyListingInitialDelayUpdateCount);
+        Assert.AreEqual(30, settings.AntiSpam.GreyListingInitialDelay);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamGreyListingInitialDelayUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamGreyListingInitialDelayUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamGreyListingInitialDelay: 30)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.GreyListingInitialDelay = 10);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.AntiSpamGreyListingInitialDelayUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5347,6 +5428,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiSpamGreyListingEnabled { get; private set; }
 
+        public bool AntiSpamGreyListingInitialDelayUpdateResult { get; set; }
+
+        public int AntiSpamGreyListingInitialDelayUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamGreyListingInitialDelay { get; private set; }
+
         public bool AntiSpamAddHeaderSpamUpdateResult { get; set; }
 
         public int AntiSpamAddHeaderSpamUpdateCount { get; private set; }
@@ -6028,6 +6115,16 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamGreyListingEnabled = enabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamGreyListingEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamGreyListingInitialDelayAsync(
+            int minutes,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamGreyListingInitialDelayUpdateCount++;
+            UpdatedAntiSpamGreyListingInitialDelay = minutes;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamGreyListingInitialDelayUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(

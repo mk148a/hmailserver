@@ -474,6 +474,14 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamGreyListingInitialDelaySql_UsesTheLegacyFixedRow()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @GreyListingInitialDelay\nWHERE settingname = N'greylistinginitialdelay';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamGreyListingInitialDelaySql);
+    }
+
+    [TestMethod]
     public void UpdateAntiSpamAddHeaderSql_UsesTheLegacyFixedRows()
     {
         StringAssert.Contains(
