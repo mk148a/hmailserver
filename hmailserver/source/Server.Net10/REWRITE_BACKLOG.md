@@ -1,5 +1,25 @@
 
-## Current next slice (2026-08-20, target group replacement/merge and settings-only group restore)
+## Current next slice (2026-08-20, SQL group round-trip and empty-container cleanup parity)
+
+Code/test commit `6d99fbe19` adds legacy replacement semantics for archives
+with group entries and settings-only group restoration. The transaction deletes
+owned group ACLs and groups before inserting archived groups; members resolve
+against existing accounts for settings-only restore, and public-folder ACLs use
+new group IDs. Focused executor coverage is `24 passed, 0 skipped, 0 failed`;
+the combined focused restore/store run is `38 passed, 0 skipped, 0 failed`; full
+disposable LocalDB/Data is `2443 passed, 10 skipped, 0 failed` (`2453` total).
+
+Legacy anchors are `Collection::XMLLoad`
+(`hmailserver/source/Server/Common/BO/Collection.h:85-130`),
+`PersistentGroup::DeleteObject`
+(`hmailserver/source/Server/Common/Persistence/PersistentGroup.cpp:31-42`),
+and `IMAPConfiguration::XMLLoad`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:238-248`). The next
+slice must add isolated SQL/Data evidence using real `hm_groups` and
+`hm_group_members` tables, then close deletion behavior when Groups is empty or
+omitted. Do not broaden to other Admin collections. Release remains **RED**.
+
+## Historical current slice (2026-08-20, target group replacement/merge and settings-only group restore)
 
 Code/test commit `b834892dd` wires parsed legacy `Groups/GroupMembers` into the
 existing SQL restore transaction. `RestoreGroupsAsync` resolves member

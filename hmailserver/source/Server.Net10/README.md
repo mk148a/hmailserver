@@ -1,4 +1,15 @@
-## Current authoritative parity status (2026-08-20, transaction-scoped group/member restore)
+## Current authoritative parity status (2026-08-20, group replacement and settings-only restore)
+
+Code/test commit `6d99fbe19` adds legacy group replacement inside the restore
+transaction when the archive contains group entries, and restores settings-only
+group entries by resolving member addresses against existing accounts. Focused
+executor coverage is `24 passed, 0 skipped, 0 failed`; the combined focused
+restore/store run is `38 passed, 0 skipped, 0 failed`; full disposable Net10 is
+`2443 passed, 10 skipped, 0 failed` (`2453` total). Empty/omitted Groups
+cleanup and real SQL group-table round-trip evidence remain explicit gaps.
+Release remains **RED**.
+
+## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 
 Code/test commit `b834892dd` wires legacy `Groups/GroupMembers` restore into
 the existing SQL metadata transaction. Member addresses resolve to newly

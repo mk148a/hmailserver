@@ -1,7 +1,25 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, transaction-scoped group/member restore)
+## Current authoritative parity status (2026-08-20, group replacement and settings-only restore)
+
+Code/test commit `6d99fbe19` adds legacy group replacement inside the restore
+transaction when the archive contains group entries, and restores settings-only
+group entries by resolving member addresses against existing accounts. Focused
+executor coverage is `24 passed, 0 skipped, 0 failed`; the combined focused
+restore/store run is `38 passed, 0 skipped, 0 failed`; full disposable Net10 is
+`2443 passed, 10 skipped, 0 failed` (`2453` total).
+
+Legacy `Collection::XMLLoad` (`source/Server/Common/BO/Collection.h:85-130`)
+deletes the current collection before saving each group, while
+`IMAPConfiguration::XMLLoad` (`source/Server/IMAP/IMAPConfiguration.cpp:238-248`)
+loads groups independently of message restoration. Net10 now performs the
+replacement transactionally for non-empty group archives and resolves
+settings-only member addresses against existing accounts. Empty/omitted
+Groups-container deletion and real SQL group-table round-trip evidence remain
+open. Release remains **RED**.
+
+## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 
 Code/test commit `b834892dd` wires legacy `Groups/GroupMembers` restore into
 the existing SQL metadata transaction. Member addresses resolve to newly
