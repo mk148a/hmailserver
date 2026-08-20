@@ -1,22 +1,25 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, empty/omitted Groups cleanup parity)
+## Current authoritative parity status (2026-08-20, AntiSpam SPF mutation parity)
 
-Code/test commit `b2271b26a` closes the legacy empty/omitted `Groups` cleanup
-gap. `Collection::XMLLoad` parity now clears groups whenever group metadata is
-part of the restore, even when the XML container is absent or empty. Focused
-restore/executor/SQL coverage is `28 passed, 0 skipped, 0 failed`; full
-disposable Net10 is `2447 passed, 10 skipped, 0 failed` (`2457` total).
+Code/test commit `4fbe5d7c5` implements the legacy Administrator
+`AntiSpam.UseSPF` and `UseSPFScore` setters through the existing authenticated
+Settings mutation boundary. The SQL store updates only the legacy `usespf` and
+`usespfscore` rows, reports a contained failure when a row is missing, refreshes
+retained COM snapshots, and preserves direct activation/re-authentication
+denials. Focused COM/SQL coverage is `170 passed, 0 skipped, 0 failed`; the
+disposable SQL integration setter test passed; full disposable Net10 is
+`2451 passed, 10 skipped, 0 failed` (`2461` total).
 
-Legacy `Collection::XMLLoad` (`source/Server/Common/BO/Collection.h:85-130`)
-deletes the current collection before saving each group, while
-`IMAPConfiguration::XMLLoad` (`source/Server/IMAP/IMAPConfiguration.cpp:238-248`)
-loads groups independently of message restoration. Net10 now has corresponding
-SQL commit/rollback evidence for non-empty group archives, clears empty/omitted
-containers, and preserves the legacy stale `hm_group_members` behavior.
-Release remains **RED** because migration/installer, COM/DCOM, SEC-18, paired
-C++ performance, and soak gates remain open.
+Legacy anchors are `InterfaceAntiSpam::put_UseSPF/put_UseSPFScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:588-638`) and
+`AntiSpamConfiguration::SetUseSPF/SetUseSPFScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:311-329`). This
+slice does not add live SMTP anti-spam reconfiguration or broaden to other
+AntiSpam properties. Release remains **RED** because migration/installer,
+COM/DCOM, SEC-18, live anti-spam reconfiguration, paired C++ performance, and
+soak gates remain open.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

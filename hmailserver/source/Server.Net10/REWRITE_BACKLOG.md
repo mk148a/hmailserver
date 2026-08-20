@@ -1,23 +1,28 @@
 
-## Current next slice (2026-08-20, isolated migration/installer rollback drill)
+## Current next slice (2026-08-20, adjacent AntiSpam UseMXChecks mutation parity)
 
-Code/test commit `b2271b26a` closes empty/omitted Groups-container cleanup
-parity. Restore clears groups before inserting archived group entries whenever
-group metadata is selected, including absent or empty XML containers. Focused
-coverage is `28 passed, 0 skipped, 0 failed`; full disposable LocalDB/Data is
-`2447 passed, 10 skipped, 0 failed` (`2457` total).
+Code/test commit `4fbe5d7c5` closes the legacy Administrator
+`AntiSpam.UseSPF`/`UseSPFScore` mutation gap. The existing authenticated
+Settings boundary now persists only `usespf` and `usespfscore`, refreshes the
+retained object snapshot, and fails closed on missing rows or reauthentication.
+Focused COM/SQL coverage is `170 passed, 0 skipped, 0 failed`; the disposable
+SQL integration setter test passed; full disposable LocalDB/Data is `2451
+passed, 10 skipped, 0 failed` (`2461` total).
 
-Legacy anchors are `Collection::XMLLoad`
-(`hmailserver/source/Server/Common/BO/Collection.h:85-130`),
-`PersistentGroup::DeleteObject`
-(`hmailserver/source/Server/Common/Persistence/PersistentGroup.cpp:31-42`),
-and `IMAPConfiguration::XMLLoad`
-(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:238-248`). The next
-slice is now environment-gated: provision and verify a disposable VM, then run
-the isolated migration/installer rollback drill using cloned SQL/Data only.
-`Get-VM` remains access-denied and the running MSSQLSERVER instance is not an
-approved disposable target. Do not touch production service, SQL/Data,
-registration, or DCOM. Release remains **RED**.
+Legacy anchors are `InterfaceAntiSpam::put_UseSPF/put_UseSPFScore`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:588-638`) and
+`AntiSpamConfiguration::SetUseSPF/SetUseSPFScore`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:311-329`).
+The next bounded slice is the adjacent `UseMXChecks`/`UseMXChecksScore` pair;
+preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
+authenticated Settings boundary. Do not add live reconfiguration in that
+slice. In parallel, the migration/installer drill remains environment-gated:
+`Get-VM` is access-denied and MSSQLSERVER is not approved as disposable. Do not
+touch production service, SQL/Data, registration, or DCOM. Release remains
+**RED**.
+
+The prior group-cleanup and migration-next entries below are historical and
+superseded by this continuation record.
 
 ## Historical current slice (2026-08-20, target group replacement/merge and settings-only group restore)
 

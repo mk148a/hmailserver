@@ -1,23 +1,24 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, empty/omitted Groups cleanup parity)
+## Current Authoritative Continuation (2026-08-20, AntiSpam SPF mutation parity)
 
-Code/test commit `b2271b26a` closes empty/omitted Groups-container cleanup
-parity. Restore clears groups whenever group metadata is selected, even when
-the XML container is absent or empty. Focused restore/executor/SQL coverage is
-`28 passed, 0 skipped, 0 failed`; the disposable LocalDB/Data full suite is
-`2447 passed, 10 skipped, 0 failed` (`2457` total). The SQL fixture also
-preserves legacy stale `hm_group_members` behavior and proves commit/rollback.
+Code/test commit `4fbe5d7c5` implements the authenticated Administrator
+`AntiSpam.UseSPF` and `UseSPFScore` SQL mutation slice. Focused COM/SQL
+coverage is `170 passed, 0 skipped, 0 failed`; the disposable SQL integration
+setter test passed; the disposable LocalDB/Data full suite is `2451 passed,
+10 skipped, 0 failed` (`2461` total). Direct activation, failed
+reauthentication, missing-row failure, retained-object snapshot, and existing
+COM identity boundaries remain covered.
 
-Legacy references are `Collection::XMLLoad`
-(`source/Server/Common/BO/Collection.h:85-130`),
-`PersistentGroup::DeleteObject`
-(`source/Server/Common/Persistence/PersistentGroup.cpp:31-42`), and
-`IMAPConfiguration::XMLLoad`
-(`source/Server/IMAP/IMAPConfiguration.cpp:238-248`). The next slice is the
-isolated migration/installer rollback drill, but `Get-VM` remains access-denied;
-MSSQLSERVER is running but is not an approved disposable target. Release
-remains `RED`; no push was performed.
+Legacy references are `InterfaceAntiSpam::put_UseSPF/put_UseSPFScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:588-638`) and
+`AntiSpamConfiguration::SetUseSPF/SetUseSPFScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:311-329`). The next
+unblocked parity slice is the adjacent legacy `AntiSpam.UseMXChecks` pair;
+the migration/installer drill remains environment-gated because `Get-VM` is
+access-denied and the running MSSQLSERVER instance is not an approved
+disposable target. Live SMTP anti-spam reconfiguration is still unproven.
+Release remains `RED`; no push was performed.
 
 ## Historical Authoritative Continuation (2026-08-20, transaction-scoped group/member restore)
 
