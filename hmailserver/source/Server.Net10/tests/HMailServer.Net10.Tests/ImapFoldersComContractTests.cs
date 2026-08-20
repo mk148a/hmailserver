@@ -300,6 +300,61 @@ public sealed class ImapFoldersComContractTests
     }
 
     [TestMethod]
+    public async Task ImapFolderChangeTracker_ACLNamespaceIsFolderScopedAndConcurrent()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        const int publicationCount = 128;
+
+        await Task.WhenAll(
+            Enumerable.Range(0, publicationCount)
+                .Select(_ => Task.Run(() => tracker.PublishAclChange(40))));
+
+        Assert.AreEqual(publicationCount, tracker.GetAclGeneration(40));
+        Assert.AreEqual(0, tracker.GetAclGeneration(41));
+
+        tracker.PublishUpsert(
+            new ImapFolderAdministrationSnapshot(
+                40,
+                100,
+                -1,
+                "Inbox",
+                true,
+                1,
+                "2026-08-20 00:00:00"));
+        Assert.AreEqual(publicationCount, tracker.GetAclGeneration(40));
+        Assert.AreEqual(1, tracker.GetGeneration(100));
+    }
+
+    [TestMethod]
+    public void ImapFolderChangeTracker_RetainsOnlyLatestFolderChangePerNamespace()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        tracker.PublishUpsert(
+            new ImapFolderAdministrationSnapshot(
+                50,
+                100,
+                -1,
+                "First",
+                true,
+                1,
+                "2026-08-20 00:00:00"));
+        tracker.PublishUpsert(
+            new ImapFolderAdministrationSnapshot(
+                50,
+                100,
+                -1,
+                "Second",
+                true,
+                1,
+                "2026-08-20 00:00:01"));
+
+        Assert.IsTrue(tracker.TryGetLatestChange(100, 50, out var change));
+        Assert.AreEqual("Second", change.Folder?.Name);
+        Assert.AreEqual(2, change.Generation);
+        Assert.AreEqual(0, tracker.GetAclGeneration(50));
+    }
+
+    [TestMethod]
     public void ImapFolderMutationFailures_DoNotPublishInvalidation()
     {
         var tracker = new ImapFolderChangeTracker();
