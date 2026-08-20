@@ -13,4 +13,8 @@ public sealed record ImapFetchRequest(
         Items.Contains(ImapFetchDataItem.Envelope) ||
         Items.Contains(ImapFetchDataItem.BodyStructure) ||
         Items.Contains(ImapFetchDataItem.Rfc822);
+
+    public bool MarksSeen =>
+        Items.Contains(ImapFetchDataItem.Body) ||
+        Items.Contains(ImapFetchDataItem.Rfc822);
 }

@@ -104,6 +104,112 @@ public sealed class ImapFetchCommandHandlerTests
         Assert.IsTrue(store.LastRequest.RequiresRawMessage);
     }
 
+    [TestMethod]
+    public async Task HandleAsync_BodyMarksOnlyUnseenMessagesWhenMailboxAllowsWriteSeen()
+    {
+        var fetchStore = new CapturingFetchStore(
+        [
+            new ImapFetchedMessage(
+                new MessageIdentity(1, 10, 20, 101),
+                SequenceNumber: 1,
+                Flags: 0,
+                SizeBytes: 5,
+                InternalDateUtc: DateTimeOffset.UtcNow,
+                RawMessage: Encoding.ASCII.GetBytes("Hello")),
+            new ImapFetchedMessage(
+                new MessageIdentity(2, 10, 20, 102),
+                SequenceNumber: 2,
+                Flags: ImapMessageFlags.Seen,
+                SizeBytes: 5,
+                InternalDateUtc: DateTimeOffset.UtcNow,
+                RawMessage: Encoding.ASCII.GetBytes("World"))
+        ]);
+        var mutationStore = new CapturingMutationStore();
+        var handler = new ImapFetchCommandHandler(new ImapFetchCommandParser(), fetchStore, mutationStore);
+
+        var response = await handler.HandleAsync(
+            accountId: 10,
+            folderId: 20,
+            tag: "A004",
+            arguments: "1:2 BODY[]",
+            useUid: false,
+            cancellationToken: CancellationToken.None,
+            isReadOnly: false,
+            aclRights: ImapAclRights.All);
+
+        StringAssert.Contains(Encoding.ASCII.GetString(response), "A004 OK FETCH completed\r\n");
+        Assert.IsNotNull(mutationStore.LastStoreRequest);
+        Assert.IsTrue(mutationStore.LastStoreRequest.UseUid);
+        Assert.AreEqual(ImapStoreMode.Add, mutationStore.LastStoreRequest.Mode);
+        Assert.AreEqual(ImapMessageFlags.Seen, mutationStore.LastStoreRequest.Flags);
+        Assert.IsTrue(mutationStore.LastStoreRequest.Silent);
+        CollectionAssert.AreEqual(
+            new[] { new ImapIdRange(101, 101) },
+            mutationStore.LastStoreRequest.MessageSet.ToArray());
+    }
+
+    [TestMethod]
+    public async Task HandleAsync_BodyPeekDoesNotMarkSeen()
+    {
+        var mutationStore = new CapturingMutationStore();
+        var handler = new ImapFetchCommandHandler(
+            new ImapFetchCommandParser(),
+            new CapturingFetchStore(
+            [
+                new ImapFetchedMessage(
+                    new MessageIdentity(1, 10, 20, 101),
+                    SequenceNumber: 1,
+                    Flags: 0,
+                    SizeBytes: 5,
+                    InternalDateUtc: DateTimeOffset.UtcNow,
+                    RawMessage: Encoding.ASCII.GetBytes("Hello"))
+            ]),
+            mutationStore);
+
+        await handler.HandleAsync(
+            accountId: 10,
+            folderId: 20,
+            tag: "A005",
+            arguments: "1 BODY.PEEK[]",
+            useUid: false,
+            cancellationToken: CancellationToken.None,
+            isReadOnly: false,
+            aclRights: ImapAclRights.All);
+
+        Assert.IsNull(mutationStore.LastStoreRequest);
+    }
+
+    [TestMethod]
+    public async Task HandleAsync_BodyWithoutWriteSeenDoesNotMarkSeen()
+    {
+        var mutationStore = new CapturingMutationStore();
+        var handler = new ImapFetchCommandHandler(
+            new ImapFetchCommandParser(),
+            new CapturingFetchStore(
+            [
+                new ImapFetchedMessage(
+                    new MessageIdentity(1, 10, 20, 101),
+                    SequenceNumber: 1,
+                    Flags: 0,
+                    SizeBytes: 5,
+                    InternalDateUtc: DateTimeOffset.UtcNow,
+                    RawMessage: Encoding.ASCII.GetBytes("Hello"))
+            ]),
+            mutationStore);
+
+        await handler.HandleAsync(
+            accountId: 10,
+            folderId: 20,
+            tag: "A006",
+            arguments: "1 BODY[]",
+            useUid: false,
+            cancellationToken: CancellationToken.None,
+            isReadOnly: false,
+            aclRights: ImapAclRights.All & ~ImapAclRights.WriteSeen);
+
+        Assert.IsNull(mutationStore.LastStoreRequest);
+    }
+
     private sealed class CapturingFetchStore : IImapMessageFetchStore
     {
         private readonly IReadOnlyList<ImapFetchedMessage> _messages;
@@ -126,6 +232,31 @@ public sealed class ImapFetchCommandHandlerTests
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return message;
             }
+        }
+    }
+
+    private sealed class CapturingMutationStore : IImapMessageMutationStore
+    {
+        public ImapStoreRequest? LastStoreRequest { get; private set; }
+
+        public async IAsyncEnumerable<ImapStoredMessage> StoreFlagsAsync(
+            ImapStoreRequest request,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            LastStoreRequest = request;
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            yield break;
+        }
+
+        public async IAsyncEnumerable<ImapExpungedMessage> ExpungeDeletedAsync(
+            int accountId,
+            int folderId,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            cancellationToken.ThrowIfCancellationRequested();
+            yield break;
         }
     }
 }

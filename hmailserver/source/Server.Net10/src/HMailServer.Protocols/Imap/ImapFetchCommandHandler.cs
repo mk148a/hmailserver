@@ -6,13 +6,16 @@ public sealed class ImapFetchCommandHandler
 {
     private readonly ImapFetchCommandParser _parser;
     private readonly IImapMessageFetchStore _fetchStore;
+    private readonly IImapMessageMutationStore? _mutationStore;
 
     public ImapFetchCommandHandler(
         ImapFetchCommandParser parser,
-        IImapMessageFetchStore fetchStore)
+        IImapMessageFetchStore fetchStore,
+        IImapMessageMutationStore? mutationStore = null)
     {
         _parser = parser;
         _fetchStore = fetchStore;
+        _mutationStore = mutationStore;
     }
 
     public async ValueTask<byte[]> HandleAsync(
@@ -21,7 +24,9 @@ public sealed class ImapFetchCommandHandler
         string tag,
         string arguments,
         bool useUid,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool isReadOnly = false,
+        long aclRights = ImapAclRights.All)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tag);
         ArgumentNullException.ThrowIfNull(arguments);
@@ -34,6 +39,8 @@ public sealed class ImapFetchCommandHandler
             {
                 messages.Add(message);
             }
+
+            await MarkSeenAsync(request, messages, isReadOnly, aclRights, cancellationToken).ConfigureAwait(false);
 
             return ImapFetchResponseFormatter.Format(messages, request.Items, tag);
         }
@@ -48,6 +55,40 @@ public sealed class ImapFetchCommandHandler
         catch (IOException ex)
         {
             return Encode($"{SanitizeAtom(tag)} NO {SanitizeResponseText(ex.Message)}\r\n");
+        }
+    }
+
+    private async ValueTask MarkSeenAsync(
+        ImapFetchRequest request,
+        IReadOnlyList<ImapFetchedMessage> messages,
+        bool isReadOnly,
+        long aclRights,
+        CancellationToken cancellationToken)
+    {
+        if (!request.MarksSeen || isReadOnly || _mutationStore is null ||
+            (aclRights & ImapAclRights.WriteSeen) != ImapAclRights.WriteSeen)
+        {
+            return;
+        }
+
+        foreach (var message in messages)
+        {
+            if ((message.Flags & ImapMessageFlags.Seen) == ImapMessageFlags.Seen)
+            {
+                continue;
+            }
+
+            var storeRequest = new ImapStoreRequest(
+                request.AccountId,
+                request.FolderId,
+                [new ImapIdRange(message.Identity.Uid, message.Identity.Uid)],
+                UseUid: true,
+                Mode: ImapStoreMode.Add,
+                Flags: ImapMessageFlags.Seen,
+                Silent: true);
+            await foreach (var _ in _mutationStore.StoreFlagsAsync(storeRequest, cancellationToken).ConfigureAwait(false))
+            {
+            }
         }
     }
 

@@ -1330,7 +1330,7 @@ public sealed class ImapSessionTests
                 new ImapSortExecutor(sortIndex, new SnapshotSequenceNumberResolver()));
         var fetchHandler = fetchStore is null
             ? null
-            : new ImapFetchCommandHandler(new ImapFetchCommandParser(), fetchStore);
+            : new ImapFetchCommandHandler(new ImapFetchCommandParser(), fetchStore, mutationStore);
         var listHandler = discoveryStore is null
             ? null
             : new ImapListCommandHandler(discoveryStore, ".");

@@ -309,7 +309,9 @@ public sealed class ImapSession
                         commandLine.Tag,
                         commandLine.Arguments,
                         commandLine.IsUidCommand,
-                        cancellationToken)
+                        cancellationToken,
+                        isReadOnly: state.SelectedMailbox.IsReadOnly,
+                        aclRights: state.SelectedMailbox.AclRights)
                     .ConfigureAwait(false);
                 await WriteAsync(stream, fetchResponse.AsMemory(), cancellationToken).ConfigureAwait(false);
                 return false;
