@@ -1,23 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, public-folder ACL parser)
+## Current authoritative parity status (2026-08-20, live public-folder ACL restore storage)
 
-Current HEAD `65b20c443` adds a parser-only legacy public-folder model for
-`<PublicFolders><Folder><ACLs><Permission ... /></ACLs></Folder></PublicFolders>`.
-It preserves `Type`, `Rights`, `Holder`, source order, and duplicate entries,
-while rejecting unknown types, malformed/out-of-range rights, empty holders,
-unexpected children, and duplicate `ACLs` containers. Focused parser coverage
-is `18 passed, 0 failed`; parser plus ACL SQL coverage is `34 passed, 0 failed`;
-the disposable LocalDB/Data full suite is `2417 passed, 10 skipped, 0 failed`.
+Current HEAD `f15ea25cd` adds disposable live integration coverage for the
+transaction-scoped public-folder ACL restore store. It proves generated IDs,
+commit/readback of user/group/anyone entries, public-folder-only scope, and
+rollback after duplicate-key failure. Focused coverage is `6 passed, 0 failed`;
+the disposable LocalDB/Data full suite is `2419 passed, 10 skipped, 0 failed`.
 
 Legacy references are `ACLPermission::{XMLStore,XMLLoad}`,
 `ACLPermissions` through `Collection<T,P>::{XMLStore,XMLLoad}`, and
-`IMAPFolder::{XMLStore,XMLLoadSubItems}`. This slice does not resolve holders,
-write SQL rows, or alter restore execution. The next slice is disposable live
-ACL insert/commit/rollback integration against the transaction-scoped store;
-release remains **RED** for ACL graph wiring, migration, COM/DCOM, SEC-18,
-paired C++/.NET performance, and soak gates.
+`IMAPFolder::{XMLStore,XMLLoadSubItems}`. The preceding parser preserves holder
+names, source order, and duplicates, but this slice does not yet resolve holders
+or alter restore execution. Legacy `ACLPermission::Save` uses an independent
+SQL connection; the restore path intentionally uses one transaction-scoped
+store and is therefore a stronger rollback contract than legacy. The next slice
+is public-folder graph and authoritative holder resolution; release remains
+**RED** for ACL restore wiring, migration, COM/DCOM, SEC-18, paired C++/.NET
+performance, and soak gates.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 

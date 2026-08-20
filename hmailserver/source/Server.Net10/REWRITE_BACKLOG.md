@@ -1,27 +1,25 @@
 
-## Current next slice (2026-08-20, strict ACL restore parser foundation)
+## Current next slice (2026-08-20, public-folder ACL graph and holder resolution)
 
-Code/test commit `6ec5d23d7` adds the transaction-scoped
-`IImapFolderPermissionAdministrationRestoreStore` contract and wires the SQL
-transaction factory to `SqlServerImapFolderAdministrationStore`. The new SQL
-path enforces public-folder ownership (`folderaccountid = 0`), legacy ACL
-types user/group/anyone, matching principal IDs, and rights values `0..2047`.
-Focused ACL SQL coverage is `16 passed, 0 failed`; the related restore/parser/
-transaction group is `44 passed, 21 skipped, 0 failed`; disposable full Net10
-is `2414 passed, 10 skipped, 0 failed`.
+Code/test commit `f15ea25cd` adds disposable live SQL coverage for the
+transaction-scoped ACL restore store. It proves generated identity readback,
+public-folder-only scope, commit persistence, and disposal rollback after a
+duplicate-key failure. Focused live ACL coverage is `6 passed, 0 failed`; the
+disposable full Net10 suite is `2419 passed, 10 skipped, 0 failed`.
 
 Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions and
 `ACLPermission::XMLLoad` resolves `Type`, `Rights`, and the `Holder` name. Net10
-still rejects `<Permissions>` in `BackupArchiveXmlSnapshotParser.ParseFolder`.
-The storage foundation is not a parity claim: public-folder backup/restore
-graph, account/group holder resolution, parser validation, and mid-batch
-rollback wiring remain open. Security review is `NO-GO` until those boundaries
-are proven.
+now parses the separate `PublicFolders/ACLs` graph and has live SQL storage
+evidence, but holder resolution and parser-to-restore wiring remain open. The
+live restore transaction is intentionally stronger than legacy's independent
+ACL `Save()` connection and must not be treated as full parity. Security review
+is `NO-GO` until authoritative holder resolution, existing-ACL replacement,
+and end-to-end restore failure semantics are proven.
 
-Next slice: add a strict `<Permissions>` parser/model preserving holder names,
-rejecting unknown types, missing holders, invalid rights, and duplicate entries;
-do not wire restore execution in that slice. Migration/installer, COM/DCOM,
-SEC-18, paired C++/.NET performance, and soak gates remain **RED**.
+Next slice: resolve public-folder ACL holders against authoritative account/group
+stores while preserving public-folder ownership and source order. Do not widen
+to private-folder ACLs, COM mutation, or protocol behavior. Migration/installer,
+COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates remain **RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)
 

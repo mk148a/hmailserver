@@ -1,18 +1,19 @@
-## Current authoritative parity status (2026-08-20, restore retry metadata)
+## Current authoritative parity status (2026-08-20, live public-folder ACL restore storage)
 
-Current HEAD `1d38c85a2` has `2411 passed, 10 skipped, 0 failed` in the
-disposable LocalDB/Data full Net10 suite. Queued backup failure cleanup is `1
-passed, 0 failed`; focused backup acceptance is `51 passed, 1 skipped, 0
-failed`; the guarded ACL revalidation benchmark is `80/80`
-with p50/p95/p99 `0.499/0.856/1.317 ms`. This benchmark is Net10-only and
-does not establish C++/.NET speed or production SQL performance.
+Current HEAD `f15ea25cd` adds disposable live SQL coverage for the
+transaction-scoped public-folder ACL restore store. It proves generated identity
+readback, public-folder-only scope, commit persistence, and disposal rollback
+after a duplicate-key failure. Focused live ACL coverage is `6 passed, 0
+failed`; the disposable LocalDB/Data full suite is `2419 passed, 10 skipped, 0
+failed`.
 
-Restore now preserves legacy message retry metadata. C++
-`Message::XMLLoad` (`source/Server/Common/BO/Message.cpp`) reads
-`NoOfRetries`; Net10 `BackupArchiveXmlSnapshotParser.ParseFolder` carries it
-through `SqlServerMessageAdministrationStore.InsertMessageForRestoreAsync` as
-`@CurrentNumberOfTries`. Focused parser/store coverage is `23/23`, and the
-disposable restore round-trip is `21/21` with SQL readback of `9` retries.
+Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions and
+`ACLPermission::XMLLoad` resolves `Type`, `Rights`, and `Holder`. The preceding
+Net10 parser preserves holder names and the live store now proves commit,
+readback, public-folder scope, and rollback. Holder resolution, existing-ACL
+replacement, and parser-to-restore execution wiring remain open. The
+transaction-scoped restore path is intentionally stronger than legacy's
+independent ACL `Save()` connection and is not a full parity claim.
 
 Legacy backup behavior is anchored by `BackupExecuter::StartBackup` and
 `BackupDataDirectory_` in `source/Server/Common/Application/BackupExecuter.cpp`.
@@ -21,9 +22,8 @@ and the current acceptance tests cover modes `1`, `2`, `3`, and DB-only `6`.
 The actual legacy `FULL` parser emits `ENVELOPE` and `BODYSTRUCTURE`; it does
 not emit `BODY[]` or mark messages seen, which Net10 now preserves.
 
-Queued backup success/failure ordering and restore rollback paths now have
-disposable filesystem/LocalDB acceptance. Next slice: broaden populated restore
-semantic-equivalence and crash/recovery evidence. Paired C++/.NET performance,
+Next slice: public-folder graph and authoritative account/group holder
+resolution, followed by restore execution wiring. Paired C++/.NET performance,
 out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain
 open; release is **RED**.
 
