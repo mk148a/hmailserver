@@ -1,6 +1,20 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, ACL revocation signal)
+## Current Authoritative Continuation (2026-08-20, tracker concurrency boundaries)
+
+Test-only commit `c07c386ac` records 128 concurrent ACL publications for one
+folder as lossless, keeps ACL and folder-tree generations in separate
+namespaces, and confirms latest-only folder snapshot retention. Focused
+tracker/session coverage is `75/75`; full Debug is `2337 passed, 58 skipped, 0
+failed`. No production behavior or COM identity changed.
+
+Next production slice: live authorization for selected-folder reads and
+COPY/MOVE source/destination, or an explicitly approved external-SQL sync
+design. Direct SQL changes, inherited group membership, IDLE-time revocation,
+live SQL/Data, migration/rollback, cross-process COM, paired C++ performance,
+and soak remain open; release is **RED**.
+
+## Historical completed slice (2026-08-20, ACL revocation signal)
 
 Code/test commit `bce828b9f` completes the bounded public IMAP ACL revocation
 signal/session invalidation slice. Legacy anchors are `ACLManager::SetACL`,

@@ -3,6 +3,13 @@ hMailServer
 
 ## Current authoritative parity status (2026-08-20)
 
+Test-only commit `c07c386ac` records tracker namespace and concurrency
+boundaries: 128 concurrent ACL publications for one folder are lossless,
+folder ACL generations remain independent from folder-tree generations, and
+folder changes retain only the latest snapshot per account/folder key. Full
+Debug is now `2337 passed, 58 skipped, 0 failed`. This is internal invalidation
+evidence, not a legacy feature or release-gate pass.
+
 Code/test commit `bce828b9f` closes the bounded public IMAP ACL revocation
 signal/session invalidation slice. Legacy `ACLManager::SetACL`,
 `IMAPConnection::CheckPermission`, `IMAPCommandSelect`,

@@ -1,5 +1,21 @@
 
-## Current next slice (2026-08-20, tracker ordering and ACL-session retention)
+## Current next slice (2026-08-20, live ACL authorization and environment gates)
+
+Test-only commit `c07c386ac` records the current tracker contract: 128
+concurrent ACL publications for one folder are lossless, ACL and folder-tree
+generations are separate, and the folder-change map retains only the latest
+snapshot per account/folder. Focused tracker/session coverage is `75 passed,
+0 failed`; full Debug is `2337 passed, 58 skipped, 0 failed`.
+
+The next production-parity slice is a live selected-mailbox authorization
+check for read commands and COPY/MOVE source/destination, or a separately
+approved external-SQL synchronization design. The current tracker only reacts
+to published Net10 mutation paths; it does not detect direct SQL changes,
+inherited group-membership changes, or IDLE-time unsolicited revocation.
+Environment priority remains the disposable VM Administrator sign-in and
+guarded migration/rollback drill. Release remains **RED**.
+
+## Historical completed slice (2026-08-20, tracker ordering and ACL-session retention)
 
 Code/test commit `bce828b9f` completes the bounded public ACL revocation signal
 and selected-session revalidation slice. Legacy anchors are
