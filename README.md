@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-20)
+
+Code/test commit `2c7147b6b` closes the retained public-folder authorization
+and selected-session rename gap. `Settings.PublicFolders` rechecks live
+server-admin authentication before returning a fresh adapter after failed
+reauthentication. Existing retained public collection/item reads remain
+compatible with the legacy C++ behavior. Public account-0 rename upserts now
+refresh selected IMAP mailbox names by selected storage owner. Focused coverage
+is `181/181`; full Debug is `2331 passed, 58 skipped, 0 failed`.
+
+Public ACL revocation, stale-parent/account insert scope, account-wide deletion,
+tracker ordering/retention, live SQL/Data, out-of-process COM, migration/
+rollback, paired C++ performance, and soak gates remain open. Release remains
+**RED**.
+
 ## Current authoritative isolated staging status (2026-08-20)
 
 Code/test commit `4d6ca8b50` completes the bounded public IMAP folder mutation

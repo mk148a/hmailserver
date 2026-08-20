@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, public reauthentication and rename)
+
+Code/test commit `2c7147b6b` closes the bounded public-folder reauthentication
+and session-rename gap. `Settings.PublicFolders` rechecks live server-admin
+authentication before returning a fresh adapter after failed reauthentication;
+retained collection/item reads remain compatible with legacy C++ behavior.
+Public account-0 rename upserts refresh selected IMAP mailbox names using the
+selected mailbox owner. Installed COM IID/vtable/DISPID/ProgID/class identity
+and direct activation boundaries are unchanged. Focused coverage is `181/181`;
+full Debug is `2331 passed, 58 skipped, 0 failed`.
+
+Legacy anchors are `COMAuthentication::Authenticate`,
+`InterfaceSettings::get_PublicFolders`, `InterfaceIMAPFolders` read methods,
+`InterfaceIMAPFolder` read methods, `IMAPConnection::SetCurrentFolder`, and
+`PersistentIMAPFolder::SaveObject`. Public ACL revocation, stale-parent/account
+insert scope, account-wide deletion, tracker ordering/retention, live SQL/Data,
+registered service/out-of-process COM, migration/rollback, paired C++/.NET
+performance, and soak remain open; release is **RED**.
+
+Next slice: enforce stale child collection and parent-account ownership at the
+IMAP folder insert/SQL boundary, with negative and failure-path tests.
+
 ## Current Authoritative Continuation (2026-08-20, public IMAP folder mutation)
 
 Code/test commit `4d6ca8b50` completes the bounded public-folder COM mutation

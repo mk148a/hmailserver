@@ -1,5 +1,26 @@
 
-## Current next slice (2026-08-20, retained public-folder authorization and stale-parent scope)
+## Current next slice (2026-08-20, stale-parent/account scope at IMAP folder insert)
+
+Code/test commit `2c7147b6b` closes the bounded retained public-folder
+reauthentication and selected-session rename gap. `Settings.PublicFolders`
+rechecks live server-admin authentication before returning a fresh adapter after
+failed reauthentication, while retained collection/item reads preserve legacy
+C++ behavior. Public account-0 rename upserts now refresh selected IMAP mailbox
+names using the selected mailbox owner. Legacy anchors are
+`COMAuthentication::Authenticate`, `InterfaceSettings::get_PublicFolders`,
+`InterfaceIMAPFolders` read methods, `InterfaceIMAPFolder` read methods,
+`IMAPConnection::SetCurrentFolder`, and `PersistentIMAPFolder::SaveObject`.
+Installed COM identity and direct activation boundaries are unchanged. Focused
+coverage is `181 passed, 0 failed`; full Debug is `2331 passed, 58 skipped,
+0 failed`.
+
+Next slice: reject stale child collections and enforce parent-account ownership
+at the IMAP folder insert/SQL boundary, with negative and failure-path tests.
+Public ACL revocation, account-wide deletion, tracker ordering/retention, live
+SQL/Data, registered service/out-of-process COM, migration/rollback, paired
+C++/.NET performance, and soak evidence remain open. Release remains **RED**.
+
+## Historical completed slice (2026-08-20, retained public-folder authorization and stale-parent scope)
 
 Code/test commit `4d6ca8b50` completes one bounded public-folder COM mutation
 slice. `Settings.PublicFolders` now uses the shared account-0 state-backed
