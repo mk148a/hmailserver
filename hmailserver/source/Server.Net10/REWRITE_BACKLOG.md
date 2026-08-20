@@ -1,22 +1,32 @@
 
-## Current next slice (2026-08-20, ACL lookup benchmark and disposable gates)
+## Current next slice (2026-08-20, ACL revalidation query bound and disposable gates)
 
-Test-only commit `17fae65c1` covers selected-folder ACL command boundaries:
+Test-only commit `17fae65c1` covers selected-folder ACL command boundaries;
+code/test commit `9e495c847` then narrows the SQL-backed revalidation path:
 SEARCH denies after read revocation without tracker publication, COPY/MOVE
 denies after source revocation, and COPY/MOVE denies a read-only destination.
-Focused IMAP session/copy coverage is `49 passed, 0 failed`; full Debug is
-`2341 passed, 58 skipped, 0 failed`. No production behavior or COM identity
-changed in this test-only slice.
+Focused IMAP/SQL coverage is `52 passed, 0 failed`; full Debug is `2341 passed,
+58 skipped, 0 failed`. No COM identity or direct activation boundary changed.
 
-Legacy IDLE parity is now verified: `IMAPCommandIdle::ExecuteCommand` only
+Legacy `IMAPConnection::CheckPermission` and `CheckFolderPermissions` at
+`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921` re-resolve the
+current ACL at command boundaries and do not load mailbox counters. Code/test
+commit `9e495c847` makes `SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync`
+load the selected folder by ID and call `ResolveAccessAsync` directly, keeping
+the existing selection counters while reflecting current read/write access.
+Focused IMAP/SQL coverage is `52 passed, 0 failed`; full Debug is `2341 passed,
+58 skipped, 0 failed`.
+
+Legacy IDLE parity is also verified: `IMAPCommandIdle::ExecuteCommand` only
 enters IDLE; `IMAPConnection::AnswerCommand` consumes the next client command
 through `EndIdleMode_()` before dispatch, and ACL is checked by the actual
 command handlers. Net10 `HandleIdleAsync` has equivalent next-command
 revalidation, so no separate immediate ACL disconnect is required for parity.
 
-Next slice: measure the per-command SQL ACL lookup against the existing
-benchmark pack and complete the disposable VM prerequisite before migration/
-rollback. Live SQL/Data, out-of-process COM, paired C++ performance, and soak
+Next slice: run the bounded ACL revalidation path against an approved
+disposable SQL/Data fixture and record p50/p95/p99 without treating it as a
+C++/.NET comparison. Complete the disposable VM prerequisite before
+migration/rollback. Out-of-process COM, paired C++ performance, and soak
 evidence remain open. Release remains **RED**.
 
 ## Historical completed slice (2026-08-20, IMAP ACL command coverage and performance)

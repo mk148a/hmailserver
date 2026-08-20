@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, ACL revalidation query bound)
+
+Legacy `IMAPConnection::CheckPermission` and `CheckFolderPermissions` in
+`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921` re-resolve ACL
+permission at command boundaries. Net10
+`SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync` now uses the
+selected folder ID and `ResolveAccessAsync` directly, preserving the current
+selection counters and avoiding the full mailbox-counter query on every
+command. Focused coverage is `52/52`; full Debug is `2341 passed, 58 skipped,
+0 failed`.
+
+The change is a bounded SQL-cost reduction, not live SQL benchmark evidence.
+Next: run this path against an approved disposable SQL/Data fixture, then
+complete the disposable VM migration/rollback prerequisite. Paired C++/.NET
+performance, out-of-process COM, SEC-18, and soak remain open; release is
+**RED**. No push was performed.
+
 ## Current Authoritative Continuation (2026-08-20, IDLE parity verified)
 
 Read-only legacy inspection confirms `IMAPCommandIdle::ExecuteCommand` only

@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-20, ACL revalidation query bound)
+
+Legacy `IMAPConnection::CheckPermission` and `CheckFolderPermissions` in
+`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921` resolve current
+ACL state at command boundaries through `ACLManager::GetPermissionForFolder`;
+they do not reload mailbox message counters. Net10
+`SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync` now loads the
+selected folder by ID and resolves current ACL/group access without calling
+`LoadCountersAsync`. Focused coverage is `52 passed, 0 failed`; full Debug is
+`2341 passed, 58 skipped, 0 failed`.
+
+This reduces an identified SQL cost but is not a live performance result. An
+approved disposable SQL/Data benchmark and a registry-isolated C++/.NET
+matrix are still required; no speed-up or winner is valid. Release remains
+**RED**. `Get-VM` currently returns no disposable VM, and the running host SQL
+service was not used because disposability is not established.
+
 ## Current authoritative parity status (2026-08-20)
 
 Legacy IDLE parity was verified against `IMAPCommandIdle::ExecuteCommand` and
