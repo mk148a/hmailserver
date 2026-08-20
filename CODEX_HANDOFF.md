@@ -1,6 +1,23 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, group/member backup capture)
+## Current Authoritative Continuation (2026-08-20, strict group/member restore parser/model)
+
+Code/test commit `28b6d6cf4` adds `RestoreGroupEntry` and strict
+`BackupArchiveXmlSnapshotParser.ParseGroupEntries` for legacy `Groups` and
+`GroupMembers` metadata. It preserves XML names/order and rejects duplicate
+groups, missing names, repeated containers, and unexpected children. Focused
+coverage is `21 passed, 0 skipped, 0 failed`; the disposable LocalDB/Data full
+suite is `2439 passed, 10 skipped, 0 failed` (`2449` total).
+
+Legacy references are `IMAPConfiguration::XMLStore/XMLLoad`
+(`source/Server/IMAP/IMAPConfiguration.cpp:225-248`), `Group::XMLStore` and
+`XMLLoadSubItems` (`source/Server/Common/BO/Group.cpp:55-79`), and
+`GroupMembers::PostStoreObject/PreSaveObject`
+(`source/Server/Common/BO/GroupMembers.cpp:57-84`). The slice is intentionally
+parser/model-only; SQL insertion, ACL holder remapping, and restore rollback
+remain the next bounded slice. Release remains `RED`; no push was performed.
+
+## Historical Authoritative Continuation (2026-08-20, group/member backup capture)
 
 Code/test commit `7213e522d` adds legacy `Groups/GroupMembers` backup XML
 capture. `BackupXmlPayloadRuntime` reads the configured group and member

@@ -1,5 +1,25 @@
 
-## Current next slice (2026-08-20, group/member backup capture parity)
+## Current next slice (2026-08-20, strict group/member restore parser/model)
+
+Code/test commit `28b6d6cf4` adds `RestoreGroupEntry` and strict
+`BackupArchiveXmlSnapshotParser.ParseGroupEntries`. It preserves legacy group
+and member names/order, rejects duplicate group names, missing names, repeated
+containers, and unexpected children. Focused coverage is `21 passed, 0 skipped,
+0 failed`; the disposable LocalDB/Data full suite is `2439 passed, 10 skipped,
+0 failed` (`2449` total).
+
+Legacy anchors are `IMAPConfiguration::XMLStore/XMLLoad` at
+`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:225-248`,
+`Group::XMLStore/XMLLoadSubItems` at
+`hmailserver/source/Server/Common/BO/Group.cpp:55-79`, and
+`GroupMembers::PostStoreObject/PreSaveObject` at
+`hmailserver/source/Server/Common/BO/GroupMembers.cpp:57-84`. This slice is
+parser/model-only: it does not insert groups or members, resolve ACL holders,
+or change restore transaction behavior. Next: transaction-scoped group/member
+restore with restored-ID holder resolution and mid-batch rollback. Release
+remains **RED**.
+
+## Historical current slice (2026-08-20, group/member backup capture parity)
 
 Code/test commit `7213e522d` adds the missing legacy group metadata capture.
 `BackupXmlPayloadRuntime` now reads `hm_groups` and `hm_group_members` through

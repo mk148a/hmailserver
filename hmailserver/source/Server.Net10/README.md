@@ -1,4 +1,17 @@
-## Current authoritative parity status (2026-08-20, group/member backup capture)
+## Current authoritative parity status (2026-08-20, strict group/member restore parser/model)
+
+Code/test commit `28b6d6cf4` adds strict parsing for legacy `Groups/GroupMembers`
+restore metadata through `RestoreGroupEntry` and
+`BackupArchiveXmlSnapshotParser.ParseGroupEntries`. It preserves names/order
+and rejects duplicate groups, missing names, repeated containers, and
+unexpected children. Focused coverage is `21 passed, 0 skipped, 0 failed`; the
+disposable LocalDB/Data full suite is `2439 passed, 10 skipped, 0 failed`
+(`2449` total). The parser does not insert SQL rows, remap ACL holders, or
+change restore transaction behavior. Next slice: transaction-scoped
+group/member restore with restored-ID holder resolution and rollback. Release
+remains **RED**.
+
+## Historical authoritative parity status (2026-08-20, group/member backup capture)
 
 Code/test commit `7213e522d` captures legacy `Groups/GroupMembers` metadata in
 backup XML, resolves member account addresses, and preserves legacy ordering

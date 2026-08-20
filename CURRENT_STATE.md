@@ -1,13 +1,13 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T19:32:46Z` / `2026-08-20T22:32:46+03:00`
+- UTC/local timestamp: `2026-08-20T19:41:34Z` / `2026-08-20T22:41:34+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: this slice's documentation commit (`docs: record legacy group backup metadata`; code/test `7213e522d`)
+- Current HEAD: this slice's documentation commit (`docs: record legacy group backup parser`; code/test `28b6d6cf4`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: `BackupArchiveRuntimeTests` `56 passed, 1 skipped, 0 failed`
-- Latest full Net10 result: disposable LocalDB/Data Debug `2437 passed, 10 skipped, 0 failed` (`2447` total)
-- Opt-in tests passed/skipped/blocked: disposable SQL/Data full run `2437/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: legacy `Groups/GroupMembers` backup XML is captured from the configured stores, account addresses are resolved, legacy ordering and unresolved-member fail-closed behavior are covered; restore insertion remains separate
-- Completed milestones: backup raw/compressed staging and metadata foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, Net10-only load evidence, ACL revalidation benchmark, IMAP STORE/APPEND/COPY/EXPUNGE/FETCH rights parity slices, live public-folder ACL SQL commit/rollback evidence, holder-name resolution evidence, writer-level ACL restore evidence, legacy-order public-folder traversal evidence, populated public-folder SQL/Data round trip, restore message defaults and UID allocation, and group/member backup capture
+- Latest focused-test result: `BackupArchiveXmlSnapshotParserTests` `21 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: disposable LocalDB/Data Debug `2439 passed, 10 skipped, 0 failed` (`2449` total)
+- Opt-in tests passed/skipped/blocked: disposable SQL/Data full run `2439/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
+- Current bounded slice: strict parser/model for legacy `Groups/GroupMembers` restore metadata; restore insertion, ACL holder remapping, and rollback remain separate
+- Completed milestones: backup raw/compressed staging and metadata foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, Net10-only load evidence, ACL revalidation benchmark, IMAP STORE/APPEND/COPY/EXPUNGE/FETCH rights parity slices, live public-folder ACL SQL commit/rollback evidence, holder-name resolution evidence, writer-level ACL restore evidence, legacy-order public-folder traversal evidence, populated public-folder SQL/Data round trip, restore message defaults and UID allocation, group/member backup capture, and strict group/member archive parsing
 - Open production blockers: target-preexisting group dependency, isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
 - Environment-blocked work: Hyper-V disposable VM presence is still unproven (`Get-VM` access denied); LocalDB disposable SQL/Data is available and passed the current opt-in tests; registry-isolated C++ runner, live DNS/TLS, AD credentials, IIS/SEC-18 cutover, and long soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
