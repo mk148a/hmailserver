@@ -3,6 +3,31 @@ hMailServer
 
 ## Current authoritative parity status (2026-08-20)
 
+Code/test commit `bce828b9f` closes the bounded public IMAP ACL revocation
+signal/session invalidation slice. Legacy `ACLManager::SetACL`,
+`IMAPConnection::CheckPermission`, `IMAPCommandSelect`,
+`IMAPCommandStore`, `IMAPStore`, and `PersistentACLPermission` re-evaluate
+public-folder permissions at command boundaries. Net10 now publishes a
+folder-scoped ACL generation only after successful COM ACL insert/update/delete
+and SQL-backed `SETACL`/`DELETEACL` persistence. A selected session revalidates
+its mailbox before dispatch when that generation advances: read revocation
+clears selection/recent state and write revocation changes the selection to
+read-only. Installed ACL/IMAP COM IID, vtable, DISPID, ProgID, class identity,
+authentication boundary, and direct activation denial are unchanged.
+
+Focused ACL/session/COM/SQL-shape coverage is `108 passed, 0 failed`; full
+Debug is `2335 passed, 58 skipped, 0 failed`. The tracker is an in-process
+signal: direct external SQL changes, IDLE cancellation/unsolicited ACL
+propagation, inherited group-membership changes, out-of-process COM, live
+SQL/Data, migration/rollback, paired C++ performance, and soak evidence remain
+open. Release remains **RED**.
+
+Next parity slice: bound tracker namespace, generation ordering/retention, and
+concurrency/soak tests. The next independent environment slice remains the
+disposable VM Administrator sign-in followed by the guarded migration drill.
+
+## Current authoritative parity status (2026-08-20)
+
 Code/test commit `db9d690e8` records the legacy stale-child IMAP behavior with
 focused tests: after a retained child collection's parent is deleted,
 `Add()` forwards the old numeric parent ID and the inserted orphan remains

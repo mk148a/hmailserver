@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, ACL revocation signal)
+
+Code/test commit `bce828b9f` completes the bounded public IMAP ACL revocation
+signal/session invalidation slice. Legacy anchors are `ACLManager::SetACL`,
+`PersistentACLPermission::{SaveObject,DeleteObject}`,
+`IMAPConnection::CheckPermission`, `IMAPCommandSelect`,
+`IMAPCommandStore`, `IMAPStore`, `IMAPCommandSetAcl`, and
+`IMAPCommandDeleteAcl`. Net10 publishes a folder-scoped ACL generation after
+successful COM and SQL-backed ACL persistence. `ImapSession` revalidates a
+selected mailbox before command dispatch after a generation change; no-read
+clears selection/recent state and no-write changes the selection to read-only.
+Failed persistence does not publish. COM identities, vtable/DISPID/ProgID,
+authenticated Settings boundary, and direct activation denial are unchanged.
+
+Focused coverage is `108/108`; full Debug is `2335 passed, 58 skipped, 0
+failed`. The signal is process-local and only covers published Net10 mutation
+paths. Direct external SQL changes, inherited group membership changes, IDLE
+unsolicited cancellation, cross-process COM, live SQL/Data, migration/rollback,
+paired C++ performance, and soak gates remain open. Release is **RED**.
+
+Next slice: bound tracker namespace, generation ordering/retention, and
+concurrency/soak tests. Separately, the isolated VM remains at the disposable
+Administrator password prompt; no guest service, SQL/Data, COM, or installer
+mutation has run.
+
 ## Current Authoritative Continuation (2026-08-20, stale IMAP parent parity)
 
 Code/test commit `db9d690e8` adds focused parity tests for the legacy stale

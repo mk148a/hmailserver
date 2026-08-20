@@ -1,5 +1,49 @@
 
-## Current next slice (2026-08-20, public ACL revocation and session invalidation)
+## Current next slice (2026-08-20, tracker ordering and ACL-session retention)
+
+Code/test commit `bce828b9f` completes the bounded public ACL revocation signal
+and selected-session revalidation slice. Legacy anchors are
+`ACLManager::SetACL`, `PersistentACLPermission::{SaveObject,DeleteObject}`,
+`IMAPConnection::CheckPermission`, `IMAPCommandSelect`,
+`IMAPCommandStore`, `IMAPStore`, `IMAPCommandSetAcl`, and
+`IMAPCommandDeleteAcl` in `source/Server`. Net10 now publishes a folder-scoped
+ACL generation after successful COM permission insert/update/delete and
+SQL-backed `SETACL`/`DELETEACL`; `ImapSession` revalidates a selected mailbox
+when its ACL generation changes. Read revocation clears selection/recent state;
+write revocation makes the selection read-only. Failed persistence does not
+publish. Installed COM identity and direct activation boundaries are unchanged.
+Focused coverage is `108 passed, 0 failed`; full Debug is `2335 passed, 58
+skipped, 0 failed`.
+
+This is not a release-gate pass. The tracker is process-local and only observes
+published Net10 mutation paths. Direct external SQL ACL changes, IDLE
+cancellation/unsolicited propagation, inherited group-membership changes,
+cross-process COM, live SQL/Data, migration/rollback, paired C++ performance,
+and soak evidence remain open. Release remains **RED**.
+
+Next slice: define tracker namespace and generation ordering/retention rules,
+then add concurrent publication, unrelated-folder isolation, failed-publish,
+and bounded soak tests. Do not broaden this slice to the stale-parent SQL
+compatibility/security decision, account-wide deletion, or WebAdmin.
+
+## Historical completed slice (2026-08-20, stale-parent/account scope at IMAP folder insert)
+
+Code/test commit `db9d690e8` documents legacy stale child collection behavior:
+after a retained child collection's parent is deleted, `Add()` forwards the old
+numeric parent ID and the orphan remains hidden from fresh root scope. The SQL
+shape test records the absence of a parent/account guard, matching legacy
+`InterfaceIMAPFolders::Add` and `PersistentIMAPFolder::SaveObject`; no
+production behavior or COM identity changed. Focused coverage is `44 passed,
+0 failed`; full Debug is `2333 passed, 58 skipped, 0 failed`.
+
+This is an explicit integrity risk, not release acceptance. Strict parent and
+account enforcement would diverge from legacy and requires a separate approved
+compatibility/security decision. Account-wide deletion, tracker
+ordering/retention, live SQL/Data, registered service/out-of-process COM,
+migration/rollback, paired C++/.NET performance, and soak evidence remain
+open. Release remains **RED**.
+
+## Historical completed slice (2026-08-20, public ACL revocation and session invalidation)
 
 Code/test commit `db9d690e8` documents legacy stale child collection behavior:
 after a retained child collection's parent is deleted, `Add()` forwards the old
