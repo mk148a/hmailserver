@@ -1,25 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, AntiSpam scalar mutation parity)
+## Current Authoritative Continuation (2026-08-21, AntiSpam MaximumMessageSize mutation parity)
 
-Code/test commit `4f52e303d` implements the authenticated Administrator
-`AntiSpam.SpamAssassinHost` and `SpamAssassinPort` SQL mutation slice after the
-SPF, MX checks, enabled/score, and merge-score pairs. Focused COM/SQL coverage
-is `184 passed, 0 skipped, 0 failed`; the disposable SQL integration
-setter/readback test passed; the disposable LocalDB/Data full suite is `2465
-passed, 10 skipped, 0 failed` (`2475` total). Direct activation, failed
+Code/test commit `3e8e9aee5` implements the authenticated Administrator
+`AntiSpam.MaximumMessageSize` SQL mutation slice after the SPF, MX checks,
+SpamAssassin, and scanner endpoint pairs. Focused COM/SQL coverage is `187
+passed, 0 skipped, 0 failed`; the disposable SQL integration setter/readback
+test passed; the disposable LocalDB/Data full suite is `2468 passed, 10
+skipped, 0 failed` (`2478` total). Direct activation, failed
 reauthentication, missing-row failure, retained object snapshots, and existing
 COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_SpamAssassinHost/put_SpamAssassinPort`
-(`source/Server/COM/InterfaceAntiSpam.cpp:913-966`) and
-`AntiSpamConfiguration::SetSpamAssassinHost/SetSpamAssassinPort`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:371-391`). The next
-unblocked parity slice is `AntiSpam.MaximumMessageSize`; the
-migration/installer drill remains environment-gated because `Get-VM` is
+Legacy references are `InterfaceAntiSpam::put_MaximumMessageSize`
+(`source/Server/COM/InterfaceAntiSpam.cpp:964-997`) and
+`AntiSpamConfiguration::SetAntiSpamMaxSizeKB`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:395-405`). The next
+unblocked parity slice is the DKIM verification enabled/failure score pair;
+the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
-disposable target. Live scanner/SMTP anti-spam reconfiguration is still
-unproven. Release remains `RED`; no push was performed.
+disposable target. Live anti-spam reconfiguration is still unproven. Release
+remains `RED`; no push was performed.
 
 ## Historical Authoritative Continuation (2026-08-20, transaction-scoped group/member restore)
 

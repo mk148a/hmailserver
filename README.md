@@ -1,27 +1,28 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, AntiSpam scalar mutation parity)
+## Current authoritative parity status (2026-08-21, AntiSpam MaximumMessageSize mutation parity)
 
-Code/test commit `4f52e303d` implements the legacy Administrator
-`AntiSpam.SpamAssassinHost` and `SpamAssassinPort` setters through the existing
-authenticated Settings mutation boundary, following the scalar pairs in
-`b2fbfbf1e`. The SQL store updates only the legacy `spamassassinhost` and
-`spamassassinport` rows, reports contained missing-row failures, refreshes
+Code/test commit `3e8e9aee5` implements the legacy Administrator
+`AntiSpam.MaximumMessageSize` setter through the existing authenticated
+Settings mutation boundary, after the SPF, MX checks, SpamAssassin, and
+scanner endpoint scalar pairs. The SQL store updates only the legacy
+`antispammaxsize` row, reports contained missing-row failures, refreshes
 retained COM snapshots, and preserves direct activation/re-authentication
-denials. Focused COM/SQL coverage is `184 passed, 0 skipped, 0 failed`; the
+denials. Focused COM/SQL coverage is `187 passed, 0 skipped, 0 failed`; the
 disposable SQL integration setter/readback test passed; full disposable Net10
-is `2465 passed, 10 skipped, 0 failed` (`2475` total).
+is `2468 passed, 10 skipped, 0 failed` (`2478` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinHost/put_SpamAssassinPort`
-(`source/Server/COM/InterfaceAntiSpam.cpp:913-966`) and
-`AntiSpamConfiguration::SetSpamAssassinHost/SetSpamAssassinPort`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:371-391`). This
-slice does not add scanner connection testing or live reconfiguration, and
-does not broaden to other AntiSpam properties. Release remains **RED** because
+Legacy anchors are `InterfaceAntiSpam::put_MaximumMessageSize`
+(`source/Server/COM/InterfaceAntiSpam.cpp:964-997`) and
+`AntiSpamConfiguration::SetAntiSpamMaxSizeKB`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:395-405`). This
+slice does not add SMTP live reconfiguration, scanner connection testing, or
+other AntiSpam mutation. Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open.
+open. The next bounded parity slice is the DKIM verification enabled/failure
+score pair.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

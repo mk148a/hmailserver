@@ -1,26 +1,26 @@
 
-## Current next slice (2026-08-20, AntiSpam MaximumMessageSize mutation parity)
+## Current next slice (2026-08-21, AntiSpam DKIM verification mutation parity)
 
-Code/test commit `4f52e303d` closes the legacy Administrator
-`AntiSpam.SpamAssassinHost`/`SpamAssassinPort` mutation gap after the SPF, MX
-checks, enabled/score, and merge-score pairs. The existing authenticated
-Settings boundary now persists only `spamassassinhost` and
-`spamassassinport`, refreshes retained object snapshots, and fails closed on
-missing rows or reauthentication. Focused COM/SQL coverage is `184 passed, 0
-skipped, 0 failed`; the disposable SQL integration setter/readback test
-passed; full disposable LocalDB/Data is `2465 passed, 10 skipped, 0 failed`
-(`2475` total).
+Code/test commit `3e8e9aee5` closes the legacy Administrator
+`AntiSpam.MaximumMessageSize` mutation gap after the SPF, MX checks,
+SpamAssassin, and scanner endpoint pairs. The existing authenticated Settings
+boundary now persists only `antispammaxsize`, refreshes retained object
+snapshots, and fails closed on missing rows or reauthentication. Focused
+COM/SQL coverage is `187 passed, 0 skipped, 0 failed`; the disposable SQL
+integration setter/readback test passed; full disposable LocalDB/Data is
+`2468 passed, 10 skipped, 0 failed` (`2478` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinHost/put_SpamAssassinPort`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:913-966`) and
-`AntiSpamConfiguration::SetSpamAssassinHost/SetSpamAssassinPort`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:371-391`).
-The next bounded slice is `MaximumMessageSize`; preserve the installed
-AntiSpam IID/vtable/DISPID/class identity and the authenticated Settings
-boundary. Do not add scanner live reconfiguration in that slice. In parallel,
-the migration/installer drill remains environment-gated: `Get-VM` is
-access-denied and MSSQLSERVER is not approved as disposable. Do not touch
-production service, SQL/Data, registration, or DCOM. Release remains **RED**.
+Legacy anchors are `InterfaceAntiSpam::put_MaximumMessageSize`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:964-997`) and
+`AntiSpamConfiguration::SetAntiSpamMaxSizeKB`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:395-405`).
+The next bounded slice is the DKIM verification enabled/failure score pair;
+preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
+authenticated Settings boundary. Do not add DKIM signing, DNS verification,
+or live reconfiguration in that slice. In parallel, the migration/installer
+drill remains environment-gated: `Get-VM` is access-denied and MSSQLSERVER is
+not approved as disposable. Do not touch production service, SQL/Data,
+registration, or DCOM. Release remains **RED**.
 
 The prior group-cleanup and migration-next entries below are historical and
 superseded by this continuation record.
