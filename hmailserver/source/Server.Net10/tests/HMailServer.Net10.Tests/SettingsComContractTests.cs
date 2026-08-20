@@ -3157,6 +3157,69 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamMxChecksSettersPersistAndRefreshRetainedSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamUseMxChecksUpdateResult = true,
+            AntiSpamUseMxChecksScoreUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamUseMxChecks: false,
+                AntiSpamUseMxChecksScore: 2)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.UseMXChecks = true;
+        antiSpam.UseMXChecksScore = 8;
+
+        Assert.AreEqual(1, store.AntiSpamUseMxChecksUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamUseMxChecks);
+        Assert.AreEqual(1, store.AntiSpamUseMxChecksScoreUpdateCount);
+        Assert.AreEqual(8, store.UpdatedAntiSpamUseMxChecksScore);
+        Assert.IsTrue(antiSpam.UseMXChecks);
+        Assert.AreEqual(8, antiSpam.UseMXChecksScore);
+        Assert.IsTrue(settings.AntiSpam.UseMXChecks);
+        Assert.AreEqual(8, settings.AntiSpam.UseMXChecksScore);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamMxChecksSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamUseMxChecksUpdateResult = false,
+            AntiSpamUseMxChecksScoreUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedMxChecks = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.UseMXChecks = true);
+        var failedScore = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.UseMXChecksScore = 8);
+
+        Assert.AreEqual(EFail, failedMxChecks.ErrorCode);
+        Assert.AreEqual(EFail, failedScore.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamUseMxChecksUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamUseMxChecksScoreUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4445,6 +4508,18 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamUseSpfScore { get; private set; }
 
+        public bool AntiSpamUseMxChecksUpdateResult { get; set; }
+
+        public int AntiSpamUseMxChecksUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamUseMxChecks { get; private set; }
+
+        public bool AntiSpamUseMxChecksScoreUpdateResult { get; set; }
+
+        public int AntiSpamUseMxChecksScoreUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamUseMxChecksScore { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -4920,6 +4995,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamUseSpfScore = useSpfScore;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamUseSpfScoreUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamUseMxChecksAsync(
+            bool useMxChecks,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamUseMxChecksUpdateCount++;
+            UpdatedAntiSpamUseMxChecks = useMxChecks;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamUseMxChecksUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamUseMxChecksScoreAsync(
+            int useMxChecksScore,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamUseMxChecksScoreUpdateCount++;
+            UpdatedAntiSpamUseMxChecksScore = useMxChecksScore;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamUseMxChecksScoreUpdateResult);
         }
 
     }

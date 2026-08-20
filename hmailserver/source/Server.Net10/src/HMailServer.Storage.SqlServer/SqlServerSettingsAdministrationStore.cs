@@ -214,6 +214,18 @@ SET settinginteger = @UseSPFScore
 WHERE settingname = N'usespfscore';
 """;
 
+    public const string UpdateAntiSpamUseMxChecksSql = """
+UPDATE hm_settings
+SET settinginteger = @UseMXChecks
+WHERE settingname = N'usemxchecks';
+""";
+
+    public const string UpdateAntiSpamUseMxChecksScoreSql = """
+UPDATE hm_settings
+SET settinginteger = @UseMXChecksScore
+WHERE settingname = N'usemxchecksscore';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -825,6 +837,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamUseSpfScoreSql, connection);
         command.Parameters.Add("@UseSPFScore", SqlDbType.Int).Value = useSpfScore;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamUseMxChecksAsync(
+        bool useMxChecks,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamUseMxChecksSql, connection);
+        command.Parameters.Add("@UseMXChecks", SqlDbType.Int).Value = useMxChecks ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamUseMxChecksScoreAsync(
+        int useMxChecksScore,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamUseMxChecksScoreSql, connection);
+        command.Parameters.Add("@UseMXChecksScore", SqlDbType.Int).Value = useMxChecksScore;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

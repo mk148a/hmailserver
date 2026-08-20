@@ -373,6 +373,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamUseMxChecksSql_UsesTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @UseMXChecks\nWHERE settingname = N'usemxchecks';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamUseMxChecksSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @UseMXChecksScore\nWHERE settingname = N'usemxchecksscore';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamUseMxChecksScoreSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

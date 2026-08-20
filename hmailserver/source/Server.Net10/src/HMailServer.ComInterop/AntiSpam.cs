@@ -204,6 +204,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private readonly Action<bool>? _publishUseSpf;
     private readonly Action<int>? _publishUseSpfScore;
+    private readonly Action<bool>? _publishUseMxChecks;
+    private readonly Action<int>? _publishUseMxChecksScore;
 
     public AntiSpam()
     {
@@ -218,7 +220,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         ISettingsAdministrationMutationStore? settingsMutationStore,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
         Action<bool>? publishUseSpf,
-        Action<int>? publishUseSpfScore)
+        Action<int>? publishUseSpfScore,
+        Action<bool>? publishUseMxChecks,
+        Action<int>? publishUseMxChecksScore)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -229,6 +233,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _authorizationLeaseFactory = authorizationLeaseFactory;
         _publishUseSpf = publishUseSpf;
         _publishUseSpfScore = publishUseSpfScore;
+        _publishUseMxChecks = publishUseMxChecks;
+        _publishUseMxChecksScore = publishUseMxChecksScore;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -290,7 +296,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateUseSpf(value);
     }
 
-    public bool UseMXChecks { get => Snapshot.UseMxChecks; set => Unavailable(); }
+    public bool UseMXChecks
+    {
+        get => Snapshot.UseMxChecks;
+        set => UpdateUseMxChecks(value);
+    }
 
     public int UseSPFScore
     {
@@ -298,7 +308,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateUseSpfScore(value);
     }
 
-    public int UseMXChecksScore { get => Snapshot.UseMxChecksScore; set => Unavailable(); }
+    public int UseMXChecksScore
+    {
+        get => Snapshot.UseMxChecksScore;
+        set => UpdateUseMxChecksScore(value);
+    }
 
     public IInterfaceDNSBlackLists DNSBlackLists
     {
@@ -414,7 +428,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         ISettingsAdministrationMutationStore? settingsMutationStore = null,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
         Action<bool>? publishUseSpf = null,
-        Action<int>? publishUseSpfScore = null)
+        Action<int>? publishUseSpfScore = null,
+        Action<bool>? publishUseMxChecks = null,
+        Action<int>? publishUseMxChecksScore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -426,7 +442,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             settingsMutationStore,
             authorizationLeaseFactory,
             publishUseSpf,
-            publishUseSpfScore);
+            publishUseSpfScore,
+            publishUseMxChecks,
+            publishUseMxChecksScore);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -464,6 +482,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishUseSpfScore?.Invoke(value);
+    }
+
+    private void UpdateUseMxChecks(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamUseMxChecksAsync(value, CancellationToken.None),
+            "The anti-spam MX checks setting update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { UseMxChecks = value };
+        }
+
+        _publishUseMxChecks?.Invoke(value);
+    }
+
+    private void UpdateUseMxChecksScore(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamUseMxChecksScoreAsync(value, CancellationToken.None),
+            "The anti-spam MX checks score update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { UseMxChecksScore = value };
+        }
+
+        _publishUseMxChecksScore?.Invoke(value);
     }
 
     private void UpdateSetting(
