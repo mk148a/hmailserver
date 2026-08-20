@@ -1595,6 +1595,41 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesGroupsAndMembersAfterPublicFoldersInLegacyOrder()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                new SettingsAdministrationSnapshot("host", "smtp", "pop3", "imap"),
+                Domains: null,
+                PublicFolders: new[]
+                {
+                    new BackupPublicFolderEntry(
+                        new ImapFolderAdministrationSnapshot(501, 0, -1, "Shared", true, 7, "created"),
+                        Array.Empty<BackupPublicFolderEntry>(),
+                        Array.Empty<MessageAdministrationSnapshot>(),
+                        Array.Empty<BackupPublicFolderPermission>())
+                },
+                Groups: new[]
+                {
+                    new BackupGroupEntry(
+                        new GroupAdministrationSnapshot(77, "Editors<&"),
+                        new[] { "user@example.test" })
+                }));
+
+        var root = XDocument.Parse(xml).Root!;
+        CollectionAssert.AreEqual(
+            new[] { "BackupInformation", "Properties", "PublicFolders", "Groups" },
+            root.Elements().Select(static element => element.Name.LocalName).ToArray());
+        var group = root.Element("Groups")!.Element("Group")!;
+        Assert.AreEqual("Editors<&", group.Attribute("Name")?.Value);
+        Assert.AreEqual("user@example.test", group.Element("GroupMembers")!
+            .Element("Member")!.Attribute("Name")?.Value);
+        Assert.IsTrue(xml.Contains("Name=\"Editors&lt;&amp;\"", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task PayloadRuntimeCapturesPublicFolderMessagesChildrenAndResolvedAclHolders()
     {
         var folderStore = new RecordingImapFolderAdministrationStore(
@@ -1652,6 +1687,64 @@ public sealed class BackupArchiveRuntimeTests
         Assert.AreEqual("Editors", payload.PublicFolders[0].Children[0].Permissions[0].Holder);
         CollectionAssert.AreEqual(new[] { 0 }, folderStore.RequestedAccountIds);
         CollectionAssert.AreEqual(new[] { 501, 502 }, messageStore.RequestedBackupFolderIds);
+    }
+
+    [TestMethod]
+    public async Task PayloadRuntimeCapturesLegacyGroupsAndMemberAddresses()
+    {
+        var accountStore = new RecordingAccountAdministrationStore(
+            new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>
+            {
+                [10] = new[] { new AccountAdministrationSnapshot(20, 10, "user@example.test", true, 0) }
+            });
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
+            new RecordingDomainAliasAdministrationStore(new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            accountStore,
+            new RecordingAliasAdministrationStore(new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            distributionListStore: null,
+            distributionListRecipientStore: null,
+            groupStore: new RecordingGroupAdministrationStore(new[] { new GroupAdministrationSnapshot(77, "Editors") }),
+            groupMemberStore: new RecordingGroupMemberAdministrationStore(
+                new Dictionary<int, IReadOnlyList<GroupMemberAdministrationSnapshot>>
+                {
+                    [77] = new[] { new GroupMemberAdministrationSnapshot(88, 77, 20) }
+                }));
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence("unused", 1, false, true, true),
+            CancellationToken.None);
+
+        Assert.IsNotNull(payload.Groups);
+        Assert.AreEqual(1, payload.Groups!.Count);
+        Assert.AreEqual("Editors", payload.Groups[0].Group.Name);
+        CollectionAssert.AreEqual(new[] { "user@example.test" }, payload.Groups[0].MemberNames.ToArray());
+    }
+
+    [TestMethod]
+    public async Task PayloadRuntimeRejectsGroupMemberWithoutAnAccountAddress()
+    {
+        var runtime = new BackupXmlPayloadRuntime(
+            new FixedSettingsAdministrationStore(),
+            new FixedDomainAdministrationStore(Array.Empty<DomainAdministrationSnapshot>()),
+            new RecordingDomainAliasAdministrationStore(new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>()),
+            new RecordingAccountAdministrationStore(new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>()),
+            new RecordingAliasAdministrationStore(new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>()),
+            distributionListStore: null,
+            distributionListRecipientStore: null,
+            groupStore: new RecordingGroupAdministrationStore(new[] { new GroupAdministrationSnapshot(77, "Editors") }),
+            groupMemberStore: new RecordingGroupMemberAdministrationStore(
+                new Dictionary<int, IReadOnlyList<GroupMemberAdministrationSnapshot>>
+                {
+                    [77] = new[] { new GroupMemberAdministrationSnapshot(88, 77, 999) }
+                }));
+
+        var error = await Assert.ThrowsExactlyAsync<InvalidDataException>(() => runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence("unused", 1, false, true, true),
+            CancellationToken.None).AsTask());
+
+        StringAssert.Contains(error.Message, "group 'Editors'");
     }
 
     [TestMethod]
@@ -2754,6 +2847,19 @@ public sealed class BackupArchiveRuntimeTests
     {
         public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
             CancellationToken cancellationToken) => ValueTask.FromResult(groups);
+    }
+
+    private sealed class RecordingGroupMemberAdministrationStore(
+        IReadOnlyDictionary<int, IReadOnlyList<GroupMemberAdministrationSnapshot>> members)
+        : IGroupMemberAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
+            int groupId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupMemberAdministrationSnapshot>>(
+                members.TryGetValue(groupId, out var groupMembers)
+                    ? groupMembers
+                    : Array.Empty<GroupMemberAdministrationSnapshot>());
     }
 
     private sealed class RecordingMessageAdministrationStore(

@@ -329,6 +329,7 @@ public sealed class SevenZipBackupArchiveRuntime
         }
 
         WritePublicFolders(writer, payload?.PublicFolders);
+        WriteGroups(writer, payload?.Groups);
     }
 
     private static void WriteRawSettings(
@@ -967,6 +968,39 @@ public sealed class SevenZipBackupArchiveRuntime
         writer.WriteEndElement();
     }
 
+    private static void WriteGroups(
+        XmlWriter writer,
+        IReadOnlyList<BackupGroupEntry>? groups)
+    {
+        if (groups is null || groups.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartElement("Groups");
+        foreach (var entry in groups)
+        {
+            writer.WriteStartElement("Group");
+            WriteLegacyAttribute(writer, "Name", entry.Group.Name);
+            if (entry.MemberNames.Count > 0)
+            {
+                writer.WriteStartElement("GroupMembers");
+                foreach (var memberName in entry.MemberNames)
+                {
+                    writer.WriteStartElement("Member");
+                    WriteLegacyAttribute(writer, "Name", memberName);
+                    writer.WriteEndElement();
+                }
+
+                writer.WriteEndElement();
+            }
+
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
+    }
+
     private static void WriteRules(
         XmlWriter writer,
         int accountId,
@@ -1173,7 +1207,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>? RuleActions = null,
     IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? Folders = null,
     IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? FolderMessages = null,
-    IReadOnlyList<BackupPublicFolderEntry>? PublicFolders = null);
+    IReadOnlyList<BackupPublicFolderEntry>? PublicFolders = null,
+    IReadOnlyList<BackupGroupEntry>? Groups = null);
 
 [ComVisible(false)]
 public sealed record BackupPublicFolderPermission(
@@ -1187,6 +1222,11 @@ public sealed record BackupPublicFolderEntry(
     IReadOnlyList<BackupPublicFolderEntry> Children,
     IReadOnlyList<MessageAdministrationSnapshot> Messages,
     IReadOnlyList<BackupPublicFolderPermission> Permissions);
+
+[ComVisible(false)]
+public sealed record BackupGroupEntry(
+    GroupAdministrationSnapshot Group,
+    IReadOnlyList<string> MemberNames);
 
 [ComVisible(false)]
 public sealed class BackupXmlPayloadRuntime
@@ -1210,6 +1250,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
     private readonly IGroupAdministrationStore? _groupStore;
+    private readonly IGroupMemberAdministrationStore? _groupMemberStore;
     private readonly IBackupRestoreMetadataTransactionFactory? _metadataTransactionFactory;
     private readonly bool _requireSqlTransaction;
 
@@ -1263,7 +1304,8 @@ public sealed class BackupXmlPayloadRuntime
         IMessageAdministrationStore? messageStore = null,
         IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
         bool requireSqlTransaction = false,
-        IGroupAdministrationStore? groupStore = null)
+        IGroupAdministrationStore? groupStore = null,
+        IGroupMemberAdministrationStore? groupMemberStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -1289,6 +1331,7 @@ public sealed class BackupXmlPayloadRuntime
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
         _groupStore = groupStore;
+        _groupMemberStore = groupMemberStore;
         _metadataTransactionFactory = metadataTransactionFactory;
         _requireSqlTransaction = requireSqlTransaction;
     }
@@ -1324,6 +1367,7 @@ public sealed class BackupXmlPayloadRuntime
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>? distributionLists = null;
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>? distributionListRecipients = null;
         IReadOnlyList<BackupPublicFolderEntry>? publicFolders = null;
+        IReadOnlyList<BackupGroupEntry>? backupGroups = null;
         if (domains is not null)
         {
             var aliasesByDomainId = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
@@ -1526,6 +1570,15 @@ public sealed class BackupXmlPayloadRuntime
         }
 
         if ((evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0
+            && _groupStore is not null)
+        {
+            var groupSnapshots = await _groupStore
+                .GetGroupsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            backupGroups = await BuildGroupsAsync(groupSnapshots, cancellationToken).ConfigureAwait(false);
+        }
+
+        if ((evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0
             && _folderStore is not null)
         {
             var publicFolderSnapshots = await _folderStore
@@ -1560,7 +1613,42 @@ public sealed class BackupXmlPayloadRuntime
             ruleActions,
             folders,
             folderMessages,
-            publicFolders);
+            publicFolders,
+            backupGroups);
+    }
+
+    private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(
+        IReadOnlyList<GroupAdministrationSnapshot> groups,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<BackupGroupEntry>(groups.Count);
+        foreach (var group in groups)
+        {
+            var memberNames = new List<string>();
+            if (_groupMemberStore is not null)
+            {
+                var members = await _groupMemberStore
+                    .GetGroupMembersAsync(group.Id, cancellationToken)
+                    .ConfigureAwait(false);
+                foreach (var member in members)
+                {
+                    var account = await _accountStore
+                        .GetAccountByIdAsync(member.AccountId, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (account is null)
+                    {
+                        throw new InvalidDataException(
+                            $"The group member account {member.AccountId} could not be resolved for group '{group.Name}'.");
+                    }
+
+                    memberNames.Add(account.Address);
+                }
+            }
+
+            result.Add(new BackupGroupEntry(group, memberNames));
+        }
+
+        return result;
     }
 
     private async ValueTask<IReadOnlyList<BackupPublicFolderEntry>> BuildPublicFoldersAsync(

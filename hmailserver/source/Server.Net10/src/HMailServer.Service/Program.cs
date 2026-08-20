@@ -75,7 +75,8 @@ BackupManagerRuntimeHost.Configure(
                  metadataTransactionFactory: host.Services
                      .GetRequiredService<IBackupRestoreMetadataTransactionFactory>(),
                  requireSqlTransaction: true,
-                 groupStore: host.Services.GetRequiredService<IGroupAdministrationStore>())
+                 groupStore: host.Services.GetRequiredService<IGroupAdministrationStore>(),
+                 groupMemberStore: host.Services.GetRequiredService<IGroupMemberAdministrationStore>())
                 .GetPayloadAsync,
              dataDirectory: dataDirectory,
              restoreReinitializer: reinitializationCoordinator.ReinitializeAsync)
