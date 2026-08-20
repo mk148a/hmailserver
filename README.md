@@ -1,33 +1,34 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam threshold mutation parity)
+## Current authoritative parity status (2026-08-21, AntiSpam CheckPTR mutation parity)
 
-Code/test commit `75bf4c0ea` implements the legacy Administrator
-`AntiSpam.SpamMarkThreshold` and `SpamDeleteThreshold` setters through the
+Code/test commit `c2a7f909c` implements the legacy Administrator
+`AntiSpam.CheckPTR` and `CheckPTRScore` setters through the
 existing authenticated Settings mutation boundary, after the SPF, MX checks,
 SpamAssassin, scanner endpoint, maximum-size, DKIM verification, greylisting
-bypass, CheckHostInHelo, AddHeader, and PrependSubject pairs. The SQL store
-updates only the legacy `spammarkthreshold` and `spamdeletethreshold` rows, reports
+bypass, CheckHostInHelo, AddHeader, PrependSubject, and threshold pairs. The SQL
+store updates only the legacy `ascheckptr` and `ascheckptrscore` rows, reports
 contained missing-row failures, refreshes retained COM snapshots, and
 preserves direct activation/re-authentication denials. Focused COM/SQL
-coverage is `4 passed, 0 skipped, 0 failed`; the disposable SQL integration
+coverage is `3 passed, 0 skipped, 0 failed`; the disposable SQL integration
 setter/readback and missing-row checks passed; full disposable Net10 is `2486
-passed, 10 skipped, 0 failed` (`2496` total).
+passed, 10 skipped, 0 failed` (`2499` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_SpamMarkThreshold` and
-`put_SpamDeleteThreshold`
-(`source/Server/COM/InterfaceAntiSpam.cpp:197-258`),
-`AntiSpamConfiguration::SetSpamMarkThreshold` and
-`SetSpamDeleteThreshold` (`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:278-298`),
-and the legacy keys `spammarkthreshold`/`spamdeletethreshold`
-(`source/Server/Common/Application/Constants.h:96-97`). This slice does not
-add live SMTP/POP3 threshold reconfiguration.
+Legacy anchors are `InterfaceAntiSpam::put_CheckPTR` and
+`put_CheckPTRScore` (`source/Server/COM/InterfaceAntiSpam.cpp:129-190`),
+`AntiSpamConfiguration::SetCheckPTR` and `SetCheckPTRScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:75-95`),
+and the legacy keys `ascheckptr`/`ascheckptrscore`
+(`source/Server/Common/Application/Constants.h:56-57`). This slice does not
+add live SMTP/POP3 PTR reconfiguration; the existing runtime consumer remains
+unchanged.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded parity slice is the `CheckPTR` and
-`CheckPTRScore` mutation pair.
+open. The next bounded parity slice is `AntiSpam.GreyListingEnabled`, including
+its live SMTP enable/disable configuration bridge; delay/lifetime setters,
+triplet collections, and cleanup remain separate.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

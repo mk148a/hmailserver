@@ -1,25 +1,24 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AntiSpam threshold mutation parity)
+## Current Authoritative Continuation (2026-08-21, AntiSpam CheckPTR mutation parity)
 
-Code/test commit `75bf4c0ea` implements the authenticated Administrator
-`AntiSpam.SpamMarkThreshold` and `SpamDeleteThreshold` SQL mutation slice after
+Code/test commit `c2a7f909c` implements the authenticated Administrator
+`AntiSpam.CheckPTR` and `CheckPTRScore` SQL mutation slice after
 the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
 verification, greylisting bypass, CheckHostInHelo, and AddHeader pairs.
-Focused COM/SQL coverage is `4 passed, 0 skipped, 0 failed`; the disposable SQL
+Focused COM/SQL coverage is `3 passed, 0 skipped, 0 failed`; the disposable SQL
 integration setter/readback and missing-row checks passed; the disposable
-LocalDB/Data full suite is `2486 passed, 10 skipped, 0 failed` (`2496` total).
+LocalDB/Data full suite is `2489 passed, 10 skipped, 0 failed` (`2499` total).
 Direct activation, failed reauthentication, missing-row failure, retained
 object snapshots, and existing COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_SpamMarkThreshold` and
-`put_SpamDeleteThreshold`
-(`source/Server/COM/InterfaceAntiSpam.cpp:197-258`),
-`AntiSpamConfiguration::SetSpamMarkThreshold` and `SetSpamDeleteThreshold`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:278-298`), and the
-legacy keys `spammarkthreshold`/`spamdeletethreshold`. The next unblocked
-parity slice is the `CheckPTR` and `CheckPTRScore`
-mutation pair;
+Legacy references are `InterfaceAntiSpam::put_CheckPTR` and
+`put_CheckPTRScore` (`source/Server/COM/InterfaceAntiSpam.cpp:129-190`),
+`AntiSpamConfiguration::SetCheckPTR` and `SetCheckPTRScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:75-95`), and the
+legacy keys `ascheckptr`/`ascheckptrscore`. The next unblocked parity slice is
+`AntiSpam.GreyListingEnabled` with its live SMTP enable/disable bridge; delay,
+lifetime, triplet collections, and cleanup remain separate.
 the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
 disposable target. Live anti-spam reconfiguration is still unproven. Release
