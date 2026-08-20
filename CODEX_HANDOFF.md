@@ -23,6 +23,13 @@ registry isolation, and production migration/rollback drill have
 not run. Production service, database, Data directory, COM registration,
 DCOM ACLs, and firewall are untouched. Release remains **RED**.
 
+PowerShell Direct cannot proceed: the guest rejects the supplied Administrator
+credential and also rejects an empty Administrator password with
+`PSDirectException: The credential is invalid`. The Windows blank-password
+remote restriction remains enabled; do not weaken it. The next executable
+step requires a non-empty disposable guest Administrator password entered in
+the VM console, then payload extraction and isolated stack setup.
+
 Next slice: finish guest setup, install only the isolated test stack, and run
 the forced-failure migration/rollback drill.
 
