@@ -455,6 +455,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamAddHeaderSql_UsesTheLegacyFixedRows()
+    {
+        StringAssert.Contains(
+            "UPDATE hm_settings\nSET settinginteger = @AddHeaderSpam\nWHERE settingname = N'antispamaddheaderspam';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamAddHeaderSpamSql);
+        StringAssert.Contains(
+            "UPDATE hm_settings\nSET settinginteger = @AddHeaderReason\nWHERE settingname = N'antispamaddheaderreason';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamAddHeaderReasonSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

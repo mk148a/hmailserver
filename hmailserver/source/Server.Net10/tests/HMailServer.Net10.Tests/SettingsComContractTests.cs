@@ -3637,6 +3637,66 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamAddHeaderSettersPersistAndRefreshSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamAddHeaderSpamUpdateResult = true,
+            AntiSpamAddHeaderReasonUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamAddHeaderSpam: false,
+                AntiSpamAddHeaderReason: false)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        settings.AntiSpam.AddHeaderSpam = true;
+        settings.AntiSpam.AddHeaderReason = true;
+
+        Assert.AreEqual(1, store.AntiSpamAddHeaderSpamUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamAddHeaderSpam);
+        Assert.AreEqual(1, store.AntiSpamAddHeaderReasonUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamAddHeaderReason);
+        Assert.IsTrue(settings.AntiSpam.AddHeaderSpam);
+        Assert.IsTrue(settings.AntiSpam.AddHeaderReason);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamAddHeaderSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamAddHeaderSpamUpdateResult = false,
+            AntiSpamAddHeaderReasonUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedSpam = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.AddHeaderSpam = true);
+        var failedReason = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.AddHeaderReason = true);
+
+        Assert.AreEqual(EFail, failedSpam.ErrorCode);
+        Assert.AreEqual(EFail, failedReason.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamAddHeaderSpamUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamAddHeaderReasonUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5009,6 +5069,18 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamCheckHostInHeloScore { get; private set; }
 
+        public bool AntiSpamAddHeaderSpamUpdateResult { get; set; }
+
+        public int AntiSpamAddHeaderSpamUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamAddHeaderSpam { get; private set; }
+
+        public bool AntiSpamAddHeaderReasonUpdateResult { get; set; }
+
+        public int AntiSpamAddHeaderReasonUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamAddHeaderReason { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5624,6 +5696,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamCheckHostInHeloScore = score;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamCheckHostInHeloScoreUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamAddHeaderSpamUpdateCount++;
+            UpdatedAntiSpamAddHeaderSpam = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamAddHeaderSpamUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamAddHeaderReasonAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamAddHeaderReasonUpdateCount++;
+            UpdatedAntiSpamAddHeaderReason = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamAddHeaderReasonUpdateResult);
         }
 
     }

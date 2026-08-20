@@ -298,6 +298,18 @@ SET settinginteger = @CheckHostInHeloScore
 WHERE settingname = N'ascheckhostinheloscore';
 """;
 
+    public const string UpdateAntiSpamAddHeaderSpamSql = """
+UPDATE hm_settings
+SET settinginteger = @AddHeaderSpam
+WHERE settingname = N'antispamaddheaderspam';
+""";
+
+    public const string UpdateAntiSpamAddHeaderReasonSql = """
+UPDATE hm_settings
+SET settinginteger = @AddHeaderReason
+WHERE settingname = N'antispamaddheaderreason';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -1063,6 +1075,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamCheckHostInHeloScoreSql, connection);
         command.Parameters.Add("@CheckHostInHeloScore", SqlDbType.Int).Value = score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamAddHeaderSpamSql, connection);
+        command.Parameters.Add("@AddHeaderSpam", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamAddHeaderReasonAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamAddHeaderReasonSql, connection);
+        command.Parameters.Add("@AddHeaderReason", SqlDbType.Int).Value = enabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

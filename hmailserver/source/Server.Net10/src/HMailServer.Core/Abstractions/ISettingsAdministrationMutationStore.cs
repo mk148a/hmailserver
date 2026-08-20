@@ -193,4 +193,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamCheckHostInHeloScoreAsync(
         int score,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamAddHeaderReasonAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
 }

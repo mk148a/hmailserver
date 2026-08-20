@@ -58,6 +58,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsTrue(await store.UpdateAntiSpamBypassGreylistingOnMailFromMxAsync(false, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamCheckHostInHeloAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamCheckHostInHeloScoreAsync(7, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamAddHeaderSpamAsync(true, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamAddHeaderReasonAsync(true, CancellationToken.None));
             CollectionAssert.AreEqual(new[] { 1, 1, 9 }, await ReadValuesAsync(testConnectionString));
             Assert.AreEqual("scanner.example.test", await ReadHostAsync(testConnectionString));
             Assert.AreEqual(1783, await ReadPortAsync(testConnectionString));
@@ -65,6 +67,7 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             CollectionAssert.AreEqual(new[] { 1, 11 }, await ReadDkimValuesAsync(testConnectionString));
             CollectionAssert.AreEqual(new[] { 0, 1 }, await ReadBypassGreylistingValuesAsync(testConnectionString));
             CollectionAssert.AreEqual(new[] { 1, 7 }, await ReadCheckHostInHeloValuesAsync(testConnectionString));
+            CollectionAssert.AreEqual(new[] { 1, 1 }, await ReadAddHeaderValuesAsync(testConnectionString));
 
             await DeleteRowAsync(testConnectionString, "spamassassinenabled");
             Assert.IsFalse(await store.UpdateAntiSpamSpamAssassinEnabledAsync(false, CancellationToken.None));
@@ -74,6 +77,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsFalse(await store.UpdateAntiSpamBypassGreylistingOnSpfSuccessAsync(false, CancellationToken.None));
             await DeleteRowAsync(testConnectionString, "ascheckhostinhelo");
             Assert.IsFalse(await store.UpdateAntiSpamCheckHostInHeloAsync(false, CancellationToken.None));
+            await DeleteRowAsync(testConnectionString, "antispamaddheaderspam");
+            Assert.IsFalse(await store.UpdateAntiSpamAddHeaderSpamAsync(false, CancellationToken.None));
         }
         finally
         {
@@ -127,7 +132,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
                 (N'spamassassinport', N'', 783), (N'antispammaxsize', N'', 2048),
                 (N'ASDKIMVerificationEnabled', N'', 0), (N'ASDKIMVerificationFailureScore', N'', 4),
                 (N'BypassGreylistingOnSPFSuccess', N'', 0), (N'BypassGreylistingOnMailFromMX', N'', 1),
-                (N'ascheckhostinhelo', N'', 0), (N'ascheckhostinheloscore', N'', 2);
+                (N'ascheckhostinhelo', N'', 0), (N'ascheckhostinheloscore', N'', 2),
+                (N'antispamaddheaderspam', N'', 0), (N'antispamaddheaderreason', N'', 0);
             """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -249,6 +255,28 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             SELECT settinginteger
             FROM dbo.hm_settings
             WHERE settingname IN (N'ascheckhostinhelo', N'ascheckhostinheloscore')
+            ORDER BY settingname;
+            """;
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+        var values = new List<int>();
+        while (await reader.ReadAsync().ConfigureAwait(false))
+        {
+            values.Add(reader.GetInt32(0));
+        }
+
+        return values.ToArray();
+    }
+
+    private static async Task<int[]> ReadAddHeaderValuesAsync(string connectionString)
+    {
+        const string sql = """
+            SELECT settinginteger
+            FROM dbo.hm_settings
+            WHERE settingname IN (N'antispamaddheaderspam', N'antispamaddheaderreason')
             ORDER BY settingname;
             """;
 

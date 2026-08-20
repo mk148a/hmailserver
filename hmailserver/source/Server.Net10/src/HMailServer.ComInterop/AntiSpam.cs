@@ -218,6 +218,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<bool>? _publishBypassGreylistingOnMailFromMx;
     private readonly Action<bool>? _publishCheckHostInHelo;
     private readonly Action<int>? _publishCheckHostInHeloScore;
+    private readonly Action<bool>? _publishAddHeaderSpam;
+    private readonly Action<bool>? _publishAddHeaderReason;
 
     public AntiSpam()
     {
@@ -246,7 +248,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishBypassGreylistingOnSpfSuccess,
         Action<bool>? publishBypassGreylistingOnMailFromMx,
         Action<bool>? publishCheckHostInHelo,
-        Action<int>? publishCheckHostInHeloScore)
+        Action<int>? publishCheckHostInHeloScore,
+        Action<bool>? publishAddHeaderSpam,
+        Action<bool>? publishAddHeaderReason)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -271,6 +275,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishBypassGreylistingOnMailFromMx = publishBypassGreylistingOnMailFromMx;
         _publishCheckHostInHelo = publishCheckHostInHelo;
         _publishCheckHostInHeloScore = publishCheckHostInHeloScore;
+        _publishAddHeaderSpam = publishAddHeaderSpam;
+        _publishAddHeaderReason = publishAddHeaderReason;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -298,9 +304,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateCheckHostInHelo(value);
     }
 
-    public bool AddHeaderSpam { get => Snapshot.AddHeaderSpam; set => Unavailable(); }
+    public bool AddHeaderSpam
+    {
+        get => Snapshot.AddHeaderSpam;
+        set => UpdateAddHeaderSpam(value);
+    }
 
-    public bool AddHeaderReason { get => Snapshot.AddHeaderReason; set => Unavailable(); }
+    public bool AddHeaderReason
+    {
+        get => Snapshot.AddHeaderReason;
+        set => UpdateAddHeaderReason(value);
+    }
 
     public bool PrependSubject { get => Snapshot.PrependSubject; set => Unavailable(); }
 
@@ -526,7 +540,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishBypassGreylistingOnSpfSuccess = null,
         Action<bool>? publishBypassGreylistingOnMailFromMx = null,
         Action<bool>? publishCheckHostInHelo = null,
-        Action<int>? publishCheckHostInHeloScore = null)
+        Action<int>? publishCheckHostInHeloScore = null,
+        Action<bool>? publishAddHeaderSpam = null,
+        Action<bool>? publishAddHeaderReason = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -552,7 +568,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishBypassGreylistingOnSpfSuccess,
             publishBypassGreylistingOnMailFromMx,
             publishCheckHostInHelo,
-            publishCheckHostInHeloScore);
+            publishCheckHostInHeloScore,
+            publishAddHeaderSpam,
+            publishAddHeaderReason);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -786,6 +804,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishCheckHostInHeloScore?.Invoke(value);
+    }
+
+    private void UpdateAddHeaderSpam(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamAddHeaderSpamAsync(value, CancellationToken.None),
+            "The anti-spam AddHeaderSpam update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { AddHeaderSpam = value };
+        }
+
+        _publishAddHeaderSpam?.Invoke(value);
+    }
+
+    private void UpdateAddHeaderReason(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamAddHeaderReasonAsync(value, CancellationToken.None),
+            "The anti-spam AddHeaderReason update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { AddHeaderReason = value };
+        }
+
+        _publishAddHeaderReason?.Invoke(value);
     }
 
     private void UpdateSetting(
