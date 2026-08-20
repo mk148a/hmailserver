@@ -1,3 +1,20 @@
+## Current authoritative parity status (2026-08-20, group/member backup capture)
+
+Code/test commit `7213e522d` captures legacy `Groups/GroupMembers` metadata in
+backup XML, resolves member account addresses, and preserves legacy ordering
+after public folders. Focused coverage is `56 passed, 1 skipped, 0 failed`;
+the disposable LocalDB/Data full suite is `2437 passed, 10 skipped, 0 failed`
+(`2447` total).
+
+Legacy anchors are `IMAPConfiguration::XMLStore/XMLLoad`
+(`source/Server/IMAP/IMAPConfiguration.cpp:225-248`), `Group::XMLStore` and
+`XMLLoadSubItems` (`source/Server/Common/BO/Group.cpp:55-79`), and
+`GroupMembers::PostStoreObject/PreSaveObject`
+(`source/Server/Common/BO/GroupMembers.cpp:57-84`). Next slice: restore
+groups/members in the metadata transaction and resolve ACL holders against
+restored IDs with rollback coverage. Release remains **RED** for restore,
+migration, COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates.
+
 ## Current authoritative parity status (2026-08-20, legacy restore UID allocation)
 
 Code/test commit `4843c59b8` completes the legacy restore defaults and

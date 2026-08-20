@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-20, group/member backup capture)
+
+Code/test commit `7213e522d` captures legacy `Groups/GroupMembers` metadata in
+backup XML, including account-address member names and legacy ordering after
+`PublicFolders`. Focused coverage is `56 passed, 1 skipped, 0 failed`; the
+disposable LocalDB/Data full suite is `2437 passed, 10 skipped, 0 failed`
+(`2447` total).
+
+Legacy anchors are `IMAPConfiguration::XMLStore/XMLLoad`
+(`source/Server/IMAP/IMAPConfiguration.cpp:225-248`), `Group::XMLStore` and
+`XMLLoadSubItems` (`source/Server/Common/BO/Group.cpp:55-79`), and
+`GroupMembers::PostStoreObject/PreSaveObject`
+(`source/Server/Common/BO/GroupMembers.cpp:57-84`). The next slice is
+transaction-scoped group/member restore with target-independent ACL holder
+resolution and rollback. Restore/migration, COM/DCOM, SEC-18, paired
+C++/.NET performance, and soak gates remain open; release is **RED**.
+
 ## Current authoritative parity status (2026-08-20, legacy restore UID allocation)
 
 Code/test commit `4843c59b8` completes the legacy restore defaults and

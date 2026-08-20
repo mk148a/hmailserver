@@ -1,5 +1,32 @@
 
-## Current next slice (2026-08-20, target-preexisting group dependency parity)
+## Current next slice (2026-08-20, group/member backup capture parity)
+
+Code/test commit `7213e522d` adds the missing legacy group metadata capture.
+`BackupXmlPayloadRuntime` now reads `hm_groups` and `hm_group_members` through
+the configured administration stores, resolves each member to its account
+address, and `SevenZipBackupArchiveRuntime` writes `Groups/Group/GroupMembers`
+after `PublicFolders`, matching the legacy XML order. Focused coverage is
+`56 passed, 1 skipped, 0 failed`; the disposable LocalDB/Data Debug suite is
+`2437 passed, 10 skipped, 0 failed` (`2447` total).
+
+Legacy anchors are `IMAPConfiguration::XMLStore/XMLLoad` at
+`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:225-248`,
+`Groups::Refresh` at
+`hmailserver/source/Server/Common/BO/Groups.cpp:31-44`,
+`Group::XMLStore/XMLLoadSubItems` at
+`hmailserver/source/Server/Common/BO/Group.cpp:55-79`, and
+`GroupMembers::PostStoreObject/PreSaveObject` at
+`hmailserver/source/Server/Common/BO/GroupMembers.cpp:57-84`.
+
+The capture path fails closed when a persisted member has no account address.
+It does not yet restore groups or members; public-folder ACL restore still
+depends on target-preexisting groups. Next slice: add transaction-scoped
+group/member restore, resolve ACL holders against restored IDs, and prove
+rollback after a mid-batch failure without changing other Admin collections.
+Migration/installer, COM/DCOM, SEC-18, paired C++/.NET performance, and soak
+gates remain **RED**.
+
+## Historical current slice (2026-08-20, target-preexisting group dependency parity)
 
 Code/test commit `4843c59b8` completes the legacy restore defaults and
 owner-scoped UID-zero allocation. Restore resets retry count to `0`, adds

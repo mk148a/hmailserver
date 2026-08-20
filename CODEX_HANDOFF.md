@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, group/member backup capture)
+
+Code/test commit `7213e522d` adds legacy `Groups/GroupMembers` backup XML
+capture. `BackupXmlPayloadRuntime` reads the configured group and member
+stores, resolves member account addresses, and `SevenZipBackupArchiveRuntime`
+writes the group collection after public folders. Focused coverage is `56
+passed, 1 skipped, 0 failed`; the disposable LocalDB/Data full suite is
+`2437 passed, 10 skipped, 0 failed` (`2447` total).
+
+Legacy references are `IMAPConfiguration::XMLStore/XMLLoad`
+(`source/Server/IMAP/IMAPConfiguration.cpp:225-248`), `Group::XMLStore` and
+`XMLLoadSubItems` (`source/Server/Common/BO/Group.cpp:55-79`), and
+`GroupMembers::PostStoreObject/PreSaveObject`
+(`source/Server/Common/BO/GroupMembers.cpp:57-84`). The capture path rejects
+unresolved member accounts. It intentionally does not restore groups/members
+yet; the next slice is transaction-scoped group/member restore with ACL holder
+resolution against restored IDs and mid-batch rollback. Release remains
+`RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-20, legacy restore UID allocation)
 
 Code/test commit `4843c59b8` completes the legacy restore defaults and
