@@ -1,5 +1,39 @@
 using HMailServer.Net10.Benchmarks;
 
+var mode = ParseString(args, "--mode", "search-sort");
+if (string.Equals(mode, "acl-revalidation", StringComparison.OrdinalIgnoreCase))
+{
+    var backend = ParseString(args, "--backend", "offline");
+    var aclOutputDirectory = ParseOutputDirectory(args);
+    AclRevalidationBenchmarkReport aclReport;
+    if (string.Equals(backend, "offline", StringComparison.OrdinalIgnoreCase))
+    {
+        aclReport = AclRevalidationBenchmark.CreateNotRunReport(
+            gitCommit: ParseString(args, "--git-commit", Environment.GetEnvironmentVariable("GIT_COMMIT") ?? "unknown"),
+            reason: "SQL backend was not selected; no latency values were fabricated.");
+    }
+    else if (string.Equals(backend, "sql", StringComparison.OrdinalIgnoreCase))
+    {
+        aclReport = await AclRevalidationBenchmark.RunSqlAsync(
+            connectionString: ParseString(
+                args,
+                "--connection-string",
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION") ?? string.Empty),
+            warmupIterations: ParseInt(args, "--warmup", 2),
+            measuredIterations: ParseInt(args, "--iterations", 20),
+            gitCommit: ParseString(args, "--git-commit", Environment.GetEnvironmentVariable("GIT_COMMIT") ?? "unknown"));
+    }
+    else
+    {
+        throw new ArgumentException($"Unknown ACL revalidation backend '{backend}'. Use offline or sql.");
+    }
+
+    AclRevalidationArtifactWriter.Write(aclReport, aclOutputDirectory);
+    Console.WriteLine($"Wrote ACL revalidation artifacts to {Path.GetFullPath(aclOutputDirectory)}");
+    Console.WriteLine($"backend={aclReport.Backend} status={aclReport.Status} p95={aclReport.P95Milliseconds?.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture) ?? "n/a"}ms threshold={aclReport.ThresholdPassed}");
+    return aclReport.Status == "completed" && aclReport.Correct && aclReport.ThresholdPassed ? 0 : 2;
+}
+
 var options = ParseOptions(args);
 var dataset = SyntheticImapSearchSortBenchmark.CreateDataset(options.MessageCount, options.Seed);
 if (string.Equals(ParseString(args, "--mode", "search-sort"), "short-soak", StringComparison.OrdinalIgnoreCase))

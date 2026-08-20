@@ -6,5 +6,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\HMailServer.Core\HMailServer.Core.csproj" />
+    <ProjectReference Include="..\..\src\HMailServer.Storage.SqlServer\HMailServer.Storage.SqlServer.csproj" />
   </ItemGroup>
 </Project>
