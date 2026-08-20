@@ -1,33 +1,32 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam AddHeader mutation parity)
+## Current authoritative parity status (2026-08-21, AntiSpam PrependSubject mutation parity)
 
-Code/test commit `30e40b393` implements the legacy Administrator
-`AntiSpam.AddHeaderSpam` and `AddHeaderReason` setters through the existing
-authenticated Settings mutation boundary, after the SPF, MX checks,
+Code/test commit `671563121` implements the legacy Administrator
+`AntiSpam.PrependSubject` and `PrependSubjectText` setters through the
+existing authenticated Settings mutation boundary, after the SPF, MX checks,
 SpamAssassin, scanner endpoint, maximum-size, DKIM verification, greylisting
-bypass, and CheckHostInHelo pairs. The SQL store updates only the legacy
-`antispamaddheaderspam` and `antispamaddheaderreason` rows, reports contained
-missing-row failures, refreshes retained COM snapshots, and preserves direct
-activation/re-authentication denials. Focused COM/SQL coverage is `4 passed,
-0 skipped, 0 failed`; the disposable SQL integration setter/readback and
-missing-row checks passed; full disposable Net10 is `2480 passed, 10 skipped,
-0 failed` (`2490` total).
+bypass, CheckHostInHelo, and AddHeader pairs. The SQL store updates only the
+legacy `antispamprependsubject` and `antispamprependsubjecttext` rows, reports
+contained missing-row failures, refreshes retained COM snapshots, and
+preserves direct activation/re-authentication denials. Focused COM/SQL
+coverage is `4 passed, 0 skipped, 0 failed`; the disposable SQL integration
+setter/readback and missing-row checks passed; full disposable Net10 is `2483
+passed, 10 skipped, 0 failed` (`2493` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_AddHeaderSpam` and
-`put_AddHeaderReason`
-(`source/Server/COM/InterfaceAntiSpam.cpp:393-448`),
-`AntiSpamConfiguration::SetAddHeaderSpam` and `SetAddHeaderReason`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:147-167`), and the
-legacy keys `antispamaddheaderspam`/`antispamaddheaderreason`
-(`source/Server/Common/Application/Constants.h:82-83`). This slice does not
-add live SMTP header or subject reconfiguration.
+Legacy anchors are `InterfaceAntiSpam::put_PrependSubject` and
+`put_PrependSubjectText`
+(`source/Server/COM/InterfaceAntiSpam.cpp:457-505`),
+`AntiSpamConfiguration::SetPrependSubject` and
+`SetPrependSubjectText` (`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:169-187`),
+and the legacy keys `antispamprependsubject`/`antispamprependsubjecttext`.
+This slice does not add live SMTP subject reconfiguration.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded parity slice is the `PrependSubject` and
-`PrependSubjectText` mutation pair.
+open. The next bounded parity slice is the `SpamMarkThreshold` and
+`SpamDeleteThreshold` mutation pair.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

@@ -1,25 +1,25 @@
 
-## Current next slice (2026-08-21, AntiSpam PrependSubject mutation parity)
+## Current next slice (2026-08-21, AntiSpam threshold mutation parity)
 
-Code/test commit `30e40b393` closes the legacy Administrator
-`AntiSpam.AddHeaderSpam` and `AddHeaderReason` mutation gap after the SPF, MX
-checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
-greylisting bypass, and CheckHostInHelo pairs. The existing authenticated
-Settings boundary now persists only `antispamaddheaderspam` and
-`antispamaddheaderreason`, refreshes retained object snapshots, and fails
-closed on missing rows or reauthentication. Focused COM/SQL coverage is `4
-passed, 0 skipped, 0 failed`; the disposable SQL integration setter/readback
-and missing-row checks passed; full disposable LocalDB/Data is `2480 passed,
-10 skipped, 0 failed` (`2490` total).
+Code/test commit `671563121` closes the legacy Administrator
+`AntiSpam.PrependSubject` and `PrependSubjectText` mutation gap after the SPF,
+MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
+greylisting bypass, CheckHostInHelo, and AddHeader pairs. The existing
+authenticated Settings boundary now persists only
+`antispamprependsubject` and `antispamprependsubjecttext`, refreshes retained
+object snapshots, and fails closed on missing rows or reauthentication.
+Focused COM/SQL coverage is `4 passed, 0 skipped, 0 failed`; the disposable
+SQL integration setter/readback and missing-row checks passed; full disposable
+LocalDB/Data is `2483 passed, 10 skipped, 0 failed` (`2493` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_AddHeaderSpam` and
-`put_AddHeaderReason`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:393-448`),
-`AntiSpamConfiguration::SetAddHeaderSpam` and `SetAddHeaderReason`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:147-167`),
-and `Constants.h` keys `antispamaddheaderspam`/`antispamaddheaderreason`
-(`hmailserver/source/Server/Common/Application/Constants.h:82-83`). The next
-bounded slice is the `PrependSubject` and `PrependSubjectText` mutation pair;
+Legacy anchors are `InterfaceAntiSpam::put_PrependSubject` and
+`put_PrependSubjectText`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:457-505`),
+`AntiSpamConfiguration::SetPrependSubject` and `SetPrependSubjectText`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:169-187`),
+and keys `antispamprependsubject`/`antispamprependsubjecttext`. The next
+bounded slice is the `SpamMarkThreshold` and `SpamDeleteThreshold` mutation
+pair;
 preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
 or live SMTP reconfiguration in that slice. In parallel, the migration/installer

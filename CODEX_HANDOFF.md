@@ -1,25 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AntiSpam AddHeader mutation parity)
+## Current Authoritative Continuation (2026-08-21, AntiSpam PrependSubject mutation parity)
 
-Code/test commit `30e40b393` implements the authenticated Administrator
-`AntiSpam.AddHeaderSpam` and `AddHeaderReason` SQL mutation slice after the
-SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
-verification, greylisting bypass, and CheckHostInHelo pairs. Focused COM/SQL
-coverage is `4 passed, 0 skipped, 0 failed`; the disposable SQL integration
-setter/readback and missing-row checks passed; the disposable LocalDB/Data full
-suite is `2480 passed, 10 skipped, 0 failed` (`2490` total). Direct activation,
-failed reauthentication, missing-row failure, retained object snapshots, and
-existing COM identity boundaries remain covered.
+Code/test commit `671563121` implements the authenticated Administrator
+`AntiSpam.PrependSubject` and `PrependSubjectText` SQL mutation slice after
+the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
+verification, greylisting bypass, CheckHostInHelo, and AddHeader pairs.
+Focused COM/SQL coverage is `4 passed, 0 skipped, 0 failed`; the disposable SQL
+integration setter/readback and missing-row checks passed; the disposable
+LocalDB/Data full suite is `2483 passed, 10 skipped, 0 failed` (`2493` total).
+Direct activation, failed reauthentication, missing-row failure, retained
+object snapshots, and existing COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_AddHeaderSpam` and
-`put_AddHeaderReason`
-(`source/Server/COM/InterfaceAntiSpam.cpp:393-448`),
-`AntiSpamConfiguration::SetAddHeaderSpam` and `SetAddHeaderReason`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:147-167`), and
-`Constants.h` keys `antispamaddheaderspam`/`antispamaddheaderreason`
-(`source/Server/Common/Application/Constants.h:82-83`). The next unblocked
-parity slice is the `PrependSubject` and `PrependSubjectText` mutation pair;
+Legacy references are `InterfaceAntiSpam::put_PrependSubject` and
+`put_PrependSubjectText`
+(`source/Server/COM/InterfaceAntiSpam.cpp:457-505`),
+`AntiSpamConfiguration::SetPrependSubject` and `SetPrependSubjectText`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:169-187`), and the
+legacy keys `antispamprependsubject`/`antispamprependsubjecttext`. The next
+unblocked parity slice is the `SpamMarkThreshold` and `SpamDeleteThreshold`
+mutation pair;
 the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
 disposable target. Live anti-spam reconfiguration is still unproven. Release
