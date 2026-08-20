@@ -124,6 +124,76 @@ public sealed class SqlServerMessageAdministrationStoreIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task InsertMessageForRestore_AllocatesOwnerScopedUidWhenArchiveUidIsZero()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_message_restore_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var store = new SqlServerMessageAdministrationStore(
+                new SqlServerConnectionFactory(testConnectionString));
+
+            var allocated = await store.InsertMessageForRestoreAsync(
+                10,
+                20,
+                new MessageAdministrationSnapshot(
+                    Id: 0,
+                    AccountId: 10,
+                    FolderId: 20,
+                    FileName: "restore-zero.eml",
+                    State: 1,
+                    FromAddress: "restore@example.test",
+                    SizeBytes: 128,
+                    CurrentNumberOfTries: 9,
+                    Flags: 1,
+                    InternalDate: new DateTime(2026, 1, 5, 3, 4, 5),
+                    Uid: 0),
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual(2, allocated.Uid);
+            Assert.AreEqual(2, await GetFolderCurrentUidAsync(testConnectionString, 20).ConfigureAwait(false));
+
+            var restored = (await store
+                .GetFolderMessagesForBackupAsync(10, 20, CancellationToken.None)
+                .ConfigureAwait(false))
+                .Single(message => message.Id == allocated.MessageId);
+            Assert.AreEqual(2, restored.Uid);
+            Assert.AreEqual(0, restored.CurrentNumberOfTries);
+            Assert.AreEqual(33, restored.Flags);
+
+            var explicitUid = await store.InsertMessageForRestoreAsync(
+                10,
+                20,
+                new MessageAdministrationSnapshot(
+                    Id: 0,
+                    AccountId: 10,
+                    FolderId: 20,
+                    FileName: "restore-explicit.eml",
+                    State: 2,
+                    FromAddress: "explicit@example.test",
+                    SizeBytes: 256,
+                    CurrentNumberOfTries: 4,
+                    Flags: 0,
+                    InternalDate: new DateTime(2026, 1, 6, 3, 4, 5),
+                    Uid: 9),
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual(9, explicitUid.Uid);
+            Assert.AreEqual(2, await GetFolderCurrentUidAsync(testConnectionString, 20).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);

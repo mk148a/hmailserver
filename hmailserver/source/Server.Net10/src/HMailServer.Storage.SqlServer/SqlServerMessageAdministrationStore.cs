@@ -128,14 +128,28 @@ ORDER BY messageuid ASC, messageid ASC;
         """;
 
     public const string InsertMessageForRestoreSql = """
+DECLARE @EffectiveUid bigint = @Uid;
+IF @Uid = 0 AND @FolderID > 0
+BEGIN
+    DECLARE @AllocatedUid TABLE (foldercurrentuid bigint NOT NULL);
+    UPDATE hm_imapfolders
+    SET foldercurrentuid = foldercurrentuid + 1
+    OUTPUT INSERTED.foldercurrentuid INTO @AllocatedUid(foldercurrentuid)
+    WHERE folderid = @FolderID
+      AND folderaccountid = @AccountID;
+
+    SELECT @EffectiveUid = foldercurrentuid
+    FROM @AllocatedUid;
+END
+
 INSERT INTO hm_messages
     (messageaccountid, messagefolderid, messagefilename, messagetype, messagefrom,
      messagesize, messagecurnooftries, messagenexttrytime, messageflags,
      messagecreatetime, messagelocked, messageuid)
-OUTPUT INSERTED.messageid
+OUTPUT INSERTED.messageid, INSERTED.messageuid
 SELECT @AccountID, @FolderID, @FileName, @State, @From,
        @Size, 0, CONVERT(datetime, '1901-01-01', 120), (@Flags | @RecentFlag),
-       @CreateTime, 0, @Uid
+       @CreateTime, 0, @EffectiveUid
 WHERE EXISTS
 (
     SELECT 1 FROM hm_imapfolders
@@ -182,14 +196,18 @@ WHERE EXISTS
         command.Parameters.Add("@RecentFlag", SqlDbType.TinyInt).Value = ImapMessageFlags.Recent;
         command.Parameters.Add("@CreateTime", SqlDbType.DateTime).Value = snapshot.InternalDate;
         command.Parameters.Add("@Uid", SqlDbType.BigInt).Value = snapshot.Uid;
-        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
-        if (insertedId is null || insertedId == DBNull.Value)
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleRow,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
             throw new InvalidOperationException("The restored message insert did not return a generated identity.");
         }
 
         return new MessageAdministrationInsertResult(
-            Convert.ToInt64(insertedId, CultureInfo.InvariantCulture), snapshot.Uid, snapshot.State);
+            Convert.ToInt64(reader.GetValue(0), CultureInfo.InvariantCulture),
+            Convert.ToInt64(reader.GetValue(1), CultureInfo.InvariantCulture),
+            snapshot.State);
     }
 
 

@@ -151,15 +151,19 @@ public sealed class SqlServerMessageAdministrationStoreTests
     public void InsertMessageForRestoreSql_PreservesUidAndUsesLegacyRestoreDefaults()
     {
         var sql = SqlServerMessageAdministrationStore.InsertMessageForRestoreSql;
-        StringAssert.Contains(sql, "OUTPUT INSERTED.messageid");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.messageid, INSERTED.messageuid");
         StringAssert.Contains(sql, "CONVERT(datetime, '1901-01-01', 120)");
         StringAssert.Contains(sql, "SELECT @AccountID, @FolderID");
         StringAssert.Contains(sql, "0, CONVERT");
         StringAssert.Contains(sql, "(@Flags | @RecentFlag)");
+        StringAssert.Contains(sql, "UPDATE hm_imapfolders");
+        StringAssert.Contains(sql, "SET foldercurrentuid = foldercurrentuid + 1");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        StringAssert.Contains(sql, "@EffectiveUid");
         Assert.IsFalse(sql.Contains("@CurrentNumberOfTries", StringComparison.OrdinalIgnoreCase));
         StringAssert.Contains(sql, "folderid = @FolderID");
         StringAssert.Contains(sql, "folderaccountid = @AccountID");
-        Assert.IsFalse(sql.Contains("foldercurrentuid", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(sql, "foldercurrentuid");
         Assert.IsFalse(sql.Contains("hm_messagerecipients", StringComparison.OrdinalIgnoreCase));
     }
 
