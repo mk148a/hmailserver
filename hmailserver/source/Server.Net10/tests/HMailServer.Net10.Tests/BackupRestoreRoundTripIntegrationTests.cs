@@ -230,7 +230,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             Assert.AreEqual(1, restoredMessages.Count);
             Assert.AreEqual("one.eml", restoredMessages[0].FileName);
             Assert.AreEqual(8, restoredMessages[0].Uid);
-            Assert.AreEqual(0, restoredMessages[0].CurrentNumberOfTries);
+            Assert.AreEqual(9, restoredMessages[0].CurrentNumberOfTries);
 
             var restoredAlias = (await aliasStore.GetAliasesAsync(1, CancellationToken.None).ConfigureAwait(false)).Single();
             Assert.AreEqual("alias@roundtrip.example", restoredAlias.Name);

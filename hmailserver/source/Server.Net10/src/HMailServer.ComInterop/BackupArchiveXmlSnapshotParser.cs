@@ -248,7 +248,7 @@ public static class BackupArchiveXmlSnapshotParser
                 State: IntAttr(message, "State"),
                 FromAddress: message.Attribute("FromAddress")?.Value ?? string.Empty,
                 SizeBytes: LongAttr(message, "Size"),
-                CurrentNumberOfTries: 0,
+                CurrentNumberOfTries: IntAttr(message, "NoOfRetries"),
                 Flags: IntAttr(message, "Flags"),
                 InternalDate: DateTimeAttr(message, "CreateTime"),
                 Uid: LongAttr(message, "UID")))

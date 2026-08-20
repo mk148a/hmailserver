@@ -108,7 +108,7 @@ INSERT INTO hm_messages
      messagecreatetime, messagelocked, messageuid)
 OUTPUT INSERTED.messageid
 SELECT @AccountID, @FolderID, @FileName, @State, @From,
-       @Size, 0, CONVERT(datetime, '1901-01-01', 120), @Flags,
+       @Size, @CurrentNumberOfTries, CONVERT(datetime, '1901-01-01', 120), @Flags,
        @CreateTime, 0, @Uid
 WHERE EXISTS
 (
@@ -152,6 +152,7 @@ WHERE EXISTS
         command.Parameters.Add("@State", SqlDbType.TinyInt).Value = snapshot.State;
         command.Parameters.Add("@From", SqlDbType.NVarChar, 255).Value = snapshot.FromAddress;
         command.Parameters.Add("@Size", SqlDbType.BigInt).Value = snapshot.SizeBytes;
+        command.Parameters.Add("@CurrentNumberOfTries", SqlDbType.Int).Value = snapshot.CurrentNumberOfTries;
         command.Parameters.Add("@Flags", SqlDbType.TinyInt).Value = snapshot.Flags;
         command.Parameters.Add("@CreateTime", SqlDbType.DateTime).Value = snapshot.InternalDate;
         command.Parameters.Add("@Uid", SqlDbType.BigInt).Value = snapshot.Uid;

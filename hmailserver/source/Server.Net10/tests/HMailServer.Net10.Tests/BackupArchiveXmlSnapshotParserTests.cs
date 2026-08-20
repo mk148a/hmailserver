@@ -317,7 +317,7 @@ public sealed class BackupArchiveXmlSnapshotParserTests
         Assert.AreEqual(42, message.SizeBytes);
         Assert.AreEqual(1, message.Flags);
         Assert.AreEqual(8, message.Uid);
-        Assert.AreEqual(0, message.CurrentNumberOfTries);
+        Assert.AreEqual(9, message.CurrentNumberOfTries);
 
         var withPermissions = xml.Replace(
             "CurrentUID=\"2\" />",
