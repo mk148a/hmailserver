@@ -298,6 +298,18 @@ SET settinginteger = @CheckHostInHeloScore
 WHERE settingname = N'ascheckhostinheloscore';
 """;
 
+    public const string UpdateAntiSpamCheckPtrSql = """
+UPDATE hm_settings
+SET settinginteger = @CheckPTR
+WHERE settingname = N'ascheckptr';
+""";
+
+    public const string UpdateAntiSpamCheckPtrScoreSql = """
+UPDATE hm_settings
+SET settinginteger = @CheckPTRScore
+WHERE settingname = N'ascheckptrscore';
+""";
+
     public const string UpdateAntiSpamAddHeaderSpamSql = """
 UPDATE hm_settings
 SET settinginteger = @AddHeaderSpam
@@ -1099,6 +1111,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamCheckHostInHeloScoreSql, connection);
         command.Parameters.Add("@CheckHostInHeloScore", SqlDbType.Int).Value = score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamCheckPtrAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamCheckPtrSql, connection);
+        command.Parameters.Add("@CheckPTR", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamCheckPtrScoreAsync(
+        int score,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamCheckPtrScoreSql, connection);
+        command.Parameters.Add("@CheckPTRScore", SqlDbType.Int).Value = score;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

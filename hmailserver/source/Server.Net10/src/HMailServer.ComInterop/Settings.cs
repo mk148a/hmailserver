@@ -2233,6 +2233,20 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                             _administrationSnapshot = _administrationSnapshot with { AntiSpamCheckHostInHeloScore = value };
                         }
                     },
+                    publishCheckPtr: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamCheckPtr = value };
+                        }
+                    },
+                    publishCheckPtrScore: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamCheckPtrScore = value };
+                        }
+                    },
                     publishAddHeaderSpam: value =>
                     {
                         if (_administrationSnapshot is not null)

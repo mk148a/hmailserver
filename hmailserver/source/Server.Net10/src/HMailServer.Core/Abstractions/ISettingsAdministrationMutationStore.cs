@@ -194,6 +194,14 @@ public interface ISettingsAdministrationMutationStore
         int score,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiSpamCheckPtrAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamCheckPtrScoreAsync(
+        int score,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(
         bool enabled,
         CancellationToken cancellationToken);

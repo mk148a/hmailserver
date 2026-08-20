@@ -218,6 +218,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<bool>? _publishBypassGreylistingOnMailFromMx;
     private readonly Action<bool>? _publishCheckHostInHelo;
     private readonly Action<int>? _publishCheckHostInHeloScore;
+    private readonly Action<bool>? _publishCheckPtr;
+    private readonly Action<int>? _publishCheckPtrScore;
     private readonly Action<bool>? _publishAddHeaderSpam;
     private readonly Action<bool>? _publishAddHeaderReason;
     private readonly Action<bool>? _publishPrependSubject;
@@ -253,6 +255,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishBypassGreylistingOnMailFromMx,
         Action<bool>? publishCheckHostInHelo,
         Action<int>? publishCheckHostInHeloScore,
+        Action<bool>? publishCheckPtr,
+        Action<int>? publishCheckPtrScore,
         Action<bool>? publishAddHeaderSpam,
         Action<bool>? publishAddHeaderReason,
         Action<bool>? publishPrependSubject,
@@ -283,6 +287,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishBypassGreylistingOnMailFromMx = publishBypassGreylistingOnMailFromMx;
         _publishCheckHostInHelo = publishCheckHostInHelo;
         _publishCheckHostInHeloScore = publishCheckHostInHeloScore;
+        _publishCheckPtr = publishCheckPtr;
+        _publishCheckPtrScore = publishCheckPtrScore;
         _publishAddHeaderSpam = publishAddHeaderSpam;
         _publishAddHeaderReason = publishAddHeaderReason;
         _publishPrependSubject = publishPrependSubject;
@@ -541,9 +547,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
     }
 
-    public bool CheckPTR { get => Snapshot.CheckPtr; set => Unavailable(); }
+    public bool CheckPTR
+    {
+        get => Snapshot.CheckPtr;
+        set => UpdateCheckPtr(value);
+    }
 
-    public int CheckPTRScore { get => Snapshot.CheckPtrScore; set => Unavailable(); }
+    public int CheckPTRScore
+    {
+        get => Snapshot.CheckPtrScore;
+        set => UpdateCheckPtrScore(value);
+    }
 
     internal static AntiSpam CreateAuthorized(
         AntiSpamAdministrationSnapshot snapshot,
@@ -569,6 +583,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishBypassGreylistingOnMailFromMx = null,
         Action<bool>? publishCheckHostInHelo = null,
         Action<int>? publishCheckHostInHeloScore = null,
+        Action<bool>? publishCheckPtr = null,
+        Action<int>? publishCheckPtrScore = null,
         Action<bool>? publishAddHeaderSpam = null,
         Action<bool>? publishAddHeaderReason = null,
         Action<bool>? publishPrependSubject = null,
@@ -601,6 +617,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishBypassGreylistingOnMailFromMx,
             publishCheckHostInHelo,
             publishCheckHostInHeloScore,
+            publishCheckPtr,
+            publishCheckPtrScore,
             publishAddHeaderSpam,
             publishAddHeaderReason,
             publishPrependSubject,
@@ -840,6 +858,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishCheckHostInHeloScore?.Invoke(value);
+    }
+
+    private void UpdateCheckPtr(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamCheckPtrAsync(value, CancellationToken.None),
+            "The anti-spam CheckPTR update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { CheckPtr = value };
+        }
+
+        _publishCheckPtr?.Invoke(value);
+    }
+
+    private void UpdateCheckPtrScore(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamCheckPtrScoreAsync(value, CancellationToken.None),
+            "The anti-spam CheckPTR score update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { CheckPtrScore = value };
+        }
+
+        _publishCheckPtrScore?.Invoke(value);
     }
 
     private void UpdateAddHeaderSpam(bool value)

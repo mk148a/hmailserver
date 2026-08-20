@@ -455,6 +455,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamCheckPtrSql_UsesTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @CheckPTR\nWHERE settingname = N'ascheckptr';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamCheckPtrSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @CheckPTRScore\nWHERE settingname = N'ascheckptrscore';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamCheckPtrScoreSql);
+    }
+
+    [TestMethod]
     public void UpdateAntiSpamAddHeaderSql_UsesTheLegacyFixedRows()
     {
         StringAssert.Contains(

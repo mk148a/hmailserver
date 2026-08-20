@@ -3817,6 +3817,66 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamCheckPtrSettersPersistAndRefreshSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamCheckPtrUpdateResult = true,
+            AntiSpamCheckPtrScoreUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamCheckPtr: false,
+                AntiSpamCheckPtrScore: 1)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        settings.AntiSpam.CheckPTR = true;
+        settings.AntiSpam.CheckPTRScore = 7;
+
+        Assert.AreEqual(1, store.AntiSpamCheckPtrUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamCheckPtr);
+        Assert.AreEqual(1, store.AntiSpamCheckPtrScoreUpdateCount);
+        Assert.AreEqual(7, store.UpdatedAntiSpamCheckPtrScore);
+        Assert.IsTrue(settings.AntiSpam.CheckPTR);
+        Assert.AreEqual(7, settings.AntiSpam.CheckPTRScore);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamCheckPtrSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamCheckPtrUpdateResult = false,
+            AntiSpamCheckPtrScoreUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedCheck = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.CheckPTR = true);
+        var failedScore = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.CheckPTRScore = 7);
+
+        Assert.AreEqual(EFail, failedCheck.ErrorCode);
+        Assert.AreEqual(EFail, failedScore.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamCheckPtrUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamCheckPtrScoreUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5189,6 +5249,18 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamCheckHostInHeloScore { get; private set; }
 
+        public bool AntiSpamCheckPtrUpdateResult { get; set; }
+
+        public int AntiSpamCheckPtrUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamCheckPtr { get; private set; }
+
+        public bool AntiSpamCheckPtrScoreUpdateResult { get; set; }
+
+        public int AntiSpamCheckPtrScoreUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamCheckPtrScore { get; private set; }
+
         public bool AntiSpamAddHeaderSpamUpdateResult { get; set; }
 
         public int AntiSpamAddHeaderSpamUpdateCount { get; private set; }
@@ -5840,6 +5912,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamCheckHostInHeloScore = score;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamCheckHostInHeloScoreUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamCheckPtrAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamCheckPtrUpdateCount++;
+            UpdatedAntiSpamCheckPtr = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamCheckPtrUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamCheckPtrScoreAsync(
+            int score,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamCheckPtrScoreUpdateCount++;
+            UpdatedAntiSpamCheckPtrScore = score;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamCheckPtrScoreUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamAddHeaderSpamAsync(
