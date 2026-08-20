@@ -1,17 +1,17 @@
-## Current authoritative parity status (2026-08-20, live public-folder ACL restore storage)
+## Current authoritative parity status (2026-08-20, public-folder ACL holder resolution)
 
-Current HEAD `f15ea25cd` adds disposable live SQL coverage for the
-transaction-scoped public-folder ACL restore store. It proves generated identity
-readback, public-folder-only scope, commit persistence, and disposal rollback
-after a duplicate-key failure. Focused live ACL coverage is `6 passed, 0
-failed`; the disposable LocalDB/Data full suite is `2419 passed, 10 skipped, 0
-failed`.
+Current HEAD `bd48a8169` adds the non-COM, non-SQL
+`PublicFolderAclHolderResolver`. It maps legacy user addresses and group names
+to numeric IDs, maps `PTAnyone` to zero IDs, and fails closed for unresolved,
+duplicate, malformed, or out-of-range entries. Focused resolver coverage is `4
+passed, 0 failed`; the disposable LocalDB/Data full suite is `2423 passed, 10
+skipped, 0 failed`.
 
-Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions and
-`ACLPermission::XMLLoad` resolves `Type`, `Rights`, and `Holder`. The preceding
-Net10 parser preserves holder names and the live store now proves commit,
-readback, public-folder scope, and rollback. Holder resolution, existing-ACL
-replacement, and parser-to-restore execution wiring remain open. The
+Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions,
+`ACLPermission::XMLLoad` maps `Type/Rights/Holder`, and
+`PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
+now has parser, holder-resolution, and live SQL foundations, but resolver-to-
+restore execution wiring and existing-ACL replacement remain open. The
 transaction-scoped restore path is intentionally stronger than legacy's
 independent ACL `Save()` connection and is not a full parity claim.
 
@@ -22,8 +22,9 @@ and the current acceptance tests cover modes `1`, `2`, `3`, and DB-only `6`.
 The actual legacy `FULL` parser emits `ENVELOPE` and `BODYSTRUCTURE`; it does
 not emit `BODY[]` or mark messages seen, which Net10 now preserves.
 
-Next slice: public-folder graph and authoritative account/group holder
-resolution, followed by restore execution wiring. Paired C++/.NET performance,
+Next slice: wire parsed public-folder ACL entries into the transaction-scoped
+restore after folder identity creation, replace existing ACLs in source order,
+and fail on unresolved user/group holders. Paired C++/.NET performance,
 out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain
 open; release is **RED**.
 

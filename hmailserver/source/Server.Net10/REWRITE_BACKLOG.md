@@ -1,24 +1,26 @@
 
-## Current next slice (2026-08-20, public-folder ACL graph and holder resolution)
+## Current next slice (2026-08-20, wire public-folder ACL restore entries)
 
-Code/test commit `f15ea25cd` adds disposable live SQL coverage for the
-transaction-scoped ACL restore store. It proves generated identity readback,
-public-folder-only scope, commit persistence, and disposal rollback after a
-duplicate-key failure. Focused live ACL coverage is `6 passed, 0 failed`; the
-disposable full Net10 suite is `2419 passed, 10 skipped, 0 failed`.
+Code/test commit `bd48a8169` adds `PublicFolderAclHolderResolver`, which maps
+legacy user/group holder names to numeric IDs, maps `PTAnyone` to zero IDs, and
+fails closed for unresolved, duplicate, malformed, or out-of-range entries.
+Focused resolver coverage is `4 passed, 0 failed`; the live ACL SQL coverage
+remains `6 passed, 0 failed`; the disposable full Net10 suite is `2423 passed,
+10 skipped, 0 failed`.
 
-Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions and
-`ACLPermission::XMLLoad` resolves `Type`, `Rights`, and the `Holder` name. Net10
-now parses the separate `PublicFolders/ACLs` graph and has live SQL storage
-evidence, but holder resolution and parser-to-restore wiring remain open. The
-live restore transaction is intentionally stronger than legacy's independent
-ACL `Save()` connection and must not be treated as full parity. Security review
-is `NO-GO` until authoritative holder resolution, existing-ACL replacement,
-and end-to-end restore failure semantics are proven.
+Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions,
+`ACLPermission::XMLLoad` maps `Type/Rights/Holder`, and
+`PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
+now has parser, holder-resolution, and live SQL foundations, but the resolver is
+not wired to the restore execution. The live restore transaction is intentionally
+stronger than legacy's independent ACL `Save()` connection and must not be
+treated as full parity. Security review is `NO-GO` until existing-ACL
+replacement and end-to-end restore failure semantics are proven.
 
-Next slice: resolve public-folder ACL holders against authoritative account/group
-stores while preserving public-folder ownership and source order. Do not widen
-to private-folder ACLs, COM mutation, or protocol behavior. Migration/installer,
+Next slice: wire parsed public-folder ACL entries into the transaction-scoped
+restore after folder identity creation, replace existing ACLs with source-order
+entries, and fail the restore on unresolved user/group holders. Do not widen to
+private-folder ACLs, COM mutation, or protocol behavior. Migration/installer,
 COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates remain **RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)

@@ -1,23 +1,22 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, live public-folder ACL restore storage)
+## Current Authoritative Continuation (2026-08-20, public-folder ACL holder resolution)
 
-HEAD is `f15ea25cd`. The live disposable integration slice proves
-`SqlServerBackupRestoreMetadataTransactionFactory` exposes a transaction-scoped
-ACL store, inserts legacy user/group/anyone rows into a public folder, returns
-generated `aclid` snapshots, reads them back after commit, rejects private or
-missing folder targets as no-ops, and rolls back prior inserts after a duplicate
-key failure. Legacy anchors are `ACLPermission::{XMLStore,XMLLoad}`,
-`Collection<T,P>::{XMLStore,XMLLoad}`, `IMAPFolder::{XMLStore,XMLLoadSubItems}`,
-and the `hm_acl` unique key in `CreateTablesMSSQL.sql`.
+HEAD is `bd48a8169`. The holder-resolution slice adds the non-COM,
+non-SQL `PublicFolderAclHolderResolver`. It maps user addresses and group names
+to numeric IDs, maps `PTAnyone` to zero IDs without looking up its holder text,
+and fails closed for unresolved, duplicate, malformed, or out-of-range entries.
+Legacy anchors are `ACLPermission::XMLLoad`,
+`PersistentACLPermission::Validate`, `IMAPFolder::XMLLoadSubItems`, and the
+`hm_acl` unique key in `CreateTablesMSSQL.sql`.
 
-Focused live ACL coverage is `6/6`; the disposable full Net10 suite is
-`2419 passed, 10 skipped, 0 failed`. The preceding parser remains parser-only:
-holder resolution and restore execution wiring are still absent. No COM
-identity, SMTP behavior, or production state changed. Next slice: public-folder
-graph and authoritative account/group holder resolution, followed by wiring
-parsed entries into transaction-scoped restore with existing-ACL replacement
-semantics. Release remains **RED** and no push was performed.
+Focused resolver coverage is `4/4`; the live ACL SQL integration remains `6/6`;
+the disposable full Net10 suite is `2423 passed, 10 skipped, 0 failed`. The
+resolver is not wired to restore execution, so no COM identity, SMTP behavior,
+or production state changed. Next slice: wire parsed public-folder ACL entries
+into transaction-scoped restore with existing-ACL replacement semantics, then
+add populated round-trip and mid-batch failure evidence. Release remains
+**RED** and no push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 

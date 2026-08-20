@@ -1,24 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, live public-folder ACL restore storage)
+## Current authoritative parity status (2026-08-20, public-folder ACL holder resolution)
 
-Current HEAD `f15ea25cd` adds disposable live integration coverage for the
-transaction-scoped public-folder ACL restore store. It proves generated IDs,
-commit/readback of user/group/anyone entries, public-folder-only scope, and
-rollback after duplicate-key failure. Focused coverage is `6 passed, 0 failed`;
-the disposable LocalDB/Data full suite is `2419 passed, 10 skipped, 0 failed`.
+Current HEAD `bd48a8169` adds a non-COM, non-SQL public-folder ACL holder
+resolver. It maps user addresses and group names to authoritative numeric IDs,
+maps `PTAnyone` to zero IDs, and fails closed for unresolved or malformed
+entries. Focused resolver coverage is `4 passed, 0 failed`; the disposable
+LocalDB/Data full suite is `2423 passed, 10 skipped, 0 failed`.
 
 Legacy references are `ACLPermission::{XMLStore,XMLLoad}`,
 `ACLPermissions` through `Collection<T,P>::{XMLStore,XMLLoad}`, and
-`IMAPFolder::{XMLStore,XMLLoadSubItems}`. The preceding parser preserves holder
-names, source order, and duplicates, but this slice does not yet resolve holders
-or alter restore execution. Legacy `ACLPermission::Save` uses an independent
-SQL connection; the restore path intentionally uses one transaction-scoped
-store and is therefore a stronger rollback contract than legacy. The next slice
-is public-folder graph and authoritative holder resolution; release remains
-**RED** for ACL restore wiring, migration, COM/DCOM, SEC-18, paired C++/.NET
-performance, and soak gates.
+`IMAPFolder::{XMLStore,XMLLoadSubItems}`. Legacy unresolved user/group holders
+remain restore failures at `PersistentACLPermission::Validate`; the new helper
+models that fail-closed boundary but is not wired to restore execution. The
+preceding live SQL slice intentionally uses one transaction-scoped store,
+stronger than legacy's independent ACL `Save()` connection. The next slice is
+parser-to-restore wiring with existing-ACL replacement semantics; release
+remains **RED** for ACL restore wiring, migration, COM/DCOM, SEC-18, paired
+C++/.NET performance, and soak gates.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 
