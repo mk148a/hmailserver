@@ -1,17 +1,15 @@
-## Current authoritative parity status (2026-08-20, APPEND/COPY Insert ACL rights)
+## Current authoritative parity status (2026-08-20, APPEND/COPY WriteSeen filtering)
 
-Code/test commit `71d812399` enforces destination `Insert` for APPEND and COPY
-from the effective selected-mailbox ACL bitmask. APPEND rejects before its
-literal continuation and both paths reject before mutation. Focused IMAP/SQL
-coverage is `67 passed`; full Debug is `2352 passed, 58 skipped, 0 failed`.
+Code/test commit `12e81ded0` filters destination `\\Seen` for APPEND and COPY
+when `WriteSeen` is absent, preserving all other flags. Focused IMAP/SQL
+coverage is `74 passed`; full Debug is `2355 passed, 58 skipped, 0 failed`.
 
 Legacy anchors are `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
-`IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission`. APPEND/COPY
-`\\Seen` filtering remains open. No live SQL benchmark, paired C++/.NET
-performance evidence, COM/DCOM, SEC-18, migration/rollback, or 24-hour soak
-evidence exists; release remains **RED**.
+`IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission`. No live SQL
+benchmark, paired C++/.NET performance evidence, COM/DCOM, SEC-18,
+migration/rollback, or 24-hour soak evidence exists; release remains **RED**.
 
-Next slice: suppress APPEND/COPY `\\Seen` without destination `WriteSeen`.
+Next slice: enforce legacy FETCH `\\Seen` write permission at the command boundary.
 
 ## Historical authoritative parity status (2026-08-20, reversible ACL read-only state)
 

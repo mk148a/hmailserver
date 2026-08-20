@@ -1,15 +1,14 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, APPEND/COPY Insert ACL rights)
+## Current Authoritative Continuation (2026-08-20, APPEND/COPY WriteSeen filtering)
 
-Code/test commit `71d812399` enforces destination `Insert` for APPEND and COPY
-from selected mailbox ACL state. APPEND denies before literal continuation;
-both commands deny before mutation. Focused coverage is `67/67`; full Debug is
-`2352 passed, 58 skipped, 0 failed`.
+Code/test commit `12e81ded0` filters `\\Seen` for APPEND/COPY when destination
+`WriteSeen` is absent, preserving other flags. Focused coverage is `74/74`; full
+Debug is `2355 passed, 58 skipped, 0 failed`.
 
-Legacy anchors: `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
-`IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission`. Next slice:
-filter APPEND/COPY `\\Seen` according to destination `WriteSeen`.
+Legacy anchors: `IMAPCommandAPPEND::Finish_`, `IMAPCopy::DoAction`, and
+`IMAPConnection::CheckPermission`. Next slice: enforce FETCH `\\Seen`
+permission at the command boundary.
 
 The guarded SQL benchmark has no qualifying disposable fixture. Paired
 C++/.NET performance, out-of-process COM/DCOM, SEC-18, migration/rollback,
