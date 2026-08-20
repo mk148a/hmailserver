@@ -649,6 +649,172 @@ public sealed class ImapFoldersComContractTests
     }
 
     [TestMethod]
+    public void SettingsPublicFolders_MutateRootAndNestedFoldersUsingSharedPublicState()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 0, -1, "Public", true, 5, "2026-08-01 00:01:00"),
+                new ImapFolderAdministrationSnapshot(11, 0, 10, "Child", true, 3, "2026-08-01 00:02:00"),
+                new ImapFolderAdministrationSnapshot(12, 0, 11, "Nested", false, 2, "2026-08-01 00:03:00"),
+                new ImapFolderAdministrationSnapshot(20, 0, -1, "Other", true, 4, "2026-08-01 00:04:00"),
+                new ImapFolderAdministrationSnapshot(30, 100, 10, "ForeignAccount", true, 1, "2026-08-01 00:05:00"),
+                new ImapFolderAdministrationSnapshot(40, 100, -1, "AccountRoot", true, 1, "2026-08-01 00:06:00")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: static () => true);
+
+        var roots = settings.PublicFolders;
+        var publicRoot = roots.get_ItemByDBID(10);
+        var childFolders = publicRoot.SubFolders;
+        var child = childFolders.get_ItemByDBID(11);
+        var nestedFolders = child.SubFolders;
+
+        Assert.AreEqual(2, roots.Count);
+        Assert.AreEqual(1, childFolders.Count);
+        Assert.AreEqual(1, nestedFolders.Count);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = childFolders.get_ItemByDBID(30)).ErrorCode);
+        Assert.AreEqual(
+            DispEBadIndex,
+            Assert.ThrowsExactly<COMException>(() => _ = childFolders.get_ItemByDBID(12)).ErrorCode);
+
+        var addedRoot = roots.Add("AddedRoot");
+
+        Assert.AreEqual(0, store.LastInsertAccountId);
+        Assert.AreEqual(-1, store.LastInsertParentId);
+        Assert.IsTrue(addedRoot.Subscribed);
+        var addedNested = nestedFolders.Add("AddedNested");
+        Assert.AreEqual(0, store.LastInsertAccountId);
+        Assert.AreEqual(11, store.LastInsertParentId);
+        Assert.IsTrue(addedNested.Subscribed);
+        Assert.AreEqual(3, settings.PublicFolders.Count);
+        Assert.AreEqual(1, publicRoot.SubFolders.Count);
+        Assert.AreEqual(2, nestedFolders.Count);
+        Assert.AreEqual(addedRoot.ID, settings.PublicFolders.get_ItemByDBID(addedRoot.ID).ID);
+        Assert.AreEqual(addedNested.ID, child.SubFolders.get_ItemByDBID(addedNested.ID).ID);
+    }
+
+    [TestMethod]
+    public void SettingsPublicFolders_SaveAndDeletePreserveScopeAndInbox()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(1, 0, -1, "INBOX", true, 1, "2026-08-01 00:00:00"),
+                new ImapFolderAdministrationSnapshot(10, 0, -1, "Public", true, 5, "2026-08-01 00:01:00"),
+                new ImapFolderAdministrationSnapshot(11, 0, 10, "Child", true, 3, "2026-08-01 00:02:00"),
+                new ImapFolderAdministrationSnapshot(12, 0, 11, "Nested", false, 2, "2026-08-01 00:03:00"),
+                new ImapFolderAdministrationSnapshot(20, 0, -1, "Other", true, 4, "2026-08-01 00:04:00")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized();
+        var roots = settings.PublicFolders;
+        var publicRoot = roots.get_ItemByDBID(10);
+
+        publicRoot.Name = "Renamed";
+        publicRoot.Subscribed = false;
+        publicRoot.Save();
+
+        Assert.AreEqual(1, store.UpdateCount);
+        Assert.AreEqual(0, store.LastUpdatedFolder!.AccountId);
+        Assert.AreEqual(-1, store.LastUpdatedFolder.ParentId);
+        Assert.AreEqual("Renamed", settings.PublicFolders.get_ItemByDBID(10).Name);
+        Assert.IsFalse(settings.PublicFolders.get_ItemByDBID(10).Subscribed);
+
+        publicRoot.Delete();
+
+        Assert.AreEqual(2, roots.Count);
+        Assert.AreEqual(0, roots.get_ItemByDBID(1).SubFolders.Count);
+        Assert.AreEqual(1, roots.get_ItemByDBID(1).ID);
+        Assert.AreEqual(20, roots.get_ItemByDBID(20).ID);
+
+        roots.DeleteByDBID(20);
+
+        Assert.AreEqual(1, roots.Count);
+        Assert.AreEqual(1, roots[0].ID);
+        roots.DeleteByDBID(1);
+        Assert.AreEqual(3, store.DeleteCount);
+    }
+
+    [TestMethod]
+    public void SettingsPublicFolders_FailedStoresRetainSharedSnapshot()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 0, -1, "Public", true, 5, "2026-08-01 00:00:00"),
+                new ImapFolderAdministrationSnapshot(11, 0, 10, "Child", true, 3, "2026-08-01 00:01:00")
+            })
+        {
+            ReturnUpdateSuccess = false,
+            ReturnDeleteSuccess = false
+        };
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized();
+        var roots = settings.PublicFolders;
+        var publicRoot = roots[0];
+        publicRoot.Name = "Failed";
+
+        var saveError = Assert.ThrowsExactly<COMException>(publicRoot.Save);
+        publicRoot.Delete();
+
+        Assert.AreEqual(ELegacyComError, saveError.ErrorCode);
+        Assert.AreEqual(1, store.UpdateCount);
+        Assert.AreEqual(1, store.DeleteCount);
+        Assert.AreEqual("Public", roots[0].Name);
+        Assert.AreEqual(1, roots.Count);
+        Assert.AreEqual(1, roots[0].SubFolders.Count);
+    }
+
+    [TestMethod]
+    public void SettingsPublicFolders_MutationsRecheckAuthenticationAndLease()
+    {
+        var authenticated = true;
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 0, -1, "Public", true, 5, "2026-08-01 00:00:00")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: () => authenticated);
+        var roots = settings.PublicFolders;
+        var publicRoot = roots[0];
+        publicRoot.Name = "Denied";
+        authenticated = false;
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(publicRoot.Save).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(publicRoot.Delete).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => roots.Add("Denied")).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => roots.DeleteByDBID(10)).ErrorCode);
+        Assert.AreEqual(0, store.UpdateCount);
+        Assert.AreEqual(0, store.DeleteCount);
+
+        var leaseRequests = 0;
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        settings = Settings.CreateAuthorized(
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+        roots = settings.PublicFolders;
+        publicRoot = roots[0];
+        publicRoot.Name = "LeaseDenied";
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(publicRoot.Save).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(publicRoot.Delete).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => roots.Add("LeaseDenied")).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => roots.DeleteByDBID(10)).ErrorCode);
+        Assert.AreEqual(4, leaseRequests);
+        Assert.AreEqual(0, store.UpdateCount);
+        Assert.AreEqual(0, store.DeleteCount);
+    }
+
+    [TestMethod]
     public void PublicFolderPermissions_UsesConfiguredRuntimeForSelectedFolder()
     {
         var store = new FixedImapFolderAdministrationStore(
@@ -989,18 +1155,18 @@ public sealed class ImapFoldersComContractTests
             CancellationToken cancellationToken)
         {
             MutationProbe?.Invoke();
-            InsertCount++;
             LastInsertAccountId = accountId;
             LastInsertParentId = parentFolderId;
             LastInsertName = encodedName;
             var snapshot = new ImapFolderAdministrationSnapshot(
-                101,
+                101 + InsertCount,
                 ReturnMisScopedInsert ? accountId + 1 : accountId,
                 parentFolderId,
                 encodedName,
                 subscribed,
                 0,
                 "2026-08-01 00:00:00");
+            InsertCount++;
             _folders = _folders.Append(snapshot).ToArray();
             return ValueTask.FromResult(snapshot);
         }

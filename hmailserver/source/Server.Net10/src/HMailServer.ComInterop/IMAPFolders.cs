@@ -902,18 +902,30 @@ public static class ImapFolderAdministrationRuntimeHost
         Func<bool>? isAuthenticated = null,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
-        var store = Volatile.Read(ref _store)
+        _ = Volatile.Read(ref _store)
             ?? throw new COMException(
                 "The hMailServer IMAP folder administration runtime has not been initialized.",
                 CoENotInitialized);
 
-        var folders = store
+        if (accountId == 0)
+        {
+            return IMAPFolders.CreateAuthorized(
+                CreateAuthorizedState(accountId),
+                accountId,
+                -1,
+                isAuthenticated,
+                authorizationLeaseFactory);
+        }
+
+        var folders = Volatile.Read(ref _store)!
             .GetRootFoldersAsync(accountId, CancellationToken.None)
             .AsTask()
             .GetAwaiter()
             .GetResult();
-
-        return IMAPFolders.CreateAuthorized(folders, isAuthenticated, authorizationLeaseFactory);
+        return IMAPFolders.CreateAuthorized(
+            folders,
+            isAuthenticated,
+            authorizationLeaseFactory);
     }
 
     internal static IMAPFolders CreateAuthorizedChildAdapter(
