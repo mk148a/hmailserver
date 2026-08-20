@@ -3,24 +3,25 @@ hMailServer
 
 ## Current authoritative parity status (2026-08-20, AntiSpam scalar mutation parity)
 
-Code/test commit `b2fbfbf1e` implements the legacy Administrator
-`AntiSpam.SpamAssassinMergeScore` setter through the existing authenticated
-Settings mutation boundary, following the enabled/score scalar pair in
-`a1357b3eb`. The SQL store updates only the legacy
-`spamassassinmergescore` row, reports a contained missing-row failure,
-refreshes retained COM snapshots, and preserves direct
-activation/re-authentication denials. Focused COM/SQL coverage is `181 passed,
-0 skipped, 0 failed`; the disposable SQL integration setter test passed; full
-disposable Net10 is `2462 passed, 10 skipped, 0 failed` (`2472` total).
+Code/test commit `4f52e303d` implements the legacy Administrator
+`AntiSpam.SpamAssassinHost` and `SpamAssassinPort` setters through the existing
+authenticated Settings mutation boundary, following the scalar pairs in
+`b2fbfbf1e`. The SQL store updates only the legacy `spamassassinhost` and
+`spamassassinport` rows, reports contained missing-row failures, refreshes
+retained COM snapshots, and preserves direct activation/re-authentication
+denials. Focused COM/SQL coverage is `184 passed, 0 skipped, 0 failed`; the
+disposable SQL integration setter/readback test passed; full disposable Net10
+is `2465 passed, 10 skipped, 0 failed` (`2475` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinMergeScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:827-842`) and
-`AntiSpamConfiguration::SetSpamAssassinMergeScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:359-367`). This
-slice does not add scanner live reconfiguration or broaden to other AntiSpam
-properties. Release remains **RED** because migration/installer, COM/DCOM,
-SEC-18, live anti-spam reconfiguration, DKIM/DMARC/SPF runtime wiring, paired
-C++ performance, and soak gates remain open.
+Legacy anchors are `InterfaceAntiSpam::put_SpamAssassinHost/put_SpamAssassinPort`
+(`source/Server/COM/InterfaceAntiSpam.cpp:913-966`) and
+`AntiSpamConfiguration::SetSpamAssassinHost/SetSpamAssassinPort`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:371-391`). This
+slice does not add scanner connection testing or live reconfiguration, and
+does not broaden to other AntiSpam properties. Release remains **RED** because
+migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
+DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
+open.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 
