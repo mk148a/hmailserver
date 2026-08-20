@@ -1,24 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AntiSpam GreyListingInitialDelete runtime parity)
+## Current Authoritative Continuation (2026-08-21, AntiSpam GreyListingFinalDelete runtime parity)
 
-Code/test commit `c51d9b534` implements the authenticated Administrator
-`AntiSpam.GreyListingInitialDelete` SQL/runtime mutation slice after
+Code/test commit `1528f075b` implements the authenticated Administrator
+`AntiSpam.GreyListingFinalDelete` SQL/runtime mutation slice after
 the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
 verification, greylisting bypass, CheckHostInHelo, and AddHeader pairs.
-Focused COM/SQL/security coverage is `197 passed, 0 skipped, 0 failed`; the disposable SQL
+Focused COM/SQL/security coverage is `201 passed, 0 skipped, 0 failed`; the disposable SQL
 integration setter/readback and missing-row checks passed; the disposable
-LocalDB/Data full suite is `2501 passed, 10 skipped, 0 failed` (`2511` total).
+LocalDB/Data full suite is `2505 passed, 10 skipped, 0 failed` (`2515` total).
 Direct activation, failed reauthentication, missing-row failure, retained
 object snapshots, and existing COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_GreyListingInitialDelete`
-(`source/Server/COM/InterfaceAntiSpam.cpp:345-359`),
-`AntiSpamConfiguration::SetGreyListingInitialDelete`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:129-132`), and the
-legacy key `greylistinginitialdelete`. The next unblocked parity slice is
-`AntiSpam.GreyListingFinalDelete` with the same SQL/runtime bridge; triplet
-collections, cleanup, and production-hosted SMTP socket acceptance remain
+Legacy references are `InterfaceAntiSpam::put_GreyListingFinalDelete`
+(`source/Server/COM/InterfaceAntiSpam.cpp:377-390`),
+`AntiSpamConfiguration::SetGreyListingFinalDelete`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:141-144`), and the
+legacy key `greylistingfinaldelete`. The next unblocked slice is isolated
+SQL-backed `GreyListingWhiteAddresses` mutation round-trip coverage using
+disposable data. Triplet cleanup, production-hosted SMTP socket acceptance,
+migration/installer, SEC-18, paired C++ performance, and soak remain
 separate. Release remains `RED`.
 the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved

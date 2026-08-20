@@ -1,37 +1,39 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam GreyListingInitialDelete runtime parity)
+## Current authoritative parity status (2026-08-21, AntiSpam GreyListingFinalDelete runtime parity)
 
-Code/test commit `c51d9b534` implements the legacy Administrator
-`AntiSpam.GreyListingInitialDelete` setter through the
+Code/test commit `1528f075b` implements the legacy Administrator
+`AntiSpam.GreyListingFinalDelete` setter through the
 existing authenticated Settings mutation boundary, after the SPF, MX checks,
 SpamAssassin, scanner endpoint, maximum-size, DKIM verification, greylisting
 bypass, CheckHostInHelo, CheckPTR, GreyListingEnabled, AddHeader, PrependSubject,
 and threshold pairs. The SQL store updates only the legacy
-`greylistinginitialdelete` row, reports
+`greylistingfinaldelete` row, reports
 contained missing-row failures, refreshes retained COM snapshots, and
 preserves direct activation/re-authentication denials. The runtime publisher
 updates the singleton SMTP greylisting option atomically, and startup applies
-the persisted SQL snapshot. Focused COM/SQL/security coverage is `197 passed, 0
+the persisted SQL snapshot. Focused COM/SQL/security coverage is `201 passed, 0
 skipped, 0 failed`; the disposable SQL integration setter/readback and
-missing-row checks passed; full disposable Net10 is `2501 passed, 10 skipped,
-0 failed` (`2511` total).
+missing-row checks passed; full disposable Net10 is `2505 passed, 10 skipped,
+0 failed` (`2515` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_GreyListingInitialDelete`
-(`source/Server/COM/InterfaceAntiSpam.cpp:345-359`),
-`AntiSpamConfiguration::SetGreyListingInitialDelete`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:129-132`), and the
-legacy key `greylistinginitialdelete`
-(`source/Server/Common/Application/Constants.h:79`). This slice does not add
-final-delete, triplet-collection, cleanup, or WebAdmin behavior.
+Legacy anchors are `InterfaceAntiSpam::put_GreyListingFinalDelete`
+(`source/Server/COM/InterfaceAntiSpam.cpp:377-390`),
+`AntiSpamConfiguration::SetGreyListingFinalDelete`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:141-144`), and the
+legacy key `greylistingfinaldelete`
+(`source/Server/Common/Application/Constants.h:80`). This slice does not add
+triplet-collection, cleanup, or WebAdmin behavior.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded parity slice is `AntiSpam.GreyListingFinalDelete` with
-the same SQL/runtime bridge; triplet collections and cleanup remain separate.
-Production-hosted SMTP socket acceptance for the live greylisting
-enable/disable/timing behavior is still missing.
+open. The next bounded slice is isolated SQL-backed
+`AntiSpam.GreyListingWhiteAddresses` mutation round-trip coverage
+(`Add -> Save -> readback -> Delete`) using only disposable data. Production-
+hosted SMTP socket acceptance for live greylisting enable/disable/timing,
+triplet cleanup, migration/installer, SEC-18, paired C++ performance, and soak
+gates remain missing.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 
