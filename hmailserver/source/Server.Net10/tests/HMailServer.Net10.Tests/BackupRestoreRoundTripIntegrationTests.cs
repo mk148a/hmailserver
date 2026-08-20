@@ -389,6 +389,86 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task RestoreGroups_CommitReplacesGroupsAndOwnedAclInIsolatedDatabase()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_groups_commit_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateTargetSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var oldGroupId = await SeedGroupGraphAsync(testConnectionString, "Old Editors").ConfigureAwait(false);
+            var newGroupId = 0;
+
+            await using (var transaction = await new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString)).BeginAsync(CancellationToken.None))
+            {
+                await transaction.DeleteAllGroupsForRestoreAsync(CancellationToken.None).ConfigureAwait(false);
+                newGroupId = await transaction.GroupStore!.InsertGroupAsync(
+                    new GroupAdministrationSnapshot(0, "Editors"),
+                    CancellationToken.None).ConfigureAwait(false);
+                await transaction.GroupMemberStore!.InsertGroupMemberAsync(
+                    new GroupMemberAdministrationSnapshot(0, newGroupId, 42),
+                    CancellationToken.None).ConfigureAwait(false);
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            Assert.AreEqual(0, await CountRowsAsync(testConnectionString, "hm_groups", "groupid", oldGroupId).ConfigureAwait(false));
+            Assert.AreEqual(0, await CountRowsAsync(testConnectionString, "hm_acl", "aclpermissiongroupid", oldGroupId).ConfigureAwait(false));
+            Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_groups", "groupid", newGroupId).ConfigureAwait(false));
+            Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_group_members", "membergroupid", newGroupId).ConfigureAwait(false));
+            Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_group_members", "membergroupid", oldGroupId).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreGroups_DisposalRollsBackReplacementAndOwnedAclInIsolatedDatabase()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_groups_rollback_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateTargetSchemaAsync(testConnectionString).ConfigureAwait(false);
+            var oldGroupId = await SeedGroupGraphAsync(testConnectionString, "Old Editors").ConfigureAwait(false);
+
+            await using (var transaction = await new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString)).BeginAsync(CancellationToken.None))
+            {
+                await transaction.DeleteAllGroupsForRestoreAsync(CancellationToken.None).ConfigureAwait(false);
+                var newGroupId = await transaction.GroupStore!.InsertGroupAsync(
+                    new GroupAdministrationSnapshot(0, "Editors"),
+                    CancellationToken.None).ConfigureAwait(false);
+                await transaction.GroupMemberStore!.InsertGroupMemberAsync(
+                    new GroupMemberAdministrationSnapshot(0, newGroupId, 42),
+                    CancellationToken.None).ConfigureAwait(false);
+            }
+
+            Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_groups", "groupid", oldGroupId).ConfigureAwait(false));
+            Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_acl", "aclpermissiongroupid", oldGroupId).ConfigureAwait(false));
+            Assert.AreEqual(0, await CountRowsByNameAsync(testConnectionString, "hm_groups", "groupname", "Editors").ConfigureAwait(false));
+            Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_group_members", "membergroupid", oldGroupId).ConfigureAwait(false));
+            Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_groups").ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task RestoreExecutor_RestoresPopulatedPublicFoldersAndMessagesIntoDisposableTarget()
     {
         await WithFullRestoreTargetAsync(
@@ -2298,7 +2378,13 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 aclpermissionaccountid bigint NOT NULL,
                 aclvalue bigint NOT NULL
             );
+            CREATE TABLE dbo.hm_groups (
+                groupid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                groupname nvarchar(255) NULL
+            );
             CREATE TABLE dbo.hm_group_members (
+                memberid bigint IDENTITY(1, 1) NOT NULL PRIMARY KEY,
+                membergroupid bigint NOT NULL,
                 memberaccountid bigint NOT NULL
             );
             CREATE TABLE dbo.hm_fetchaccounts_uids (
@@ -2330,6 +2416,62 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         return Convert.ToInt64(
             await command.ExecuteScalarAsync().ConfigureAwait(false),
             CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<long> CountRowsAsync(string connectionString, string tableName)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            $"SELECT COUNT_BIG(*) FROM dbo.{tableName};",
+            connection);
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<long> CountRowsByNameAsync(
+        string connectionString,
+        string tableName,
+        string columnName,
+        string value)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            $"SELECT COUNT_BIG(*) FROM dbo.{tableName} WHERE {columnName} = @Value;",
+            connection);
+        command.Parameters.Add("@Value", SqlDbType.NVarChar, 255).Value = value;
+        return Convert.ToInt64(
+            await command.ExecuteScalarAsync().ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<int> SeedGroupGraphAsync(string connectionString, string groupName)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var groupCommand = new SqlCommand(
+            "INSERT INTO dbo.hm_groups (groupname) OUTPUT INSERTED.groupid VALUES (@Name);",
+            connection);
+        groupCommand.Parameters.Add("@Name", SqlDbType.NVarChar, 255).Value = groupName;
+        var groupId = Convert.ToInt32(
+            await groupCommand.ExecuteScalarAsync().ConfigureAwait(false),
+            CultureInfo.InvariantCulture);
+
+        await using var memberCommand = new SqlCommand(
+            "INSERT INTO dbo.hm_group_members (membergroupid, memberaccountid) VALUES (@GroupId, 41);",
+            connection);
+        memberCommand.Parameters.Add("@GroupId", SqlDbType.BigInt).Value = groupId;
+        await memberCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
+
+        await using var aclCommand = new SqlCommand(
+            "INSERT INTO dbo.hm_acl (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue) " +
+            "VALUES (1, 1, @GroupId, 0, 1);",
+            connection);
+        aclCommand.Parameters.Add("@GroupId", SqlDbType.BigInt).Value = groupId;
+        await aclCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
+        return groupId;
     }
 
     private static async Task<string> ReadSettingStringAsync(string connectionString, string settingName)
