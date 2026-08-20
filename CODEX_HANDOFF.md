@@ -1,9 +1,9 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AntiSpam GreyListingFinalDelete runtime parity)
+## Current Authoritative Continuation (2026-08-21, GreyListingWhiteAddresses SQL mutation evidence)
 
-Code/test commit `1528f075b` implements the authenticated Administrator
-`AntiSpam.GreyListingFinalDelete` SQL/runtime mutation slice after
+Test commit `917da4a10` proves the authenticated SQL-backed
+`GreyListingWhiteAddresses` mutation round trip after
 the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
 verification, greylisting bypass, CheckHostInHelo, and AddHeader pairs.
 Focused COM/SQL/security coverage is `201 passed, 0 skipped, 0 failed`; the disposable SQL
@@ -12,15 +12,17 @@ LocalDB/Data full suite is `2505 passed, 10 skipped, 0 failed` (`2515` total).
 Direct activation, failed reauthentication, missing-row failure, retained
 object snapshots, and existing COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_GreyListingFinalDelete`
-(`source/Server/COM/InterfaceAntiSpam.cpp:377-390`),
-`AntiSpamConfiguration::SetGreyListingFinalDelete`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:141-144`), and the
-legacy key `greylistingfinaldelete`. The next unblocked slice is isolated
-SQL-backed `GreyListingWhiteAddresses` mutation round-trip coverage using
-disposable data. Triplet cleanup, production-hosted SMTP socket acceptance,
-migration/installer, SEC-18, paired C++ performance, and soak remain
-separate. Release remains `RED`.
+Legacy references are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
+(`source/Server/COM/InterfaceGreyListingWhiteAddresses.cpp:85-93,162-183`),
+`InterfaceGreyListingWhiteAddress::Save/Delete`
+(`source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`), and
+`PersistentGreyListingWhiteAddress`
+(`source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
+The next unblocked parity slice is authenticated item-level
+`GreyListingWhiteAddress.Delete()` with owning-collection snapshot removal.
+Triplet cleanup, production-hosted SMTP socket acceptance, migration/installer,
+SEC-18, paired C++ performance, and soak remain separate. Release remains
+`RED`.
 the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
 disposable target. Live anti-spam reconfiguration is still unproven. Release

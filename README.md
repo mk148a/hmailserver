@@ -1,39 +1,38 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam GreyListingFinalDelete runtime parity)
+## Current authoritative parity status (2026-08-21, GreyListingWhiteAddresses SQL mutation evidence)
 
-Code/test commit `1528f075b` implements the legacy Administrator
-`AntiSpam.GreyListingFinalDelete` setter through the
+Test commit `917da4a10` proves the existing legacy-compatible authenticated
+`AntiSpam.GreyListingWhiteAddresses` SQL mutation round trip through the
 existing authenticated Settings mutation boundary, after the SPF, MX checks,
 SpamAssassin, scanner endpoint, maximum-size, DKIM verification, greylisting
 bypass, CheckHostInHelo, CheckPTR, GreyListingEnabled, AddHeader, PrependSubject,
 and threshold pairs. The SQL store updates only the legacy
-`greylistingfinaldelete` row, reports
-contained missing-row failures, refreshes retained COM snapshots, and
-preserves direct activation/re-authentication denials. The runtime publisher
-updates the singleton SMTP greylisting option atomically, and startup applies
-the persisted SQL snapshot. Focused COM/SQL/security coverage is `201 passed, 0
-skipped, 0 failed`; the disposable SQL integration setter/readback and
-missing-row checks passed; full disposable Net10 is `2505 passed, 10 skipped,
-0 failed` (`2515` total).
+authenticated Settings boundary. The disposable SQL fixture now uses the
+legacy identity shape and proves `Add`, wildcard/description staging, generated
+ID assignment, SQL readback, collection snapshot append, and `DeleteByDBID`.
+The FinalDelete code/test slice remains in `1528f075b`; focused COM/SQL/security
+coverage is `201 passed, 0 skipped, 0 failed`, the new disposable whitelist
+round trip is `1 passed, 0 skipped, 0 failed`, and full disposable Net10 is
+`2505 passed, 10 skipped, 0 failed` (`2515` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_GreyListingFinalDelete`
-(`source/Server/COM/InterfaceAntiSpam.cpp:377-390`),
-`AntiSpamConfiguration::SetGreyListingFinalDelete`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:141-144`), and the
-legacy key `greylistingfinaldelete`
-(`source/Server/Common/Application/Constants.h:80`). This slice does not add
-triplet-collection, cleanup, or WebAdmin behavior.
+Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
+(`source/Server/COM/InterfaceGreyListingWhiteAddresses.cpp:85-93,162-183`),
+`InterfaceGreyListingWhiteAddress::Save/Delete`
+(`source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`), and
+`PersistentGreyListingWhiteAddress`
+(`source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
+The next production slice is item-level `GreyListingWhiteAddress.Delete()`;
+the current evidence slice intentionally changes tests/fixture only.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded slice is isolated SQL-backed
-`AntiSpam.GreyListingWhiteAddresses` mutation round-trip coverage
-(`Add -> Save -> readback -> Delete`) using only disposable data. Production-
-hosted SMTP socket acceptance for live greylisting enable/disable/timing,
-triplet cleanup, migration/installer, SEC-18, paired C++ performance, and soak
-gates remain missing.
+open. The next bounded parity slice is authenticated item-level
+`GreyListingWhiteAddress.Delete()` with owning-collection snapshot removal.
+Production-hosted SMTP socket acceptance for live greylisting
+enable/disable/timing, triplet cleanup, migration/installer, SEC-18, paired C++
+performance, and soak gates remain missing.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

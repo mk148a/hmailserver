@@ -1,25 +1,25 @@
 
-## Current next slice (2026-08-21, GreyListingWhiteAddresses SQL mutation round-trip evidence)
+## Current next slice (2026-08-21, GreyListingWhiteAddress item Delete parity)
 
-Code/test commit `1528f075` closes the legacy Administrator
-`AntiSpam.GreyListingFinalDelete` mutation/runtime gap after the SPF,
+Test commit `917da4a10` proves the existing authenticated
+`GreyListingWhiteAddresses` SQL mutation round trip after the SPF,
 MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
-greylisting bypass, CheckHostInHelo, and InitialDelete pairs. The existing
-authenticated Settings boundary now persists only `greylistingfinaldelete`, refreshes retained
-object snapshots, and fails closed on missing rows or reauthentication.
-Focused COM/SQL/security coverage is `201 passed, 0 skipped, 0 failed`; the disposable
-SQL integration setter/readback and missing-row checks passed; full disposable
-LocalDB/Data is `2505 passed, 10 skipped, 0 failed` (`2515` total).
+greylisting bypass, CheckHostInHelo, InitialDelete, and FinalDelete pairs.
+The disposable SQL fixture now uses the legacy identity shape and proves
+`Add`, wildcard/description staging, generated ID assignment, SQL readback,
+collection snapshot append, and `DeleteByDBID`. Focused COM/SQL/security
+coverage is `201 passed, 0 skipped, 0 failed`; the new disposable whitelist
+round trip is `1 passed, 0 skipped, 0 failed`; full disposable LocalDB/Data is
+`2505 passed, 10 skipped, 0 failed` (`2515` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_GreyListingFinalDelete`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:377-390`),
-`AntiSpamConfiguration::SetGreyListingFinalDelete`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:141-144`),
-and key `greylistingfinaldelete`
-(`hmailserver/source/Server/Common/Application/Constants.h:80`). The next
-bounded slice is isolated SQL-backed `GreyListingWhiteAddresses` mutation
-round-trip coverage (`Add -> Save -> readback -> Delete`) using disposable
-data.
+Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
+(`hmailserver/source/Server/COM/InterfaceGreyListingWhiteAddresses.cpp:85-93,162-183`),
+`InterfaceGreyListingWhiteAddress::Save/Delete`
+(`hmailserver/source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`),
+and `PersistentGreyListingWhiteAddress`
+(`hmailserver/source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
+The next bounded slice is authenticated item-level
+`GreyListingWhiteAddress.Delete()` with owning-collection snapshot removal.
 preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
 or live SMTP/POP3 greylisting reconfiguration in that slice. Triplet cleanup,
