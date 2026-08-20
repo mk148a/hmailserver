@@ -1,25 +1,27 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, FETCH Seen parity)
+## Current authoritative parity status (2026-08-20, backup matrix and opt-in suite)
 
-Code/test commits `d5190f59d` and `18afca944` restore FETCH `\\Seen` mutation
-parity and the legacy `FULL` macro. `BODY[]`/`RFC822` marks unseen messages
-only when the selected mailbox is writable with `WriteSeen`; `BODY.PEEK` does
-not. `FULL` includes BODY. Focused FETCH/IMAP coverage is `59 passed`; full
-Debug is `2359 passed, 58 skipped, 0 failed`.
+Current HEAD `c8466a704` has `2410 passed, 10 skipped, 0 failed` in the
+disposable LocalDB/Data full Net10 suite. Focused backup acceptance is `51
+passed, 1 skipped, 0 failed`; the guarded ACL revalidation benchmark is `80/80`
+with p50/p95/p99 `0.499/0.856/1.317 ms`. The ACL result measures only Net10
+selected-mailbox revalidation and does not establish C++/.NET speed or a
+production SQL forecast.
 
-Legacy anchors are `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
-`IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission` in
-`hmailserver/source/Server/IMAP/IMAPCommandAppend.cpp`,
-`hmailserver/source/Server/IMAP/IMAPCopy.cpp`, and
-`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`. Destination
-`Insert` and literal ordering are now covered. No live SQL benchmark, C++/.NET
-paired load test, COM/DCOM, SEC-18, migration/rollback, or 24-hour soak
-evidence exists; release remains **RED**.
+Legacy `BackupExecuter::StartBackup` and `BackupDataDirectory_` are anchored in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:48-217`.
+Raw non-DB-only `BODomains|BOMessages` staging is implemented by `50d8cefc3`;
+the current tests cover modes `1`, `2`, `3`, and `6` in addition to the
+existing raw/compressed matrix. The actual legacy `FULL` implementation emits
+`ENVELOPE` and `BODYSTRUCTURE`; Net10 no longer adds `BODY[]` or an unintended
+`\\Seen` mutation.
 
-Next slice: run the guarded ACL revalidation benchmark after an approved
-disposable SQL/Data fixture exists.
+Next slice: authenticated queued backup acceptance proving durable archive
+completion/failure event ordering and cleanup. Paired C++/.NET load, COM/DCOM,
+SEC-18, migration/rollback, and 24-hour soak evidence remain open; release is
+**RED**.
 
 ## Current authoritative parity status (2026-08-20, reversible ACL read-only state)
 

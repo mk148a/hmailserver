@@ -1,19 +1,25 @@
 
-## Current next slice (2026-08-20, guarded ACL benchmark acceptance)
+## Current next slice (2026-08-20, queued backup acceptance)
 
-Code/test commits `d5190f59d` and `18afca944` restore FETCH `\\Seen` mutation
-parity and the legacy `FULL` BODY macro. Focused FETCH/IMAP coverage is `59
-passed`; full Debug is `2359 passed, 58 skipped, 0 failed`.
+Code/test commits `333eda06b`, `0dbc576cb`, `7f8664f90`, and `c8466a704`
+restore legacy FETCH `FULL` behavior, repair the isolated delivery-queue SQL
+fixture, and cover backup option modes `1`, `2`, `3`, and DB-only `6`.
+Focused backup coverage is `51 passed, 1 skipped`; the disposable LocalDB/Data
+full suite is `2410 passed, 10 skipped, 0 failed`.
 
-Legacy behavior is anchored by `IMAPFetch::DoAction`, `IMAPFetchParser`, and
-`IMAPConnection::CheckPermission`. The next independent acceptance slice is
-the existing guarded ACL revalidation benchmark, but it requires an approved
-disposable SQL/Data fixture and must not use `MSSQLSERVER` or production data.
-No SMTP, COM identity, SQL schema, live reconfiguration, or unrelated Admin
-behavior is in scope.
+Legacy backup anchors are `BackupExecuter::StartBackup` and
+`BackupExecuter::BackupDataDirectory_` in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:48-217`.
+Raw non-DB-only `BODomains|BOMessages` staging is no longer an open
+implementation item: `SevenZipBackupArchiveRuntime.CreateAsync` and its
+`CreatesRawMessageArchiveWithExternalDataBackupDirectory` acceptance test were
+implemented in `50d8cefc3`; the old "next raw staging" paragraph is historical.
 
-No qualifying disposable SQL/Data fixture exists for the guarded benchmark;
-paired C++/.NET performance, migration/rollback, SEC-18, and soak gates keep
+Next independent slice: run an authenticated queued backup through the real
+archive runtime and prove that `OnBackupCompleted` is dispatched only after the
+archive is durable and that `OnBackupFailed` follows durable cleanup. This must
+remain on disposable filesystem/SQL resources. Paired C++/.NET performance,
+registered/out-of-process COM, migration/rollback, SEC-18, and soak gates keep
 release **RED**.
 
 ## Historical current slice (2026-08-20, fine-grained IMAP ACL rights)

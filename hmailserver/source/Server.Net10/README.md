@@ -1,18 +1,22 @@
-## Current authoritative parity status (2026-08-20, FETCH Seen parity)
+## Current authoritative parity status (2026-08-20, backup matrix and opt-in suite)
 
-Code/test commits `d5190f59d` and `18afca944` implement legacy FETCH
-`\\Seen` marking and `FULL` BODY expansion. `BODY[]`/`RFC822` marks only
-unseen messages when `WriteSeen` is granted; `BODY.PEEK` does not. Focused
-FETCH/IMAP coverage is `59 passed`; full Debug is `2359 passed, 58 skipped,
-0 failed`.
+Current HEAD `c8466a704` has `2410 passed, 10 skipped, 0 failed` in the
+disposable LocalDB/Data full Net10 suite. Focused backup acceptance is `51
+passed, 1 skipped, 0 failed`; the guarded ACL revalidation benchmark is `80/80`
+with p50/p95/p99 `0.499/0.856/1.317 ms`. This benchmark is Net10-only and
+does not establish C++/.NET speed or production SQL performance.
 
-Legacy anchors are `IMAPCommandAPPEND::ExecuteCommand`/`Finish_`,
-`IMAPCopy::DoAction`, and `IMAPConnection::CheckPermission`. No live SQL
-benchmark, paired C++/.NET performance evidence, COM/DCOM, SEC-18,
-migration/rollback, or 24-hour soak evidence exists; release remains **RED**.
+Legacy backup behavior is anchored by `BackupExecuter::StartBackup` and
+`BackupDataDirectory_` in `source/Server/Common/Application/BackupExecuter.cpp`.
+Raw non-DB-only `BODomains|BOMessages` staging was implemented in `50d8cefc3`,
+and the current acceptance tests cover modes `1`, `2`, `3`, and DB-only `6`.
+The actual legacy `FULL` parser emits `ENVELOPE` and `BODYSTRUCTURE`; it does
+not emit `BODY[]` or mark messages seen, which Net10 now preserves.
 
-Next slice: run the guarded ACL revalidation benchmark after an approved
-disposable SQL/Data fixture exists.
+Next slice: authenticated queued backup acceptance with durable archive/event
+ordering and failure cleanup. Paired C++/.NET performance, out-of-process
+COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain open; release is
+**RED**.
 
 ## Historical authoritative parity status (2026-08-20, reversible ACL read-only state)
 

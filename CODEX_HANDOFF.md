@@ -1,18 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, FETCH Seen parity)
+## Current Authoritative Continuation (2026-08-20, backup matrix and opt-in suite)
 
-Code/test commits `d5190f59d` and `18afca944` restore FETCH `\\Seen` mutation
-parity and legacy `FULL` BODY expansion. Focused FETCH/IMAP coverage is `59/59`;
-full Debug is `2359 passed, 58 skipped, 0 failed`.
+Current HEAD is `c8466a704`. The latest disposable LocalDB/Data full Net10
+suite is `2410 passed, 10 skipped, 0 failed`; focused backup coverage is
+`51 passed, 1 skipped, 0 failed`. The ACL revalidation benchmark completed
+`80/80` with p50/p95/p99 `0.499/0.856/1.317 ms` in
+`artifacts/benchmarks/acl-revalidation-localdb/`; this is Net10-only evidence,
+not a C++ performance comparison.
 
-Legacy anchors: `IMAPFetch::DoAction`, `IMAPFetchParser`, and
-`IMAPConnection::CheckPermission`. Next slice: run the guarded ACL benchmark
-after an approved disposable SQL/Data fixture exists.
+Legacy `BackupExecuter::StartBackup` and `BackupDataDirectory_` define raw
+message staging. Net10 raw `BODomains|BOMessages` staging is already complete
+in `50d8cefc3`; the current test slice covers the remaining backup option
+metadata combinations. `FULL` now matches the actual C++ parser: it emits
+`ENVELOPE` and `BODYSTRUCTURE`, not a raw `BODY[]` response, and does not mark
+messages seen.
 
-The guarded SQL benchmark has no qualifying disposable fixture. Paired
-C++/.NET performance, out-of-process COM/DCOM, SEC-18, migration/rollback,
-and 24-hour soak remain unproven; release is **RED** and no push was done.
+Next slice: authenticated queued backup acceptance with durable archive/event
+ordering and failure cleanup. Release remains **RED**: paired C++/.NET load,
+out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak are still
+unproven. No push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, reversible ACL read-only state)
 

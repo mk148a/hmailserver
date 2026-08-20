@@ -1,0 +1,2 @@
+scenario,implementation,backend,status,git_commit,warmup_iterations,measured_iterations,successful_iterations,error_count,min_ms,mean_ms,p50_ms,p95_ms,p99_ms,max_ms,correct,threshold_passed
+"imap-acl-command-boundary-revalidation","net10","sql-localdb-disposable","completed","93a6c8bb6cbf8e4c0d1fee2812b65fe56dc33b35",2,20,80,0,0.311,0.538,0.499,0.856,1.317,1.562,True,True
