@@ -5724,3 +5724,23 @@ Next slice: connect `BackupArchiveRuntime.ConfigureRestoreRuntime` to the
 service-owned coordinator, keeping the public COM `Application.Reinitialize`
 implementation as a separate bounded follow-up. Then run isolated restore and
 rollback acceptance.
+## Current next slice (2026-08-20, disposable ACL SQL integration)
+
+Code/test commit `65b20c443` adds the parser-only
+`RestoreFolderPermissionEntry`/`RestorePublicFolderEntry` model and
+`ParsePublicFolderEntries` for legacy `PublicFolders`/`ACLs` XML. It preserves
+`Type`, `Rights`, `Holder`, source order, and duplicate entries, and rejects
+malformed fields and ACL structure. Focused parser coverage is `18 passed, 0
+failed`; parser plus ACL SQL coverage is `34 passed, 0 failed`; disposable
+full Net10 is `2417 passed, 10 skipped, 0 failed`.
+
+Legacy references are `ACLPermission::{XMLStore,XMLLoad}`,
+`Collection<T,P>::{XMLStore,XMLLoad}`, and `IMAPFolder::{XMLStore,XMLLoadSubItems}`.
+The parser model is intentionally not wired to SQL or restore execution. The
+transaction-scoped SQL foundation from `6ec5d23d7` is still unproven against
+live ACL rows and rollback.
+
+Next slice: run disposable live SQL ACL insertion for valid user/group/anyone
+rows, non-public-folder rejection, commit, and mid-batch rollback. Do not wire
+holder resolution or production restore execution in that slice. Release
+remains **RED**.

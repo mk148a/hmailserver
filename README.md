@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-20, public-folder ACL parser)
+
+Current HEAD `65b20c443` adds a parser-only legacy public-folder model for
+`<PublicFolders><Folder><ACLs><Permission ... /></ACLs></Folder></PublicFolders>`.
+It preserves `Type`, `Rights`, `Holder`, source order, and duplicate entries,
+while rejecting unknown types, malformed/out-of-range rights, empty holders,
+unexpected children, and duplicate `ACLs` containers. Focused parser coverage
+is `18 passed, 0 failed`; parser plus ACL SQL coverage is `34 passed, 0 failed`;
+the disposable LocalDB/Data full suite is `2417 passed, 10 skipped, 0 failed`.
+
+Legacy references are `ACLPermission::{XMLStore,XMLLoad}`,
+`ACLPermissions` through `Collection<T,P>::{XMLStore,XMLLoad}`, and
+`IMAPFolder::{XMLStore,XMLLoadSubItems}`. This slice does not resolve holders,
+write SQL rows, or alter restore execution. The next slice is disposable live
+ACL insert/commit/rollback integration against the transaction-scoped store;
+release remains **RED** for ACL graph wiring, migration, COM/DCOM, SEC-18,
+paired C++/.NET performance, and soak gates.
+
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 
 Current HEAD `6ec5d23d7` adds a transaction-scoped public-folder ACL restore

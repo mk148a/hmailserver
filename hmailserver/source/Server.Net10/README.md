@@ -2540,3 +2540,14 @@ new store is not yet called by restore execution. Holder-name resolution,
 public-folder graph ownership, strict parser validation, and rollback after a
 partial ACL batch remain open. Next slice: strict `<Permissions>` parser/model
 only. Release remains **RED**.
+## Current authoritative parity status (2026-08-20, public-folder ACL parser)
+
+HEAD `65b20c443` adds a parser-only legacy `PublicFolders`/`ACLs` model. It
+preserves holder names, source order, and duplicate rows and rejects malformed
+types, rights, holders, children, and duplicate containers. Focused parser
+coverage is `18/18`; parser plus ACL SQL coverage is `34/34`; disposable full
+Net10 is `2417 passed, 10 skipped, 0 failed`.
+
+No SQL mutation, holder resolution, restore execution, COM identity, SMTP
+behavior, or production state changed. Next slice: disposable live ACL SQL
+insert/commit/rollback integration; release remains **RED**.

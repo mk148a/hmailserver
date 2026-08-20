@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, public-folder ACL parser)
+
+HEAD is `65b20c443`. The parser-only slice adds
+`RestoreFolderPermissionEntry` and `RestorePublicFolderEntry` plus
+`ParsePublicFolderEntries` for the legacy `PublicFolders`/`ACLs` graph. It
+preserves holder names, source ordering, and duplicate ACL entries, and fails
+closed for unsupported types, invalid rights, empty holders, unexpected ACL
+children, and duplicate containers. Legacy anchors are
+`ACLPermission::{XMLStore,XMLLoad}`, `Collection<T,P>::{XMLStore,XMLLoad}`,
+and `IMAPFolder::{XMLStore,XMLLoadSubItems}`.
+
+Focused parser coverage is `18/18`; parser plus ACL SQL coverage is `34/34`;
+the disposable full Net10 suite is `2417 passed, 10 skipped, 0 failed`. No
+SQL insert, holder resolution, public-folder restore wiring, COM identity,
+SMTP behavior, or production state changed. Next slice: disposable live ACL
+insert/commit/rollback integration against the transaction-scoped store.
+Release remains **RED** and no push was performed.
+
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 
 HEAD is `6ec5d23d7`. The bounded code/test slice adds
