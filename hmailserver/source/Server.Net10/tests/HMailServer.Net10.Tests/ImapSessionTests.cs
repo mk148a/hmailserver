@@ -162,6 +162,68 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_STOREChecksSpecificAclRightsBeyondAggregateWriteability()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            new ImapMailboxSelection(
+                0,
+                20,
+                "#Public",
+                1,
+                0,
+                1,
+                2,
+                null,
+                IsReadOnly: false,
+                AclRights: ImapAclRights.Lookup | ImapAclRights.Read | ImapAclRights.WriteSeen));
+        var mutationStore = new FakeMutationStore();
+        await using var stream = new DuplexMemoryStream("A001 STORE 1 +FLAGS (\\Deleted)\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: mutationStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO ACL: DeleteMessages permission denied (Required for STORE command).\r\n");
+        Assert.IsNull(mutationStore.LastStoreRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_EXPUNGEChecksSpecificAclRightBeyondAggregateWriteability()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            new ImapMailboxSelection(
+                0,
+                20,
+                "#Public",
+                1,
+                0,
+                1,
+                2,
+                null,
+                IsReadOnly: false,
+                AclRights: ImapAclRights.Lookup | ImapAclRights.Read | ImapAclRights.WriteSeen));
+        var mutationStore = new FakeMutationStore();
+        await using var stream = new DuplexMemoryStream("A001 EXPUNGE\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: mutationStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO ACL: Expunge permission denied (Required for EXPUNGE command).\r\n");
+        Assert.AreEqual(0, mutationStore.LastExpungeAccountId);
+    }
+
+    [TestMethod]
     public async Task RunAsync_EXAMINESelectionRemainsReadOnlyAfterWriteGrant()
     {
         var tracker = new ImapFolderChangeTracker();

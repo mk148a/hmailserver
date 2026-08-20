@@ -381,6 +381,31 @@ public sealed class ImapSession
                     return false;
                 }
 
+                var requiredStoreRights = _storeCommandHandler.GetRequiredAclRights(
+                    state.SelectedMailbox.AccountId,
+                    state.SelectedMailbox.FolderId,
+                    commandLine.Arguments,
+                    commandLine.IsUidCommand);
+                if (!HasAclRights(state.SelectedMailbox, requiredStoreRights))
+                {
+                    if ((requiredStoreRights & ImapAclRights.WriteSeen) != 0 &&
+                        !HasAclRights(state.SelectedMailbox, ImapAclRights.WriteSeen))
+                    {
+                        await WriteTaggedAsync(stream, commandLine.Tag, "NO ACL: WriteSeen permission denied (Required for STORE command).", cancellationToken).ConfigureAwait(false);
+                    }
+                    else if ((requiredStoreRights & ImapAclRights.WriteDeleted) != 0 &&
+                             !HasAclRights(state.SelectedMailbox, ImapAclRights.WriteDeleted))
+                    {
+                        await WriteTaggedAsync(stream, commandLine.Tag, "NO ACL: DeleteMessages permission denied (Required for STORE command).", cancellationToken).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await WriteTaggedAsync(stream, commandLine.Tag, "NO ACL: WriteOthers permission denied (Required for STORE command).", cancellationToken).ConfigureAwait(false);
+                    }
+
+                    return false;
+                }
+
                 var storeResponse = await _storeCommandHandler
                     .HandleAsync(
                         state.SelectedMailbox.AccountId,
@@ -409,6 +434,12 @@ public sealed class ImapSession
                 if (_expungeCommandHandler is null)
                 {
                     await WriteTaggedAsync(stream, commandLine.Tag, "NO Message mutation backend is not configured", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
+                if (!HasAclRights(state.SelectedMailbox, ImapAclRights.Expunge))
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO ACL: Expunge permission denied (Required for EXPUNGE command).", cancellationToken).ConfigureAwait(false);
                     return false;
                 }
 
@@ -990,7 +1021,8 @@ public sealed class ImapSession
 
         state.SelectedMailbox = selectedMailbox with
         {
-            IsReadOnly = refreshedMailbox.IsReadOnly
+            IsReadOnly = refreshedMailbox.IsReadOnly,
+            AclRights = refreshedMailbox.AclRights
         };
     }
 
@@ -1269,6 +1301,9 @@ public sealed class ImapSession
     private static string SanitizeAtom(string value) =>
         value.Replace("\r", string.Empty, StringComparison.Ordinal)
             .Replace("\n", string.Empty, StringComparison.Ordinal);
+
+    private static bool HasAclRights(ImapMailboxSelection mailbox, long requiredRights) =>
+        requiredRights == 0 || (mailbox.AclRights & requiredRights) == requiredRights;
 
     private static string SanitizeResponseText(string value) =>
         value.Replace("\r", " ", StringComparison.Ordinal)

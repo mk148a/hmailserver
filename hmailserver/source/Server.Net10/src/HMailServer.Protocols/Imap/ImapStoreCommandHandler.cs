@@ -59,6 +59,33 @@ public sealed class ImapStoreCommandHandler
         return builder.ToString();
     }
 
+    public long GetRequiredAclRights(
+        int accountId,
+        int folderId,
+        string arguments,
+        bool useUid)
+    {
+        try
+        {
+            var request = _parser.Parse(accountId, folderId, arguments, useUid);
+            var required = 0L;
+            if ((request.Flags & ImapMessageFlags.Seen) != 0)
+                required |= ImapAclRights.WriteSeen;
+            if ((request.Flags & ImapMessageFlags.Deleted) != 0)
+                required |= ImapAclRights.WriteDeleted;
+
+            var otherFlags = request.Flags & ~(ImapMessageFlags.Seen | ImapMessageFlags.Deleted);
+            if (otherFlags != 0)
+                required |= ImapAclRights.WriteOthers;
+
+            return required;
+        }
+        catch (ImapStoreParseException)
+        {
+            return 0;
+        }
+    }
+
     private static string SanitizeAtom(string value) =>
         value.Replace("\r", string.Empty, StringComparison.Ordinal)
             .Replace("\n", string.Empty, StringComparison.Ordinal);

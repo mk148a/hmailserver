@@ -10,4 +10,5 @@ public sealed record ImapMailboxSelection(
     long UidNext,
     long? FirstUnseenUid,
     bool IsReadOnly,
-    bool RequestedReadOnly = false);
+    bool RequestedReadOnly = false,
+    long AclRights = ImapAclRights.All);

@@ -235,7 +235,8 @@ WHERE
 
         return selectedMailbox with
         {
-            IsReadOnly = selectedMailbox.RequestedReadOnly || !access.CanWrite
+            IsReadOnly = selectedMailbox.RequestedReadOnly || !access.CanWrite,
+            AclRights = access.Value
         };
     }
 
@@ -296,7 +297,8 @@ WHERE
             UidNext: folder.CurrentUid + 1,
             FirstUnseenUid: counters.FirstUnseenUid,
             IsReadOnly: readOnly || !access.CanWrite,
-            RequestedReadOnly: readOnly);
+            RequestedReadOnly: readOnly,
+            AclRights: access.Value);
     }
 
     public async ValueTask<ImapMailboxSubscriptionResult> SetSubscribedAsync(

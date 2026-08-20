@@ -27,6 +27,22 @@ public sealed class ImapStoreAndExpungeCommandHandlerTests
     }
 
     [TestMethod]
+    public void StoreGetRequiredAclRightsMapsLegacyFlagGroups()
+    {
+        var handler = new ImapStoreCommandHandler(new ImapStoreCommandParser(), new CapturingMutationStore());
+
+        var requiredRights = handler.GetRequiredAclRights(
+            accountId: 10,
+            folderId: 20,
+            arguments: "101 +FLAGS (\\Seen \\Deleted \\Draft)",
+            useUid: false);
+
+        Assert.AreEqual(
+            ImapAclRights.WriteSeen | ImapAclRights.WriteDeleted | ImapAclRights.WriteOthers,
+            requiredRights);
+    }
+
+    [TestMethod]
     public async Task StoreHandleAsync_ReturnsUpdatedFlagsWhenNotSilent()
     {
         var mutationStore = new CapturingMutationStore
