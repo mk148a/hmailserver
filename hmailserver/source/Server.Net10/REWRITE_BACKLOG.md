@@ -19,15 +19,20 @@ at `C:\Users\Public\sec18-guest-inventory.json`, copied with evidence at
 `C:\Users\Public\sec18-guest-inventory-copy.json`.
 
 The inventory proves Windows Server 2025 Evaluation with no .NET runtime, no
-SQL Server/SQL Express service, and no hMailServer service. No legacy or Net10
-service, SQL database, Data directory, COM registration, DCOM ACL, or firewall
-mutation has run. Release remains **RED**.
+SQL Server/SQL Express service, and no hMailServer service. Official Microsoft
+.NET Runtime 10.0.10 x64 and SQL Server 2022 Express installers were verified,
+hashed, and transferred to guest `C:\SEC18\Packages`; package inventory is at
+`C:\Users\Public\sec18-package-inventory.md`. No installer was executed.
+The guest is currently at the Administrator password prompt; the blank
+password Enter attempt did not authenticate, and no password was entered or
+bypassed. No legacy or Net10 service, SQL database, Data directory, COM
+registration, DCOM ACL, or firewall mutation has run. Release remains **RED**.
 
-Next slice: obtain approval for official .NET runtime and disposable SQL
-package installation in the private guest; install only the isolated
-hMailServer test stack, provision disposable SQL/Data and legacy test state,
-then execute the already-guarded migration/installer replacement and
-forced-failure rollback drill.
+Next slice: manually complete disposable Administrator sign-in in VMConnect,
+then install only the verified .NET/SQL packages and isolated hMailServer test
+stack, provision disposable SQL/Data and legacy test state, and execute the
+already-guarded migration/installer replacement and forced-failure rollback
+drill.
 
 ## Historical next slice (2026-08-14, disposable migration/installer rollback drill)
 

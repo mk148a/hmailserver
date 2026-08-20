@@ -20,18 +20,26 @@ channel. The host-built staging payload was extracted offline into guest
 are `C16C00B65C13189130B548EFEDE587D50875CE6323B2A429ACD0BB559D6053A9`.
 Guest inventory was written and copied out to
 `C:\Users\Public\sec18-guest-inventory.json`, with copy evidence at
-`C:\Users\Public\sec18-guest-inventory-copy.json`.
+`C:\Users\Public\sec18-guest-inventory-copy.json`. Official Microsoft .NET
+Runtime 10.0.10 x64 and SQL Server 2022 Express installers were downloaded
+with final-domain checks, hashed, and transferred to guest
+`C:\SEC18\Packages`; package inventory is at
+`C:\Users\Public\sec18-package-inventory.md` and transfer evidence is at
+`C:\Users\Public\sec18-package-transfer.json`. No installer was executed.
 
 The inventory proves the guest is Windows Server 2025 Evaluation, has no
 .NET runtime, no SQL Server/SQL Express service, and no hMailServer service.
-Therefore no server, SQL/Data, COM, DCOM, or migration workload has run yet.
+The guest is currently at the Administrator password prompt; the blank
+password Enter attempt did not authenticate. No password was entered or
+bypassed. Therefore no server, SQL/Data, COM, DCOM, or migration workload has
+run yet.
 Production service, database, Data directory, COM registration, DCOM ACLs,
 and firewall remain untouched. Release remains **RED**.
 
-Next slice: obtain approval for official .NET runtime and disposable SQL
-package installation in the private guest, then install only the isolated
-hMailServer test stack and provision disposable SQL/Data/message state before
-the guarded migration/rollback drill.
+Next slice: manually complete disposable Administrator sign-in in VMConnect,
+then install only the already-verified official .NET/SQL packages and the
+isolated hMailServer test stack before provisioning disposable SQL/Data/message
+state and running the guarded migration/rollback drill.
 
 ## Current Authoritative Continuation (2026-08-14, installer rollback compensation)
 
