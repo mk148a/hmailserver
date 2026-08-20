@@ -1,24 +1,25 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, public-folder restore traversal)
+## Current authoritative parity status (2026-08-20, public-folder backup payload)
 
-Current HEAD `0f64da001` adds writer-level public-folder traversal. It creates
-public folders in `folderaccountid = 0` scope, restores messages, recursively
-restores children, and writes ACLs only after descendants, matching legacy
-`IMAPFolder::XMLLoadSubItems`. Focused traversal coverage is `7 passed, 0
-failed`; the disposable LocalDB/Data full suite is `2427 passed, 10 skipped, 0
-failed`.
+Current HEAD `da57cb717` captures account-zero public-folder graph, message
+metadata, and ACL holder names in the legacy root-level `<PublicFolders>` XML
+payload. The writer preserves `IMAPFolder::XMLStore` order: messages, child
+folders, then ACLs, and omits empty containers. Focused backup coverage is `53
+passed, 1 skipped, 0 failed`; full Debug is `2379 passed, 60 skipped, 0 failed`;
+disposable LocalDB/Data is `2429 passed, 10 skipped, 0 failed`.
 
-Legacy references are `ACLPermission::{XMLStore,XMLLoad}`,
-`ACLPermissions` through `Collection<T,P>::{XMLStore,XMLLoad}`, and
-`IMAPFolder::{XMLStore,XMLLoadSubItems}`. Legacy applies ACLs after messages and
-descendants and fails when `PersistentACLPermission::Validate` rejects an
-unresolved user/group. The writer now models this traversal, but backup XML
-capture and `MetadataBackupRestoreExecutor` do not provide or invoke public
-entries yet. The next slice is backup payload capture; release remains **RED**
-for complete ACL restore wiring, migration, COM/DCOM, SEC-18, paired C++/.NET
-performance, and soak gates.
+Legacy references are `BackupExecuter::StartBackup`,
+`Configuration::XMLStore`, `IMAPConfiguration::XMLStore`,
+`IMAPFolder::XMLStore`, `Message::XMLStore`, and
+`ACLPermission::GetPermissionHolderName_`. Net10 backup capture is now covered,
+but `MetadataBackupRestoreExecutor` still does not parse or invoke public-folder
+restore. The current message projection also filters delivered rows while the
+legacy folder query did not explicitly filter `messagetype`; no broader parity
+claim is made. Next slice is executor wiring and a populated isolated restore
+round trip. Release remains **RED** for restore, migration, COM/DCOM, SEC-18,
+paired C++/.NET performance, and soak gates.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 

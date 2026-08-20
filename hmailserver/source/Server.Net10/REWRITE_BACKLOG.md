@@ -1,27 +1,31 @@
 
-## Current next slice (2026-08-20, capture public-folder ACL backup graph)
+## Current next slice (2026-08-20, wire public-folder restore executor)
 
-Code/test commit `0f64da001` adds
-`BackupRestoreMetadataWriter.RestorePublicFoldersAsync`. It creates public
-folders in `folderaccountid = 0` scope, restores messages, recurses children,
-then inserts ACLs in source order inside the caller transaction. Focused
-traversal coverage is `7 passed, 0 failed`; live ACL SQL coverage remains `6
-passed, 0 failed`; the disposable full Net10 suite is `2427 passed, 10 skipped,
-0 failed`.
+Code/test commit `da57cb717` captures account-zero public folders when
+`BackupSettingsFlag` is selected and writes the legacy root-level
+`<PublicFolders>` payload. `BackupXmlPayloadRuntime` resolves user, group, and
+`Anyone` ACL holders, preserves folder/message/child/ACL order, and omits empty
+containers. Focused backup coverage is `53 passed, 1 skipped, 0 failed`; the
+full Debug suite is `2379 passed, 60 skipped, 0 failed`; the disposable
+LocalDB/Data suite is `2429 passed, 10 skipped, 0 failed`.
 
-Legacy `IMAPFolder::XMLLoadSubItems` restores messages, child folders, then ACLs;
-`ACLPermission::XMLLoad` maps `Type/Rights/Holder`; and
-`PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
-now has parser, holder-resolution, live SQL, and writer traversal foundations,
-but the backup payload does not yet capture public folders or ACL holder names,
-and executor wiring remains open. The live restore transaction is intentionally
-stronger than legacy's independent ACL `Save()` connection. Security review is
-`NO-GO` until backup capture, executor wiring, and failure semantics are proven.
+Legacy references are `BackupExecuter::StartBackup`,
+`Configuration::XMLStore`, `IMAPConfiguration::XMLStore`,
+`IMAPFolder::XMLStore`, `Message::XMLStore`, and
+`ACLPermission::GetPermissionHolderName_` in the C++ tree. Net10 now captures
+and serializes this backup-side graph without changing COM identity, SMTP
+trust, or restore behavior. A known parity risk remains: the current message
+administration projection filters to delivered rows (`messagetype = 2`) while
+legacy `Message::XMLStore` serialized the rows returned by its folder query;
+this is not claimed closed here.
 
-Next slice: capture public-folder graph, messages, and ACL holder names in the
-backup XML payload. Do not widen to private-folder ACLs, COM mutation, or
-protocol behavior. Migration/installer, COM/DCOM, SEC-18, paired C++/.NET
-performance, and soak gates remain **RED**.
+Next slice: parse the captured public entries in
+`MetadataBackupRestoreExecutor`, pass resolved account/group snapshots and the
+existing transaction permission store to `RestorePublicFoldersAsync`, and add
+an isolated populated public-folder restore round trip. Do not widen to private
+folder ACLs, COM mutation, SMTP behavior, or protocol changes. Migration/
+installer, COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates remain
+**RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)
 

@@ -1,22 +1,28 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, public-folder restore traversal)
+## Current Authoritative Continuation (2026-08-20, public-folder backup payload)
 
-HEAD is `0f64da001`. The writer slice adds
-`BackupRestoreMetadataWriter.RestorePublicFoldersAsync` and preserves legacy
-order: public folder insert, messages, child recursion, then ACL inserts. It
-forces public ownership (`folderaccountid = 0`) and uses the caller-owned
-transaction rollback boundary. Legacy anchors are `ACLPermission::XMLLoad`,
-`PersistentACLPermission::Validate`, `IMAPFolder::XMLLoadSubItems`, and the
-`hm_acl` unique key in `CreateTablesMSSQL.sql`.
+HEAD is `da57cb717`. The code/test slice extends
+`BackupArchiveXmlPayload` and `BackupXmlPayloadRuntime` with account-zero public
+folder snapshots, messages, recursive children, and ACL holder names, then
+writes root-level `<PublicFolders>` from `WriteSettings`. It follows legacy
+`Configuration::XMLStore`/`IMAPConfiguration::XMLStore` and
+`IMAPFolder::XMLStore` ordering: messages, children, ACLs. No COM/IDL identity,
+SMTP trust, restore executor, or production state changed.
 
-Focused traversal coverage is `7/7`; holder resolver coverage remains `4/4`;
-live ACL SQL integration remains `6/6`; the disposable full Net10 suite is
-`2427 passed, 10 skipped, 0 failed`. Backup XML capture and executor wiring are
-still absent, so no COM identity, SMTP behavior, or production state changed.
-Next slice: capture public-folder graph and ACL holder names in backup XML, then
-wire parsed entries into `MetadataBackupRestoreExecutor`. Release remains
-**RED** and no push was performed.
+Legacy symbol evidence: `BackupExecuter::StartBackup`,
+`Configuration::XMLStore`, `IMAPConfiguration::XMLStore`,
+`IMAPFolder::XMLStore`, `Message::XMLStore`, and
+`ACLPermission::GetPermissionHolderName_`. Focused backup coverage is `53/53`
+with one existing reparse-point skip; full Debug is `2379 passed, 60 skipped,
+0 failed`; disposable LocalDB/Data is `2429 passed, 10 skipped, 0 failed`.
+
+Residual risk: the current message store projection filters `messagetype = 2`
+where legacy backup serialized the folder query rows without that filter, and
+restore executor wiring is still absent. Next slice: parse public entries in
+`MetadataBackupRestoreExecutor` and invoke the existing transaction-scoped
+`RestorePublicFoldersAsync` writer, followed by populated isolated round-trip
+coverage. Release remains **RED** and no push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 

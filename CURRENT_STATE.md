@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T17:41:14Z` / `2026-08-20T20:41:14+03:00`
+- UTC/local timestamp: `2026-08-20T17:57:21Z` / `2026-08-20T20:57:21+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `0f64da001` (`feat: order public folder restore traversal`)
+- Current HEAD: `da57cb717` (`feat: capture public folder backup payload`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: public-folder writer/traversal `7 passed, 0 failed`; includes messages, child recursion, ACL-after-descendants ordering, and rollback boundary
-- Latest full Net10 result: disposable LocalDB/Data Debug `2427 passed, 10 skipped, 0 failed` (`2437` total)
-- Opt-in tests passed/skipped/blocked: disposable SQL/Data full run `2427/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: writer-level public-folder traversal is complete; backup XML payload capture and executor wiring remain intentionally closed
+- Latest focused-test result: backup payload/XML `53 passed, 1 skipped, 0 failed`; covers account-zero graph capture, holder resolution, legacy XML order, and escaping
+- Latest full Net10 result: disposable LocalDB/Data Debug `2429 passed, 10 skipped, 0 failed` (`2439` total); non-disposable Debug `2379 passed, 60 skipped, 0 failed`
+- Opt-in tests passed/skipped/blocked: disposable SQL/Data full run `2429/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
+- Current bounded slice: public-folder backup XML payload capture is complete; restore executor wiring remains the next slice
 - Completed milestones: backup raw/compressed staging and metadata foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, Net10-only load evidence, ACL revalidation benchmark, IMAP STORE/APPEND/COPY/EXPUNGE/FETCH rights parity slices, live public-folder ACL SQL commit/rollback evidence, holder-name resolution evidence, writer-level ACL restore evidence, and legacy-order public-folder traversal evidence
-- Open production blockers: legacy public-folder ACL backup/restore graph and holder resolution, isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
+- Open production blockers: public-folder restore executor and delivered-only message projection parity, isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
 - Environment-blocked work: Hyper-V disposable VM presence is still unproven (`Get-VM` access denied); LocalDB disposable SQL/Data is available and passed ACL opt-in tests; registry-isolated C++ runner, live DNS/TLS, AD credentials, IIS/SEC-18 cutover, and long soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: capture public-folder graph and ACL holder names in backup XML payload; wire parsed public-folder entries into MetadataBackupRestoreExecutor; add populated disposable public-folder restore round-trip and migration/installer rollback drill once a disposable VM is usable
+- Next three independent slices: wire parsed public-folder entries into MetadataBackupRestoreExecutor; align/explicitly gate legacy message-row projection and add populated public-folder restore round-trip; complete isolated migration/installer rollback drill once a disposable VM is usable
