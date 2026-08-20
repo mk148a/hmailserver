@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T13:46:45Z` / `2026-08-20T16:46:45+03:00`
+- UTC/local timestamp: `2026-08-20T14:05:14Z` / `2026-08-20T17:05:14+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD snapshot: `cf7cec470` (docs after narrow IMAP ACL revalidation queries)
+- Current HEAD: `73af63531` (`perf: add guarded IMAP ACL revalidation benchmark`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: IMAP/SQL ACL revalidation `52 passed, 0 failed`
-- Latest full Net10 result: Debug `2341 passed, 58 skipped, 0 failed`
+- Latest focused-test result: ACL benchmark `2 passed, 0 failed`; existing 100k SEARCH/SORT benchmark passed
+- Latest full Net10 result: Debug `2343 passed, 58 skipped, 0 failed`
 - Opt-in tests passed/skipped/blocked: passed Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`, isolated restore/rollback `21/21`; skipped/blocked registry/COM, installer, AD/DC, SEC-18, live C++ comparison, and 24-hour soak
-- Current bounded slice: `9e495c847` narrows SQL-backed selected-mailbox ACL revalidation to folder identity plus current ACL/group access; legacy IDLE boundary is verified and live SQL cost remains unmeasured
-- Completed milestones: backup/restore foundations, guarded installer rollback code, COM/Admin slices through current ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10-only load evidence
-- Open production blockers: live inherited-group revocation evidence, approved live SQL/Data and migration/rollback, registered/out-of-process COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
-- Environment-blocked work: no disposable VM is currently returned by `Get-VM`; host `MSSQLSERVER` is running but not proven disposable and was not used; guest .NET/SQL/hMailServer service state is therefore unavailable; registry-isolated C++ runner, live DNS/TLS, credentials/AD, IIS/SEC-18, and 24-hour soak remain unavailable
+- Current bounded slice: guarded ACL revalidation benchmark infrastructure; SQL backend is ready but unrun
+- Completed milestones: backup/restore foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, matched-fixture Net10-only load evidence, and ACL benchmark tooling
+- Open production blockers: reversible selected-mailbox ACL write state, fine-grained IMAP rights, approved live SQL/Data and migration/rollback, registered/out-of-process COM, SEC-18, AD/DC, DKIM/DMARC/SPF/greylisting, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
+- Environment-blocked work: `Get-VM -Name HMailServer-SEC18-Disposable` returns no VM; host `MSSQLSERVER` is running but not proven disposable and was not used; no qualifying LocalDB/Data marker; registry-isolated C++ runner, live DNS/TLS, credentials/AD, IIS/SEC-18, and 24-hour soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: run the ACL revalidation benchmark against an approved disposable SQL/Data fixture; provision/verify a disposable VM before migration/rollback; run the registry-isolated C++/.NET paired performance matrix
+- Next three independent slices: make ACL-induced read-only state reversible while preserving EXAMINE semantics; add handler-level legacy-right tests for STORE/APPEND/COPY/EXPUNGE; run the guarded SQL benchmark after a qualifying disposable fixture exists

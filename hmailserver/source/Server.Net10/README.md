@@ -1,3 +1,20 @@
+## Current authoritative parity status (2026-08-20, guarded ACL benchmark)
+
+Code/test commit `73af63531` adds an opt-in `acl-revalidation` benchmark and
+artifact writer. Its offline mode records `not-run` with null latency values;
+its SQL mode is fenced to a marked user-owned LocalDB disposable fixture and
+measures the real `SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync`
+path across direct, group, inherited, and denied ACL cases. No live SQL run was
+available on this host, so this is benchmark infrastructure, not performance
+acceptance evidence.
+
+Parity inspection of legacy `IMAPConnection::CheckPermission`,
+`CheckFolderPermissions`, and the STORE/APPEND/COPY/EXPUNGE handlers confirms
+that the remaining production gaps are fine-grained ACL rights and restoration
+of write access after an ACL grant when a selected mailbox was previously
+downgraded. Focused benchmark tests are `2 passed`; full Debug is `2343
+passed, 58 skipped, 0 failed`. Release remains **RED**.
+
 ## Current authoritative COM reinitialize status (2026-08-14)
 
 Code/test commits `3288249ad` and `83c77b86d` carry the existing production coordinator into

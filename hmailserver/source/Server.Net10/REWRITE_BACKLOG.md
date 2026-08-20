@@ -1,5 +1,27 @@
 
-## Current next slice (2026-08-20, ACL revalidation query bound and disposable gates)
+## Current next slice (2026-08-20, guarded ACL benchmark and rights parity)
+
+Code/test commit `73af63531` adds a commandable `acl-revalidation` benchmark.
+Offline mode deliberately emits `not-run` with null latency values. SQL mode is
+strictly opt-in for a marked current-user LocalDB disposable Data root and
+measures the real `SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync`
+method using direct, group, inherited, and denied ACL cases. No SQL run was
+performed because no qualifying LocalDB/Data fixture exists; paired C++/.NET
+performance remains unproven.
+
+Legacy anchors are `IMAPConnection::CheckPermission` and
+`CheckFolderPermissions` (`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`),
+plus `IMAPStore::SetFlags`, `IMAPCommandAPPEND::ExecuteCommand`,
+`IMAPCopy::CopyMessage`, and `IMAPCommandEXPUNGE::ExecuteCommand`. The parity
+review identifies two open production gaps: the selected mailbox can retain a
+Net10 ACL-induced read-only state after a later grant, and aggregate
+`CanWrite` does not yet enforce every legacy right at its handler boundary.
+
+Next slice: separate client-requested read-only state from ACL-induced
+downgrade, prove grant/revoke restoration with focused session tests, and keep
+the benchmark as the later SQL-cost acceptance tool. Release remains **RED**.
+
+## Historical completed slice (2026-08-20, ACL revalidation query bound and disposable gates)
 
 Test-only commit `17fae65c1` covers selected-folder ACL command boundaries;
 code/test commit `9e495c847` then narrows the SQL-backed revalidation path:

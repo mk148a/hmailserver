@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, guarded ACL benchmark)
+
+Code/test commit `73af63531` adds the bounded ACL benchmark tool and focused
+artifact tests. `--backend Offline` writes an explicit `not-run` report with
+null latency values. `--backend Sql` is accepted only with isolated-create
+opt-in, a marked `hmailserver-net10-disposable-*` Data root under TEMP, and a
+user-owned `(localdb)\...` connection; it creates and cleans a GUID-scoped
+fixture and measures the real SQL revalidation method. No SQL run was done on
+the current host.
+
+Parity anchors: legacy `IMAPConnection::CheckPermission` and
+`CheckFolderPermissions` at `hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`,
+with handler-specific `WriteSeen`, `WriteDeleted`, `Insert`, and `Expunge`
+checks. Open production risk is that Net10's aggregate `CanWrite` and retained
+`IsReadOnly` state do not yet prove the legacy grant/revoke behavior. Focused
+benchmark tests are `2/2`; full Debug is `2343 passed, 58 skipped, 0 failed`.
+Release remains **RED**. No push was performed.
+
+Next slice: make selected-mailbox write state reversible without changing
+EXAMINE semantics, then add handler-level rights tests. The disposable VM,
+LocalDB/Data, COM/DCOM, SEC-18, paired C++ performance, and soak gates remain
+environment-blocked or unproven.
+
 ## Current Authoritative Continuation (2026-08-20, ACL revalidation query bound)
 
 Legacy `IMAPConnection::CheckPermission` and `CheckFolderPermissions` in

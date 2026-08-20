@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-20, guarded ACL benchmark)
+
+Code/test commit `73af63531` adds `build/benchmark-net10-acl-revalidation.ps1`
+and an `acl-revalidation` benchmark mode. Offline mode emits an explicit
+`not-run` JSON/CSV/Markdown report with null latency values. SQL mode calls the
+real `SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync` against only a
+marked, user-owned LocalDB disposable fixture, creates a GUID-scoped database,
+seeds direct/group/inherited/denied ACL cases, and drops it in cleanup. It
+rejects MSSQLSERVER, AttachDbFilename, unmarked Data roots, and arbitrary
+servers.
+
+Legacy behavior remains anchored by `IMAPConnection::CheckPermission` and
+`CheckFolderPermissions` (`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`)
+and the command handlers that request `WriteSeen`, `WriteDeleted`, `Insert`,
+and `Expunge`. The benchmark is tooling only; it does not fix the remaining
+fine-grained-rights or sticky read-only parity gaps. Focused benchmark tests are
+`2 passed`; full Debug is `2343 passed, 58 skipped, 0 failed`. No SQL backend
+run was possible because no disposable LocalDB/Data marker exists. No C++/.NET
+speed-up or winner is valid; release remains **RED**.
+
+Next slice: restore dynamic selected-mailbox write state without weakening
+EXAMINE/read-only semantics, then add handler-level tests for legacy-specific
+ACL rights. The guarded SQL benchmark remains ready for the approved fixture.
+
 ## Current authoritative parity status (2026-08-20, ACL revalidation query bound)
 
 Legacy `IMAPConnection::CheckPermission` and `CheckFolderPermissions` in
