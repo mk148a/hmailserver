@@ -45,6 +45,18 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertFolderSql_PreservesLegacyUnvalidatedNumericParentShape()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.InsertFolderSql;
+
+        StringAssert.Contains(sql, "VALUES");
+        StringAssert.Contains(sql, "@AccountID");
+        StringAssert.Contains(sql, "@ParentFolderID");
+        Assert.IsFalse(sql.Contains("FROM hm_imapfolders", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("EXISTS", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetFolderPermissionsSql_ReadsOnlyLegacyAclRowsForSelectedFolder()
     {
         var sql = SqlServerImapFolderAdministrationStore.GetFolderPermissionsSql;

@@ -174,6 +174,32 @@ public sealed class ImapFoldersComContractTests
     }
 
     [TestMethod]
+    public void RetainedChildCollection_AddAfterParentDelete_PreservesLegacyOrphanInsert()
+    {
+        var store = new FixedImapFolderAdministrationStore(
+            new[]
+            {
+                new ImapFolderAdministrationSnapshot(10, 100, -1, "Parent", true, 5, "2026-08-01 00:00:00"),
+                new ImapFolderAdministrationSnapshot(11, 100, 10, "Child", true, 3, "2026-08-01 00:01:00")
+            });
+        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+        var parent = account.IMAPFolders[0];
+        var retainedChildren = parent.SubFolders;
+
+        parent.Delete();
+
+        Assert.AreEqual(0, retainedChildren.Count);
+        var orphan = retainedChildren.Add("Recreated");
+
+        Assert.AreEqual(100, store.LastInsertAccountId);
+        Assert.AreEqual(10, store.LastInsertParentId);
+        Assert.AreEqual(10, orphan.ParentID);
+        Assert.AreEqual(1, retainedChildren.Count);
+    }
+
+    [TestMethod]
     public void AccountImapFolders_UsesConfiguredRuntimeForSelectedAccount()
     {
         ImapFolderAdministrationRuntimeHost.Configure(
