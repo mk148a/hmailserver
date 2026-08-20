@@ -1,10 +1,10 @@
 # Current State
-- UTC/local timestamp: 2026-08-20T07:15:00Z / 2026-08-20T10:15:00+03:00
+- UTC/local timestamp: 2026-08-20T07:23:00Z / 2026-08-20T10:23:00+03:00
 - Branch/upstream: detached continuation worktree from `origin/net10-modernization`; original branch remains PUSH-BLOCKED at 1 ahead / 1 behind
-- Current HEAD: `279609c07` (isolated Hyper-V staging tooling and inventory)
+- Current HEAD at the last state snapshot: `279609c07`; this state update is recorded by the following documentation commit
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and not pushed
 - Latest focused-test result: SEC18 Hyper-V script test passed; rollback/preflight PowerShell test passed; BackupRestoreRoundTripIntegrationTests 21 passed, 0 failed; COM contract 16 passed, 0 failed
-- Latest full Net10 result: normal Debug `2313 passed, 58 skipped, 0 failed`
+- Latest full Net10 result: normal Debug `2313 passed, 58 skipped, 0 failed` (verified 2026-08-20 after temporary LF-only test normalization; all three source files restored unchanged)
 - Opt-in tests passed/skipped/blocked: fresh disposable paired fixture `EQUIVALENT_START_STATE`; Net10 protocol `75/75`, SMTP `25/25`, IMAP-1000 `1000/1000`, FTS `25/25`, queue `50/50`, POP3-large `5/5`; isolated restore/rollback and backup -> restore -> backup semantic round trip `21/21`; first reused-DB queue attempt correctly failed `51 != 50`; C++ launch refused by fresh read-only preflight; registry/COM, installer, AD/DC, SEC-18, and 24-hour soak remain skipped or environment-blocked; no production resource was used
 - Current bounded slice: isolated Hyper-V staging host created; guest first-boot setup and disposable migration/installer drill pending
 - Completed milestones: backup foundations, restore foundations and recovery journal, COM/Admin slices through distribution-list lifetime and owner-scoped UPDATE, ordinary-MX security mapping, guarded STARTTLS, disposable protocol/queue/FTS/external-fetch/restart evidence, and matched-fixture Net10 load evidence
