@@ -1,5 +1,25 @@
 
-## Current next slice (2026-08-14, disposable migration/installer rollback drill)
+## Current next slice (2026-08-20, isolated Hyper-V staging before migration drill)
+
+Code/test commit `279609c07` adds guarded provisioning, rollback, inventory,
+and focused tests for the non-production Hyper-V staging host. The official
+Microsoft Windows Server 2025 Evaluation x64 ISO is verified at
+`8,152,356,864` bytes with SHA-256
+`7B052573BA7894C9924E3E87BA732CCD354D18CB75A883EFA9B900EA125BFD51`.
+The VM `HMailServer-SEC18-Disposable` is running with 3 GB RAM, 4 vCPUs, and
+one adapter on the private-only switch `HMailServer-SEC18-Private`.
+Inventory evidence is at
+`C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
+
+The guest still needs manual first-boot Administrator setup. No legacy or
+Net10 service, SQL database, Data directory, COM registration, DCOM ACL, or
+firewall mutation has run. Release remains **RED**.
+
+Next slice: finish guest setup, provision only disposable SQL/Data and legacy
+test state, then execute the already-guarded migration/installer replacement
+and forced-failure rollback drill.
+
+## Historical next slice (2026-08-14, disposable migration/installer rollback drill)
 
 Code/test commits `3fe4cb513` and `ff100f32a` complete the smallest safe
 installer guards before

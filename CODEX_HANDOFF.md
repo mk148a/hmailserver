@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, isolated Hyper-V staging)
+
+Code/test commit `279609c07` adds guarded provisioning, inventory, rollback,
+and focused static tests for a non-production Hyper-V VM. The official
+Microsoft Windows Server 2025 Evaluation x64 ISO is verified at
+`8,152,356,864` bytes with SHA-256
+`7B052573BA7894C9924E3E87BA732CCD354D18CB75A883EFA9B900EA125BFD51`.
+
+`HMailServer-SEC18-Disposable` is **Running** with 3 GB RAM and 4 vCPUs. It
+has exactly one adapter on the **Private** switch
+`HMailServer-SEC18-Private`; inventory is recorded at
+`C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
+
+The guest still requires manual first-boot Administrator setup through
+VMConnect. The isolated hMailServer installation, disposable SQL/Data copy,
+legacy C++ registry isolation, and production migration/rollback drill have
+not run. Production service, database, Data directory, COM registration,
+DCOM ACLs, and firewall are untouched. Release remains **RED**.
+
+Next slice: finish guest setup, install only the isolated test stack, and run
+the forced-failure migration/rollback drill.
+
 ## Current Authoritative Continuation (2026-08-14, installer rollback compensation)
 
 Code/test commits `3fe4cb513` and `ff100f32a` add

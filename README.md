@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current authoritative isolated staging status (2026-08-20)
+
+Code/test commit `279609c07` adds guarded Hyper-V staging tooling for the
+non-production release gates:
+`build/provision-sec18-disposable-hyperv.ps1`,
+`build/remove-sec18-disposable-hyperv.ps1`,
+`build/collect-sec18-disposable-hyperv-inventory.ps1`, and their focused
+PowerShell test. The tooling accepts only `C:\SEC18-Disposable`, requires an
+elevated process, refuses non-private switches, and records ISO hash and
+production-path evidence.
+
+The official Microsoft Windows Server 2025 Evaluation x64 ISO was downloaded
+from the Microsoft CDN, verified at `8,152,356,864` bytes with SHA-256
+`7B052573BA7894C9924E3E87BA732CCD354D18CB75A883EFA9B900EA125BFD51`. The
+disposable VM `HMailServer-SEC18-Disposable` is running with 3 GB RAM and 4
+vCPUs on the private-only switch `HMailServer-SEC18-Private`. Inventory
+evidence is outside the repository at
+`C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
+
+Windows guest first-boot Administrator setup and the isolated hMailServer test
+installation are still pending. No production service, SQL database, Data
+directory, COM registration, DCOM ACL, or firewall rule was changed. Release
+remains **RED**. Next slice: complete guest setup, then run the disposable
+legacy-to-Net10 migration/rollback drill.
+
 ## Current authoritative migration/installer status (2026-08-14)
 
 Code/test commits `3fe4cb513` and `ff100f32a` add bounded installer rollback
