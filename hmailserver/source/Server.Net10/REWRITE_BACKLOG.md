@@ -1,29 +1,33 @@
 
-## Current next slice (2026-08-20, populated public-folder SQL restore round trip)
+## Current next slice (2026-08-20, populated public-folder SQL/Data round trip)
 
-Code/test commit `acde2e63b` wires `ParsePublicFolderEntries` into
-`MetadataBackupRestoreExecutor` for the full Settings|Domains|Messages path.
-It restores account-zero folders after domain accounts, passes newly assigned
-account IDs to ACL holder resolution, and invokes the existing transaction
-scoped folder/message/permission stores. The integrity preflight now validates
-root-level `PublicFolders`, nested folders, messages, ACLs, and permissions.
-Focused restore/parser/integrity/writer coverage is `139 passed, 0 skipped, 0
-failed`; the disposable LocalDB/Data suite is `2430 passed, 10 skipped, 0
-failed`.
+Code/test commit `f190b6997` completes the populated full restore acceptance
+slice. The disposable SQL/Data test restores an account-zero public-folder
+graph, delivered message, and user ACL, then reads committed
+`hm_imapfolders`, `hm_messages`, and `hm_acl` rows. It also performs a
+backup-after-restore comparison of normalized metadata and DataBackup
+evidence. Focused `BackupRestoreRoundTripIntegrationTests` coverage is
+`22 passed, 0 skipped, 0 failed`; the disposable LocalDB/Data Debug suite is
+`2431 passed, 10 skipped, 0 failed` (`2441` total).
 
-Legacy references are `BackupExecuter::StartRestore`,
-`Configuration::XMLLoad`, `IMAPConfiguration::XMLLoad`,
-`Collection<T,P>::XMLLoad`, `IMAPFolder::XMLLoadSubItems`, and
-`ACLPermission::XMLLoad`. Net10 now follows the legacy gate and order without
-changing COM identity or SMTP behavior. Group ACLs still resolve against groups
-already present in the target; archive group restoration is not implemented.
-The backup-side message projection still filters `messagetype = 2` while the
-legacy folder query did not explicitly filter that column.
+Legacy references are `BackupExecuter::StartRestore` and
+`Configuration::XMLLoad` in `hmailserver/source/Server/Common/Application`,
+`IMAPConfiguration::XMLLoad` in
+`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:238`,
+`Collection<T,P>::XMLLoad` in
+`hmailserver/source/Server/Common/BO/Collection.h:85`,
+`IMAPFolder::XMLLoadSubItems` in
+`hmailserver/source/Server/Common/BO/IMAPFolder.cpp:161`, and
+`ACLPermission::XMLLoad` in
+`hmailserver/source/Server/Common/BO/ACLPermission.cpp:230`.
+Net10 follows the legacy messages -> child folders -> ACL order without
+changing COM identity or SMTP behavior.
 
-Next slice: run a populated full restore against a disposable SQL/Data pair and
-assert committed `hm_imapfolders`, `hm_messages`, and `hm_acl` rows plus a
-backup-after-restore semantic check. Do not widen to group archive restore,
-private-folder ACLs, COM mutation, SMTP behavior, or protocol changes.
+Remaining restore risks are target-preexisting group dependency and the
+backup-side `messagetype = 2` projection, while the legacy folder query did
+not explicitly filter that column. Next slice: resolve that projection
+decision against the exact legacy SQL behavior and add the smallest required
+parity test. Do not widen to COM mutation, SMTP behavior, or protocol changes.
 Migration/installer, COM/DCOM, SEC-18, paired C++/.NET performance, and soak
 gates remain **RED**.
 

@@ -1,26 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, public-folder restore executor)
+## Current Authoritative Continuation (2026-08-20, populated public-folder round trip)
 
-HEAD is `acde2e63b`. The code/test slice parses root-level public-folder XML in
-full restore, validates its graph in `BackupRestoreIntegrityRuntime`, and calls
-`BackupRestoreMetadataWriter.RestorePublicFoldersAsync` after all domain
-accounts have been inserted. User ACL holders are resolved against returned
-account IDs; group holders use the existing target group store. Legacy anchors
-are `BackupExecuter::StartRestore`, `Configuration::XMLLoad`,
+Code/test commit `f190b6997` completes the populated disposable SQL/Data full
+restore slice. The focused test proves committed account-zero
+`hm_imapfolders`, `hm_messages`, and user `hm_acl` rows, then verifies a
+backup-after-restore comparison of normalized metadata and DataBackup evidence.
+Focused coverage is `22 passed, 0 skipped, 0 failed`; the full disposable
+LocalDB/Data suite is `2431 passed, 10 skipped, 0 failed` (`2441` total).
+
+Legacy anchors are `BackupExecuter::StartRestore`, `Configuration::XMLLoad`,
 `IMAPConfiguration::XMLLoad`, `Collection<T,P>::XMLLoad`,
-`IMAPFolder::XMLLoadSubItems`, and `ACLPermission::XMLLoad`.
+`IMAPFolder::XMLLoadSubItems`, and `ACLPermission::XMLLoad`; the restore order
+is messages, child folders, then ACLs. No COM/IDL identity, SMTP trust,
+production service, production SQL/Data, or installed registration changed.
+Residual risks are target-preexisting group dependency and the delivered-only
+backup projection versus the legacy folder query that did not explicitly
+filter `messagetype`.
 
-Focused restore/parser/integrity/writer coverage is `139/139`; disposable
-LocalDB/Data is `2430 passed, 10 skipped, 0 failed`. No COM/IDL identity, SMTP
-trust, production service, production SQL/Data, or installed registration was
-changed. Residual risks are target-preexisting group dependency, no archive
-group restore path, and the delivered-only backup message projection versus
-the legacy unfiltered folder query.
-
-Next slice: populated disposable full restore and backup-after-restore SQL/Data
-semantic evidence, including `hm_imapfolders`, `hm_messages`, and `hm_acl`.
-Release remains **RED** and no push was performed.
+Next slice: settle that projection against the exact legacy SQL and add the
+smallest parity regression. Release remains **RED** and no push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 

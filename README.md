@@ -1,24 +1,26 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, public-folder restore executor)
+## Current authoritative parity status (2026-08-20, populated public-folder round trip)
 
-Current HEAD `acde2e63b` parses and restores the legacy root-level
-`<PublicFolders>` graph during full Settings|Domains|Messages restore. It uses
-account-zero ownership, transaction-scoped folder/message/ACL stores, returned
-account IDs for user holders, and validates public graph shape before mutation.
-Focused restore/parser/integrity/writer coverage is `139 passed, 0 skipped, 0
-failed`; disposable LocalDB/Data is `2430 passed, 10 skipped, 0 failed`.
+Current code/test commit `f190b6997` proves a populated full restore against a
+disposable SQL/Data pair. The test reads committed account-zero folder,
+message, and user-ACL rows, then compares normalized metadata and DataBackup
+evidence after creating a backup from the restored state. Focused round-trip
+coverage is `22 passed, 0 skipped, 0 failed`; disposable LocalDB/Data is
+`2431 passed, 10 skipped, 0 failed`.
 
 Legacy references are `BackupExecuter::StartRestore`,
 `Configuration::XMLLoad`, `IMAPConfiguration::XMLLoad`,
 `Collection<T,P>::XMLLoad`, `IMAPFolder::XMLLoadSubItems`, and
-`ACLPermission::XMLLoad`. Group ACLs depend on target-preexisting groups; no
-archive group restore exists. The backup projection still filters delivered
-messages (`messagetype = 2`) while legacy did not explicitly filter that query.
-Next slice is a populated disposable SQL/Data full restore and backup-after-
-restore semantic check. Release remains **RED** for restore/migration, COM/DCOM,
-SEC-18, paired C++/.NET performance, and soak gates.
+`ACLPermission::XMLLoad`. Group ACLs still require target-preexisting groups.
+The backup projection filters delivered messages (`messagetype = 2`) while the
+legacy folder query did not explicitly filter that column. No COM identity,
+SMTP behavior, or installed registration changed.
+
+Next slice is to settle that projection against the exact legacy SQL and add a
+focused parity regression. Release remains **RED** for restore/migration,
+COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 

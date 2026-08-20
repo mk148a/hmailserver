@@ -1,29 +1,22 @@
-## Current authoritative parity status (2026-08-20, public-folder restore traversal)
+## Current authoritative parity status (2026-08-20, populated public-folder round trip)
 
-Current HEAD `0f64da001` adds
-`BackupRestoreMetadataWriter.RestorePublicFoldersAsync`. It creates public
-folders in `folderaccountid = 0` scope, restores messages, recursively restores
-children, and writes ACLs only after descendants. Focused traversal coverage is
-`7 passed, 0 failed`; the disposable LocalDB/Data full suite is `2427 passed,
+Current code/test commit `f190b6997` proves a populated full restore against a
+disposable SQL/Data pair. The test reads committed account-zero folder,
+message, and user-ACL rows, and verifies backup-after-restore normalized
+metadata plus DataBackup evidence. Focused round-trip coverage is `22 passed,
+0 skipped, 0 failed`; the disposable LocalDB/Data full suite is `2431 passed,
 10 skipped, 0 failed`.
 
-Legacy `IMAPFolder::XMLLoadSubItems` restores messages, child folders, then ACLs;
-`ACLPermission::XMLLoad` maps `Type/Rights/Holder`, and
-`PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
-has parser, holder-resolution, live SQL, and writer traversal foundations, but
-the backup payload and executor do not yet provide public-folder entries. The
-transaction-scoped restore path is intentionally stronger than legacy's
-independent ACL `Save()` connection and is not a full parity claim.
+Legacy `BackupExecuter::StartRestore`, `Configuration::XMLLoad`,
+`IMAPConfiguration::XMLLoad`, `Collection<T,P>::XMLLoad`,
+`IMAPFolder::XMLLoadSubItems`, and `ACLPermission::XMLLoad` define the restore
+gate and messages -> child folders -> ACL order. COM identity, SMTP behavior,
+and installed registration were not changed. Group ACLs still require target
+groups, and the backup projection still filters `messagetype = 2` although the
+legacy folder query did not explicitly filter that column.
 
-Legacy backup behavior is anchored by `BackupExecuter::StartBackup` and
-`BackupDataDirectory_` in `source/Server/Common/Application/BackupExecuter.cpp`.
-Raw non-DB-only `BODomains|BOMessages` staging was implemented in `50d8cefc3`,
-and the current acceptance tests cover modes `1`, `2`, `3`, and DB-only `6`.
-The actual legacy `FULL` parser emits `ENVELOPE` and `BODYSTRUCTURE`; it does
-not emit `BODY[]` or mark messages seen, which Net10 now preserves.
-
-Next slice: capture public-folder graph, messages, and ACL holder names in the
-backup XML payload, then wire the executor. Paired C++/.NET performance,
+Next slice: settle the delivered-only message projection against the exact
+legacy SQL and add the smallest parity regression. Paired C++/.NET performance,
 out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain
 open; release is **RED**.
 
