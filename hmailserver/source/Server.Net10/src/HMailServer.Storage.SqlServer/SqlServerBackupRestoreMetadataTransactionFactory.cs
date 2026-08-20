@@ -64,6 +64,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         RuleCriteriaStore = new SqlServerRuleCriteriaAdministrationStore(context);
         RuleActionStore = new SqlServerRuleActionAdministrationStore(context);
         FolderRestoreStore = _publicFolderStore;
+        FolderPermissionRestoreStore = _publicFolderStore;
         MessageRestoreStore = new SqlServerMessageAdministrationStore(context);
     }
 
@@ -88,6 +89,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     public IRuleActionAdministrationStore RuleActionStore { get; }
 
     public IImapFolderAdministrationRestoreStore FolderRestoreStore { get; }
+
+    public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore { get; }
 
     public IMessageAdministrationRestoreStore MessageRestoreStore { get; }
 

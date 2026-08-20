@@ -9,6 +9,7 @@ public sealed class SqlServerImapFolderAdministrationStore :
     IImapFolderAdministrationStore,
     IImapFolderPermissionAdministrationStore,
     IImapFolderPermissionAdministrationMutationStore,
+    IImapFolderPermissionAdministrationRestoreStore,
     IImapFolderAdministrationMutationStore,
     IImapFolderAdministrationRestoreStore,
     IImapFolderAdministrationDeletionStore,
@@ -107,6 +108,34 @@ BEGIN
         CONVERT(bigint, @PermissionAccountID),
         CONVERT(bigint, @Value);
 END;
+""";
+
+    public const string InsertFolderPermissionForRestoreSql = """
+INSERT INTO hm_acl
+    (aclsharefolderid, aclpermissiontype, aclpermissiongroupid, aclpermissionaccountid, aclvalue)
+OUTPUT INSERTED.aclid,
+       INSERTED.aclsharefolderid,
+       INSERTED.aclpermissiontype,
+       INSERTED.aclpermissiongroupid,
+       INSERTED.aclpermissionaccountid,
+       INSERTED.aclvalue
+SELECT
+    @FolderID, @PermissionType, @PermissionGroupID, @PermissionAccountID, @Value
+WHERE EXISTS
+(
+    SELECT 1
+    FROM hm_imapfolders
+    WHERE folderid = @FolderID
+      AND folderaccountid = 0
+)
+AND @PermissionType IN (0, 1, 2)
+AND @Value BETWEEN 0 AND 2047
+AND
+(
+    (@PermissionType = 0 AND @PermissionGroupID = 0 AND @PermissionAccountID > 0)
+    OR (@PermissionType = 1 AND @PermissionGroupID > 0 AND @PermissionAccountID = 0)
+    OR (@PermissionType = 2 AND @PermissionGroupID = 0 AND @PermissionAccountID = 0)
+);
 """;
 
     public const string UpdateFolderPermissionSql = """
@@ -653,6 +682,45 @@ WHERE NOT
             checked((int)reader.GetInt64(5)));
     }
 
+    public async ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertFolderPermissionForRestoreAsync(
+        int folderId,
+        int permissionType,
+        int permissionGroupId,
+        int permissionAccountId,
+        int value,
+        CancellationToken cancellationToken)
+    {
+        ValidateRestorePermission(folderId, permissionType, permissionGroupId, permissionAccountId, value);
+
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertFolderPermissionForRestoreSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
+        command.Parameters.Add("@FolderID", SqlDbType.Int).Value = folderId;
+        command.Parameters.Add("@PermissionType", SqlDbType.TinyInt).Value = permissionType;
+        command.Parameters.Add("@PermissionGroupID", SqlDbType.BigInt).Value = permissionGroupId;
+        command.Parameters.Add("@PermissionAccountID", SqlDbType.BigInt).Value = permissionAccountId;
+        command.Parameters.Add("@Value", SqlDbType.Int).Value = value;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SingleRow,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return null;
+        }
+
+        return new ImapFolderPermissionAdministrationSnapshot(
+            Convert.ToInt32(reader.GetValue(0), CultureInfo.InvariantCulture),
+            Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture),
+            Convert.ToInt32(reader.GetValue(2), CultureInfo.InvariantCulture),
+            Convert.ToInt32(reader.GetValue(3), CultureInfo.InvariantCulture),
+            Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture),
+            Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture));
+    }
+
     public async ValueTask<bool> UpdateFolderPermissionAsync(
         int folderId,
         int permissionId,
@@ -672,6 +740,38 @@ WHERE NOT
         command.Parameters.Add("@Value", SqlDbType.BigInt).Value = value;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    private static void ValidateRestorePermission(
+        int folderId,
+        int permissionType,
+        int permissionGroupId,
+        int permissionAccountId,
+        int value)
+    {
+        if (folderId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(folderId));
+        }
+
+        if (value is < 0 or > 2047)
+        {
+            throw new ArgumentOutOfRangeException(nameof(value));
+        }
+
+        var validPrincipals = permissionType switch
+        {
+            0 => permissionGroupId == 0 && permissionAccountId > 0,
+            1 => permissionGroupId > 0 && permissionAccountId == 0,
+            2 => permissionGroupId == 0 && permissionAccountId == 0,
+            _ => false
+        };
+        if (!validPrincipals)
+        {
+            throw new ArgumentException(
+                "A restore ACL permission must use a valid legacy type and exactly one matching principal.",
+                nameof(permissionType));
+        }
     }
 
     public async ValueTask<ImapFolderAdministrationSnapshot> InsertFolderAsync(

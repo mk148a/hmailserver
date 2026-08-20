@@ -119,6 +119,55 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
     }
 
     [TestMethod]
+    public void InsertFolderPermissionForRestoreSql_IsTransactionFriendlyAndFailClosedToPublicFoldersAndLegacyPrincipals()
+    {
+        var sql = SqlServerImapFolderAdministrationStore.InsertFolderPermissionForRestoreSql;
+
+        StringAssert.Contains(sql, "INSERT INTO hm_acl");
+        StringAssert.Contains(sql, "OUTPUT INSERTED.aclid");
+        StringAssert.Contains(sql, "folderaccountid = 0");
+        StringAssert.Contains(sql, "@PermissionType IN (0, 1, 2)");
+        StringAssert.Contains(sql, "@Value BETWEEN 0 AND 2047");
+        StringAssert.Contains(sql, "@PermissionType = 0 AND @PermissionGroupID = 0 AND @PermissionAccountID > 0");
+        StringAssert.Contains(sql, "@PermissionType = 1 AND @PermissionGroupID > 0 AND @PermissionAccountID = 0");
+        StringAssert.Contains(sql, "@PermissionType = 2 AND @PermissionGroupID = 0 AND @PermissionAccountID = 0");
+        Assert.IsFalse(sql.Contains("BEGIN TRANSACTION", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("COMMIT", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task InsertFolderPermissionForRestoreAsync_RejectsInvalidPrincipalBeforeOpeningSqlConnection()
+    {
+        var store = new SqlServerImapFolderAdministrationStore(
+            new SqlServerConnectionFactory("Server=invalid-host;Database=invalid;Connect Timeout=1"));
+
+        await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
+            await store.InsertFolderPermissionForRestoreAsync(
+                folderId: 10,
+                permissionType: 0,
+                permissionGroupId: 20,
+                permissionAccountId: 0,
+                value: 2,
+                CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task InsertFolderPermissionForRestoreAsync_RejectsInvalidRightsBeforeOpeningSqlConnection()
+    {
+        var store = new SqlServerImapFolderAdministrationStore(
+            new SqlServerConnectionFactory("Server=invalid-host;Database=invalid;Connect Timeout=1"));
+
+        await Assert.ThrowsExactlyAsync<ArgumentOutOfRangeException>(async () =>
+            await store.InsertFolderPermissionForRestoreAsync(
+                folderId: 10,
+                permissionType: 2,
+                permissionGroupId: 0,
+                permissionAccountId: 0,
+                value: 2048,
+                CancellationToken.None));
+    }
+
+    [TestMethod]
     public void UpdateFolderPermissionSql_UpdatesAllLegacyColumnsWithinAclAndPublicFolderScope()
     {
         var sql = SqlServerImapFolderAdministrationStore.UpdateFolderPermissionSql;

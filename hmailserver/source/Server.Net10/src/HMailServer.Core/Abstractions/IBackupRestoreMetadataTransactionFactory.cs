@@ -30,6 +30,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     IImapFolderAdministrationRestoreStore? FolderRestoreStore => null;
 
+    IImapFolderPermissionAdministrationRestoreStore? FolderPermissionRestoreStore => null;
+
     IMessageAdministrationRestoreStore? MessageRestoreStore => null;
 
     ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
