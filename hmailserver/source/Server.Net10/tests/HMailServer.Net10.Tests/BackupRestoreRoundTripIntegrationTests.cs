@@ -100,6 +100,12 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             "Filename=\"one.eml\" FromAddress=\"sender@example.test\" State=\"2\" Size=\"42\" NoOfRetries=\"9\" Flags=\"1\" ID=\"77\" UID=\"8\" />\n                            <Message CreateTime=\"2026-07-01 12:33:00\" Filename=\"two.eml\" FromAddress=\"sender2@example.test\" State=\"2\" Size=\"43\" NoOfRetries=\"4\" Flags=\"1\" ID=\"78\" UID=\"9\" />",
             StringComparison.Ordinal);
 
+    private static readonly string FullRestoreArchiveXmlWithNonDeliveredMessage = FullRestoreArchiveXml
+        .Replace(
+            "Filename=\"one.eml\" FromAddress=\"sender@example.test\" State=\"2\" Size=\"42\" NoOfRetries=\"9\" Flags=\"1\" ID=\"77\" UID=\"8\" />",
+            "Filename=\"one.eml\" FromAddress=\"sender@example.test\" State=\"1\" Size=\"42\" NoOfRetries=\"9\" Flags=\"1\" ID=\"77\" UID=\"8\" />",
+            StringComparison.Ordinal);
+
     private static readonly string FullRestoreArchiveXmlWithPublicFolders = FullRestoreArchiveXml
         .Replace(
             "</Backup>",
@@ -594,11 +600,11 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
-    public async Task BackupManager_BackupRestoreBackupPreservesNormalizedSqlAndDataSemantics()
+    public async Task BackupManager_BackupRestoreBackupPreservesNonDeliveredMessageStateAndDataSemantics()
     {
         await WithFullRestoreTargetAsync(
             "manager_backup_restore_backup_semantics",
-            FullRestoreArchiveXml,
+            FullRestoreArchiveXmlWithNonDeliveredMessage,
             async fixture =>
             {
                 await fixture.CreateExecutor().ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
@@ -614,6 +620,27 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 var actionStore = new SqlServerRuleActionAdministrationStore(factory);
                 var folderStore = new SqlServerImapFolderAdministrationStore(factory);
                 var messageStore = new SqlServerMessageAdministrationStore(factory);
+                var inbox = (await folderStore
+                    .GetFoldersForAccountAsync(1, CancellationToken.None)
+                    .ConfigureAwait(false))
+                    .Single(folder => folder.Name == "INBOX");
+                var backupMessages = await messageStore
+                    .GetFolderMessagesForBackupAsync(1, inbox.Id, CancellationToken.None)
+                    .ConfigureAwait(false);
+                Assert.AreEqual(1, backupMessages.Count);
+                Assert.AreEqual(1, backupMessages[0].State);
+                Assert.AreEqual(9, backupMessages[0].CurrentNumberOfTries);
+                Assert.AreEqual(1, backupMessages[0].Flags);
+                Assert.IsTrue(File.Exists(Path.Combine(
+                    fixture.GetDataDirectory(),
+                    "roundtrip.example",
+                    "user",
+                    "ne",
+                    "one.eml")));
+                var sharedMessages = await messageStore
+                    .GetFolderMessagesAsync(1, inbox.Id, CancellationToken.None)
+                    .ConfigureAwait(false);
+                Assert.AreEqual(0, sharedMessages.Count);
                 var payloadRuntime = new BackupXmlPayloadRuntime(
                     settingsStore,
                     fixture.DomainStore,
