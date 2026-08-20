@@ -1,5 +1,24 @@
 
-## Current next slice (2026-08-20, stale-parent/account scope at IMAP folder insert)
+## Current next slice (2026-08-20, public ACL revocation and session invalidation)
+
+Code/test commit `db9d690e8` documents legacy stale child collection behavior:
+after a retained child collection's parent is deleted, `Add()` forwards the old
+numeric parent ID and the orphan remains hidden from fresh root scope. The SQL
+shape test records the absence of a parent/account guard, matching legacy
+`InterfaceIMAPFolders::Add` and `PersistentIMAPFolder::SaveObject`; no
+production behavior or COM identity changed. Focused coverage is `44 passed,
+0 failed`; full Debug is `2333 passed, 58 skipped, 0 failed`.
+
+This is an explicit integrity risk, not release acceptance. Strict parent and
+account enforcement would diverge from legacy and requires a separate approved
+compatibility/security decision. Next slice: trace legacy ACL mutation and
+session permission behavior, then implement the smallest public ACL revocation
+invalidation with negative tests. Account-wide deletion, tracker
+ordering/retention, live SQL/Data, registered service/out-of-process COM,
+migration/rollback, paired C++/.NET performance, and soak evidence remain open.
+Release remains **RED**.
+
+## Historical completed slice (2026-08-20, stale-parent/account scope at IMAP folder insert)
 
 Code/test commit `2c7147b6b` closes the bounded retained public-folder
 reauthentication and selected-session rename gap. `Settings.PublicFolders`

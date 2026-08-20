@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, stale IMAP parent parity)
+
+Code/test commit `db9d690e8` adds focused parity tests for the legacy stale
+child collection behavior. After a retained child collection's parent is
+deleted, `IMAPFolders.Add` forwards the old numeric parent ID and the orphan
+row is hidden from a fresh root collection. `InsertFolderSql` remains
+unvalidated for parent existence/account ownership, matching legacy
+`InterfaceIMAPFolders::Add` and `PersistentIMAPFolder::SaveObject`; no
+production behavior or COM identity changed. Focused coverage is `44/44`; full
+Debug is `2333 passed, 58 skipped, 0 failed`.
+
+This is a documented integrity risk, not a release gate pass. A strict SQL
+guard would intentionally diverge from legacy behavior and must be a separately
+approved compatibility/security decision. Next slice: public ACL revocation
+and selected-session invalidation, with legacy ACL anchors and negative tests.
+Migration/rollback, live SQL/Data, registered/out-of-process COM, paired C++
+performance, and soak remain open; release is **RED**.
+
 ## Current Authoritative Continuation (2026-08-20, public reauthentication and rename)
 
 Code/test commit `2c7147b6b` closes the bounded public-folder reauthentication

@@ -3,6 +3,21 @@ hMailServer
 
 ## Current authoritative parity status (2026-08-20)
 
+Code/test commit `db9d690e8` records the legacy stale-child IMAP behavior with
+focused tests: after a retained child collection's parent is deleted,
+`Add()` forwards the old numeric parent ID and the inserted orphan remains
+outside fresh root scope. The SQL shape test records the legacy absence of a
+parent/account ownership guard. This preserves `InterfaceIMAPFolders::Add` and
+`PersistentIMAPFolder::SaveObject` behavior and makes the integrity risk
+explicit; it is not release acceptance. Focused coverage is `44/44`; full
+Debug is `2333 passed, 58 skipped, 0 failed`.
+
+Next parity/security slice: public ACL revocation and selected-session
+invalidation. Migration/rollback, live SQL/Data, out-of-process COM, paired
+C++ performance, and soak gates remain open. Release remains **RED**.
+
+## Current authoritative parity status (2026-08-20)
+
 Code/test commit `2c7147b6b` closes the retained public-folder authorization
 and selected-session rename gap. `Settings.PublicFolders` rechecks live
 server-admin authentication before returning a fresh adapter after failed
