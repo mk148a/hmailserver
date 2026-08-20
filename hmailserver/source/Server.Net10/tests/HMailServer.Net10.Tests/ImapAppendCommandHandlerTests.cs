@@ -42,7 +42,28 @@ public sealed class ImapAppendCommandHandlerTests
         CollectionAssert.AreEqual("Hello"u8.ToArray(), appendStore.LastRequest.RawMessage);
     }
 
-    private sealed class FakeMailboxStore : IImapMailboxStore
+    [TestMethod]
+    public async Task HandleAsync_DoesNotAppendWhenDestinationLacksInsertAcl()
+    {
+        var appendStore = new FakeAppendStore();
+        var handler = new ImapAppendCommandHandler(
+            new ImapAppendCommandParser(),
+            new FakeMailboxStore(ImapAclRights.All & ~ImapAclRights.Insert),
+            appendStore);
+        var command = new ImapAppendCommand("INBOX", ImapMessageFlags.Seen, null, 5);
+
+        var response = await handler.HandleAsync(
+            requesterAccountId: 77,
+            tag: "A002",
+            command,
+            "Hello"u8.ToArray(),
+            CancellationToken.None);
+
+        Assert.AreEqual("A002 NO ACL: Insert permission denied (Required for APPEND command).\r\n", response);
+        Assert.IsNull(appendStore.LastRequest);
+    }
+
+    private sealed class FakeMailboxStore(long aclRights = ImapAclRights.All) : IImapMailboxStore
     {
         public ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
             int accountId,
@@ -59,7 +80,8 @@ public sealed class ImapAppendCommandHandlerTests
                     UidValidity: 123,
                     UidNext: 501,
                     FirstUnseenUid: null,
-                    IsReadOnly: false));
+                    IsReadOnly: false,
+                    AclRights: aclRights));
     }
 
     private sealed class FakeAppendStore : IImapMessageAppendStore

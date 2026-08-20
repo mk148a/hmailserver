@@ -20,6 +20,12 @@ public sealed class ImapAppendCommandHandler
 
     public ImapAppendCommand Parse(string arguments) => _parser.Parse(arguments);
 
+    public ValueTask<ImapMailboxSelection?> ResolveDestinationAsync(
+        int requesterAccountId,
+        string mailboxName,
+        CancellationToken cancellationToken) =>
+        _mailboxStore.SelectMailboxAsync(requesterAccountId, mailboxName, readOnly: false, cancellationToken);
+
     public async ValueTask<string> HandleAsync(
         int requesterAccountId,
         string tag,
@@ -47,8 +53,7 @@ public sealed class ImapAppendCommandHandler
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(rawMessage);
 
-        var destination = await _mailboxStore
-            .SelectMailboxAsync(requesterAccountId, command.MailboxName, readOnly: false, cancellationToken)
+        var destination = await ResolveDestinationAsync(requesterAccountId, command.MailboxName, cancellationToken)
             .ConfigureAwait(false);
         if (destination is null)
         {
@@ -58,6 +63,11 @@ public sealed class ImapAppendCommandHandler
         if (destination.IsReadOnly)
         {
             return Failure($"{SanitizeAtom(tag)} NO Destination mailbox is read-only.\r\n");
+        }
+
+        if ((destination.AclRights & ImapAclRights.Insert) != ImapAclRights.Insert)
+        {
+            return Failure($"{SanitizeAtom(tag)} NO ACL: Insert permission denied (Required for APPEND command).\r\n");
         }
 
         try

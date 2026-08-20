@@ -1105,6 +1105,26 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_AppendRejectsMissingInsertBeforeLiteralContinuation()
+    {
+        var appendStore = new FakeAppendStore();
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"secret\"\r\nA002 APPEND \"INBOX\" {5}\r\nHello\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(ImapAclRights.All & ~ImapAclRights.Insert),
+            appendStore: appendStore);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A002 NO ACL: Insert permission denied (Required for APPEND command).\r\n");
+        Assert.IsFalse(output.Contains("+ Ready for literal data", StringComparison.Ordinal));
+        Assert.IsNull(appendStore.LastRequest);
+    }
+
+    [TestMethod]
     public async Task RunAsync_AppendToSelectedMailboxExtendsRecentSnapshot()
     {
         var searchIndex = new CapturingSearchIndex(
@@ -1573,7 +1593,7 @@ public sealed class ImapSessionTests
         }
     }
 
-    private sealed class FakeMailboxStore : IImapMailboxStore
+    private sealed class FakeMailboxStore(long aclRights = ImapAclRights.All) : IImapMailboxStore
     {
         public ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
             int accountId,
@@ -1596,7 +1616,8 @@ public sealed class ImapSessionTests
                         UidValidity: 123,
                         UidNext: 500,
                         FirstUnseenUid: 101,
-                        IsReadOnly: readOnly));
+                        IsReadOnly: readOnly,
+                        AclRights: aclRights));
             }
 
             return ValueTask.FromResult<ImapMailboxSelection?>(null);

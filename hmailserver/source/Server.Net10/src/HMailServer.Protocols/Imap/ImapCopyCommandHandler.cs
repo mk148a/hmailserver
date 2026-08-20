@@ -78,6 +78,11 @@ public sealed class ImapCopyCommandHandler
             return Failure($"{SanitizeAtom(tag)} NO Destination mailbox is read-only.\r\n", deleteSource);
         }
 
+        if ((destination.AclRights & ImapAclRights.Insert) != ImapAclRights.Insert)
+        {
+            return Failure($"{SanitizeAtom(tag)} NO ACL: Insert permission denied (Required for COPY command).\r\n", deleteSource);
+        }
+
         var request = new ImapCopyRequest(
             sourceAccountId,
             sourceFolderId,

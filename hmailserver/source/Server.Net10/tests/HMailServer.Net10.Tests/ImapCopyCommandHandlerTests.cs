@@ -47,6 +47,29 @@ public sealed class ImapCopyCommandHandlerTests
     }
 
     [TestMethod]
+    public async Task HandleAsync_DoesNotCopyWhenDestinationLacksInsertAcl()
+    {
+        var copyStore = new CapturingCopyStore();
+        var handler = new ImapCopyCommandHandler(
+            new ImapCopyCommandParser(),
+            new FakeMailboxStore(ImapAclRights.All & ~ImapAclRights.Insert),
+            copyStore);
+
+        var response = await handler.HandleAsync(
+            requesterAccountId: 77,
+            sourceAccountId: 77,
+            sourceFolderId: 88,
+            tag: "A002",
+            arguments: "101 \"Archive\"",
+            useUid: true,
+            deleteSource: false,
+            cancellationToken: CancellationToken.None);
+
+        Assert.AreEqual("A002 NO ACL: Insert permission denied (Required for COPY command).\r\n", response);
+        Assert.IsNull(copyStore.LastRequest);
+    }
+
+    [TestMethod]
     public async Task HandleAsync_MoveReturnsExpungeResponses()
     {
         var copyStore = new CapturingCopyStore
@@ -77,7 +100,7 @@ public sealed class ImapCopyCommandHandlerTests
         Assert.IsTrue(copyStore.LastRequest.DeleteSource);
     }
 
-    private sealed class FakeMailboxStore : IImapMailboxStore
+    private sealed class FakeMailboxStore(long aclRights = ImapAclRights.All) : IImapMailboxStore
     {
         public ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
             int accountId,
@@ -97,7 +120,8 @@ public sealed class ImapCopyCommandHandlerTests
                         UidValidity: 123,
                         UidNext: 201,
                         FirstUnseenUid: null,
-                        IsReadOnly: readOnly));
+                        IsReadOnly: readOnly,
+                        AclRights: aclRights));
             }
 
             return ValueTask.FromResult<ImapMailboxSelection?>(null);

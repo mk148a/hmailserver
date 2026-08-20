@@ -519,6 +519,27 @@ public sealed class ImapSession
                     return false;
                 }
 
+                var appendDestination = await _appendCommandHandler
+                    .ResolveDestinationAsync(state.Account.AccountId, appendCommand.MailboxName, cancellationToken)
+                    .ConfigureAwait(false);
+                if (appendDestination is null)
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO Can't find mailbox with that name.", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
+                if (appendDestination.IsReadOnly)
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO Destination mailbox is read-only.", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
+                if (!HasAclRights(appendDestination, ImapAclRights.Insert))
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO ACL: Insert permission denied (Required for APPEND command).", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
                 await WriteAsync(stream, "+ Ready for literal data\r\n", cancellationToken).ConfigureAwait(false);
                 var literal = await reader.ReadExactAsync(appendCommand.LiteralByteCount, cancellationToken).ConfigureAwait(false);
                 var terminator = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
