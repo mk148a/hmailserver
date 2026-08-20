@@ -40,6 +40,10 @@ manually complete disposable guest Administrator sign-in, then install the
 verified packages and run the disposable legacy-to-Net10 migration/rollback
 drill.
 
+The production-parity backlog now distinguishes the implemented IMAP master-user
+runtime and disposable Net10 acceptance evidence from the still-open native AD,
+legacy-C++ comparison, live 100k-mailbox, and 24-hour soak gates.
+
 ## Current authoritative migration/installer status (2026-08-14)
 
 Code/test commits `3fe4cb513` and `ff100f32a` add bounded installer rollback

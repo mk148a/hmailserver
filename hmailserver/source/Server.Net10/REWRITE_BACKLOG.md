@@ -2723,7 +2723,7 @@ Current SEC-14 reconciliation (2026-07-30): the distribution-list recipient, ali
    - Done: shared `OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` script hook with expanded scalar account facade.
    - Done: password-validation VBScript/JScript `Result` facades expose writable `Value`, `Message`, and numeric zero-initialized `Parameter` scalars, including an explicit VB seed rather than `Empty`.
    - Done: password-validation account facades expose the legacy stored `Password` scalar without conflating it with the attempted plaintext argument.
-   - Remaining: Deeper account facade collections/methods, Active Directory auth, and master user.
+    - Remaining: Deeper account facade collections/methods and native Active Directory authentication/evidence. The IMAP master-user runtime path is implemented and covered; live SQL/credential acceptance remains environment-gated.
 
 2. IMAP command parity beyond SEARCH.
    - Done: FETCH/UID FETCH for `FLAGS`, `UID`, `RFC822.SIZE`, `INTERNALDATE`, `ENVELOPE`, `BODYSTRUCTURE`, `BODY[]`, `BODY.PEEK[]`, and `RFC822`.
@@ -3117,9 +3117,8 @@ Current SEC-14 reconciliation (2026-07-30): the distribution-list recipient, ali
    - Remaining: production configuration packaging and upgrade/rollback integration.
 
 8. Performance and soak validation.
-   - SQL Server FTS integration tests.
-   - 100k message mailbox SEARCH/SORT acceptance.
-   - 1k concurrent IMAP connections, SMTP latency, delivery queue throughput, memory/handle leak soak tests.
+   - Done: disposable Net10 protocol, SMTP, 1k-IMAP, SQL FTS, queue, and large-POP3 acceptance evidence is recorded in the current continuation state.
+   - Remaining: equivalent legacy C++ runner, 100k-message live mailbox SEARCH/SORT, SMTP/delivery threshold comparison, and 24-hour memory/handle/thread/socket leak soak.
 
    - Done: implement authenticated existing-row `RuleAction.Subject` setter parity (`fd6d58f3a`). Legacy `InterfaceRuleAction::put_Subject` (`hmailserver/source/Server/COM/InterfaceRuleAction.cpp:207-237`) returns `E_ACCESSDENIED` for detached objects, otherwise stages the raw BSTR through `SetSubject(newVal)` and returns `S_OK` without administrator checks or normalization; existing `InterfaceRuleAction::Save` and `PersistentRuleAction::SaveObject` persist it through `actionsubject`. The authorized .NET item facade stages the exact string only through the owning collection's Save path and reuses the existing parameterized full-row update. Direct activation, installed COM identity, Add/new-item persistence, `RuleID` and remaining setters, ordering, rule execution, SMTP/delivery behavior, and broader mutation remain unchanged. Focused COM/store tests pass 28/28; full Net10 reached 1150/1152 with only unrelated ClamWin/CustomScanner cleanup failures (`UnauthorizedAccessException` removing generated `.eml` files); no live SQL Server integration was run.
 

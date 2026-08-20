@@ -47,6 +47,11 @@ then install only the already-verified official .NET/SQL packages and the
 isolated hMailServer test stack before provisioning disposable SQL/Data/message
 state and running the guarded migration/rollback drill.
 
+The backlog was audited after the green suite: the IMAP master-user runtime is
+implemented and the disposable Net10 acceptance matrix is recorded. Remaining
+gates are native AD evidence, a registry-isolated legacy C++ comparison, live
+100k-mailbox/SMTP/delivery thresholds, and the 24-hour leak soak.
+
 ## Current Authoritative Continuation (2026-08-14, installer rollback compensation)
 
 Code/test commits `3fe4cb513` and `ff100f32a` add
