@@ -1,25 +1,25 @@
 
-## Current next slice (2026-08-21, AntiSpam CheckHostInHelo mutation parity)
+## Current next slice (2026-08-21, AntiSpam AddHeader mutation parity)
 
-Code/test commit `30587df50` closes the legacy Administrator
-`AntiSpam.BypassGreylistingOnSPFSuccess` and `BypassGreylistingOnMailFromMX`
-mutation gap after the SPF, MX checks, SpamAssassin, scanner endpoint,
-maximum-size, and DKIM verification pairs. The existing authenticated Settings
-boundary now persists only `BypassGreylistingOnSPFSuccess` and
-`BypassGreylistingOnMailFromMX`, refreshes retained object snapshots, and fails
-closed on missing rows or reauthentication. Focused COM/SQL coverage is `3
-passed, 0 skipped, 0 failed`; the disposable SQL integration setter/readback
-and missing-row checks passed; full disposable LocalDB/Data is `2474 passed,
-10 skipped, 0 failed` (`2484` total).
+Code/test commit `2e5f0949b` closes the legacy Administrator
+`AntiSpam.CheckHostInHelo` and `CheckHostInHeloScore` mutation gap after the
+SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
+verification, and greylisting bypass pairs. The existing authenticated
+Settings boundary now persists only `ascheckhostinhelo` and
+`ascheckhostinheloscore`, refreshes retained object snapshots, and fails closed
+on missing rows or reauthentication. Focused COM/SQL coverage is `3 passed, 0
+skipped, 0 failed`; the disposable SQL integration setter/readback and
+missing-row checks passed; full disposable LocalDB/Data is `2477 passed, 10
+skipped, 0 failed` (`2487` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_BypassGreylistingOnSPFSuccess` and
-`put_BypassGreylistingOnMailFromMX`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:1138-1181`) and
-`AntiSpamConfiguration::SetBypassGreyListingOnSPFSuccess` and
-`SetBypassGreyListingOnMailFromMX`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:444-459`).
-The next bounded slice is the `CheckHostInHelo` and `CheckHostInHeloScore`
-mutation pair;
+Legacy anchors are `InterfaceAntiSpam::put_CheckHostInHelo` and
+`put_CheckHostInHeloScore`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:78-121`) and
+`AntiSpamConfiguration::SetCheckHostInHelo` and
+`SetCheckHostInHeloScore`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:51-66`).
+The next bounded slice is the `AddHeaderSpam` and `AddHeaderReason` mutation
+pair;
 preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
 or live reconfiguration in that slice. In parallel, the migration/installer

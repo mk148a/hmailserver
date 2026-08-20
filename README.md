@@ -1,33 +1,33 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam greylisting bypass mutation parity)
+## Current authoritative parity status (2026-08-21, AntiSpam CheckHostInHelo mutation parity)
 
-Code/test commit `30587df50` implements the legacy Administrator
-`AntiSpam.BypassGreylistingOnSPFSuccess` and `BypassGreylistingOnMailFromMX`
-setters through the existing authenticated Settings mutation boundary, after
-the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, and DKIM
-verification pairs. The SQL store updates only the legacy
-`BypassGreylistingOnSPFSuccess` and `BypassGreylistingOnMailFromMX` rows,
-reports contained missing-row failures, refreshes retained COM snapshots, and
-preserves direct activation/re-authentication denials. Focused COM/SQL
-coverage is `3 passed, 0 skipped, 0 failed`; the disposable SQL integration
-setter/readback and missing-row checks passed; full disposable Net10 is `2474
-passed, 10 skipped, 0 failed` (`2484` total).
+Code/test commit `2e5f0949b` implements the legacy Administrator
+`AntiSpam.CheckHostInHelo` and `CheckHostInHeloScore` setters through the
+existing authenticated Settings mutation boundary, after the SPF, MX checks,
+SpamAssassin, scanner endpoint, maximum-size, DKIM verification, and
+greylisting bypass pairs. The SQL store updates only the legacy
+`ascheckhostinhelo` and `ascheckhostinheloscore` rows, reports contained
+missing-row failures, refreshes retained COM snapshots, and preserves direct
+activation/re-authentication denials. Focused COM/SQL coverage is `3 passed,
+0 skipped, 0 failed`; the disposable SQL integration setter/readback and
+missing-row checks passed; full disposable Net10 is `2477 passed, 10 skipped,
+0 failed` (`2487` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_BypassGreylistingOnSPFSuccess` and
-`put_BypassGreylistingOnMailFromMX`
-(`source/Server/COM/InterfaceAntiSpam.cpp:1138-1181`) and
-`AntiSpamConfiguration::SetBypassGreyListingOnSPFSuccess` and
-`SetBypassGreyListingOnMailFromMX`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:444-459`). This
-slice does not add live greylisting reconfiguration or broader SPF/MX runtime
+Legacy anchors are `InterfaceAntiSpam::put_CheckHostInHelo` and
+`put_CheckHostInHeloScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:78-121`) and
+`AntiSpamConfiguration::SetCheckHostInHelo` and
+`SetCheckHostInHeloScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:51-66`). This
+slice does not add live anti-spam reconfiguration or broader DNS/runtime
 changes.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded parity slice is the `CheckHostInHelo` and
-`CheckHostInHeloScore` mutation pair.
+open. The next bounded parity slice is the `AddHeaderSpam` and
+`AddHeaderReason` mutation pair.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 
