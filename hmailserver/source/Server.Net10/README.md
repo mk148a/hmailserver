@@ -1,19 +1,16 @@
-## Current authoritative parity status (2026-08-20, guarded ACL benchmark)
+## Current authoritative parity status (2026-08-20, reversible ACL read-only state)
 
-Code/test commit `73af63531` adds an opt-in `acl-revalidation` benchmark and
-artifact writer. Its offline mode records `not-run` with null latency values;
-its SQL mode is fenced to a marked user-owned LocalDB disposable fixture and
-measures the real `SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync`
-path across direct, group, inherited, and denied ACL cases. No live SQL run was
-available on this host, so this is benchmark infrastructure, not performance
-acceptance evidence.
+Code/test commit `778cadfcd` keeps a separate `RequestedReadOnly` selection
+marker. SQL-backed ACL revalidation now recomputes SELECT writeability from the
+current ACL, while EXAMINE stays read-only after a later grant. Focused
+IMAP/SQL coverage is `52 passed`; full Debug is `2346 passed, 58 skipped, 0
+failed`.
 
 Parity inspection of legacy `IMAPConnection::CheckPermission`,
 `CheckFolderPermissions`, and the STORE/APPEND/COPY/EXPUNGE handlers confirms
-that the remaining production gaps are fine-grained ACL rights and restoration
-of write access after an ACL grant when a selected mailbox was previously
-downgraded. Focused benchmark tests are `2 passed`; full Debug is `2343
-passed, 58 skipped, 0 failed`. Release remains **RED**.
+that the remaining production gap is fine-grained handler rights. The guarded
+ACL benchmark from `73af63531` is infrastructure only and has no live SQL
+result on this host. Release remains **RED**.
 
 ## Current authoritative COM reinitialize status (2026-08-14)
 

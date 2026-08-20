@@ -1,29 +1,27 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, guarded ACL benchmark)
+## Current authoritative parity status (2026-08-20, reversible ACL read-only state)
 
-Code/test commit `73af63531` adds `build/benchmark-net10-acl-revalidation.ps1`
-and an `acl-revalidation` benchmark mode. Offline mode emits an explicit
-`not-run` JSON/CSV/Markdown report with null latency values. SQL mode calls the
-real `SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync` against only a
-marked, user-owned LocalDB disposable fixture, creates a GUID-scoped database,
-seeds direct/group/inherited/denied ACL cases, and drops it in cleanup. It
-rejects MSSQLSERVER, AttachDbFilename, unmarked Data roots, and arbitrary
-servers.
+Code/test commit `778cadfcd` separates client-requested read-only selection
+from ACL-derived writeability. SELECT now recomputes the effective read-only
+state after each ACL revalidation, so a later ACL grant restores writes without
+reSELECT; EXAMINE remains permanently read-only for that selection. The
+selection marker defaults false for compatibility and does not change COM,
+SQL schema, SMTP, or installed identity behavior.
 
 Legacy behavior remains anchored by `IMAPConnection::CheckPermission` and
 `CheckFolderPermissions` (`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`)
 and the command handlers that request `WriteSeen`, `WriteDeleted`, `Insert`,
-and `Expunge`. The benchmark is tooling only; it does not fix the remaining
-fine-grained-rights or sticky read-only parity gaps. Focused benchmark tests are
-`2 passed`; full Debug is `2343 passed, 58 skipped, 0 failed`. No SQL backend
-run was possible because no disposable LocalDB/Data marker exists. No C++/.NET
-speed-up or winner is valid; release remains **RED**.
+and `Expunge`. Focused IMAP/SQL coverage is `52 passed`; full Debug is `2346
+passed, 58 skipped, 0 failed`. The guarded benchmark from `73af63531` remains
+available, but no SQL backend run was possible because no disposable
+LocalDB/Data marker exists. No C++/.NET speed-up or winner is valid; release
+remains **RED**.
 
-Next slice: restore dynamic selected-mailbox write state without weakening
-EXAMINE/read-only semantics, then add handler-level tests for legacy-specific
-ACL rights. The guarded SQL benchmark remains ready for the approved fixture.
+Next slice: enforce legacy-specific `WriteSeen`, `WriteDeleted`, `Insert`, and
+`Expunge` rights at their individual handler boundaries. The guarded SQL
+benchmark remains ready for the approved fixture.
 
 ## Current authoritative parity status (2026-08-20, ACL revalidation query bound)
 

@@ -1,25 +1,23 @@
 
-## Current next slice (2026-08-20, guarded ACL benchmark and rights parity)
+## Current next slice (2026-08-20, fine-grained IMAP ACL rights)
 
-Code/test commit `73af63531` adds a commandable `acl-revalidation` benchmark.
-Offline mode deliberately emits `not-run` with null latency values. SQL mode is
-strictly opt-in for a marked current-user LocalDB disposable Data root and
-measures the real `SqlServerImapMailboxStore.RevalidateSelectedMailboxAsync`
-method using direct, group, inherited, and denied ACL cases. No SQL run was
-performed because no qualifying LocalDB/Data fixture exists; paired C++/.NET
-performance remains unproven.
+Code/test commit `778cadfcd` separates client-requested EXAMINE read-only state
+from ACL-derived SELECT writeability. Legacy-compatible SELECT behavior now
+allows a selected session to become writable again after a later ACL grant;
+EXAMINE remains read-only. Focused IMAP/SQL coverage is `52 passed`; full Debug
+is `2346 passed, 58 skipped, 0 failed`.
 
 Legacy anchors are `IMAPConnection::CheckPermission` and
 `CheckFolderPermissions` (`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`),
 plus `IMAPStore::SetFlags`, `IMAPCommandAPPEND::ExecuteCommand`,
 `IMAPCopy::CopyMessage`, and `IMAPCommandEXPUNGE::ExecuteCommand`. The parity
-review identifies two open production gaps: the selected mailbox can retain a
-Net10 ACL-induced read-only state after a later grant, and aggregate
-`CanWrite` does not yet enforce every legacy right at its handler boundary.
+review leaves one open production gap: aggregate `CanWrite` does not yet
+enforce every legacy right at its handler boundary.
 
-Next slice: separate client-requested read-only state from ACL-induced
-downgrade, prove grant/revoke restoration with focused session tests, and keep
-the benchmark as the later SQL-cost acceptance tool. Release remains **RED**.
+Next slice: enforce `WriteSeen`, `WriteDeleted`, `Insert`, and `Expunge` at the
+individual STORE/APPEND/COPY/EXPUNGE boundaries. The guarded SQL benchmark from
+`73af63531` remains a later acceptance tool; no qualifying LocalDB/Data fixture
+exists. Release remains **RED**.
 
 ## Historical completed slice (2026-08-20, ACL revalidation query bound and disposable gates)
 
