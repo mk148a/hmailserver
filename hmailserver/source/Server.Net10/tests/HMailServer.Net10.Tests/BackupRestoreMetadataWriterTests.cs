@@ -130,6 +130,88 @@ public sealed class BackupRestoreMetadataWriterTests
     }
 
     [TestMethod]
+    public async Task RestoreGroupsAsync_ResolvesMembersAndReturnsRestoredIds()
+    {
+        var groups = await BackupRestoreMetadataWriter.RestoreGroupsAsync(
+            new[]
+            {
+                new RestoreGroupEntry(
+                    new GroupAdministrationSnapshot(0, "Editors"),
+                    new[] { "user@example.test", "second@example.test" })
+            },
+            new[]
+            {
+                new AccountAdministrationSnapshot(42, 7, "user@example.test", true, 0),
+                new AccountAdministrationSnapshot(43, 7, "second@example.test", true, 0)
+            },
+            new RecordingGroupStore(),
+            new RecordingGroupMemberStore(),
+            () => default,
+            CancellationToken.None);
+
+        Assert.AreEqual(1, groups.Count);
+        Assert.AreEqual(100, groups[0].Id);
+    }
+
+    [TestMethod]
+    public async Task RestoreGroupsAsync_ResolvesAllMembersBeforeAnyInsert()
+    {
+        var groupStore = new RecordingGroupStore();
+        var memberStore = new RecordingGroupMemberStore();
+
+        await Assert.ThrowsExactlyAsync<InvalidDataException>(() =>
+            BackupRestoreMetadataWriter.RestoreGroupsAsync(
+                new[]
+                {
+                    new RestoreGroupEntry(
+                        new GroupAdministrationSnapshot(0, "Editors"),
+                        new[] { "missing@example.test" })
+                },
+                new[] { new AccountAdministrationSnapshot(42, 7, "user@example.test", true, 0) },
+                groupStore,
+                memberStore,
+                () => default,
+                CancellationToken.None).AsTask());
+
+        Assert.IsEmpty(groupStore.Inserted);
+        Assert.IsEmpty(memberStore.Inserted);
+    }
+
+    [TestMethod]
+    public async Task RestoreGroupsAsync_InvokesRollbackAfterMemberInsertFailure()
+    {
+        var groupStore = new RecordingGroupStore();
+        var memberStore = new RecordingGroupMemberStore(failOnInsert: 2);
+        var rollbackCalls = 0;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            BackupRestoreMetadataWriter.RestoreGroupsAsync(
+                new[]
+                {
+                    new RestoreGroupEntry(
+                        new GroupAdministrationSnapshot(0, "Editors"),
+                        new[] { "user@example.test", "second@example.test" })
+                },
+                new[]
+                {
+                    new AccountAdministrationSnapshot(42, 7, "user@example.test", true, 0),
+                    new AccountAdministrationSnapshot(43, 7, "second@example.test", true, 0)
+                },
+                groupStore,
+                memberStore,
+                () =>
+                {
+                    rollbackCalls++;
+                    return default;
+                },
+                CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, groupStore.Inserted.Count);
+        Assert.AreEqual(1, memberStore.Inserted.Count);
+        Assert.AreEqual(1, rollbackCalls);
+    }
+
+    [TestMethod]
     public async Task RestorePublicFolderPermissionsAsync_ResolvesBeforeAnyInsertOnInvalidHolder()
     {
         var store = new RecordingFolderPermissionRestoreStore();
@@ -279,6 +361,52 @@ public sealed class BackupRestoreMetadataWriterTests
             ImapFolderAdministrationSnapshot folder,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(folder with { Id = 101 });
+    }
+
+    private sealed class RecordingGroupStore : IGroupAdministrationStore
+    {
+        public List<GroupAdministrationSnapshot> Inserted { get; } = new();
+
+        public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(Inserted);
+
+        public ValueTask<int> InsertGroupAsync(GroupAdministrationSnapshot group, CancellationToken cancellationToken)
+        {
+            Inserted.Add(group with { Id = 100 + Inserted.Count });
+            return ValueTask.FromResult(Inserted[^1].Id);
+        }
+    }
+
+    private sealed class RecordingGroupMemberStore : IGroupMemberAdministrationStore
+    {
+        private readonly int? _failOnInsert;
+
+        public RecordingGroupMemberStore(int? failOnInsert = null)
+        {
+            _failOnInsert = failOnInsert;
+        }
+
+        public List<GroupMemberAdministrationSnapshot> Inserted { get; } = new();
+
+        public ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
+            int groupId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupMemberAdministrationSnapshot>>(
+                Inserted.Where(member => member.GroupId == groupId).ToArray());
+
+        public ValueTask<int> InsertGroupMemberAsync(
+            GroupMemberAdministrationSnapshot member,
+            CancellationToken cancellationToken)
+        {
+            if (_failOnInsert == Inserted.Count + 1)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Simulated group-member insert failure."));
+            }
+
+            Inserted.Add(member with { Id = 200 + Inserted.Count });
+            return ValueTask.FromResult(Inserted[^1].Id);
+        }
     }
 
     private sealed class RecordingFolderPermissionRestoreStore

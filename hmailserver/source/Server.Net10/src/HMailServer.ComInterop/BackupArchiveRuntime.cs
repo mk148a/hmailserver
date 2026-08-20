@@ -1794,6 +1794,7 @@ public sealed class BackupXmlPayloadRuntime
                 messageRestoreStore: _messageStore as IMessageAdministrationRestoreStore,
                  messageStore: _messageStore,
                  groupStore: _groupStore,
+                 groupMemberStore: _groupMemberStore,
                  reinitialize: restoreReinitializer,
                 requireReinitialize: true));
     }

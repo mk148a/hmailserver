@@ -288,6 +288,81 @@ public static class BackupRestoreMetadataWriter
         return new BackupRestoreMetadataResult(RestoredDomains: 0, RestoredAccounts: 0, RestoredAliases: 0, RestoredDistributionLists: 0, restored);
     }
 
+    public static async ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> RestoreGroupsAsync(
+        IReadOnlyList<RestoreGroupEntry> groups,
+        IReadOnlyList<AccountAdministrationSnapshot> accounts,
+        IGroupAdministrationStore groupStore,
+        IGroupMemberAdministrationStore memberStore,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(groups);
+        ArgumentNullException.ThrowIfNull(accounts);
+        ArgumentNullException.ThrowIfNull(groupStore);
+        ArgumentNullException.ThrowIfNull(memberStore);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var resolved = groups
+            .Select(entry =>
+            {
+                if (!names.Add(entry.Group.Name))
+                {
+                    throw new InvalidDataException($"The restore contains duplicate group '{entry.Group.Name}'.");
+                }
+
+                var members = entry.MemberNames
+                    .Select(address =>
+                    {
+                        var matches = accounts
+                            .Where(account => string.Equals(account.Address, address, StringComparison.OrdinalIgnoreCase))
+                            .ToArray();
+                        if (matches.Length != 1 || matches[0].Id <= 0)
+                        {
+                            throw new InvalidDataException(
+                                $"The group member account '{address}' could not be resolved uniquely.");
+                        }
+
+                        return matches[0].Id;
+                    })
+                    .ToArray();
+                return (entry.Group, members);
+            })
+            .ToArray();
+
+        var restored = new List<GroupAdministrationSnapshot>(resolved.Length);
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var item in resolved)
+                {
+                    var groupId = await groupStore.InsertGroupAsync(item.Group, ct).ConfigureAwait(false);
+                    if (groupId <= 0)
+                    {
+                        throw new InvalidOperationException("The group restore did not return a persisted ID.");
+                    }
+
+                    var restoredGroup = item.Group with { Id = groupId };
+                    restored.Add(restoredGroup);
+                    foreach (var accountId in item.members)
+                    {
+                        var memberId = await memberStore.InsertGroupMemberAsync(
+                            new GroupMemberAdministrationSnapshot(0, groupId, accountId),
+                            ct).ConfigureAwait(false);
+                        if (memberId <= 0)
+                        {
+                            throw new InvalidOperationException("The group-member restore did not return a persisted ID.");
+                        }
+                    }
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken).ConfigureAwait(false);
+
+        return restored;
+    }
+
     public static async ValueTask<int> RestorePublicFolderPermissionsAsync(
         IReadOnlyList<RestoreFolderPermissionEntry> permissions,
         int folderId,

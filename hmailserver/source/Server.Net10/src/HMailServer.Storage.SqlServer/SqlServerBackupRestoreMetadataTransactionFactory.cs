@@ -53,6 +53,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         var context = new SqlServerBackupRestoreTransactionContext(connection, transaction);
         _domainStore = new SqlServerDomainAdministrationStore(context);
         _publicFolderStore = new SqlServerImapFolderAdministrationStore(context);
+        GroupStore = new SqlServerGroupAdministrationStore(context);
+        GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         DomainStore = _domainStore;
         AccountStore = new SqlServerAccountAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
@@ -93,6 +95,10 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore { get; }
 
     public IMessageAdministrationRestoreStore MessageRestoreStore { get; }
+
+    public IGroupAdministrationStore GroupStore { get; }
+
+    public IGroupMemberAdministrationStore GroupMemberStore { get; }
 
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);

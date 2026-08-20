@@ -38,7 +38,8 @@ WHERE memberid = @memberId
   AND membergroupid = @groupId;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerGroupMemberAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -46,12 +47,22 @@ WHERE memberid = @memberId
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerGroupMemberAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
         int groupId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetGroupMembersSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetGroupMembersSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@GroupId", SqlDbType.BigInt).Value = groupId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
@@ -76,8 +87,12 @@ WHERE memberid = @memberId
     {
         ArgumentNullException.ThrowIfNull(member);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertGroupMemberSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertGroupMemberSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@groupId", SqlDbType.Int).Value = member.GroupId;
         command.Parameters.Add("@accountId", SqlDbType.Int).Value = member.AccountId;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
@@ -91,8 +106,12 @@ WHERE memberid = @memberId
     {
         ArgumentNullException.ThrowIfNull(member);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(UpdateGroupMemberSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            UpdateGroupMemberSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@groupId", SqlDbType.Int).Value = member.GroupId;
         command.Parameters.Add("@accountId", SqlDbType.Int).Value = member.AccountId;
         command.Parameters.Add("@memberId", SqlDbType.Int).Value = member.Id;
@@ -105,8 +124,12 @@ WHERE memberid = @memberId
         int memberId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(DeleteGroupMemberSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteGroupMemberSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@memberId", SqlDbType.Int).Value = memberId;
         command.Parameters.Add("@groupId", SqlDbType.Int).Value = groupId;
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;

@@ -39,7 +39,8 @@ WHERE aclpermissiontype = 1
   AND aclpermissiongroupid = @id;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerGroupAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -47,11 +48,21 @@ WHERE aclpermissiontype = 1
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerGroupAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetGroupsSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetGroupsSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);
@@ -74,8 +85,12 @@ WHERE aclpermissiontype = 1
     {
         ArgumentNullException.ThrowIfNull(group);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertGroupSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertGroupSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = group.Name;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
@@ -87,8 +102,12 @@ WHERE aclpermissiontype = 1
     {
         ArgumentNullException.ThrowIfNull(group);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(UpdateGroupSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            UpdateGroupSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = group.Name;
         command.Parameters.Add("@id", SqlDbType.Int).Value = group.Id;
         var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -99,7 +118,19 @@ WHERE aclpermissiontype = 1
         int groupId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        if (_transactionContext is not null)
+        {
+            await using var groupCommand = new SqlCommand(DeleteGroupSql, _transactionContext.Connection, _transactionContext.Transaction);
+            groupCommand.Parameters.Add("@id", SqlDbType.Int).Value = groupId;
+            var groupRows = await groupCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            await using var aclCommand = new SqlCommand(DeleteOwnedGroupAclSql, _transactionContext.Connection, _transactionContext.Transaction);
+            aclCommand.Parameters.Add("@id", SqlDbType.Int).Value = groupId;
+            var aclRows = await aclCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            return groupRows == 1 || aclRows > 0;
+        }
+
+        await using var connection = await _connectionFactory!.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         try

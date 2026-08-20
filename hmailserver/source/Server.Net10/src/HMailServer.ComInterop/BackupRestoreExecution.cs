@@ -46,6 +46,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
     private readonly IDistributionListAdministrationStore _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore _recipientStore;
     private readonly IGroupAdministrationStore? _groupStore;
+    private readonly IGroupMemberAdministrationStore? _groupMemberStore;
     private readonly IFetchAccountAdministrationStore? _fetchAccountStore;
     private readonly IRuleAdministrationStore? _ruleStore;
     private readonly IRuleCriteriaAdministrationStore? _ruleCriteriaStore;
@@ -86,7 +87,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IMessageAdministrationStore? messageStore = null,
         Func<CancellationToken, ValueTask>? reinitialize = null,
         bool requireReinitialize = false,
-        IGroupAdministrationStore? groupStore = null)
+        IGroupAdministrationStore? groupStore = null,
+        IGroupMemberAdministrationStore? groupMemberStore = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
@@ -105,6 +107,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         _distributionListStore = distributionListStore;
         _recipientStore = recipientStore;
         _groupStore = groupStore;
+        _groupMemberStore = groupMemberStore;
         _fetchAccountStore = fetchAccountStore;
         _ruleStore = ruleStore;
         _ruleCriteriaStore = ruleCriteriaStore;
@@ -297,6 +300,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
+        var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
         if (backup.RestoreSettings)
         {
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
@@ -314,7 +318,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             useSqlTransaction: true,
             authorizationLeaseFactory: backup.AcquireAuthorizationLeaseAsync,
             cancellationToken: cancellationToken,
-            settingsProperties: settingsProperties).ConfigureAwait(false);
+            settingsProperties: settingsProperties,
+            archiveGroups: archiveGroups).ConfigureAwait(false);
     }
 
     private async ValueTask ExecuteNonDbDataRestoreAsync(
@@ -402,6 +407,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
+        var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null;
         if (fullRestore)
         {
@@ -442,7 +448,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                      cancellationToken: ct,
                     settingsProperties: settingsProperties,
                     restorePublicFolders: fullRestore,
-                    publicFolders: publicFolders),
+                    publicFolders: publicFolders,
+                    archiveGroups: fullRestore ? archiveGroups : Array.Empty<RestoreGroupEntry>()),
                 commitOutcomeMayBeAmbiguous: fullRestore)
             .ConfigureAwait(false);
     }
@@ -455,7 +462,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         CancellationToken cancellationToken,
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null,
         bool restorePublicFolders = false,
-        IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null)
+        IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null,
+        IReadOnlyList<RestoreGroupEntry>? archiveGroups = null)
     {
         var existingDomains = await _domainStore
             .GetDomainsAsync(cancellationToken)
@@ -520,6 +528,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var ruleActionStore = metadataTransaction?.RuleActionStore ?? _ruleActionStore;
             var folderRestoreStore = metadataTransaction?.FolderRestoreStore ?? _folderRestoreStore;
             var messageRestoreStore = metadataTransaction?.MessageRestoreStore ?? _messageRestoreStore;
+            var groupStore = metadataTransaction?.GroupStore ?? _groupStore;
+            var groupMemberStore = metadataTransaction?.GroupMemberStore ?? _groupMemberStore;
             var settingsStore = metadataTransaction?.SettingsStore;
             if (settingsProperties is not null && settingsStore is null)
             {
@@ -550,6 +560,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             {
                 throw new InvalidOperationException(
                     "Rule restore requires rule, rule-criteria, and rule-action administration stores.");
+            }
+            if (archiveGroups is { Count: > 0 } && (groupStore is null || groupMemberStore is null))
+            {
+                throw new InvalidOperationException(
+                    "Group restore requires group and group-member administration stores.");
             }
             Func<CancellationToken, ValueTask> commitAsync = metadataTransaction is null
                 ? static _ => default
@@ -727,6 +742,16 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                         }
                     }
 
+                    var restoredGroups = archiveGroups is { Count: > 0 }
+                        ? await BackupRestoreMetadataWriter.RestoreGroupsAsync(
+                            archiveGroups,
+                            restoredAccounts,
+                            groupStore!,
+                            groupMemberStore!,
+                            static () => default,
+                            ct).ConfigureAwait(false)
+                        : Array.Empty<GroupAdministrationSnapshot>();
+
                     if (restorePublicFolders && publicFolders is { Count: > 0 })
                     {
                         var permissionStore = metadataTransaction?.FolderPermissionRestoreStore;
@@ -738,9 +763,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                                 "Public-folder restore requires transaction-scoped folder, message, and permission stores.");
                         }
 
-                        var groups = _groupStore is null
-                            ? Array.Empty<GroupAdministrationSnapshot>()
-                            : await _groupStore.GetGroupsAsync(ct).ConfigureAwait(false);
+                        var groups = restoredGroups.Count > 0
+                            ? restoredGroups
+                            : _groupStore is null
+                                ? Array.Empty<GroupAdministrationSnapshot>()
+                                : await _groupStore.GetGroupsAsync(ct).ConfigureAwait(false);
                         await BackupRestoreMetadataWriter.RestorePublicFoldersAsync(
                             publicFolders,
                             restoredAccounts,
