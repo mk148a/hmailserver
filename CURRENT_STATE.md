@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T13:39:21Z` / `2026-08-20T16:39:21+03:00`
+- UTC/local timestamp: `2026-08-20T13:46:45Z` / `2026-08-20T16:46:45+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD snapshot: `9e495c847` (narrow IMAP ACL revalidation queries)
+- Current HEAD snapshot: `cf7cec470` (docs after narrow IMAP ACL revalidation queries)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
 - Latest focused-test result: IMAP/SQL ACL revalidation `52 passed, 0 failed`
 - Latest full Net10 result: Debug `2341 passed, 58 skipped, 0 failed`
