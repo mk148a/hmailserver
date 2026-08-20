@@ -1205,6 +1205,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IImapFolderAdministrationStore? _folderStore;
     private readonly IImapFolderAdministrationRestoreStore? _folderRestoreStore;
     private readonly IMessageAdministrationStore? _messageStore;
+    private readonly IMessageAdministrationBackupStore? _messageBackupStore;
     private readonly IAliasAdministrationStore _aliasStore;
     private readonly IDistributionListAdministrationStore? _distributionListStore;
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
@@ -1283,6 +1284,7 @@ public sealed class BackupXmlPayloadRuntime
         _folderStore = folderStore;
         _folderRestoreStore = folderRestoreStore;
         _messageStore = messageStore;
+        _messageBackupStore = messageStore as IMessageAdministrationBackupStore;
         _aliasStore = aliasStore;
         _distributionListStore = distributionListStore;
         _distributionListRecipientStore = distributionListRecipientStore;
@@ -1460,8 +1462,10 @@ public sealed class BackupXmlPayloadRuntime
                                 {
                                     if (!folderMessagesByFolderId.ContainsKey(folder.Id))
                                     {
-                                        folderMessagesByFolderId[folder.Id] = await _messageStore!
-                                            .GetFolderMessagesAsync(account.Id, folder.Id, cancellationToken)
+                                        folderMessagesByFolderId[folder.Id] = await GetFolderMessagesForBackupAsync(
+                                                account.Id,
+                                                folder.Id,
+                                                cancellationToken)
                                             .ConfigureAwait(false);
                                     }
                                 }
@@ -1601,7 +1605,7 @@ public sealed class BackupXmlPayloadRuntime
     {
         var messages = _messageStore is null
             ? Array.Empty<MessageAdministrationSnapshot>()
-            : await _messageStore.GetFolderMessagesAsync(0, folder.Id, cancellationToken).ConfigureAwait(false);
+            : await GetFolderMessagesForBackupAsync(0, folder.Id, cancellationToken).ConfigureAwait(false);
         var permissions = await _folderStore!
             .GetFolderPermissionsAsync(folder.Id, cancellationToken)
             .ConfigureAwait(false);
@@ -1643,6 +1647,19 @@ public sealed class BackupXmlPayloadRuntime
         }
 
         return new BackupPublicFolderEntry(folder, children, messages, publicPermissions);
+    }
+
+    private ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesForBackupAsync(
+        int accountId,
+        int folderId,
+        CancellationToken cancellationToken)
+    {
+        if (_messageBackupStore is not null)
+        {
+            return _messageBackupStore.GetFolderMessagesForBackupAsync(accountId, folderId, cancellationToken);
+        }
+
+        return _messageStore!.GetFolderMessagesAsync(accountId, folderId, cancellationToken);
     }
 
     private async ValueTask<string?> ResolveAccountHolderAsync(

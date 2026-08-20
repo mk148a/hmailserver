@@ -277,11 +277,6 @@ public static class BackupArchiveXmlSnapshotParser
                 Uid: LongAttr(message, "UID")))
             .ToArray()
             ?? Array.Empty<MessageAdministrationSnapshot>();
-        if (messages.Any(static message => message.State != 2))
-        {
-            throw new InvalidDataException("Only delivered folder messages are supported by this restore slice.");
-        }
-
         return new RestoreFolderEntry(folder, children, messages);
     }
 
@@ -322,11 +317,6 @@ public static class BackupArchiveXmlSnapshotParser
                 Uid: LongAttr(message, "UID")))
             .ToArray()
             ?? Array.Empty<MessageAdministrationSnapshot>();
-        if (messages.Any(static message => message.State != 2))
-        {
-            throw new InvalidDataException("Only delivered public-folder messages are supported by this restore slice.");
-        }
-
         return messages;
     }
 

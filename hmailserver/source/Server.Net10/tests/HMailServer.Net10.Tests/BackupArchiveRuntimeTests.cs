@@ -1651,7 +1651,7 @@ public sealed class BackupArchiveRuntimeTests
         Assert.AreEqual("user@example.test", payload.PublicFolders[0].Permissions[0].Holder);
         Assert.AreEqual("Editors", payload.PublicFolders[0].Children[0].Permissions[0].Holder);
         CollectionAssert.AreEqual(new[] { 0 }, folderStore.RequestedAccountIds);
-        CollectionAssert.AreEqual(new[] { 501, 502 }, messageStore.RequestedFolderIds);
+        CollectionAssert.AreEqual(new[] { 501, 502 }, messageStore.RequestedBackupFolderIds);
     }
 
     [TestMethod]
@@ -1816,7 +1816,7 @@ public sealed class BackupArchiveRuntimeTests
         CollectionAssert.AreEquivalent(new[] { 1, 2 }, payload.Folders!.Keys.ToArray());
         Assert.AreEqual(2, payload.Folders[1].Count);
         Assert.AreEqual(101, payload.Folders[1][1].ParentId);
-        CollectionAssert.AreEqual(new[] { 101, 103, 102 }, messageStore.RequestedFolderIds.ToArray());
+        CollectionAssert.AreEqual(new[] { 101, 103, 102 }, messageStore.RequestedBackupFolderIds.ToArray());
         Assert.AreEqual(1, payload.FolderMessages![101].Count);
 
         var noMessagesFolderStore = new RecordingImapFolderAdministrationStore(
@@ -1848,7 +1848,7 @@ public sealed class BackupArchiveRuntimeTests
             CancellationToken.None);
 
         CollectionAssert.AreEqual(Array.Empty<int>(), noMessagesFolderStore.RequestedAccountIds.ToArray());
-        CollectionAssert.AreEqual(Array.Empty<int>(), noMessagesMessageStore.RequestedFolderIds.ToArray());
+        CollectionAssert.AreEqual(Array.Empty<int>(), noMessagesMessageStore.RequestedBackupFolderIds.ToArray());
         Assert.IsNull(noMessagesPayload.Folders);
         Assert.IsNull(noMessagesPayload.FolderMessages);
     }
@@ -2758,9 +2758,9 @@ public sealed class BackupArchiveRuntimeTests
 
     private sealed class RecordingMessageAdministrationStore(
         IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>> messages)
-        : IMessageAdministrationStore
+        : IMessageAdministrationStore, IMessageAdministrationBackupStore
     {
-        public List<int> RequestedFolderIds { get; } = new();
+        public List<int> RequestedBackupFolderIds { get; } = new();
 
         public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetAccountMessagesAsync(
             int accountId,
@@ -2773,11 +2773,19 @@ public sealed class BackupArchiveRuntimeTests
             int folderId,
             CancellationToken cancellationToken)
         {
-            RequestedFolderIds.Add(folderId);
             return ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(
                 messages.TryGetValue(folderId, out var folderMessages)
                     ? folderMessages
                     : Array.Empty<MessageAdministrationSnapshot>());
+        }
+
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesForBackupAsync(
+            int accountId,
+            int folderId,
+            CancellationToken cancellationToken)
+        {
+            RequestedBackupFolderIds.Add(folderId);
+            return GetFolderMessagesAsync(accountId, folderId, cancellationToken);
         }
     }
 

@@ -327,6 +327,17 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseFolderMessages_PreservesLegacyNonDeliveredStateForDomainAndPublicFolders()
+    {
+        const string message = "<Messages><Message CreateTime=\"2026-07-01 12:32:00\" Filename=\"queued.eml\" FromAddress=\"sender@example.test\" State=\"1\" Size=\"42\" NoOfRetries=\"3\" Flags=\"1\" ID=\"77\" UID=\"8\" /></Messages>";
+        var domainXml = $"<Backup><Domains><Domain Name=\"d\"><Accounts><Account Name=\"a@d.example\"><Folders><Folder Name=\"INBOX\" Subscribed=\"1\" CreateTime=\"2026-07-01 12:30:00\" CurrentUID=\"8\">{message}</Folder></Folders></Account></Accounts></Domain></Domains></Backup>";
+        var publicXml = $"<Backup><PublicFolders><Folder Name=\"Shared\" Subscribed=\"1\" CreateTime=\"2026-07-01 12:30:00\" CurrentUID=\"8\">{message}</Folder></PublicFolders></Backup>";
+
+        Assert.AreEqual(1, BackupArchiveXmlSnapshotParser.ParseDomainEntries(domainXml).Single().Accounts.Single().Folders.Single().Messages.Single().State);
+        Assert.AreEqual(1, BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(publicXml).Single().Messages.Single().State);
+    }
+
+    [TestMethod]
     public void ParsePublicFolderEntries_PreservesLegacyAclHolderFieldsOrderAndDuplicates()
     {
         const string xml = """

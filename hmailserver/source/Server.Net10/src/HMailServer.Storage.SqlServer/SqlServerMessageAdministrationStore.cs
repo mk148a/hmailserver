@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerMessageAdministrationStore : IMessageAdministrationStore, IMessageAdministrationRestoreStore
+public sealed class SqlServerMessageAdministrationStore : IMessageAdministrationStore, IMessageAdministrationRestoreStore, IMessageAdministrationBackupStore
 {
     public const string GetAccountMessagesSql = """
 SELECT
@@ -42,6 +42,32 @@ FROM hm_messages
 WHERE messageaccountid = @AccountID
   AND messagefolderid = @FolderID
   AND messagetype = 2
+  AND EXISTS
+  (
+      SELECT 1
+      FROM hm_imapfolders
+      WHERE folderid = @FolderID
+        AND folderaccountid = @AccountID
+  )
+ORDER BY messageuid ASC, messageid ASC;
+""";
+
+    public const string GetFolderMessagesForBackupSql = """
+SELECT
+    messageid,
+    messageaccountid,
+    messagefolderid,
+    messagefilename,
+    messagetype,
+    messagefrom,
+    messagesize,
+    messagecurnooftries,
+    messageflags,
+    messagecreatetime,
+    messageuid
+FROM hm_messages
+WHERE messageaccountid = @AccountID
+  AND messagefolderid = @FolderID
   AND EXISTS
   (
       SELECT 1
@@ -272,6 +298,16 @@ WHERE EXISTS
         CancellationToken cancellationToken) =>
         GetMessagesAsync(
             GetFolderMessagesSql,
+            cancellationToken,
+            ("@AccountID", accountId),
+            ("@FolderID", folderId));
+
+    public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesForBackupAsync(
+        int accountId,
+        int folderId,
+        CancellationToken cancellationToken) =>
+        GetMessagesAsync(
+            GetFolderMessagesForBackupSql,
             cancellationToken,
             ("@AccountID", accountId),
             ("@FolderID", folderId));

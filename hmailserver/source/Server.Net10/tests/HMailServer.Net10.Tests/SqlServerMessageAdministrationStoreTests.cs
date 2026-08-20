@@ -38,6 +38,23 @@ public sealed class SqlServerMessageAdministrationStoreTests
     }
 
     [TestMethod]
+    public void GetFolderMessagesForBackupSql_ReadsAllMessageStatesForSelectedFolderInUidOrder()
+    {
+        var sql = SqlServerMessageAdministrationStore.GetFolderMessagesForBackupSql;
+
+        AssertMessageProjection(sql);
+        StringAssert.Contains(sql, "FROM hm_messages");
+        StringAssert.Contains(sql, "messageaccountid = @AccountID");
+        StringAssert.Contains(sql, "messagefolderid = @FolderID");
+        Assert.IsFalse(sql.Contains("messagetype = 2", StringComparison.OrdinalIgnoreCase));
+        StringAssert.Contains(sql, "FROM hm_imapfolders");
+        StringAssert.Contains(sql, "folderid = @FolderID");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        StringAssert.Contains(sql, "ORDER BY messageuid ASC, messageid ASC");
+        AssertNoOutOfScopeMessageAccess(sql);
+    }
+
+    [TestMethod]
     public void GetAccountAddressSql_ReadsOnlyAccountAddressForMessageContentPathResolution()
     {
         var sql = SqlServerMessageAdministrationContentSource.GetAccountAddressSql;
