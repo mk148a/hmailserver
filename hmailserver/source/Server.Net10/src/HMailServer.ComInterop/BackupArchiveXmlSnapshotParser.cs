@@ -29,6 +29,19 @@ public sealed record RestoreFolderEntry(
     IReadOnlyList<MessageAdministrationSnapshot> Messages);
 
 [ComVisible(false)]
+public sealed record RestoreFolderPermissionEntry(
+    int PermissionType,
+    int Rights,
+    string Holder);
+
+[ComVisible(false)]
+public sealed record RestorePublicFolderEntry(
+    ImapFolderAdministrationSnapshot Folder,
+    IReadOnlyList<RestorePublicFolderEntry> Children,
+    IReadOnlyList<MessageAdministrationSnapshot> Messages,
+    IReadOnlyList<RestoreFolderPermissionEntry> Permissions);
+
+[ComVisible(false)]
 public sealed record RestoreFetchAccountEntry(
     FetchAccountAdministrationDraft Account,
     string EncryptedPassword,
@@ -171,6 +184,16 @@ public static class BackupArchiveXmlSnapshotParser
             .ToArray();
     }
 
+    public static IReadOnlyList<RestorePublicFolderEntry> ParsePublicFolderEntries(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var folders = document.Root?.Element("PublicFolders")?.Elements("Folder")
+            ?? Enumerable.Empty<XElement>();
+
+        return folders.Select(ParsePublicFolder).ToArray();
+    }
+
     private static RestoreAccountEntry ParseAccount(XElement element, int domainId)
     {
         var snapshot = new AccountAdministrationSnapshot(
@@ -260,6 +283,109 @@ public static class BackupArchiveXmlSnapshotParser
         }
 
         return new RestoreFolderEntry(folder, children, messages);
+    }
+
+    private static RestorePublicFolderEntry ParsePublicFolder(XElement element)
+    {
+        var folder = new ImapFolderAdministrationSnapshot(
+            Id: 0,
+            AccountId: 0,
+            ParentId: -1,
+            Name: element.Attribute("Name")?.Value ?? string.Empty,
+            Subscribed: IntAttr(element, "Subscribed") != 0,
+            CurrentUid: IntAttr(element, "CurrentUID"),
+            CreationTime: element.Attribute("CreateTime")?.Value ?? string.Empty);
+        var children = element.Element("Folders")?.Elements("Folder")
+            .Select(ParsePublicFolder)
+            .ToArray()
+            ?? Array.Empty<RestorePublicFolderEntry>();
+        var messages = ParseFolderMessages(element);
+        var permissions = ParseFolderPermissions(element);
+
+        return new RestorePublicFolderEntry(folder, children, messages, permissions);
+    }
+
+    private static IReadOnlyList<MessageAdministrationSnapshot> ParseFolderMessages(XElement element)
+    {
+        var messages = element.Element("Messages")?.Elements("Message")
+            .Select(message => new MessageAdministrationSnapshot(
+                Id: 0,
+                AccountId: 0,
+                FolderId: 0,
+                FileName: message.Attribute("Filename")?.Value ?? string.Empty,
+                State: IntAttr(message, "State"),
+                FromAddress: message.Attribute("FromAddress")?.Value ?? string.Empty,
+                SizeBytes: LongAttr(message, "Size"),
+                CurrentNumberOfTries: IntAttr(message, "NoOfRetries"),
+                Flags: IntAttr(message, "Flags"),
+                InternalDate: DateTimeAttr(message, "CreateTime"),
+                Uid: LongAttr(message, "UID")))
+            .ToArray()
+            ?? Array.Empty<MessageAdministrationSnapshot>();
+        if (messages.Any(static message => message.State != 2))
+        {
+            throw new InvalidDataException("Only delivered public-folder messages are supported by this restore slice.");
+        }
+
+        return messages;
+    }
+
+    private static IReadOnlyList<RestoreFolderPermissionEntry> ParseFolderPermissions(XElement folder)
+    {
+        var containers = folder.Elements("ACLs").ToArray();
+        if (containers.Length > 1)
+        {
+            throw new InvalidDataException("A public folder may contain only one ACLs container.");
+        }
+
+        var container = containers.SingleOrDefault();
+        if (container is null)
+        {
+            return Array.Empty<RestoreFolderPermissionEntry>();
+        }
+
+        if (container.Elements().Any(static child => child.Name != "Permission"))
+        {
+            throw new InvalidDataException("The ACLs container contains an unexpected child.");
+        }
+
+        return container.Elements("Permission")
+            .Select(ParseFolderPermission)
+            .ToArray();
+    }
+
+    private static RestoreFolderPermissionEntry ParseFolderPermission(XElement element)
+    {
+        var type = StrictIntAttribute(element, "Type");
+        var rights = StrictIntAttribute(element, "Rights");
+        var holder = element.Attribute("Holder")?.Value;
+        if (string.IsNullOrWhiteSpace(holder))
+        {
+            throw new InvalidDataException("An ACL permission must contain a non-empty Holder attribute.");
+        }
+
+        if (type is < 0 or > 2)
+        {
+            throw new InvalidDataException("An ACL permission has an unsupported legacy Type.");
+        }
+
+        if (rights is < 0 or > 2047)
+        {
+            throw new InvalidDataException("An ACL permission has an out-of-range legacy Rights value.");
+        }
+
+        return new RestoreFolderPermissionEntry(type, rights, holder);
+    }
+
+    private static int StrictIntAttribute(XElement element, string name)
+    {
+        var value = element.Attribute(name)?.Value;
+        if (!int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            throw new InvalidDataException($"An ACL permission is missing or has an invalid {name} attribute.");
+        }
+
+        return parsed;
     }
 
     private static RestoreRuleEntry ParseRule(XElement element, int accountId)

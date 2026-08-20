@@ -327,6 +327,72 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParsePublicFolderEntries_PreservesLegacyAclHolderFieldsOrderAndDuplicates()
+    {
+        const string xml = """
+            <Backup>
+              <PublicFolders>
+                <Folder Name="Shared" Subscribed="0" CreateTime="2026-07-01 12:30:00" CurrentUID="4">
+                  <ACLs>
+                    <Permission Type="0" Rights="3" Holder="user@example.test" />
+                    <Permission Type="1" Rights="1024" Holder="Editors" />
+                    <Permission Type="2" Rights="2047" Holder="Anyone" />
+                    <Permission Type="0" Rights="3" Holder="user@example.test" />
+                  </ACLs>
+                </Folder>
+              </PublicFolders>
+            </Backup>
+            """;
+
+        var folder = BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(xml).Single();
+
+        Assert.AreEqual(0, folder.Folder.AccountId);
+        Assert.AreEqual("Shared", folder.Folder.Name);
+        Assert.AreEqual(4, folder.Permissions.Count);
+        Assert.AreEqual(0, folder.Permissions[0].PermissionType);
+        Assert.AreEqual(3, folder.Permissions[0].Rights);
+        Assert.AreEqual("user@example.test", folder.Permissions[0].Holder);
+        Assert.AreEqual(1, folder.Permissions[1].PermissionType);
+        Assert.AreEqual("Editors", folder.Permissions[1].Holder);
+        Assert.AreEqual(2, folder.Permissions[2].PermissionType);
+        Assert.AreEqual("Anyone", folder.Permissions[2].Holder);
+        Assert.AreEqual("user@example.test", folder.Permissions[3].Holder);
+    }
+
+    [TestMethod]
+    public void ParsePublicFolderEntries_RejectsMalformedLegacyAclFields()
+    {
+        const string prefix = "<Backup><PublicFolders><Folder Name=\"Shared\" Subscribed=\"0\" CreateTime=\"2026-07-01 12:30:00\" CurrentUID=\"4\"><ACLs><Permission ";
+        const string suffix = " /></ACLs></Folder></PublicFolders></Backup>";
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(
+                prefix + "Type=\"9\" Rights=\"1\" Holder=\"Anyone\"" + suffix));
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(
+                prefix + "Type=\"0\" Rights=\"2048\" Holder=\"user@example.test\"" + suffix));
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(
+                prefix + "Type=\"0\" Rights=\"1\" Holder=\"\"" + suffix));
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(
+                prefix + "Type=\"0\" Rights=\"not-a-number\" Holder=\"user@example.test\"" + suffix));
+    }
+
+    [TestMethod]
+    public void ParsePublicFolderEntries_RejectsUnexpectedAclChildrenAndDuplicateContainers()
+    {
+        const string baseFolder = "<Backup><PublicFolders><Folder Name=\"Shared\" Subscribed=\"0\" CreateTime=\"2026-07-01 12:30:00\" CurrentUID=\"4\">";
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(
+                baseFolder + "<ACLs><Wrong /></ACLs></Folder></PublicFolders></Backup>"));
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(
+                baseFolder + "<ACLs /><ACLs /></Folder></PublicFolders></Backup>"));
+    }
+
+    [TestMethod]
     public async Task RestoreFetchAccountsAsync_PreservesArchiveCiphertextAndRestoresUids()
     {
         var encryptedPassword = LegacyBlowfishPasswordCipher.Encrypt("fetch-secret");
