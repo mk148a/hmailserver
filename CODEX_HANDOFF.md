@@ -1,25 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AntiSpam CheckHostInHelo mutation parity)
+## Current Authoritative Continuation (2026-08-21, AntiSpam AddHeader mutation parity)
 
-Code/test commit `2e5f0949b` implements the authenticated Administrator
-`AntiSpam.CheckHostInHelo` and `CheckHostInHeloScore` SQL mutation slice after
-the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
-verification, and greylisting bypass pairs. Focused COM/SQL coverage is `3
-passed, 0 skipped, 0 failed`; the disposable SQL integration setter/readback
-and missing-row checks passed; the disposable LocalDB/Data full suite is `2477
-passed, 10 skipped, 0 failed` (`2487` total). Direct activation, failed
-reauthentication, missing-row failure, retained object snapshots, and existing
-COM identity boundaries remain covered.
+Code/test commit `30e40b393` implements the authenticated Administrator
+`AntiSpam.AddHeaderSpam` and `AddHeaderReason` SQL mutation slice after the
+SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
+verification, greylisting bypass, and CheckHostInHelo pairs. Focused COM/SQL
+coverage is `4 passed, 0 skipped, 0 failed`; the disposable SQL integration
+setter/readback and missing-row checks passed; the disposable LocalDB/Data full
+suite is `2480 passed, 10 skipped, 0 failed` (`2490` total). Direct activation,
+failed reauthentication, missing-row failure, retained object snapshots, and
+existing COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_CheckHostInHelo` and
-`put_CheckHostInHeloScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:78-121`) and
-`AntiSpamConfiguration::SetCheckHostInHelo` and
-`SetCheckHostInHeloScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:51-66`). The next
-unblocked parity slice is the `AddHeaderSpam` and `AddHeaderReason` mutation
-pair;
+Legacy references are `InterfaceAntiSpam::put_AddHeaderSpam` and
+`put_AddHeaderReason`
+(`source/Server/COM/InterfaceAntiSpam.cpp:393-448`),
+`AntiSpamConfiguration::SetAddHeaderSpam` and `SetAddHeaderReason`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:147-167`), and
+`Constants.h` keys `antispamaddheaderspam`/`antispamaddheaderreason`
+(`source/Server/Common/Application/Constants.h:82-83`). The next unblocked
+parity slice is the `PrependSubject` and `PrependSubjectText` mutation pair;
 the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
 disposable target. Live anti-spam reconfiguration is still unproven. Release

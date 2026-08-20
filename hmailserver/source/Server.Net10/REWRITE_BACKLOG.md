@@ -1,28 +1,28 @@
 
-## Current next slice (2026-08-21, AntiSpam AddHeader mutation parity)
+## Current next slice (2026-08-21, AntiSpam PrependSubject mutation parity)
 
-Code/test commit `2e5f0949b` closes the legacy Administrator
-`AntiSpam.CheckHostInHelo` and `CheckHostInHeloScore` mutation gap after the
-SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
-verification, and greylisting bypass pairs. The existing authenticated
-Settings boundary now persists only `ascheckhostinhelo` and
-`ascheckhostinheloscore`, refreshes retained object snapshots, and fails closed
-on missing rows or reauthentication. Focused COM/SQL coverage is `3 passed, 0
-skipped, 0 failed`; the disposable SQL integration setter/readback and
-missing-row checks passed; full disposable LocalDB/Data is `2477 passed, 10
-skipped, 0 failed` (`2487` total).
+Code/test commit `30e40b393` closes the legacy Administrator
+`AntiSpam.AddHeaderSpam` and `AddHeaderReason` mutation gap after the SPF, MX
+checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
+greylisting bypass, and CheckHostInHelo pairs. The existing authenticated
+Settings boundary now persists only `antispamaddheaderspam` and
+`antispamaddheaderreason`, refreshes retained object snapshots, and fails
+closed on missing rows or reauthentication. Focused COM/SQL coverage is `4
+passed, 0 skipped, 0 failed`; the disposable SQL integration setter/readback
+and missing-row checks passed; full disposable LocalDB/Data is `2480 passed,
+10 skipped, 0 failed` (`2490` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_CheckHostInHelo` and
-`put_CheckHostInHeloScore`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:78-121`) and
-`AntiSpamConfiguration::SetCheckHostInHelo` and
-`SetCheckHostInHeloScore`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:51-66`).
-The next bounded slice is the `AddHeaderSpam` and `AddHeaderReason` mutation
-pair;
+Legacy anchors are `InterfaceAntiSpam::put_AddHeaderSpam` and
+`put_AddHeaderReason`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:393-448`),
+`AntiSpamConfiguration::SetAddHeaderSpam` and `SetAddHeaderReason`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:147-167`),
+and `Constants.h` keys `antispamaddheaderspam`/`antispamaddheaderreason`
+(`hmailserver/source/Server/Common/Application/Constants.h:82-83`). The next
+bounded slice is the `PrependSubject` and `PrependSubjectText` mutation pair;
 preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
-or live reconfiguration in that slice. In parallel, the migration/installer
+or live SMTP reconfiguration in that slice. In parallel, the migration/installer
 drill remains environment-gated: `Get-VM` is access-denied and MSSQLSERVER is
 not approved as disposable. Do not touch production service, SQL/Data,
 registration, or DCOM. Release remains **RED**.
