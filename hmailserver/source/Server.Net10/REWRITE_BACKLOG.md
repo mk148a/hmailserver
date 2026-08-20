@@ -1,35 +1,31 @@
 
-## Current next slice (2026-08-20, populated public-folder SQL/Data round trip)
+## Current next slice (2026-08-20, non-delivered message round-trip evidence)
 
-Code/test commit `f190b6997` completes the populated full restore acceptance
-slice. The disposable SQL/Data test restores an account-zero public-folder
-graph, delivered message, and user ACL, then reads committed
-`hm_imapfolders`, `hm_messages`, and `hm_acl` rows. It also performs a
-backup-after-restore comparison of normalized metadata and DataBackup
-evidence. Focused `BackupRestoreRoundTripIntegrationTests` coverage is
-`22 passed, 0 skipped, 0 failed`; the disposable LocalDB/Data Debug suite is
-`2431 passed, 10 skipped, 0 failed` (`2441` total).
+Code/test commit `08be60cdc` adds a backup-only SQL projection for all
+`hm_messages` states in an account/folder and keeps the shared IMAP/COM read
+projection delivered-only. The parser preserves non-delivered `State` values
+for domain and public-folder messages. Focused backup parser/store/runtime
+coverage is `81 passed, 1 skipped, 0 failed`; the disposable LocalDB/Data Debug
+suite is `2433 passed, 10 skipped, 0 failed` (`2443` total).
 
-Legacy references are `BackupExecuter::StartRestore` and
-`Configuration::XMLLoad` in `hmailserver/source/Server/Common/Application`,
-`IMAPConfiguration::XMLLoad` in
-`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:238`,
-`Collection<T,P>::XMLLoad` in
-`hmailserver/source/Server/Common/BO/Collection.h:85`,
-`IMAPFolder::XMLLoadSubItems` in
-`hmailserver/source/Server/Common/BO/IMAPFolder.cpp:161`, and
-`ACLPermission::XMLLoad` in
-`hmailserver/source/Server/Common/BO/ACLPermission.cpp:230`.
-Net10 follows the legacy messages -> child folders -> ACL order without
-changing COM identity or SMTP behavior.
+Legacy references are `IMAPFolder::XMLStore` at
+`hmailserver/source/Server/Common/BO/IMAPFolder.cpp:124`,
+`Collection<T,P>::XMLStore` at
+`hmailserver/source/Server/Common/BO/Collection.h:61`,
+`Message::XMLStore` at
+`hmailserver/source/Server/Common/BO/Message.cpp:200`, and
+`Messages::Refresh` at
+`hmailserver/source/Server/Common/BO/Messages.cpp:144`. They establish that
+backup serializes the complete folder message collection and writes `State`,
+while the folder query is scoped by account/folder rather than `messagetype`.
+The existing restore order remains messages -> child folders -> ACL. COM
+identity, SMTP behavior, and shared IMAP/COM reads are unchanged.
 
-Remaining restore risks are target-preexisting group dependency and the
-backup-side `messagetype = 2` projection, while the legacy folder query did
-not explicitly filter that column. Next slice: resolve that projection
-decision against the exact legacy SQL behavior and add the smallest required
-parity test. Do not widen to COM mutation, SMTP behavior, or protocol changes.
-Migration/installer, COM/DCOM, SEC-18, paired C++/.NET performance, and soak
-gates remain **RED**.
+Remaining restore risk is that a non-delivered message's file and state have
+not yet passed a disposable backup -> restore -> backup semantic-equivalence
+test. Next slice: add that isolated test, including rollback/failure cleanup.
+Target-preexisting group dependency, migration/installer, COM/DCOM, SEC-18,
+paired C++/.NET performance, and soak gates remain **RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)
 

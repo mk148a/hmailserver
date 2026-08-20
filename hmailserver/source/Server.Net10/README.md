@@ -1,22 +1,23 @@
-## Current authoritative parity status (2026-08-20, populated public-folder round trip)
+## Current authoritative parity status (2026-08-20, all-state folder-message backup projection)
 
-Current code/test commit `f190b6997` proves a populated full restore against a
-disposable SQL/Data pair. The test reads committed account-zero folder,
-message, and user-ACL rows, and verifies backup-after-restore normalized
-metadata plus DataBackup evidence. Focused round-trip coverage is `22 passed,
-0 skipped, 0 failed`; the disposable LocalDB/Data full suite is `2431 passed,
-10 skipped, 0 failed`.
+Code/test commit `08be60cdc` adds a backup-only message-store path that reads
+all `hm_messages` states for the selected account/folder. The shared
+IMAP/COM folder-read SQL remains delivered-only (`messagetype = 2`), and the
+XML parser preserves legacy `State` values for domain and public-folder
+messages. Focused coverage is `81 passed, 1 skipped, 0 failed`; the disposable
+LocalDB/Data full suite is `2433 passed, 10 skipped, 0 failed` (`2443` total).
 
-Legacy `BackupExecuter::StartRestore`, `Configuration::XMLLoad`,
-`IMAPConfiguration::XMLLoad`, `Collection<T,P>::XMLLoad`,
-`IMAPFolder::XMLLoadSubItems`, and `ACLPermission::XMLLoad` define the restore
-gate and messages -> child folders -> ACL order. COM identity, SMTP behavior,
-and installed registration were not changed. Group ACLs still require target
-groups, and the backup projection still filters `messagetype = 2` although the
-legacy folder query did not explicitly filter that column.
+Legacy `IMAPFolder::XMLStore` (`source/Server/Common/BO/IMAPFolder.cpp:124`),
+`Collection<T,P>::XMLStore` (`source/Server/Common/BO/Collection.h:61`),
+`Message::XMLStore` (`source/Server/Common/BO/Message.cpp:200`), and
+`Messages::Refresh` (`source/Server/Common/BO/Messages.cpp:144`) show that
+backup serializes the full folder collection and preserves `State`, while the
+folder query is scoped by account/folder rather than delivery state. No COM
+identity, SMTP behavior, shared IMAP/COM read behavior, or installed
+registration changed.
 
-Next slice: settle the delivered-only message projection against the exact
-legacy SQL and add the smallest parity regression. Paired C++/.NET performance,
+Next slice: add disposable backup -> restore -> backup evidence for a
+non-delivered message and its file/state metadata. Paired C++/.NET performance,
 out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain
 open; release is **RED**.
 

@@ -1,26 +1,29 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, populated public-folder round trip)
+## Current authoritative parity status (2026-08-20, all-state folder-message backup projection)
 
-Current code/test commit `f190b6997` proves a populated full restore against a
-disposable SQL/Data pair. The test reads committed account-zero folder,
-message, and user-ACL rows, then compares normalized metadata and DataBackup
-evidence after creating a backup from the restored state. Focused round-trip
-coverage is `22 passed, 0 skipped, 0 failed`; disposable LocalDB/Data is
-`2431 passed, 10 skipped, 0 failed`.
+Code/test commit `08be60cdc` adds a backup-only message-store path that reads
+all `hm_messages` states for the selected account/folder. The shared
+IMAP/COM folder-read SQL remains delivered-only (`messagetype = 2`). The XML
+parser now preserves legacy `State` values for domain and public-folder
+messages, and focused runtime/store/parser tests prove the backup path is
+selected. Focused coverage is `81 passed, 1 skipped, 0 failed`; disposable
+LocalDB/Data is `2433 passed, 10 skipped, 0 failed`.
 
-Legacy references are `BackupExecuter::StartRestore`,
-`Configuration::XMLLoad`, `IMAPConfiguration::XMLLoad`,
-`Collection<T,P>::XMLLoad`, `IMAPFolder::XMLLoadSubItems`, and
-`ACLPermission::XMLLoad`. Group ACLs still require target-preexisting groups.
-The backup projection filters delivered messages (`messagetype = 2`) while the
-legacy folder query did not explicitly filter that column. No COM identity,
-SMTP behavior, or installed registration changed.
+Legacy references are `IMAPFolder::XMLStore` (`source/Server/Common/BO/IMAPFolder.cpp:124`),
+`Collection<T,P>::XMLStore` (`source/Server/Common/BO/Collection.h:61`),
+`Message::XMLStore` (`source/Server/Common/BO/Message.cpp:200`), and
+`Messages::Refresh` (`source/Server/Common/BO/Messages.cpp:144`). They show
+that backup serializes the full folder collection and preserves `State`, while
+the folder query is scoped by account/folder rather than delivery state. No
+COM identity, SMTP behavior, shared IMAP/COM read behavior, or installed
+registration changed.
 
-Next slice is to settle that projection against the exact legacy SQL and add a
-focused parity regression. Release remains **RED** for restore/migration,
-COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates.
+Next slice is a disposable backup -> restore -> backup test containing a
+non-delivered message and its file/state metadata. Target-preexisting group
+dependency, restore/migration, COM/DCOM, SEC-18, paired C++/.NET performance,
+and soak gates remain open; release is **RED**.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 
