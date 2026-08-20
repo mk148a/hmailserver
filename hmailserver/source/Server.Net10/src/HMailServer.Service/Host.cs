@@ -463,7 +463,6 @@ public static class Host
             ?? builder.Configuration["HMAILSERVER_GREYLISTING_FAILURE_RESPONSE"]
             ?? "451 Please try again later."
     };
-    var greylistingEnabled = greylistingOptions.Enabled;
     var urlBlockListOptions = new SmtpUrlBlockListOptions
     {
         Enabled = ReadBool(
@@ -723,10 +722,7 @@ public static class Host
     {
         builder.Services.AddSingleton<ISmtpSenderDomainMxChecker, SmtpSenderDomainMxChecker>();
     }
-    if (greylistingEnabled)
-    {
-        builder.Services.AddSingleton<ISmtpGreylistingChecker, SqlServerSmtpGreylistingChecker>();
-    }
+    builder.Services.AddSingleton<ISmtpGreylistingChecker, SqlServerSmtpGreylistingChecker>();
     if (urlBlockListEnabled)
     {
         builder.Services.AddSingleton<ISmtpUrlBlockListChecker, SmtpUrlBlockListChecker>();

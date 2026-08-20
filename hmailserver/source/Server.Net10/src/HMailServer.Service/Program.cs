@@ -122,6 +122,8 @@ SettingsAdministrationRuntimeHost.Configure(
         DkimVerificationRuntime: host.Services.GetRequiredService<IDkimVerificationRuntime>(),
         GreyListingTripletAdministrationStore:
             host.Services.GetRequiredService<IGreyListingTripletAdministrationStore>(),
+        GreyListingEnabledPublisher: value =>
+            host.Services.GetRequiredService<SmtpGreylistingOptions>().Enabled = value,
         SpamAssassinConnectionTestRuntime:
             host.Services.GetRequiredService<ISpamAssassinConnectionTestRuntime>(),
         LogonFailureAdministrationStore:

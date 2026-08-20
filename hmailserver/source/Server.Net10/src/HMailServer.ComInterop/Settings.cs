@@ -2247,6 +2247,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                             _administrationSnapshot = _administrationSnapshot with { AntiSpamCheckPtrScore = value };
                         }
                     },
+                    publishGreyListingEnabled: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamGreyListingEnabled = value };
+                        }
+
+                        _runtimeConfiguration.GreyListingEnabledPublisher?.Invoke(value);
+                    },
                     publishAddHeaderSpam: value =>
                     {
                         if (_administrationSnapshot is not null)
@@ -2711,6 +2720,7 @@ public sealed record SettingsRuntimeConfiguration(
     ICustomScannerTestRuntime? CustomScannerTestRuntime = null,
     IDkimVerificationRuntime? DkimVerificationRuntime = null,
     IGreyListingTripletAdministrationStore? GreyListingTripletAdministrationStore = null,
+    Action<bool>? GreyListingEnabledPublisher = null,
     ISpamAssassinConnectionTestRuntime? SpamAssassinConnectionTestRuntime = null,
     ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null);
 
@@ -2742,11 +2752,14 @@ public static class SettingsAdministrationRuntimeHost
             .GetResult();
         PublishSmtpGreeting(snapshot.WelcomeSmtp);
 
+        var runtimeSettings = settings ?? new SettingsRuntimeConfiguration();
+        runtimeSettings.GreyListingEnabledPublisher?.Invoke(snapshot.AntiSpamGreyListingEnabled);
+
         Volatile.Write(
             ref _configuration,
             new RuntimeConfiguration(
                 store,
-                settings ?? new SettingsRuntimeConfiguration(),
+                runtimeSettings,
                 store as ISettingsAdministrationMutationStore));
     }
 

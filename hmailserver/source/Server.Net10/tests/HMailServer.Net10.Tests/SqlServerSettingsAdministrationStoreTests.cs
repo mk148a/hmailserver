@@ -466,6 +466,14 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamGreyListingEnabledSql_UsesTheLegacyFixedRow()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @GreyListingEnabled\nWHERE settingname = N'usegreylisting';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamGreyListingEnabledSql);
+    }
+
+    [TestMethod]
     public void UpdateAntiSpamAddHeaderSql_UsesTheLegacyFixedRows()
     {
         StringAssert.Contains(

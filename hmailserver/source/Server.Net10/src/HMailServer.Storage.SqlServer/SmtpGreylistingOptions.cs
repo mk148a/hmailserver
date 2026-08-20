@@ -2,7 +2,13 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed record SmtpGreylistingOptions
 {
-    public bool Enabled { get; init; }
+    private int _enabled;
+
+    public bool Enabled
+    {
+        get => Volatile.Read(ref _enabled) != 0;
+        set => Volatile.Write(ref _enabled, value ? 1 : 0);
+    }
 
     public bool SkipAuthenticated { get; init; } = true;
 

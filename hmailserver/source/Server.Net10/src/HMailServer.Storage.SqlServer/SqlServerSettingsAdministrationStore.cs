@@ -310,6 +310,12 @@ SET settinginteger = @CheckPTRScore
 WHERE settingname = N'ascheckptrscore';
 """;
 
+    public const string UpdateAntiSpamGreyListingEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @GreyListingEnabled
+WHERE settingname = N'usegreylisting';
+""";
+
     public const string UpdateAntiSpamAddHeaderSpamSql = """
 UPDATE hm_settings
 SET settinginteger = @AddHeaderSpam
@@ -1133,6 +1139,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamCheckPtrScoreSql, connection);
         command.Parameters.Add("@CheckPTRScore", SqlDbType.Int).Value = score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamGreyListingEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamGreyListingEnabledSql, connection);
+        command.Parameters.Add("@GreyListingEnabled", SqlDbType.Int).Value = enabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
