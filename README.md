@@ -3,6 +3,19 @@ hMailServer
 
 ## Current authoritative parity status (2026-08-20)
 
+Test-only commit `17fae65c1` covers the selected-folder ACL audit: SEARCH
+denies after read revocation without tracker publication, COPY/MOVE denies
+after source revocation, and COPY/MOVE denies a read-only destination. Focused
+IMAP session/copy coverage is `49 passed, 0 failed`; full Debug is `2341
+passed, 58 skipped, 0 failed`. No COM identity or production boundary changed.
+
+Remaining ACL risks are IDLE-time unsolicited revocation, inherited
+group-membership changes, and live SQL performance of per-command ACL lookup.
+Live SQL/Data, migration/rollback, out-of-process COM, paired C++ performance,
+and soak evidence remain open. Release remains **RED**.
+
+## Current authoritative parity status (2026-08-20)
+
 Code/test commit `61cb3368c` adds live selected-mailbox ACL revalidation at
 each IMAP command dispatch for SQL-backed sessions. This closes the specific
 legacy `IMAPConnection::CheckPermission` gap where an external ACL change was

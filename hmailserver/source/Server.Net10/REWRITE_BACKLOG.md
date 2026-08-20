@@ -1,5 +1,34 @@
 
-## Current next slice (2026-08-20, IMAP ACL command coverage and performance)
+## Current next slice (2026-08-20, IDLE and inherited ACL propagation)
+
+Test-only commit `17fae65c1` covers selected-folder ACL command boundaries:
+SEARCH denies after read revocation without tracker publication, COPY/MOVE
+denies after source revocation, and COPY/MOVE denies a read-only destination.
+Focused IMAP session/copy coverage is `49 passed, 0 failed`; full Debug is
+`2341 passed, 58 skipped, 0 failed`. No production behavior or COM identity
+changed in this test-only slice.
+
+Next slice: define and test IDLE-time unsolicited ACL revocation and inherited
+group-membership changes, then measure the per-command SQL ACL lookup against
+the existing performance pack. Live SQL/Data, migration/rollback,
+out-of-process COM, paired C++ performance, and soak evidence remain open.
+Release remains **RED**.
+
+## Historical completed slice (2026-08-20, IMAP ACL command coverage and performance)
+
+Code/test commit `61cb3368c` adds per-dispatch selected-mailbox ACL
+revalidation for SQL-backed IMAP sessions. Legacy
+`IMAPConnection::CheckPermission` resolves ACL permission at command
+boundaries; Net10 now observes external ACL revocation without requiring a
+tracker publication. Read revocation clears selection/recent state and write
+revocation makes the selection read-only. Focused coverage is `76 passed, 0
+failed`; full Debug is `2338 passed, 58 skipped, 0 failed`.
+
+This is not a release-gate pass. The SQL lookup cost must be measured, and
+COPY/MOVE source and destination authorization, IDLE-time unsolicited
+revocation, inherited group membership changes, live SQL/Data,
+migration/rollback, out-of-process COM, paired C++ performance, and soak
+evidence remain open. Release remains **RED**.
 
 Code/test commit `61cb3368c` adds per-dispatch selected-mailbox ACL
 revalidation for SQL-backed IMAP sessions. Legacy

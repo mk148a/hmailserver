@@ -1,5 +1,18 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-20, IMAP ACL command audit)
+
+Test-only commit `17fae65c1` covers selected-folder ACL command boundaries:
+SEARCH denies after read revocation without tracker publication, COPY/MOVE
+denies after source revocation, and COPY/MOVE denies a read-only destination.
+Focused coverage is `49/49`; full Debug is `2341 passed, 58 skipped, 0 failed`.
+No production behavior or COM identity changed.
+
+Next slice: IDLE-time unsolicited ACL revocation and inherited group-membership
+propagation, followed by measuring the per-command SQL ACL lookup. Live
+SQL/Data, migration/rollback, cross-process COM, paired C++ performance, and
+soak remain open; release is **RED**.
+
 ## Current Authoritative Continuation (2026-08-20, live ACL revalidation)
 
 Code/test commit `61cb3368c` adds per-command selected-mailbox ACL
