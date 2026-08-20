@@ -8,3 +8,11 @@ public interface IImapMailboxStore
         bool readOnly,
         CancellationToken cancellationToken);
 }
+
+public interface IImapSelectedMailboxAuthorization
+{
+    ValueTask<ImapMailboxSelection?> RevalidateSelectedMailboxAsync(
+        int requesterAccountId,
+        ImapMailboxSelection selectedMailbox,
+        CancellationToken cancellationToken);
+}

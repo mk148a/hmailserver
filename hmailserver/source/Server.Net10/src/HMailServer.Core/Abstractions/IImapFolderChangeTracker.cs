@@ -6,9 +6,13 @@ public interface IImapFolderChangeTracker
 {
     long GetGeneration(int accountId);
 
+    long GetAclGeneration(int folderId);
+
     long PublishUpsert(ImapFolderAdministrationSnapshot folder);
 
     long PublishDeletion(int accountId, IReadOnlyCollection<int> deletedFolderIds);
+
+    long PublishAclChange(int folderId);
 
     bool TryGetLatestChange(
         int accountId,
@@ -26,6 +30,22 @@ public sealed class ImapFolderChangeTracker : IImapFolderChangeTracker
     public static ImapFolderChangeTracker Shared { get; } = new();
 
     private readonly ConcurrentDictionary<int, AccountChanges> _accounts = new();
+    private readonly ConcurrentDictionary<int, long> _aclGenerations = new();
+
+    public long GetAclGeneration(int folderId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(folderId);
+        return _aclGenerations.TryGetValue(folderId, out var generation) ? generation : 0;
+    }
+
+    public long PublishAclChange(int folderId)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(folderId);
+        return _aclGenerations.AddOrUpdate(
+            folderId,
+            1,
+            static (_, current) => checked(current + 1));
+    }
 
     public long GetGeneration(int accountId)
     {

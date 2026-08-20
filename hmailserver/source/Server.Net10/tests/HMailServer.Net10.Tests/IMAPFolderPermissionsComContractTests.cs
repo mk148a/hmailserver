@@ -868,7 +868,8 @@ public sealed class IMAPFolderPermissionsComContractTests
     public void AuthorizedSettingsPublicFolderPermissions_AddUsesAuthenticatedOwningFolderScope()
     {
         var store = new PublicFolderPermissionStore();
-        ImapFolderAdministrationRuntimeHost.Configure(store);
+        var tracker = new ImapFolderChangeTracker();
+        ImapFolderAdministrationRuntimeHost.Configure(store, changeTracker: tracker);
         IInterfaceSettings settings = Settings.CreateAuthorized();
 
         var permissions = settings.PublicFolders.get_ItemByDBID(50).Permissions;
@@ -881,6 +882,7 @@ public sealed class IMAPFolderPermissionsComContractTests
         Assert.AreEqual(100, store.LastInsertAccountId);
         Assert.AreEqual(1, permissions.Count);
         Assert.AreEqual(501, permissions[0].ID);
+        Assert.AreEqual(1, tracker.GetAclGeneration(50));
 
         var denied = Assert.ThrowsExactly<COMException>(() => _ = new Settings().PublicFolders);
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);

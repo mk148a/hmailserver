@@ -707,6 +707,9 @@ public static class ImapFolderAdministrationRuntimeHost
         IReadOnlyCollection<int> deletedFolderIds) =>
         Volatile.Read(ref _changeTracker).PublishDeletion(accountId, deletedFolderIds);
 
+    internal static void PublishAclChange(int folderId) =>
+        Volatile.Read(ref _changeTracker).PublishAclChange(folderId);
+
     internal static ImapFolderAdministrationState CreateAuthorizedState(int accountId) =>
         _states.GetOrAdd(accountId, CreateState);
 
@@ -842,7 +845,7 @@ public static class ImapFolderAdministrationRuntimeHost
                 unchecked((int)0x80004001));
         }
 
-        return await mutationStore.InsertFolderPermissionAsync(
+        var inserted = await mutationStore.InsertFolderPermissionAsync(
                 folderId,
                 permissionType,
                 permissionGroupId,
@@ -850,6 +853,12 @@ public static class ImapFolderAdministrationRuntimeHost
                 value,
                 CancellationToken.None)
             .ConfigureAwait(false);
+        if (inserted is not null)
+        {
+            PublishAclChange(folderId);
+        }
+
+        return inserted;
     }
 
     internal static async ValueTask<bool> UpdatePermissionAuthorized(
@@ -871,7 +880,7 @@ public static class ImapFolderAdministrationRuntimeHost
                 unchecked((int)0x80004001));
         }
 
-        return await mutationStore.UpdateFolderPermissionAsync(
+        var updated = await mutationStore.UpdateFolderPermissionAsync(
                 folderId,
                 permissionId,
                 permissionType,
@@ -880,6 +889,12 @@ public static class ImapFolderAdministrationRuntimeHost
                 value,
                 CancellationToken.None)
             .ConfigureAwait(false);
+        if (updated)
+        {
+            PublishAclChange(folderId);
+        }
+
+        return updated;
     }
 
     private static ImapFolderAdministrationState CreateState(int accountId) =>
@@ -965,9 +980,19 @@ public static class ImapFolderAdministrationRuntimeHost
             .GetResult();
 
         var permissionStore = store as IImapFolderPermissionAdministrationStore;
-        ValueTask<bool> DeletePermissionAsync(int ownerFolderId, int permissionId) => permissionStore
-            ?.DeleteFolderPermissionAsync(ownerFolderId, permissionId, CancellationToken.None)
-            ?? ValueTask.FromException<bool>(new NotSupportedException());
+        async ValueTask<bool> DeletePermissionAsync(int ownerFolderId, int permissionId)
+        {
+            var deleted = await (permissionStore
+                ?.DeleteFolderPermissionAsync(ownerFolderId, permissionId, CancellationToken.None)
+                ?? ValueTask.FromException<bool>(new NotSupportedException()))
+                .ConfigureAwait(false);
+            if (deleted)
+            {
+                PublishAclChange(ownerFolderId);
+            }
+
+            return deleted;
+        }
         var permissionMutationStore = store as IImapFolderPermissionAdministrationMutationStore;
         ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertPermissionAsync(
             int permissionType,

@@ -95,6 +95,9 @@ public sealed class ImapSession
         if (state.Account is { } account)
         {
             state.FolderChangeGeneration = _folderChangeTracker.GetGeneration(account.AccountId);
+            state.AclChangeGeneration = state.SelectedMailbox is { } selected
+                ? _folderChangeTracker.GetAclGeneration(selected.FolderId)
+                : 0;
         }
         await using var reader = new LineProtocolReader(stream, _options.MaxLineBytes);
         while (!cancellationToken.IsCancellationRequested)
@@ -904,18 +907,19 @@ public sealed class ImapSession
         state.Account = authenticatedAccount;
         state.SelectedMailbox = null;
         state.FolderChangeGeneration = _folderChangeTracker.GetGeneration(authenticatedAccount.AccountId);
+        state.AclChangeGeneration = 0;
         await WriteTaggedAsync(stream, tag, successResponse, cancellationToken).ConfigureAwait(false);
         return false;
     }
 
-    private ValueTask ApplyFolderChangeInvalidationAsync(
+    private async ValueTask ApplyFolderChangeInvalidationAsync(
         SessionState state,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (state.Account is not { } account)
         {
-            return ValueTask.CompletedTask;
+            return;
         }
 
         var changeAccountId = state.SelectedMailbox?.AccountId ?? account.AccountId;
@@ -923,7 +927,8 @@ public sealed class ImapSession
         var previousGeneration = state.FolderChangeGeneration;
         if (generation == previousGeneration)
         {
-            return ValueTask.CompletedTask;
+            await ApplyAclChangeInvalidationAsync(state, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
         state.FolderChangeGeneration = generation;
@@ -934,7 +939,8 @@ public sealed class ImapSession
                 out var change)
             || change.Generation <= previousGeneration)
         {
-            return ValueTask.CompletedTask;
+            await ApplyAclChangeInvalidationAsync(state, cancellationToken).ConfigureAwait(false);
+            return;
         }
 
         if (change.IsDeleted)
@@ -949,7 +955,44 @@ public sealed class ImapSession
             state.SelectedMailbox = selectedMailbox with { Name = folder.Name };
         }
 
-        return ValueTask.CompletedTask;
+        await ApplyAclChangeInvalidationAsync(state, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask ApplyAclChangeInvalidationAsync(
+        SessionState state,
+        CancellationToken cancellationToken)
+    {
+        if (state.Account is not { } account || state.SelectedMailbox is not { } selectedMailbox)
+        {
+            return;
+        }
+
+        var generation = _folderChangeTracker.GetAclGeneration(selectedMailbox.FolderId);
+        if (generation <= state.AclChangeGeneration)
+        {
+            return;
+        }
+
+        state.AclChangeGeneration = generation;
+        if (_mailboxStore is not IImapSelectedMailboxAuthorization authorization)
+        {
+            return;
+        }
+
+        var refreshedMailbox = await authorization
+            .RevalidateSelectedMailboxAsync(account.AccountId, selectedMailbox, cancellationToken)
+            .ConfigureAwait(false);
+        if (refreshedMailbox is null)
+        {
+            state.SelectedMailbox = null;
+            state.RecentUids = null;
+            return;
+        }
+
+        state.SelectedMailbox = selectedMailbox with
+        {
+            IsReadOnly = selectedMailbox.IsReadOnly || refreshedMailbox.IsReadOnly
+        };
     }
 
     private void RunClientLogonEvent(
@@ -1150,6 +1193,7 @@ public sealed class ImapSession
         }
 
         state.SelectedMailbox = mailbox;
+        state.AclChangeGeneration = _folderChangeTracker.GetAclGeneration(mailbox.FolderId);
         await WriteAsync(stream, FormatSelectResponse(commandLine.Tag, commandLine.Command, mailbox), cancellationToken).ConfigureAwait(false);
     }
 
@@ -1265,6 +1309,8 @@ public sealed class ImapSession
         public IReadOnlySet<long>? RecentUids { get; set; }
 
         public long FolderChangeGeneration { get; set; }
+
+        public long AclChangeGeneration { get; set; }
 
         public bool IsSecureConnection { get; }
 

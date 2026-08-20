@@ -7,7 +7,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerImapMailboxStore : IImapMailboxStore, IImapMailboxDiscoveryStore, IImapAclStore, IImapMailboxSubscriptionStore
+public sealed class SqlServerImapMailboxStore : IImapMailboxStore, IImapSelectedMailboxAuthorization, IImapMailboxDiscoveryStore, IImapAclStore, IImapMailboxSubscriptionStore
 {
     public const string FindChildFolderSql = """
 SELECT TOP (1)
@@ -190,16 +190,25 @@ WHERE
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerImapMailboxStoreOptions _options;
+    private readonly IImapFolderChangeTracker _changeTracker;
 
     public SqlServerImapMailboxStore(
         SqlServerConnectionFactory connectionFactory,
-        SqlServerImapMailboxStoreOptions? options = null)
+        SqlServerImapMailboxStoreOptions? options = null,
+        IImapFolderChangeTracker? changeTracker = null)
     {
         _connectionFactory = connectionFactory;
         _options = options ?? new SqlServerImapMailboxStoreOptions();
+        _changeTracker = changeTracker ?? ImapFolderChangeTracker.Shared;
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.HierarchyDelimiter);
         ArgumentException.ThrowIfNullOrWhiteSpace(_options.PublicFolderName);
     }
+
+    public ValueTask<ImapMailboxSelection?> RevalidateSelectedMailboxAsync(
+        int requesterAccountId,
+        ImapMailboxSelection selectedMailbox,
+        CancellationToken cancellationToken) =>
+        SelectMailboxAsync(requesterAccountId, selectedMailbox.Name, readOnly: false, cancellationToken);
 
     public async ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
         int accountId,
@@ -543,6 +552,7 @@ WHERE
             cancellationToken).ConfigureAwait(false);
         var newRights = rightsChange.Apply(existingRights);
         await UpsertAclAsync(connection, context.Folder.FolderId, principal, newRights, cancellationToken).ConfigureAwait(false);
+        _changeTracker.PublishAclChange(context.Folder.FolderId);
         return new ImapAclMutationResult(ImapAclCommandStatus.Success);
     }
 
@@ -573,7 +583,11 @@ WHERE
             return new ImapAclMutationResult(ImapAclCommandStatus.IdentifierNotFound);
         }
 
-        await DeleteAclAsync(connection, context.Folder.FolderId, principal, cancellationToken).ConfigureAwait(false);
+        var deleted = await DeleteAclAsync(connection, context.Folder.FolderId, principal, cancellationToken).ConfigureAwait(false);
+        if (deleted)
+        {
+            _changeTracker.PublishAclChange(context.Folder.FolderId);
+        }
         return new ImapAclMutationResult(ImapAclCommandStatus.Success);
     }
 
@@ -719,7 +733,7 @@ WHERE
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private static async ValueTask DeleteAclAsync(
+    private static async ValueTask<bool> DeleteAclAsync(
         SqlConnection connection,
         int folderId,
         AclPrincipal principal,
@@ -727,7 +741,7 @@ WHERE
     {
         await using var command = new SqlCommand(DeleteAclSql, connection);
         AddAclPrincipalParameters(command, folderId, principal);
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     private static void AddAclPrincipalParameters(

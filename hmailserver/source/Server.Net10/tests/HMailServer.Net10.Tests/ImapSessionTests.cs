@@ -82,6 +82,53 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_ACLReadRevocationClearsSelectedMailboxBeforeStore()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var mailboxStore = new AclRevalidatingMailboxStore(null);
+        await using var stream = new DuplexMemoryStream(
+            "A001 STORE 1 +FLAGS (\\Seen)\r\nA002 LOGOUT\r\n",
+            () => tracker.PublishAclChange(20));
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: new FakeMutationStore(),
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Select a mailbox first\r\n");
+        Assert.AreEqual(1, mailboxStore.RevalidationCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_ACLWriteRevocationMakesSelectedMailboxReadOnly()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            new ImapMailboxSelection(0, 20, "#Public", 1, 0, 1, 2, null, IsReadOnly: true));
+        await using var stream = new DuplexMemoryStream(
+            "A001 STORE 1 +FLAGS (\\Seen)\r\nA002 LOGOUT\r\n",
+            () => tracker.PublishAclChange(20));
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: new FakeMutationStore(),
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Store command on read-only folder\r\n");
+        Assert.AreEqual(1, mailboxStore.RevalidationCount);
+    }
+
+    [TestMethod]
     public async Task RunAsync_RefreshesSelectedMailboxNameAfterSameAccountRename()
     {
         var tracker = new ImapFolderChangeTracker();
@@ -1356,6 +1403,39 @@ public sealed class ImapSessionTests
                     UidNext: 2,
                     FirstUnseenUid: null,
                     IsReadOnly: readOnly));
+        }
+    }
+
+    private sealed class AclRevalidatingMailboxStore(ImapMailboxSelection? refreshedMailbox) :
+        IImapMailboxStore,
+        IImapSelectedMailboxAuthorization
+    {
+        public int RevalidationCount { get; private set; }
+
+        public ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
+            int accountId,
+            string mailboxName,
+            bool readOnly,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<ImapMailboxSelection?>(
+                new ImapMailboxSelection(
+                    accountId,
+                    20,
+                    mailboxName,
+                    1,
+                    0,
+                    1,
+                    2,
+                    null,
+                    readOnly));
+
+        public ValueTask<ImapMailboxSelection?> RevalidateSelectedMailboxAsync(
+            int requesterAccountId,
+            ImapMailboxSelection selectedMailbox,
+            CancellationToken cancellationToken)
+        {
+            RevalidationCount++;
+            return ValueTask.FromResult(refreshedMailbox);
         }
     }
 
