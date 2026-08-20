@@ -3574,6 +3574,69 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamCheckHostInHeloSettersPersistAndRefreshSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamCheckHostInHeloUpdateResult = true,
+            AntiSpamCheckHostInHeloScoreUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamCheckHostInHelo: false,
+                AntiSpamCheckHostInHeloScore: 2)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.CheckHostInHelo = true;
+        antiSpam.CheckHostInHeloScore = 7;
+
+        Assert.AreEqual(1, store.AntiSpamCheckHostInHeloUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamCheckHostInHelo);
+        Assert.AreEqual(1, store.AntiSpamCheckHostInHeloScoreUpdateCount);
+        Assert.AreEqual(7, store.UpdatedAntiSpamCheckHostInHeloScore);
+        Assert.IsTrue(antiSpam.CheckHostInHelo);
+        Assert.AreEqual(7, antiSpam.CheckHostInHeloScore);
+        Assert.IsTrue(settings.AntiSpam.CheckHostInHelo);
+        Assert.AreEqual(7, settings.AntiSpam.CheckHostInHeloScore);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamCheckHostInHeloSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamCheckHostInHeloUpdateResult = false,
+            AntiSpamCheckHostInHeloScoreUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedEnabled = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.CheckHostInHelo = true);
+        var failedScore = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.CheckHostInHeloScore = 7);
+
+        Assert.AreEqual(EFail, failedEnabled.ErrorCode);
+        Assert.AreEqual(EFail, failedScore.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamCheckHostInHeloUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamCheckHostInHeloScoreUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4934,6 +4997,18 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiSpamBypassGreylistingOnMailFromMx { get; private set; }
 
+        public bool AntiSpamCheckHostInHeloUpdateResult { get; set; }
+
+        public int AntiSpamCheckHostInHeloUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamCheckHostInHelo { get; private set; }
+
+        public bool AntiSpamCheckHostInHeloScoreUpdateResult { get; set; }
+
+        public int AntiSpamCheckHostInHeloScoreUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamCheckHostInHeloScore { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5529,6 +5604,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamBypassGreylistingOnMailFromMx = enabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamBypassGreylistingOnMailFromMxUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamCheckHostInHeloAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamCheckHostInHeloUpdateCount++;
+            UpdatedAntiSpamCheckHostInHelo = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamCheckHostInHeloUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamCheckHostInHeloScoreAsync(
+            int score,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamCheckHostInHeloScoreUpdateCount++;
+            UpdatedAntiSpamCheckHostInHeloScore = score;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamCheckHostInHeloScoreUpdateResult);
         }
 
     }

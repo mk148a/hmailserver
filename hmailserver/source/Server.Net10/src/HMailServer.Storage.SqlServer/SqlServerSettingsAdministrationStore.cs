@@ -286,6 +286,18 @@ SET settinginteger = @BypassGreylistingOnMailFromMx
 WHERE settingname = N'BypassGreylistingOnMailFromMX';
 """;
 
+    public const string UpdateAntiSpamCheckHostInHeloSql = """
+UPDATE hm_settings
+SET settinginteger = @CheckHostInHelo
+WHERE settingname = N'ascheckhostinhelo';
+""";
+
+    public const string UpdateAntiSpamCheckHostInHeloScoreSql = """
+UPDATE hm_settings
+SET settinginteger = @CheckHostInHeloScore
+WHERE settingname = N'ascheckhostinheloscore';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -1029,6 +1041,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamBypassGreylistingOnMailFromMxSql, connection);
         command.Parameters.Add("@BypassGreylistingOnMailFromMx", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamCheckHostInHeloAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamCheckHostInHeloSql, connection);
+        command.Parameters.Add("@CheckHostInHelo", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamCheckHostInHeloScoreAsync(
+        int score,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamCheckHostInHeloScoreSql, connection);
+        command.Parameters.Add("@CheckHostInHeloScore", SqlDbType.Int).Value = score;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

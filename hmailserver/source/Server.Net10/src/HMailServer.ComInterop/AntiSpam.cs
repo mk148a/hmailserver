@@ -216,6 +216,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<int>? _publishDkimVerificationFailureScore;
     private readonly Action<bool>? _publishBypassGreylistingOnSpfSuccess;
     private readonly Action<bool>? _publishBypassGreylistingOnMailFromMx;
+    private readonly Action<bool>? _publishCheckHostInHelo;
+    private readonly Action<int>? _publishCheckHostInHeloScore;
 
     public AntiSpam()
     {
@@ -242,7 +244,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishDkimVerificationEnabled,
         Action<int>? publishDkimVerificationFailureScore,
         Action<bool>? publishBypassGreylistingOnSpfSuccess,
-        Action<bool>? publishBypassGreylistingOnMailFromMx)
+        Action<bool>? publishBypassGreylistingOnMailFromMx,
+        Action<bool>? publishCheckHostInHelo,
+        Action<int>? publishCheckHostInHeloScore)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -265,6 +269,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishDkimVerificationFailureScore = publishDkimVerificationFailureScore;
         _publishBypassGreylistingOnSpfSuccess = publishBypassGreylistingOnSpfSuccess;
         _publishBypassGreylistingOnMailFromMx = publishBypassGreylistingOnMailFromMx;
+        _publishCheckHostInHelo = publishCheckHostInHelo;
+        _publishCheckHostInHeloScore = publishCheckHostInHeloScore;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -286,7 +292,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
     }
 
-    public bool CheckHostInHelo { get => Snapshot.CheckHostInHelo; set => Unavailable(); }
+    public bool CheckHostInHelo
+    {
+        get => Snapshot.CheckHostInHelo;
+        set => UpdateCheckHostInHelo(value);
+    }
 
     public bool AddHeaderSpam { get => Snapshot.AddHeaderSpam; set => Unavailable(); }
 
@@ -314,7 +324,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
     }
 
-    public int CheckHostInHeloScore { get => Snapshot.CheckHostInHeloScore; set => Unavailable(); }
+    public int CheckHostInHeloScore
+    {
+        get => Snapshot.CheckHostInHeloScore;
+        set => UpdateCheckHostInHeloScore(value);
+    }
 
     public int SpamMarkThreshold { get => Snapshot.SpamMarkThreshold; set => Unavailable(); }
 
@@ -510,7 +524,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<bool>? publishDkimVerificationEnabled = null,
         Action<int>? publishDkimVerificationFailureScore = null,
         Action<bool>? publishBypassGreylistingOnSpfSuccess = null,
-        Action<bool>? publishBypassGreylistingOnMailFromMx = null)
+        Action<bool>? publishBypassGreylistingOnMailFromMx = null,
+        Action<bool>? publishCheckHostInHelo = null,
+        Action<int>? publishCheckHostInHeloScore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -534,7 +550,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishDkimVerificationEnabled,
             publishDkimVerificationFailureScore,
             publishBypassGreylistingOnSpfSuccess,
-            publishBypassGreylistingOnMailFromMx);
+            publishBypassGreylistingOnMailFromMx,
+            publishCheckHostInHelo,
+            publishCheckHostInHeloScore);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -740,6 +758,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishBypassGreylistingOnMailFromMx?.Invoke(value);
+    }
+
+    private void UpdateCheckHostInHelo(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamCheckHostInHeloAsync(value, CancellationToken.None),
+            "The anti-spam CheckHostInHelo update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { CheckHostInHelo = value };
+        }
+
+        _publishCheckHostInHelo?.Invoke(value);
+    }
+
+    private void UpdateCheckHostInHeloScore(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamCheckHostInHeloScoreAsync(value, CancellationToken.None),
+            "The anti-spam CheckHostInHelo score update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { CheckHostInHeloScore = value };
+        }
+
+        _publishCheckHostInHeloScore?.Invoke(value);
     }
 
     private void UpdateSetting(

@@ -185,4 +185,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamBypassGreylistingOnMailFromMxAsync(
         bool enabled,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamCheckHostInHeloAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamCheckHostInHeloScoreAsync(
+        int score,
+        CancellationToken cancellationToken);
 }

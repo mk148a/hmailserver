@@ -444,6 +444,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamCheckHostInHeloSql_UsesTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @CheckHostInHelo\nWHERE settingname = N'ascheckhostinhelo';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamCheckHostInHeloSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @CheckHostInHeloScore\nWHERE settingname = N'ascheckhostinheloscore';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamCheckHostInHeloScoreSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;
