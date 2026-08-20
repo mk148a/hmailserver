@@ -1,27 +1,29 @@
 
-## Current next slice (2026-08-20, wire public-folder ACL restore entries)
+## Current next slice (2026-08-20, wire public-folder ACL traversal)
 
-Code/test commit `bd48a8169` adds `PublicFolderAclHolderResolver`, which maps
-legacy user/group holder names to numeric IDs, maps `PTAnyone` to zero IDs, and
-fails closed for unresolved, duplicate, malformed, or out-of-range entries.
-Focused resolver coverage is `4 passed, 0 failed`; the live ACL SQL coverage
-remains `6 passed, 0 failed`; the disposable full Net10 suite is `2423 passed,
-10 skipped, 0 failed`.
+Code/test commit `ad0799b5f` adds
+`BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync`. It resolves
+all holders before the first insert, preserves archive order, calls the
+transaction-scoped ACL store, treats null insert results as failure, and invokes
+the supplied rollback callback after a mid-batch failure. Focused writer
+coverage is `10 passed, 0 failed`; the live ACL SQL coverage remains `6 passed,
+0 failed`; the disposable full Net10 suite is `2426 passed, 10 skipped, 0
+failed`.
 
-Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions,
-`ACLPermission::XMLLoad` maps `Type/Rights/Holder`, and
+Legacy `IMAPFolder::XMLLoadSubItems` restores messages, child folders, then ACLs;
+`ACLPermission::XMLLoad` maps `Type/Rights/Holder`; and
 `PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
-now has parser, holder-resolution, and live SQL foundations, but the resolver is
-not wired to the restore execution. The live restore transaction is intentionally
-stronger than legacy's independent ACL `Save()` connection and must not be
-treated as full parity. Security review is `NO-GO` until existing-ACL
-replacement and end-to-end restore failure semantics are proven.
+now has parser, holder-resolution, live SQL, and writer foundations, but the
+writer is not wired into public-folder traversal. The live restore transaction
+is intentionally stronger than legacy's independent ACL `Save()` connection.
+Security review is `NO-GO` until traversal order, existing-ACL replacement, and
+end-to-end restore failure semantics are proven.
 
-Next slice: wire parsed public-folder ACL entries into the transaction-scoped
-restore after folder identity creation, replace existing ACLs with source-order
-entries, and fail the restore on unresolved user/group holders. Do not widen to
-private-folder ACLs, COM mutation, or protocol behavior. Migration/installer,
-COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates remain **RED**.
+Next slice: wire public-folder create/messages/children/ACL traversal in legacy
+order, invoke the writer only after descendants, and preserve public-folder
+ownership. Do not widen to private-folder ACLs, COM mutation, or protocol
+behavior. Migration/installer, COM/DCOM, SEC-18, paired C++/.NET performance,
+and soak gates remain **RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)
 

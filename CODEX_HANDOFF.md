@@ -1,22 +1,22 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, public-folder ACL holder resolution)
+## Current Authoritative Continuation (2026-08-20, public-folder ACL restore writer)
 
-HEAD is `bd48a8169`. The holder-resolution slice adds the non-COM,
-non-SQL `PublicFolderAclHolderResolver`. It maps user addresses and group names
-to numeric IDs, maps `PTAnyone` to zero IDs without looking up its holder text,
-and fails closed for unresolved, duplicate, malformed, or out-of-range entries.
-Legacy anchors are `ACLPermission::XMLLoad`,
+HEAD is `ad0799b5f`. The writer slice adds
+`BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync`. It resolves
+all holder names before the first insert, preserves archive order, calls the
+transaction-scoped ACL store, and invokes the caller rollback callback on a
+mid-batch failure. Legacy anchors are `ACLPermission::XMLLoad`,
 `PersistentACLPermission::Validate`, `IMAPFolder::XMLLoadSubItems`, and the
 `hm_acl` unique key in `CreateTablesMSSQL.sql`.
 
-Focused resolver coverage is `4/4`; the live ACL SQL integration remains `6/6`;
-the disposable full Net10 suite is `2423 passed, 10 skipped, 0 failed`. The
-resolver is not wired to restore execution, so no COM identity, SMTP behavior,
-or production state changed. Next slice: wire parsed public-folder ACL entries
-into transaction-scoped restore with existing-ACL replacement semantics, then
-add populated round-trip and mid-batch failure evidence. Release remains
-**RED** and no push was performed.
+Focused writer coverage is `10/10`; holder resolver coverage remains `4/4`; the
+live ACL SQL integration remains `6/6`; the disposable full Net10 suite is
+`2426 passed, 10 skipped, 0 failed`. The writer is not wired to restore
+traversal, so no COM identity, SMTP behavior, or production state changed. Next
+slice: wire public-folder create/messages/children/ACL traversal in legacy
+order, then add populated round-trip evidence. Release remains **RED** and no
+push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 

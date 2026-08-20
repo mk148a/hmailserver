@@ -1,19 +1,19 @@
-## Current authoritative parity status (2026-08-20, public-folder ACL holder resolution)
+## Current authoritative parity status (2026-08-20, public-folder ACL restore writer)
 
-Current HEAD `bd48a8169` adds the non-COM, non-SQL
-`PublicFolderAclHolderResolver`. It maps legacy user addresses and group names
-to numeric IDs, maps `PTAnyone` to zero IDs, and fails closed for unresolved,
-duplicate, malformed, or out-of-range entries. Focused resolver coverage is `4
-passed, 0 failed`; the disposable LocalDB/Data full suite is `2423 passed, 10
-skipped, 0 failed`.
+Current HEAD `ad0799b5f` adds
+`BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync`. It resolves
+all holder names before the first insert, preserves archive order, calls the
+transaction-scoped ACL store, and invokes the caller rollback callback after a
+mid-batch failure. Focused writer coverage is `10 passed, 0 failed`; the
+disposable LocalDB/Data full suite is `2426 passed, 10 skipped, 0 failed`.
 
-Legacy `IMAPFolder::XMLLoadSubItems` restores public-folder permissions,
+Legacy `IMAPFolder::XMLLoadSubItems` restores messages, child folders, then ACLs;
 `ACLPermission::XMLLoad` maps `Type/Rights/Holder`, and
 `PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
-now has parser, holder-resolution, and live SQL foundations, but resolver-to-
-restore execution wiring and existing-ACL replacement remain open. The
-transaction-scoped restore path is intentionally stronger than legacy's
-independent ACL `Save()` connection and is not a full parity claim.
+has parser, holder-resolution, live SQL, and writer foundations, but the writer
+is not wired into public-folder traversal and existing-ACL replacement remains
+open. The transaction-scoped restore path is intentionally stronger than
+legacy's independent ACL `Save()` connection and is not a full parity claim.
 
 Legacy backup behavior is anchored by `BackupExecuter::StartBackup` and
 `BackupDataDirectory_` in `source/Server/Common/Application/BackupExecuter.cpp`.
@@ -22,9 +22,8 @@ and the current acceptance tests cover modes `1`, `2`, `3`, and DB-only `6`.
 The actual legacy `FULL` parser emits `ENVELOPE` and `BODYSTRUCTURE`; it does
 not emit `BODY[]` or mark messages seen, which Net10 now preserves.
 
-Next slice: wire parsed public-folder ACL entries into the transaction-scoped
-restore after folder identity creation, replace existing ACLs in source order,
-and fail on unresolved user/group holders. Paired C++/.NET performance,
+Next slice: wire public-folder create/messages/children/ACL traversal in legacy
+order and invoke the writer only after descendants. Paired C++/.NET performance,
 out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain
 open; release is **RED**.
 

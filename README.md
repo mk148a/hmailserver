@@ -1,24 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, public-folder ACL holder resolution)
+## Current authoritative parity status (2026-08-20, public-folder ACL restore writer)
 
-Current HEAD `bd48a8169` adds a non-COM, non-SQL public-folder ACL holder
-resolver. It maps user addresses and group names to authoritative numeric IDs,
-maps `PTAnyone` to zero IDs, and fails closed for unresolved or malformed
-entries. Focused resolver coverage is `4 passed, 0 failed`; the disposable
-LocalDB/Data full suite is `2423 passed, 10 skipped, 0 failed`.
+Current HEAD `ad0799b5f` adds a caller-owned-transaction writer for parsed
+public-folder ACL entries. It resolves all holders before the first insert,
+preserves archive order, maps `PTAnyone` to zero IDs, treats null insert results
+as failure, and invokes the supplied rollback callback after a mid-batch error.
+Focused writer coverage is `10 passed, 0 failed`; the disposable LocalDB/Data
+full suite is `2426 passed, 10 skipped, 0 failed`.
 
 Legacy references are `ACLPermission::{XMLStore,XMLLoad}`,
 `ACLPermissions` through `Collection<T,P>::{XMLStore,XMLLoad}`, and
-`IMAPFolder::{XMLStore,XMLLoadSubItems}`. Legacy unresolved user/group holders
-remain restore failures at `PersistentACLPermission::Validate`; the new helper
-models that fail-closed boundary but is not wired to restore execution. The
-preceding live SQL slice intentionally uses one transaction-scoped store,
-stronger than legacy's independent ACL `Save()` connection. The next slice is
-parser-to-restore wiring with existing-ACL replacement semantics; release
-remains **RED** for ACL restore wiring, migration, COM/DCOM, SEC-18, paired
-C++/.NET performance, and soak gates.
+`IMAPFolder::{XMLStore,XMLLoadSubItems}`. Legacy applies ACLs after messages and
+descendants and fails when `PersistentACLPermission::Validate` rejects an
+unresolved user/group. The writer models holder resolution and rollback but is
+not called by `RestoreFoldersAsync` or a public-folder traversal yet. The next
+slice must preserve that legacy ordering; release remains **RED** for complete
+ACL restore wiring, migration, COM/DCOM, SEC-18, paired C++/.NET performance,
+and soak gates.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 

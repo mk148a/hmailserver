@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-20T17:27:54Z` / `2026-08-20T20:27:54+03:00`
+- UTC/local timestamp: `2026-08-20T17:34:53Z` / `2026-08-20T20:34:53+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `bd48a8169` (`feat: resolve public folder ACL holders`)
+- Current HEAD: `ad0799b5f` (`feat: stage public folder ACL restore writes`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: public-folder ACL holder resolver `4 passed, 0 failed`; live SQL ACL integration remains `6 passed, 0 failed`
-- Latest full Net10 result: disposable LocalDB/Data Debug `2423 passed, 10 skipped, 0 failed` (`2433` total)
-- Opt-in tests passed/skipped/blocked: disposable SQL/Data full run `2423/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: public-folder ACL holder-name resolution helper is complete and fail-closed; parser-to-restore graph wiring remains intentionally closed
-- Completed milestones: backup raw/compressed staging and metadata foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, Net10-only load evidence, ACL revalidation benchmark, IMAP STORE/APPEND/COPY/EXPUNGE/FETCH rights parity slices, live public-folder ACL SQL commit/rollback evidence, and holder-name resolution evidence
+- Latest focused-test result: public-folder ACL writer `10 passed, 0 failed`; includes ordered inserts, unresolved-holder preflight, and mid-batch rollback callback
+- Latest full Net10 result: disposable LocalDB/Data Debug `2426 passed, 10 skipped, 0 failed` (`2436` total)
+- Opt-in tests passed/skipped/blocked: disposable SQL/Data full run `2426/10/0`; paired C++ comparison, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
+- Current bounded slice: public-folder ACL writer stages resolved entries in source order with caller-owned rollback; restore traversal does not call it yet
+- Completed milestones: backup raw/compressed staging and metadata foundations, guarded installer rollback code, COM/Admin slices through ACL publication, disposable protocol/queue/FTS/external-fetch/restart evidence, Net10-only load evidence, ACL revalidation benchmark, IMAP STORE/APPEND/COPY/EXPUNGE/FETCH rights parity slices, live public-folder ACL SQL commit/rollback evidence, holder-name resolution evidence, and writer-level ACL restore evidence
 - Open production blockers: legacy public-folder ACL backup/restore graph and holder resolution, isolated authenticated COM/service backup acceptance, full restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF/greylisting release wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains `RED`
 - Environment-blocked work: Hyper-V disposable VM presence is still unproven (`Get-VM` access denied); LocalDB disposable SQL/Data is available and passed ACL opt-in tests; registry-isolated C++ runner, live DNS/TLS, AD credentials, IIS/SEC-18 cutover, and long soak remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: wire parsed public-folder ACL entries into transaction-scoped restore with existing-ACL replacement semantics; add populated public-folder restore round-trip and mid-batch failure evidence; migration/installer rollback drill once a disposable VM is usable
+- Next three independent slices: wire public-folder create/messages/children/ACL traversal in legacy order; add populated public-folder restore round-trip and mid-batch failure evidence; migration/installer rollback drill once a disposable VM is usable
