@@ -1,29 +1,27 @@
 
-## Current next slice (2026-08-20, wire public-folder ACL traversal)
+## Current next slice (2026-08-20, capture public-folder ACL backup graph)
 
-Code/test commit `ad0799b5f` adds
-`BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync`. It resolves
-all holders before the first insert, preserves archive order, calls the
-transaction-scoped ACL store, treats null insert results as failure, and invokes
-the supplied rollback callback after a mid-batch failure. Focused writer
-coverage is `10 passed, 0 failed`; the live ACL SQL coverage remains `6 passed,
-0 failed`; the disposable full Net10 suite is `2426 passed, 10 skipped, 0
-failed`.
+Code/test commit `0f64da001` adds
+`BackupRestoreMetadataWriter.RestorePublicFoldersAsync`. It creates public
+folders in `folderaccountid = 0` scope, restores messages, recurses children,
+then inserts ACLs in source order inside the caller transaction. Focused
+traversal coverage is `7 passed, 0 failed`; live ACL SQL coverage remains `6
+passed, 0 failed`; the disposable full Net10 suite is `2427 passed, 10 skipped,
+0 failed`.
 
 Legacy `IMAPFolder::XMLLoadSubItems` restores messages, child folders, then ACLs;
 `ACLPermission::XMLLoad` maps `Type/Rights/Holder`; and
 `PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
-now has parser, holder-resolution, live SQL, and writer foundations, but the
-writer is not wired into public-folder traversal. The live restore transaction
-is intentionally stronger than legacy's independent ACL `Save()` connection.
-Security review is `NO-GO` until traversal order, existing-ACL replacement, and
-end-to-end restore failure semantics are proven.
+now has parser, holder-resolution, live SQL, and writer traversal foundations,
+but the backup payload does not yet capture public folders or ACL holder names,
+and executor wiring remains open. The live restore transaction is intentionally
+stronger than legacy's independent ACL `Save()` connection. Security review is
+`NO-GO` until backup capture, executor wiring, and failure semantics are proven.
 
-Next slice: wire public-folder create/messages/children/ACL traversal in legacy
-order, invoke the writer only after descendants, and preserve public-folder
-ownership. Do not widen to private-folder ACLs, COM mutation, or protocol
-behavior. Migration/installer, COM/DCOM, SEC-18, paired C++/.NET performance,
-and soak gates remain **RED**.
+Next slice: capture public-folder graph, messages, and ACL holder names in the
+backup XML payload. Do not widen to private-folder ACLs, COM mutation, or
+protocol behavior. Migration/installer, COM/DCOM, SEC-18, paired C++/.NET
+performance, and soak gates remain **RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)
 

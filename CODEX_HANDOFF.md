@@ -1,22 +1,22 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, public-folder ACL restore writer)
+## Current Authoritative Continuation (2026-08-20, public-folder restore traversal)
 
-HEAD is `ad0799b5f`. The writer slice adds
-`BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync`. It resolves
-all holder names before the first insert, preserves archive order, calls the
-transaction-scoped ACL store, and invokes the caller rollback callback on a
-mid-batch failure. Legacy anchors are `ACLPermission::XMLLoad`,
+HEAD is `0f64da001`. The writer slice adds
+`BackupRestoreMetadataWriter.RestorePublicFoldersAsync` and preserves legacy
+order: public folder insert, messages, child recursion, then ACL inserts. It
+forces public ownership (`folderaccountid = 0`) and uses the caller-owned
+transaction rollback boundary. Legacy anchors are `ACLPermission::XMLLoad`,
 `PersistentACLPermission::Validate`, `IMAPFolder::XMLLoadSubItems`, and the
 `hm_acl` unique key in `CreateTablesMSSQL.sql`.
 
-Focused writer coverage is `10/10`; holder resolver coverage remains `4/4`; the
+Focused traversal coverage is `7/7`; holder resolver coverage remains `4/4`;
 live ACL SQL integration remains `6/6`; the disposable full Net10 suite is
-`2426 passed, 10 skipped, 0 failed`. The writer is not wired to restore
-traversal, so no COM identity, SMTP behavior, or production state changed. Next
-slice: wire public-folder create/messages/children/ACL traversal in legacy
-order, then add populated round-trip evidence. Release remains **RED** and no
-push was performed.
+`2427 passed, 10 skipped, 0 failed`. Backup XML capture and executor wiring are
+still absent, so no COM identity, SMTP behavior, or production state changed.
+Next slice: capture public-folder graph and ACL holder names in backup XML, then
+wire parsed entries into `MetadataBackupRestoreExecutor`. Release remains
+**RED** and no push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 

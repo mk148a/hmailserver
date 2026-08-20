@@ -1,24 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, public-folder ACL restore writer)
+## Current authoritative parity status (2026-08-20, public-folder restore traversal)
 
-Current HEAD `ad0799b5f` adds a caller-owned-transaction writer for parsed
-public-folder ACL entries. It resolves all holders before the first insert,
-preserves archive order, maps `PTAnyone` to zero IDs, treats null insert results
-as failure, and invokes the supplied rollback callback after a mid-batch error.
-Focused writer coverage is `10 passed, 0 failed`; the disposable LocalDB/Data
-full suite is `2426 passed, 10 skipped, 0 failed`.
+Current HEAD `0f64da001` adds writer-level public-folder traversal. It creates
+public folders in `folderaccountid = 0` scope, restores messages, recursively
+restores children, and writes ACLs only after descendants, matching legacy
+`IMAPFolder::XMLLoadSubItems`. Focused traversal coverage is `7 passed, 0
+failed`; the disposable LocalDB/Data full suite is `2427 passed, 10 skipped, 0
+failed`.
 
 Legacy references are `ACLPermission::{XMLStore,XMLLoad}`,
 `ACLPermissions` through `Collection<T,P>::{XMLStore,XMLLoad}`, and
 `IMAPFolder::{XMLStore,XMLLoadSubItems}`. Legacy applies ACLs after messages and
 descendants and fails when `PersistentACLPermission::Validate` rejects an
-unresolved user/group. The writer models holder resolution and rollback but is
-not called by `RestoreFoldersAsync` or a public-folder traversal yet. The next
-slice must preserve that legacy ordering; release remains **RED** for complete
-ACL restore wiring, migration, COM/DCOM, SEC-18, paired C++/.NET performance,
-and soak gates.
+unresolved user/group. The writer now models this traversal, but backup XML
+capture and `MetadataBackupRestoreExecutor` do not provide or invoke public
+entries yet. The next slice is backup payload capture; release remains **RED**
+for complete ACL restore wiring, migration, COM/DCOM, SEC-18, paired C++/.NET
+performance, and soak gates.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 

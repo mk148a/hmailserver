@@ -1,19 +1,19 @@
-## Current authoritative parity status (2026-08-20, public-folder ACL restore writer)
+## Current authoritative parity status (2026-08-20, public-folder restore traversal)
 
-Current HEAD `ad0799b5f` adds
-`BackupRestoreMetadataWriter.RestorePublicFolderPermissionsAsync`. It resolves
-all holder names before the first insert, preserves archive order, calls the
-transaction-scoped ACL store, and invokes the caller rollback callback after a
-mid-batch failure. Focused writer coverage is `10 passed, 0 failed`; the
-disposable LocalDB/Data full suite is `2426 passed, 10 skipped, 0 failed`.
+Current HEAD `0f64da001` adds
+`BackupRestoreMetadataWriter.RestorePublicFoldersAsync`. It creates public
+folders in `folderaccountid = 0` scope, restores messages, recursively restores
+children, and writes ACLs only after descendants. Focused traversal coverage is
+`7 passed, 0 failed`; the disposable LocalDB/Data full suite is `2427 passed,
+10 skipped, 0 failed`.
 
 Legacy `IMAPFolder::XMLLoadSubItems` restores messages, child folders, then ACLs;
 `ACLPermission::XMLLoad` maps `Type/Rights/Holder`, and
 `PersistentACLPermission::Validate` rejects unresolved user/group IDs. Net10
-has parser, holder-resolution, live SQL, and writer foundations, but the writer
-is not wired into public-folder traversal and existing-ACL replacement remains
-open. The transaction-scoped restore path is intentionally stronger than
-legacy's independent ACL `Save()` connection and is not a full parity claim.
+has parser, holder-resolution, live SQL, and writer traversal foundations, but
+the backup payload and executor do not yet provide public-folder entries. The
+transaction-scoped restore path is intentionally stronger than legacy's
+independent ACL `Save()` connection and is not a full parity claim.
 
 Legacy backup behavior is anchored by `BackupExecuter::StartBackup` and
 `BackupDataDirectory_` in `source/Server/Common/Application/BackupExecuter.cpp`.
@@ -22,8 +22,8 @@ and the current acceptance tests cover modes `1`, `2`, `3`, and DB-only `6`.
 The actual legacy `FULL` parser emits `ENVELOPE` and `BODYSTRUCTURE`; it does
 not emit `BODY[]` or mark messages seen, which Net10 now preserves.
 
-Next slice: wire public-folder create/messages/children/ACL traversal in legacy
-order and invoke the writer only after descendants. Paired C++/.NET performance,
+Next slice: capture public-folder graph, messages, and ACL holder names in the
+backup XML payload, then wire the executor. Paired C++/.NET performance,
 out-of-process COM/DCOM, migration/rollback, SEC-18, and 24-hour soak remain
 open; release is **RED**.
 
