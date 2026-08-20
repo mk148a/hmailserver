@@ -1,12 +1,13 @@
 
-## Current next slice (2026-08-20, legacy non-delivered restore normalization)
+## Current next slice (2026-08-20, UID-zero restore allocation parity)
 
-Test commit `04c282bd3` adds disposable SQL/Data backup -> restore -> backup
-coverage for a non-delivered account-folder message (`State=1`) and its nested
-`.eml` file. The backup-only store includes the row while shared IMAP/COM
-folder reads remain delivered-only. The integration group is `22 passed, 0
-skipped, 0 failed`; the disposable LocalDB/Data Debug suite is `2433 passed,
-10 skipped, 0 failed` (`2443` total).
+Code/test commit `8c2216888` matches the legacy restore defaults for account
+and public-folder messages: retry count is reset to `0` and stored flags
+include `ImapMessageFlags.Recent` (`32`). Disposable SQL/Data backup -> restore
+-> backup coverage for a non-delivered `State=1` message and nested `.eml`
+remains green. Focused SQL/store/round-trip coverage is `31 passed, 0 skipped,
+0 failed`; the disposable LocalDB/Data Debug suite is `2433 passed, 10
+skipped, 0 failed` (`2443` total).
 
 Legacy references are `Messages::Refresh` at
 `hmailserver/source/Server/Common/BO/Messages.cpp:165-197`,
@@ -17,12 +18,13 @@ Legacy references are `Messages::Refresh` at
 and `BackupExecuter::BackupDataDirectory_/RestoreDataDirectory_` at
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196-216, 372-386`.
 They establish full folder-state serialization, nested file staging, and the
-legacy restore normalization that remains open.
+legacy restore normalization now implemented by Net10. UID-zero allocation
+remains open: legacy calls `PersistentIMAPFolder::GetUniqueMessageID` while
+Net10 still inserts the archived UID directly.
 
-Remaining restore risk: legacy resets restored `messagecurnooftries` to `0`
-and adds `32` (`\\Recent`) to `messageflags` in `PersistentMessage::AddObject`,
-while Net10 preserves archived values. Next slice: implement and test that
-normalization, including failure cleanup; then address UID-zero allocation.
+Remaining restore risk: UID-zero folder messages do not yet use the legacy
+folder UID allocator or advance `foldercurrentuid`. Next slice: implement and
+test owner-scoped UID allocation, collision behavior, and rollback cleanup.
 Target-preexisting group dependency, migration/installer, COM/DCOM, SEC-18,
 paired C++/.NET performance, and soak gates remain **RED**.
 

@@ -1,28 +1,31 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, non-delivered message round trip)
+## Current Authoritative Continuation (2026-08-20, legacy restore message defaults)
 
-Test commit `04c282bd3` adds disposable SQL/Data backup -> restore -> backup
-coverage for a non-delivered account-folder message (`State=1`) and its nested
-`.eml` file. The backup-only store includes the row while shared IMAP/COM
-folder reads remain delivered-only. The integration group is `22 passed, 0
-skipped, 0 failed`; the full disposable LocalDB/Data suite is `2433 passed,
-10 skipped, 0 failed` (`2443` total).
+Code/test commit `8c2216888` matches the legacy restore defaults for account
+and public-folder messages: retry count is reset to `0` and stored flags
+include `ImapMessageFlags.Recent` (`32`). Disposable SQL/Data backup -> restore
+-> backup coverage for a non-delivered `State=1` message and nested `.eml`
+remains green. Focused SQL/store/round-trip coverage is `31 passed, 0 skipped,
+0 failed`; the full disposable LocalDB/Data suite is `2433 passed, 10 skipped,
+0 failed` (`2443` total).
 
 Legacy anchors are `Messages::Refresh` (`source/Server/Common/BO/Messages.cpp:165-197`),
 `Message::XMLStore/XMLLoad` (`source/Server/Common/BO/Message.cpp:200-230`),
 `PersistentMessage::AddObject` (`source/Server/Common/Persistence/PersistentMessage.cpp:574-646`),
 and `BackupExecuter::BackupDataDirectory_/RestoreDataDirectory_`
 (`source/Server/Common/Application/BackupExecuter.cpp:196-216, 372-386`).
-Net10 now proves all-state nested-file round trip, but still preserves archived
-retries/flags where legacy resets retries to `0` and adds `32` (`\\Recent`) to
-flags. No COM/IDL identity, SMTP trust, shared IMAP/COM read behavior,
-production service, production SQL/Data, or installed registration changed.
+Net10 now proves all-state nested-file round trip and matches the legacy
+retry/flag defaults. UID=0 restore allocation remains open because legacy calls
+`PersistentIMAPFolder::GetUniqueMessageID` while Net10 still inserts the
+archived UID directly. No COM/IDL identity, SMTP trust, shared IMAP/COM read
+behavior, production service, production SQL/Data, or installed registration
+changed.
 
-Next slice: implement legacy restore normalization for non-delivered message
-retries and flags, with negative/failure coverage. UID-zero allocation, group
-dependency, restore/migration, COM/DCOM, SEC-18, paired C++/.NET performance,
-and soak remain open; release remains **RED** and no push was performed.
+Next slice: implement UID-zero folder allocation parity with owner-scope and
+rollback coverage. Group dependency, restore/migration, COM/DCOM, SEC-18,
+paired C++/.NET performance, and soak remain open; release remains **RED** and
+no push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 
