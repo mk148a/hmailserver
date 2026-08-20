@@ -244,6 +244,18 @@ SET settinginteger = @SpamAssassinMergeScore
 WHERE settingname = N'spamassassinmergescore';
 """;
 
+    public const string UpdateAntiSpamSpamAssassinHostSql = """
+UPDATE hm_settings
+SET settingstring = @SpamAssassinHost
+WHERE settingname = N'spamassassinhost';
+""";
+
+    public const string UpdateAntiSpamSpamAssassinPortSql = """
+UPDATE hm_settings
+SET settinginteger = @SpamAssassinPort
+WHERE settingname = N'spamassassinport';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -910,6 +922,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinMergeScoreSql, connection);
         command.Parameters.Add("@SpamAssassinMergeScore", SqlDbType.Int).Value = mergeScore ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamSpamAssassinHostAsync(
+        string host,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinHostSql, connection);
+        command.Parameters.Add("@SpamAssassinHost", SqlDbType.NVarChar, 4000).Value = host;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamSpamAssassinPortAsync(
+        int port,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinPortSql, connection);
+        command.Parameters.Add("@SpamAssassinPort", SqlDbType.Int).Value = port;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

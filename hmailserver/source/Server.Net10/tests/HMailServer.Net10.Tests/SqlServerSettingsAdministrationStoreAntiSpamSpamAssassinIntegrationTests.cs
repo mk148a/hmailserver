@@ -49,7 +49,11 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinEnabledAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinScoreAsync(9, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinMergeScoreAsync(true, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinHostAsync("scanner.example.test", CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamSpamAssassinPortAsync(1783, CancellationToken.None));
             CollectionAssert.AreEqual(new[] { 1, 1, 9 }, await ReadValuesAsync(testConnectionString));
+            Assert.AreEqual("scanner.example.test", await ReadHostAsync(testConnectionString));
+            Assert.AreEqual(1783, await ReadPortAsync(testConnectionString));
 
             await DeleteRowAsync(testConnectionString, "spamassassinenabled");
             Assert.IsFalse(await store.UpdateAntiSpamSpamAssassinEnabledAsync(false, CancellationToken.None));
@@ -102,7 +106,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             );
             INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
             VALUES (N'spamassassinenabled', N'', 0), (N'spamassassinscore', N'', 2),
-                (N'spamassassinmergescore', N'', 0);
+                (N'spamassassinmergescore', N'', 0), (N'spamassassinhost', N'127.0.0.1', 0),
+                (N'spamassassinport', N'', 783);
             """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -142,6 +147,26 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             connection);
         command.Parameters.AddWithValue("@SettingName", settingName);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task<string> ReadHostAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT settingstring FROM dbo.hm_settings WHERE settingname = N'spamassassinhost';",
+            connection);
+        return Convert.ToString(await command.ExecuteScalarAsync().ConfigureAwait(false)) ?? string.Empty;
+    }
+
+    private static async Task<int> ReadPortAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT settinginteger FROM dbo.hm_settings WHERE settingname = N'spamassassinport';",
+            connection);
+        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false));
     }
 
     private static async Task DropDatabaseAsync(string connectionString, string databaseName)

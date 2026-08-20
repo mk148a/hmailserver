@@ -209,6 +209,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<bool>? _publishSpamAssassinEnabled;
     private readonly Action<int>? _publishSpamAssassinScore;
     private readonly Action<bool>? _publishSpamAssassinMergeScore;
+    private readonly Action<string>? _publishSpamAssassinHost;
+    private readonly Action<int>? _publishSpamAssassinPort;
 
     public AntiSpam()
     {
@@ -228,7 +230,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<int>? publishUseMxChecksScore,
         Action<bool>? publishSpamAssassinEnabled,
         Action<int>? publishSpamAssassinScore,
-        Action<bool>? publishSpamAssassinMergeScore)
+        Action<bool>? publishSpamAssassinMergeScore,
+        Action<string>? publishSpamAssassinHost,
+        Action<int>? publishSpamAssassinPort)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -244,6 +248,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishSpamAssassinEnabled = publishSpamAssassinEnabled;
         _publishSpamAssassinScore = publishSpamAssassinScore;
         _publishSpamAssassinMergeScore = publishSpamAssassinMergeScore;
+        _publishSpamAssassinHost = publishSpamAssassinHost;
+        _publishSpamAssassinPort = publishSpamAssassinPort;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -354,9 +360,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateSpamAssassinMergeScore(value);
     }
 
-    public string SpamAssassinHost { get => Snapshot.SpamAssassinHost; set => Unavailable(); }
+    public string SpamAssassinHost
+    {
+        get => Snapshot.SpamAssassinHost;
+        set => UpdateSpamAssassinHost(value);
+    }
 
-    public int SpamAssassinPort { get => Snapshot.SpamAssassinPort; set => Unavailable(); }
+    public int SpamAssassinPort
+    {
+        get => Snapshot.SpamAssassinPort;
+        set => UpdateSpamAssassinPort(value);
+    }
 
     public void ClearGreyListingTriplets()
     {
@@ -454,7 +468,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<int>? publishUseMxChecksScore = null,
         Action<bool>? publishSpamAssassinEnabled = null,
         Action<int>? publishSpamAssassinScore = null,
-        Action<bool>? publishSpamAssassinMergeScore = null)
+        Action<bool>? publishSpamAssassinMergeScore = null,
+        Action<string>? publishSpamAssassinHost = null,
+        Action<int>? publishSpamAssassinPort = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -471,7 +487,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishUseMxChecksScore,
             publishSpamAssassinEnabled,
             publishSpamAssassinScore,
-            publishSpamAssassinMergeScore);
+            publishSpamAssassinMergeScore,
+            publishSpamAssassinHost,
+            publishSpamAssassinPort);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -579,6 +597,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishSpamAssassinMergeScore?.Invoke(value);
+    }
+
+    private void UpdateSpamAssassinHost(string value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamSpamAssassinHostAsync(value ?? string.Empty, CancellationToken.None),
+            "The anti-spam SpamAssassin host update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { SpamAssassinHost = value ?? string.Empty };
+        }
+
+        _publishSpamAssassinHost?.Invoke(value ?? string.Empty);
+    }
+
+    private void UpdateSpamAssassinPort(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamSpamAssassinPortAsync(value, CancellationToken.None),
+            "The anti-spam SpamAssassin port update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { SpamAssassinPort = value };
+        }
+
+        _publishSpamAssassinPort?.Invoke(value);
     }
 
     private void UpdateSetting(

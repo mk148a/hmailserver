@@ -403,6 +403,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamSpamAssassinHostAndPortSql_UseTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settingstring = @SpamAssassinHost\nWHERE settingname = N'spamassassinhost';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamSpamAssassinHostSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @SpamAssassinPort\nWHERE settingname = N'spamassassinport';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamSpamAssassinPortSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

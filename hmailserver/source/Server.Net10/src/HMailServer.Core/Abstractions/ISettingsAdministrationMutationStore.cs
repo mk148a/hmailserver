@@ -157,4 +157,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamSpamAssassinMergeScoreAsync(
         bool mergeScore,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamSpamAssassinHostAsync(
+        string host,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamSpamAssassinPortAsync(
+        int port,
+        CancellationToken cancellationToken);
 }

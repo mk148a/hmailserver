@@ -3334,6 +3334,69 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpamAssassinHostAndPortSettersPersistAndRefreshSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamAssassinHostUpdateResult = true,
+            AntiSpamSpamAssassinPortUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamSpamAssassinHost: "127.0.0.1",
+                AntiSpamSpamAssassinPort: 783)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.SpamAssassinHost = "scanner.example.test";
+        antiSpam.SpamAssassinPort = 1783;
+
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinHostUpdateCount);
+        Assert.AreEqual("scanner.example.test", store.UpdatedAntiSpamSpamAssassinHost);
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinPortUpdateCount);
+        Assert.AreEqual(1783, store.UpdatedAntiSpamSpamAssassinPort);
+        Assert.AreEqual("scanner.example.test", antiSpam.SpamAssassinHost);
+        Assert.AreEqual(1783, antiSpam.SpamAssassinPort);
+        Assert.AreEqual("scanner.example.test", settings.AntiSpam.SpamAssassinHost);
+        Assert.AreEqual(1783, settings.AntiSpam.SpamAssassinPort);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpamAssassinHostAndPortSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamSpamAssassinHostUpdateResult = false,
+            AntiSpamSpamAssassinPortUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedHost = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.SpamAssassinHost = "scanner.example.test");
+        var failedPort = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.SpamAssassinPort = 1783);
+
+        Assert.AreEqual(EFail, failedHost.ErrorCode);
+        Assert.AreEqual(EFail, failedPort.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinHostUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamSpamAssassinPortUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4652,6 +4715,18 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiSpamSpamAssassinMergeScore { get; private set; }
 
+        public bool AntiSpamSpamAssassinHostUpdateResult { get; set; }
+
+        public int AntiSpamSpamAssassinHostUpdateCount { get; private set; }
+
+        public string? UpdatedAntiSpamSpamAssassinHost { get; private set; }
+
+        public bool AntiSpamSpamAssassinPortUpdateResult { get; set; }
+
+        public int AntiSpamSpamAssassinPortUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamSpamAssassinPort { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5177,6 +5252,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamSpamAssassinMergeScore = mergeScore;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamSpamAssassinMergeScoreUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamSpamAssassinHostAsync(
+            string host,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamSpamAssassinHostUpdateCount++;
+            UpdatedAntiSpamSpamAssassinHost = host;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamSpamAssassinHostUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamSpamAssassinPortAsync(
+            int port,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamSpamAssassinPortUpdateCount++;
+            UpdatedAntiSpamSpamAssassinPort = port;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamSpamAssassinPortUpdateResult);
         }
 
     }
