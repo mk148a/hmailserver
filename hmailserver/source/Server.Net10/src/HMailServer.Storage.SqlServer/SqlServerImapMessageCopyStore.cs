@@ -183,6 +183,17 @@ FROM SourceMessages
         return new SqlMessageFetchPlan(sql.ToString(), parameters);
     }
 
+    public static byte GetDestinationFlags(byte sourceFlags, long destinationAclRights)
+    {
+        var destinationFlags = (byte)(sourceFlags | ImapMessageFlags.Recent);
+        if ((destinationAclRights & ImapAclRights.WriteSeen) != ImapAclRights.WriteSeen)
+        {
+            destinationFlags = (byte)(destinationFlags & ~ImapMessageFlags.Seen);
+        }
+
+        return destinationFlags;
+    }
+
     private async ValueTask<IReadOnlyList<ImapCopiedMessage>> CopyCoreAsync(
         ImapCopyRequest request,
         CancellationToken cancellationToken)
@@ -280,7 +291,7 @@ FROM SourceMessages
             {
                 var item = workItems[index];
                 var destinationUid = await AllocateDestinationUidAsync(connection, transaction, request, cancellationToken).ConfigureAwait(false);
-                var destinationFlags = (byte)(item.Source.Flags | ImapMessageFlags.Recent);
+                var destinationFlags = GetDestinationFlags(item.Source.Flags, request.DestinationAclRights);
                 var destinationMessageId = await InsertCopiedMessageAsync(
                     connection,
                     transaction,

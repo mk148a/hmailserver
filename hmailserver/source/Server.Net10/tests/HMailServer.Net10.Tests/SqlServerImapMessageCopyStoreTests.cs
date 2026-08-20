@@ -9,6 +9,21 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerImapMessageCopyStoreTests
 {
     [TestMethod]
+    public void DestinationFlags_ClearSeenOnlyWithoutWriteSeenAcl()
+    {
+        var sourceFlags = (byte)(ImapMessageFlags.Seen | ImapMessageFlags.Flagged);
+
+        Assert.AreEqual(
+            (byte)(ImapMessageFlags.Flagged | ImapMessageFlags.Recent),
+            SqlServerImapMessageCopyStore.GetDestinationFlags(
+                sourceFlags,
+                ImapAclRights.All & ~ImapAclRights.WriteSeen));
+        Assert.AreEqual(
+            (byte)(ImapMessageFlags.Seen | ImapMessageFlags.Flagged | ImapMessageFlags.Recent),
+            SqlServerImapMessageCopyStore.GetDestinationFlags(sourceFlags, ImapAclRights.All));
+    }
+
+    [TestMethod]
     public void PlanCopy_UsesUidOrSequenceRanges()
     {
         var plan = SqlServerImapMessageCopyStore.PlanCopy(

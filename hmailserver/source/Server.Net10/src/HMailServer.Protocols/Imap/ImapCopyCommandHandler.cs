@@ -90,7 +90,8 @@ public sealed class ImapCopyCommandHandler
             destination.FolderId,
             command.MessageSet,
             useUid,
-            deleteSource);
+            deleteSource,
+            destination.AclRights);
 
         var builder = new StringBuilder();
         var copiedMessages = new List<ImapCopiedMessage>();

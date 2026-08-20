@@ -70,6 +70,12 @@ public sealed class ImapAppendCommandHandler
             return Failure($"{SanitizeAtom(tag)} NO ACL: Insert permission denied (Required for APPEND command).\r\n");
         }
 
+        var flags = command.Flags;
+        if ((destination.AclRights & ImapAclRights.WriteSeen) != ImapAclRights.WriteSeen)
+        {
+            flags = (byte)(flags & ~ImapMessageFlags.Seen);
+        }
+
         try
         {
             var result = await _appendStore
@@ -78,7 +84,7 @@ public sealed class ImapAppendCommandHandler
                         destination.AccountId,
                         destination.FolderId,
                         command.MailboxName,
-                        command.Flags,
+                        flags,
                         command.InternalDateUtc,
                         rawMessage),
                     cancellationToken)

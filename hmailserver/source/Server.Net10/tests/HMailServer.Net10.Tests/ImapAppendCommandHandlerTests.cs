@@ -43,6 +43,32 @@ public sealed class ImapAppendCommandHandlerTests
     }
 
     [TestMethod]
+    public async Task HandleAsync_RemovesSeenWhenDestinationLacksWriteSeenAcl()
+    {
+        var appendStore = new FakeAppendStore();
+        var handler = new ImapAppendCommandHandler(
+            new ImapAppendCommandParser(),
+            new FakeMailboxStore(ImapAclRights.All & ~ImapAclRights.WriteSeen),
+            appendStore);
+        var command = new ImapAppendCommand(
+            "INBOX",
+            ImapMessageFlags.Seen | ImapMessageFlags.Flagged,
+            null,
+            5);
+
+        var response = await handler.HandleAsync(
+            requesterAccountId: 77,
+            tag: "A003",
+            command,
+            "Hello"u8.ToArray(),
+            CancellationToken.None);
+
+        Assert.AreEqual("A003 OK [APPENDUID 123 501] APPEND completed\r\n", response);
+        Assert.IsNotNull(appendStore.LastRequest);
+        Assert.AreEqual(ImapMessageFlags.Flagged, appendStore.LastRequest.Flags);
+    }
+
+    [TestMethod]
     public async Task HandleAsync_DoesNotAppendWhenDestinationLacksInsertAcl()
     {
         var appendStore = new FakeAppendStore();

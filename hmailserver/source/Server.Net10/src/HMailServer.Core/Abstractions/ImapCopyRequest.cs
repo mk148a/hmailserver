@@ -7,4 +7,5 @@ public sealed record ImapCopyRequest(
     int DestinationFolderId,
     IReadOnlyList<ImapIdRange> MessageSet,
     bool UseUid,
-    bool DeleteSource);
+    bool DeleteSource,
+    long DestinationAclRights = ImapAclRights.All);

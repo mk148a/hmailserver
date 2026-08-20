@@ -42,8 +42,33 @@ public sealed class ImapCopyCommandHandlerTests
         Assert.AreEqual(88, copyStore.LastRequest.SourceFolderId);
         Assert.AreEqual(77, copyStore.LastRequest.DestinationAccountId);
         Assert.AreEqual(99, copyStore.LastRequest.DestinationFolderId);
+        Assert.AreEqual(ImapAclRights.All, copyStore.LastRequest.DestinationAclRights);
         Assert.IsTrue(copyStore.LastRequest.UseUid);
         Assert.IsFalse(copyStore.LastRequest.DeleteSource);
+    }
+
+    [TestMethod]
+    public async Task HandleAsync_PassesDestinationAclRightsToCopyRequest()
+    {
+        const long destinationAclRights = ImapAclRights.All & ~ImapAclRights.WriteSeen;
+        var copyStore = new CapturingCopyStore();
+        var handler = new ImapCopyCommandHandler(
+            new ImapCopyCommandParser(),
+            new FakeMailboxStore(destinationAclRights),
+            copyStore);
+
+        await handler.HandleAsync(
+            requesterAccountId: 77,
+            sourceAccountId: 77,
+            sourceFolderId: 88,
+            tag: "A003",
+            arguments: "101 \"Archive\"",
+            useUid: true,
+            deleteSource: false,
+            cancellationToken: CancellationToken.None);
+
+        Assert.IsNotNull(copyStore.LastRequest);
+        Assert.AreEqual(destinationAclRights, copyStore.LastRequest.DestinationAclRights);
     }
 
     [TestMethod]
