@@ -2255,6 +2255,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
+            EnsureServerAdministrator();
             return ImapFolderAdministrationRuntimeHost.CreateAuthorizedAdapter(
                 accountId: 0,
                 isAuthenticated: _isServerAdministrator,

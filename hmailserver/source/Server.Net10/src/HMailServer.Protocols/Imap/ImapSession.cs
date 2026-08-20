@@ -943,7 +943,7 @@ public sealed class ImapSession
             state.RecentUids = null;
         }
         else if (change.Folder is { } folder
-            && folder.AccountId == account.AccountId
+            && folder.AccountId == selectedMailbox.AccountId
             && folder.Id == selectedMailbox.FolderId)
         {
             state.SelectedMailbox = selectedMailbox with { Name = folder.Name };

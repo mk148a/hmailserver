@@ -815,6 +815,64 @@ public sealed class ImapFoldersComContractTests
     }
 
     [TestMethod]
+    public void SettingsPublicFolders_DeniesFreshAdapterAfterLogoutButRetainsReadFacade()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        ImapFolderAdministrationRuntimeHost.Configure(
+            new FixedImapFolderAdministrationStore(
+                new[]
+                {
+                    new ImapFolderAdministrationSnapshot(10, 0, -1, "Public", true, 5, "2026-08-01 00:00:00")
+                }),
+            changeTracker: tracker);
+        var application = new Application(new FixedAdministratorAuthenticationProvider("secret"));
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        IInterfaceSettings settings = application.Settings;
+        var retainedFolders = settings.PublicFolders;
+        var retainedFolder = retainedFolders[0];
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        var denied = Assert.ThrowsExactly<COMException>(() => _ = settings.PublicFolders);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, retainedFolders.Count);
+        Assert.AreEqual(10, retainedFolder.ID);
+        Assert.AreEqual("Public", retainedFolder.Name);
+
+        var publicRoot = retainedFolders[0];
+        publicRoot.Name = "Renamed";
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(publicRoot.Save).ErrorCode);
+
+        Assert.IsFalse(tracker.TryGetLatestChange(0, 10, out _));
+    }
+
+    [TestMethod]
+    public void SettingsPublicFolders_SavePublishesAccountZeroRename()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        ImapFolderAdministrationRuntimeHost.Configure(
+            new FixedImapFolderAdministrationStore(
+                new[]
+                {
+                    new ImapFolderAdministrationSnapshot(10, 0, -1, "Public", true, 5, "2026-08-01 00:00:00")
+                }),
+            changeTracker: tracker);
+        IInterfaceSettings settings = Settings.CreateAuthorized();
+        var publicRoot = settings.PublicFolders[0];
+
+        publicRoot.Name = "Renamed";
+        publicRoot.Save();
+
+        Assert.IsTrue(tracker.TryGetLatestChange(0, 10, out var change));
+        Assert.IsNotNull(change.Folder);
+        Assert.AreEqual(0, change.Folder!.AccountId);
+        Assert.AreEqual("Renamed", change.Folder.Name);
+    }
+
+    [TestMethod]
     public void PublicFolderPermissions_UsesConfiguredRuntimeForSelectedFolder()
     {
         var store = new FixedImapFolderAdministrationStore(
@@ -1074,6 +1132,14 @@ public sealed class ImapFoldersComContractTests
         Assert.AreEqual(ClassInterfaceType.None, type.GetCustomAttribute<ClassInterfaceAttribute>()?.Value);
         Assert.AreEqual(defaultInterface, type.GetCustomAttribute<ComDefaultInterfaceAttribute>()?.Value);
         Assert.IsNotNull(type.GetConstructor(Type.EmptyTypes));
+    }
+
+    private sealed class FixedAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
+            && attemptedPassword == password;
     }
 
     private sealed class FixedImapFolderAdministrationStore(

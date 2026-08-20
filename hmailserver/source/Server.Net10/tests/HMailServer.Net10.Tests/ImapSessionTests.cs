@@ -112,6 +112,28 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_RefreshesSelectedPublicMailboxNameAfterPublicRename()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var idleNotifier = new CapturingIdleNotifier();
+        await using var stream = new DuplexMemoryStream(
+            "A001 SELECT #Public\r\nA002 IDLE\r\nDONE\r\nA003 LOGOUT\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            idleNotifier: idleNotifier,
+            mailboxStore: new PublicMailboxStore(tracker),
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100),
+            CancellationToken.None);
+
+        Assert.IsNotNull(idleNotifier.LastRequest);
+        Assert.AreEqual("Renamed", idleNotifier.LastRequest.MailboxName);
+    }
+
+    [TestMethod]
     public void TryParse_ParsesUidSearchCommandLine()
     {
         var parsed = ImapCommandLine.TryParse(
@@ -1303,6 +1325,37 @@ public sealed class ImapSessionTests
             }
 
             return ValueTask.FromResult<ImapMailboxSelection?>(null);
+        }
+    }
+
+    private sealed class PublicMailboxStore(IImapFolderChangeTracker changeTracker) : IImapMailboxStore
+    {
+        public ValueTask<ImapMailboxSelection?> SelectMailboxAsync(
+            int accountId,
+            string mailboxName,
+            bool readOnly,
+            CancellationToken cancellationToken)
+        {
+            changeTracker.PublishUpsert(
+                new ImapFolderAdministrationSnapshot(
+                    20,
+                    0,
+                    -1,
+                    "Renamed",
+                    true,
+                    1,
+                    "2026-08-01 00:00:00"));
+            return ValueTask.FromResult<ImapMailboxSelection?>(
+                new ImapMailboxSelection(
+                    AccountId: 0,
+                    FolderId: 20,
+                    Name: "Old",
+                    Exists: 1,
+                    Recent: 0,
+                    UidValidity: 1,
+                    UidNext: 2,
+                    FirstUnseenUid: null,
+                    IsReadOnly: readOnly));
         }
     }
 
