@@ -1,5 +1,5 @@
 
-## Current next slice (2026-08-20, isolated Hyper-V staging before migration drill)
+## Current next slice (2026-08-20, isolated guest prerequisites before migration drill)
 
 Code/test commit `279609c07` adds guarded provisioning, rollback, inventory,
 and focused tests for the non-production Hyper-V staging host. The official
@@ -11,18 +11,23 @@ one adapter on the private-only switch `HMailServer-SEC18-Private`.
 Inventory evidence is at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
-The guest first boot is complete and SConfig is running as the disposable
-Administrator. Guest Services is enabled for the private VM channel. A
-host-built staging payload was copied to the guest at
-`C:\Windows\Temp\HMailServer-SEC18-Staging-Payload.zip`; source and transfer
-SHA-256 are `C16C00B65C13189130B548EFEDE587D50875CE6323B2A429ACD0BB559D6053A9`.
-No legacy or Net10 service, SQL database, Data directory, COM registration,
-DCOM ACL, or firewall mutation has run. Release remains **RED**.
+The guest first boot is complete and the VMConnect console is usable as
+`win-6tgbde5c01k\\administrator`. Guest Services is enabled for the private VM
+channel. A host-built staging payload was extracted into guest
+`C:\SEC18\Payload` (171 files, 43,773,872 bytes). Guest inventory evidence is
+at `C:\Users\Public\sec18-guest-inventory.json`, copied with evidence at
+`C:\Users\Public\sec18-guest-inventory-copy.json`.
 
-Next slice: exit SConfig to PowerShell, unpack only the staging payload,
-provision only disposable SQL/Data and legacy
-test state, then execute the already-guarded migration/installer replacement
-and forced-failure rollback drill.
+The inventory proves Windows Server 2025 Evaluation with no .NET runtime, no
+SQL Server/SQL Express service, and no hMailServer service. No legacy or Net10
+service, SQL database, Data directory, COM registration, DCOM ACL, or firewall
+mutation has run. Release remains **RED**.
+
+Next slice: obtain approval for official .NET runtime and disposable SQL
+package installation in the private guest; install only the isolated
+hMailServer test stack, provision disposable SQL/Data and legacy test state,
+then execute the already-guarded migration/installer replacement and
+forced-failure rollback drill.
 
 ## Historical next slice (2026-08-14, disposable migration/installer rollback drill)
 

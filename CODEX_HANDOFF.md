@@ -1,6 +1,6 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, isolated Hyper-V staging)
+## Current Authoritative Continuation (2026-08-20, isolated Hyper-V guest execution)
 
 Code/test commit `279609c07` adds guarded provisioning, inventory, rollback,
 and focused static tests for a non-production Hyper-V VM. The official
@@ -13,29 +13,25 @@ has exactly one adapter on the **Private** switch
 `HMailServer-SEC18-Private`; inventory is recorded at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
-The guest first boot is complete and SConfig is running as the disposable
-Administrator. Guest Services is enabled for the private VM channel. The
-host-built staging payload was copied to
-`C:\Windows\Temp\HMailServer-SEC18-Staging-Payload.zip`; source and transfer
-SHA-256 are `C16C00B65C13189130B548EFEDE587D50875CE6323B2A429ACD0BB559D6053A9`.
-The isolated hMailServer installation, disposable SQL/Data copy, legacy C++
-registry isolation, and production migration/rollback drill have
-not run. Production service, database, Data directory, COM registration,
-DCOM ACLs, and firewall are untouched. Release remains **RED**.
+The guest first boot is complete and the VMConnect console is usable as
+`win-6tgbde5c01k\\administrator`. Guest Services is enabled for the private VM
+channel. The host-built staging payload was extracted offline into guest
+`C:\SEC18\Payload` (171 files, 43,773,872 bytes); source and transfer SHA-256
+are `C16C00B65C13189130B548EFEDE587D50875CE6323B2A429ACD0BB559D6053A9`.
+Guest inventory was written and copied out to
+`C:\Users\Public\sec18-guest-inventory.json`, with copy evidence at
+`C:\Users\Public\sec18-guest-inventory-copy.json`.
 
-PowerShell Direct cannot proceed: the guest rejects the supplied Administrator
-credential and also rejects an empty Administrator password with
-`PSDirectException: The credential is invalid`. The Windows blank-password
-remote restriction remains enabled; do not weaken it. The next executable
-step requires a non-empty disposable guest Administrator password entered in
-the VM console, then guest-side execution and isolated stack setup. The
-payload has now been extracted offline into guest `C:\SEC18\Payload` (171
-files, 43,773,872 bytes); evidence is
-`C:\Users\Public\sec18-offline-payload-report-3.json`. No guest command,
-service, SQL/Data, COM, DCOM, or firewall mutation has run.
+The inventory proves the guest is Windows Server 2025 Evaluation, has no
+.NET runtime, no SQL Server/SQL Express service, and no hMailServer service.
+Therefore no server, SQL/Data, COM, DCOM, or migration workload has run yet.
+Production service, database, Data directory, COM registration, DCOM ACLs,
+and firewall remain untouched. Release remains **RED**.
 
-Next slice: finish guest setup, install only the isolated test stack, and run
-the forced-failure migration/rollback drill.
+Next slice: obtain approval for official .NET runtime and disposable SQL
+package installation in the private guest, then install only the isolated
+hMailServer test stack and provision disposable SQL/Data/message state before
+the guarded migration/rollback drill.
 
 ## Current Authoritative Continuation (2026-08-14, installer rollback compensation)
 
