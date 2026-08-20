@@ -415,6 +415,156 @@ public sealed class SqlServerImapFolderAdministrationDeletionStoreIntegrationTes
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreTransaction_PublicFolderPermissionInsert_CommitsLegacyRowsAndScopesPublicFolders()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_public_acl_commit_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            await SeedPublicRestoreRowsAsync(testConnectionString).ConfigureAwait(false);
+
+            var transactionFactory = new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString));
+
+            ImapFolderPermissionAdministrationSnapshot? userPermission;
+            ImapFolderPermissionAdministrationSnapshot? groupPermission;
+            ImapFolderPermissionAdministrationSnapshot? anyonePermission;
+            await using (var transaction = await transactionFactory
+                .BeginAsync(CancellationToken.None)
+                .ConfigureAwait(false))
+            {
+                var store = transaction.FolderPermissionRestoreStore
+                    ?? throw new AssertFailedException("The SQL restore transaction did not expose its ACL store.");
+                userPermission = await store.InsertFolderPermissionForRestoreAsync(
+                    500, 0, 0, 10, 7, CancellationToken.None).ConfigureAwait(false);
+                groupPermission = await store.InsertFolderPermissionForRestoreAsync(
+                    500, 1, 20, 0, 1024, CancellationToken.None).ConfigureAwait(false);
+                anyonePermission = await store.InsertFolderPermissionForRestoreAsync(
+                    500, 2, 0, 0, 2047, CancellationToken.None).ConfigureAwait(false);
+
+                Assert.IsNotNull(userPermission);
+                Assert.IsNotNull(groupPermission);
+                Assert.IsNotNull(anyonePermission);
+                Assert.IsTrue(userPermission!.Id > 0);
+                Assert.IsTrue(groupPermission!.Id > userPermission.Id);
+                Assert.IsTrue(anyonePermission!.Id > groupPermission.Id);
+                Assert.AreEqual(
+                    new ImapFolderPermissionAdministrationSnapshot(userPermission.Id, 500, 0, 0, 10, 7),
+                    userPermission);
+                Assert.AreEqual(
+                    new ImapFolderPermissionAdministrationSnapshot(groupPermission.Id, 500, 1, 20, 0, 1024),
+                    groupPermission);
+                Assert.AreEqual(
+                    new ImapFolderPermissionAdministrationSnapshot(anyonePermission.Id, 500, 2, 0, 0, 2047),
+                    anyonePermission);
+
+                Assert.IsNull(await store.InsertFolderPermissionForRestoreAsync(
+                    400, 0, 0, 11, 1, CancellationToken.None).ConfigureAwait(false));
+                Assert.IsNull(await store.InsertFolderPermissionForRestoreAsync(
+                    999, 0, 0, 11, 1, CancellationToken.None).ConfigureAwait(false));
+
+                await transaction.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            Assert.AreEqual(
+                4L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_acl",
+                    "aclsharefolderid",
+                    new long[] { 500 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                1L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_acl",
+                    "aclsharefolderid",
+                    new long[] { 400 }).ConfigureAwait(false));
+            Assert.AreEqual(
+                0L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_acl",
+                    "aclsharefolderid",
+                    new long[] { 999 }).ConfigureAwait(false));
+
+            var readBack = await new SqlServerImapFolderAdministrationStore(
+                    new SqlServerConnectionFactory(testConnectionString))
+                .GetFolderPermissionsAsync(500, CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.AreEqual(4, readBack.Count);
+            CollectionAssert.Contains(
+                readBack.ToList(),
+                userPermission!);
+            CollectionAssert.Contains(
+                readBack.ToList(),
+                groupPermission!);
+            CollectionAssert.Contains(
+                readBack.ToList(),
+                anyonePermission!);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task RestoreTransaction_PublicFolderPermissionInsert_DisposesWithRollbackAfterDuplicateFailure()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_public_acl_rollback_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            await SeedPublicRestoreRowsAsync(testConnectionString).ConfigureAwait(false);
+
+            var transactionFactory = new SqlServerBackupRestoreMetadataTransactionFactory(
+                new SqlServerConnectionFactory(testConnectionString));
+            await using (var transaction = await transactionFactory
+                .BeginAsync(CancellationToken.None)
+                .ConfigureAwait(false))
+            {
+                var store = transaction.FolderPermissionRestoreStore
+                    ?? throw new AssertFailedException("The SQL restore transaction did not expose its ACL store.");
+                var inserted = await store.InsertFolderPermissionForRestoreAsync(
+                    500, 1, 77, 0, 8, CancellationToken.None).ConfigureAwait(false);
+                Assert.IsNotNull(inserted);
+
+                await Assert.ThrowsExactlyAsync<SqlException>(() => store
+                    .InsertFolderPermissionForRestoreAsync(
+                        500, 1, 77, 0, 9, CancellationToken.None)
+                    .AsTask()).ConfigureAwait(false);
+            }
+
+            Assert.AreEqual(
+                1L,
+                await CountRowsByIdsAsync(
+                    testConnectionString,
+                    "hm_acl",
+                    "aclsharefolderid",
+                    new long[] { 500 }).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
