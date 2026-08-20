@@ -59,6 +59,11 @@ public sealed record RestoreDomainEntry(
     IReadOnlyList<AliasAdministrationSnapshot> Aliases,
     IReadOnlyList<RestoreDistributionListEntry> DistributionLists);
 
+[ComVisible(false)]
+public sealed record RestoreGroupEntry(
+    GroupAdministrationSnapshot Group,
+    IReadOnlyList<string> MemberNames);
+
 public static class BackupArchiveXmlSnapshotParser
 {
     public static IReadOnlyList<DomainAdministrationSnapshot> ParseDomains(string archiveXml)
@@ -194,6 +199,36 @@ public static class BackupArchiveXmlSnapshotParser
         return folders.Select(ParsePublicFolder).ToArray();
     }
 
+    public static IReadOnlyList<RestoreGroupEntry> ParseGroupEntries(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var containers = document.Root?.Elements("Groups").ToArray()
+            ?? Array.Empty<XElement>();
+        if (containers.Length > 1)
+        {
+            throw new InvalidDataException("The backup contains multiple Groups containers.");
+        }
+
+        var groups = containers.Length == 0
+            ? Array.Empty<XElement>()
+            : containers[0].Elements().ToArray();
+        if (groups.Any(static element => element.Name != "Group"))
+        {
+            throw new InvalidDataException("The Groups container contains an unexpected child.");
+        }
+
+        var entries = groups.Select(ParseGroup).ToArray();
+        if (entries
+            .GroupBy(static entry => entry.Group.Name, StringComparer.OrdinalIgnoreCase)
+            .Any(static group => group.Count() > 1))
+        {
+            throw new InvalidDataException("The backup contains duplicate group names.");
+        }
+
+        return entries;
+    }
+
     private static RestoreAccountEntry ParseAccount(XElement element, int domainId)
     {
         var snapshot = new AccountAdministrationSnapshot(
@@ -298,6 +333,39 @@ public static class BackupArchiveXmlSnapshotParser
         var permissions = ParseFolderPermissions(element);
 
         return new RestorePublicFolderEntry(folder, children, messages, permissions);
+    }
+
+    private static RestoreGroupEntry ParseGroup(XElement element)
+    {
+        var name = RequiredStringAttr(element, "Name", "a group");
+        var containers = element.Elements("GroupMembers").ToArray();
+        if (containers.Length > 1)
+        {
+            throw new InvalidDataException($"Group '{name}' contains multiple GroupMembers containers.");
+        }
+
+        var members = containers.Length == 0
+            ? Array.Empty<XElement>()
+            : containers[0].Elements().ToArray();
+        if (members.Any(static member => member.Name != "Member"))
+        {
+            throw new InvalidDataException($"Group '{name}' contains an unexpected member child.");
+        }
+
+        return new RestoreGroupEntry(
+            new GroupAdministrationSnapshot(0, name),
+            members.Select(member => RequiredStringAttr(member, "Name", $"group '{name}' member")).ToArray());
+    }
+
+    private static string RequiredStringAttr(XElement element, string name, string context)
+    {
+        var value = element.Attribute(name)?.Value;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidDataException($"The {context} is missing a non-empty {name} attribute.");
+        }
+
+        return value;
     }
 
     private static IReadOnlyList<MessageAdministrationSnapshot> ParseFolderMessages(XElement element)

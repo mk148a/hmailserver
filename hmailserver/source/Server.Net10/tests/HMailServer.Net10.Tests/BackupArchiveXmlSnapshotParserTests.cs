@@ -141,6 +141,58 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseGroupEntries_PreservesLegacyGroupAndMemberNames()
+    {
+        const string xml = """
+            <Backup>
+              <Groups>
+                <Group Name="Editors&lt;&amp;&quot;&apos;">
+                  <GroupMembers>
+                    <Member Name="user@example.test" />
+                    <Member Name="second@example.test" />
+                  </GroupMembers>
+                </Group>
+              </Groups>
+            </Backup>
+            """;
+
+        var groups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(xml);
+
+        Assert.AreEqual(1, groups.Count);
+        Assert.AreEqual("Editors<&\"'", groups[0].Group.Name);
+        CollectionAssert.AreEqual(
+            new[] { "user@example.test", "second@example.test" },
+            groups[0].MemberNames.ToArray());
+    }
+
+    [TestMethod]
+    public void ParseGroupEntries_RejectsDuplicateGroupsAndMissingMemberName()
+    {
+        const string duplicateXml = """
+            <Backup>
+              <Groups>
+                <Group Name="Editors" />
+                <Group Name="editors" />
+              </Groups>
+            </Backup>
+            """;
+        const string missingMemberXml = """
+            <Backup>
+              <Groups>
+                <Group Name="Editors">
+                  <GroupMembers><Member /></GroupMembers>
+                </Group>
+              </Groups>
+            </Backup>
+            """;
+
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParseGroupEntries(duplicateXml));
+        Assert.ThrowsExactly<InvalidDataException>(() =>
+            BackupArchiveXmlSnapshotParser.ParseGroupEntries(missingMemberXml));
+    }
+
+    [TestMethod]
     public async Task RestoreAccountsAsync_ReplaysParsedArchiveIntoAccountStore()
     {
         var store = new RecordingAccountStore();
