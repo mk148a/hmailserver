@@ -1,23 +1,22 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, isolated SQL group restore evidence)
+## Current authoritative parity status (2026-08-20, empty/omitted Groups cleanup parity)
 
-Code/test commit `759567534` adds disposable SQL/Data integration coverage for
-legacy group replacement and transaction rollback. The fixture creates real
-`hm_groups`, `hm_group_members`, and `hm_acl` tables; commit removes existing
-groups and owned ACLs before inserting the replacement graph, while disposal
-restores the original graph. Focused coverage is `7 passed, 0 skipped, 0
-failed`; full disposable Net10 is `2446 passed, 10 skipped, 0 failed`
-(`2456` total).
+Code/test commit `b2271b26a` closes the legacy empty/omitted `Groups` cleanup
+gap. `Collection::XMLLoad` parity now clears groups whenever group metadata is
+part of the restore, even when the XML container is absent or empty. Focused
+restore/executor/SQL coverage is `28 passed, 0 skipped, 0 failed`; full
+disposable Net10 is `2447 passed, 10 skipped, 0 failed` (`2457` total).
 
 Legacy `Collection::XMLLoad` (`source/Server/Common/BO/Collection.h:85-130`)
 deletes the current collection before saving each group, while
 `IMAPConfiguration::XMLLoad` (`source/Server/IMAP/IMAPConfiguration.cpp:238-248`)
 loads groups independently of message restoration. Net10 now has corresponding
-SQL commit/rollback evidence for non-empty group archives and preserves the
-legacy stale `hm_group_members` behavior. Empty/omitted Groups-container
-deletion remains open. Release remains **RED**.
+SQL commit/rollback evidence for non-empty group archives, clears empty/omitted
+containers, and preserves the legacy stale `hm_group_members` behavior.
+Release remains **RED** because migration/installer, COM/DCOM, SEC-18, paired
+C++ performance, and soak gates remain open.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

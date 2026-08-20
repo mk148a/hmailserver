@@ -1,12 +1,11 @@
-## Current authoritative parity status (2026-08-20, isolated SQL group restore evidence)
+## Current authoritative parity status (2026-08-20, empty/omitted Groups cleanup parity)
 
-Code/test commit `759567534` adds disposable SQL/Data integration coverage for
-legacy group replacement and rollback. The fixture creates real `hm_groups`,
-`hm_group_members`, and `hm_acl` tables, verifies owned ACL deletion before
-group replacement, preserves legacy stale member rows, and proves disposal
-rolls back the whole transaction. Focused coverage is `7 passed, 0 skipped, 0
-failed`; full disposable Net10 is `2446 passed, 10 skipped, 0 failed`
-(`2456` total). Empty/omitted Groups cleanup remains an explicit gap.
+Code/test commit `b2271b26a` closes the legacy empty/omitted `Groups` cleanup
+gap. Restore now clears groups whenever group metadata is selected, even when
+the XML container is absent or empty, while retaining the legacy stale
+`hm_group_members` behavior. Focused coverage is `28 passed, 0 skipped, 0
+failed`; full disposable Net10 is `2447 passed, 10 skipped, 0 failed`
+(`2457` total).
 Release remains **RED**.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)

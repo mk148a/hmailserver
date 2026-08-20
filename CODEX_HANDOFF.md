@@ -1,23 +1,23 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, isolated SQL group restore evidence)
+## Current Authoritative Continuation (2026-08-20, empty/omitted Groups cleanup parity)
 
-Code/test commit `759567534` adds disposable SQL/Data integration coverage for
-legacy group replacement and rollback against real `hm_groups`,
-`hm_group_members`, and `hm_acl` tables. Focused group SQL/unit coverage is `7
-passed, 0 skipped, 0 failed`; the disposable LocalDB/Data full suite is `2446
-passed, 10 skipped, 0 failed` (`2456` total). Commit removes existing groups
-and owned ACLs before insertion; disposal rolls the transaction back, and stale
-group-member rows remain as required by legacy behavior.
+Code/test commit `b2271b26a` closes empty/omitted Groups-container cleanup
+parity. Restore clears groups whenever group metadata is selected, even when
+the XML container is absent or empty. Focused restore/executor/SQL coverage is
+`28 passed, 0 skipped, 0 failed`; the disposable LocalDB/Data full suite is
+`2447 passed, 10 skipped, 0 failed` (`2457` total). The SQL fixture also
+preserves legacy stale `hm_group_members` behavior and proves commit/rollback.
 
 Legacy references are `Collection::XMLLoad`
 (`source/Server/Common/BO/Collection.h:85-130`),
 `PersistentGroup::DeleteObject`
 (`source/Server/Common/Persistence/PersistentGroup.cpp:31-42`), and
 `IMAPConfiguration::XMLLoad`
-(`source/Server/IMAP/IMAPConfiguration.cpp:238-248`). Empty/omitted Groups
-cleanup remains the next bounded slice. Release remains `RED`; no push was
-performed.
+(`source/Server/IMAP/IMAPConfiguration.cpp:238-248`). The next slice is the
+isolated migration/installer rollback drill, but `Get-VM` remains access-denied;
+MSSQLSERVER is running but is not an approved disposable target. Release
+remains `RED`; no push was performed.
 
 ## Historical Authoritative Continuation (2026-08-20, transaction-scoped group/member restore)
 

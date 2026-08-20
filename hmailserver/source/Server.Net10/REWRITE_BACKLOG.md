@@ -1,13 +1,11 @@
 
-## Current next slice (2026-08-20, empty/omitted Groups-container cleanup parity)
+## Current next slice (2026-08-20, isolated migration/installer rollback drill)
 
-Code/test commit `759567534` adds disposable SQL/Data coverage for legacy group
-replacement and rollback against real `hm_groups`, `hm_group_members`, and
-`hm_acl` tables. Commit removes existing groups and owned ACLs before inserting
-the replacement graph; disposal rolls back the SQL transaction, and stale
-`hm_group_members` rows remain as in legacy C++. Focused coverage is `7 passed,
-0 skipped, 0 failed`; full disposable LocalDB/Data is `2446 passed, 10 skipped,
-0 failed` (`2456` total).
+Code/test commit `b2271b26a` closes empty/omitted Groups-container cleanup
+parity. Restore clears groups before inserting archived group entries whenever
+group metadata is selected, including absent or empty XML containers. Focused
+coverage is `28 passed, 0 skipped, 0 failed`; full disposable LocalDB/Data is
+`2447 passed, 10 skipped, 0 failed` (`2457` total).
 
 Legacy anchors are `Collection::XMLLoad`
 (`hmailserver/source/Server/Common/BO/Collection.h:85-130`),
@@ -15,9 +13,11 @@ Legacy anchors are `Collection::XMLLoad`
 (`hmailserver/source/Server/Common/Persistence/PersistentGroup.cpp:31-42`),
 and `IMAPConfiguration::XMLLoad`
 (`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:238-248`). The next
-slice must close deletion behavior when the Groups container is empty or omitted,
-using schema-safe SQL evidence without broadening to other Admin collections.
-Release remains **RED**.
+slice is now environment-gated: provision and verify a disposable VM, then run
+the isolated migration/installer rollback drill using cloned SQL/Data only.
+`Get-VM` remains access-denied and the running MSSQLSERVER instance is not an
+approved disposable target. Do not touch production service, SQL/Data,
+registration, or DCOM. Release remains **RED**.
 
 ## Historical current slice (2026-08-20, target group replacement/merge and settings-only group restore)
 
