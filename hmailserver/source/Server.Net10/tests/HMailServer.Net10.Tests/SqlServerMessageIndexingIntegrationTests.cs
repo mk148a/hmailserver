@@ -3201,6 +3201,7 @@ CREATE TABLE dbo.hm_messages
     messagefilename nvarchar(255) NOT NULL,
     messagetype int NOT NULL,
     messagenexttrytime datetime2 NOT NULL,
+    messagecreatetime datetime NOT NULL,
     messagecurnooftries int NOT NULL,
     messagelocked int NOT NULL,
     messageleaseowner nvarchar(128) NULL,
@@ -3219,18 +3220,19 @@ INSERT INTO dbo.hm_messages
     messagefilename,
     messagetype,
     messagenexttrytime,
+    messagecreatetime,
     messagecurnooftries,
     messagelocked,
     messageleaseowner,
     messageleaseexpiresutc
 )
 VALUES
-    (10, N'active.eml', 3, '2099-01-01T00:00:00', 7, 1, N'worker-a', '2099-01-01T00:00:00'),
-    (20, N'delivered.eml', 2, '2099-01-01T00:00:00', 9, 0, NULL, NULL),
-    (30, N'ready.eml', 1, '1901-01-01T00:00:00', 0, 0, NULL, NULL),
-    (40, N'expired.eml', 1, '1901-01-01T00:00:00', 1, 1, N'worker-expired', '2000-01-01T00:00:00'),
-    (50, N'clear-a.eml', 1, '1901-01-01T00:00:00', 0, 0, NULL, NULL),
-    (60, N'clear-b.eml', 3, '1901-01-01T00:00:00', 2, 0, NULL, NULL);
+    (10, N'active.eml', 3, '2099-01-01T00:00:00', '2099-01-01T00:00:00', 7, 1, N'worker-a', '2099-01-01T00:00:00'),
+    (20, N'delivered.eml', 2, '2099-01-01T00:00:00', '2099-01-01T00:00:00', 9, 0, NULL, NULL),
+    (30, N'ready.eml', 1, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 0, 0, NULL, NULL),
+    (40, N'expired.eml', 1, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 1, 1, N'worker-expired', '2000-01-01T00:00:00'),
+    (50, N'clear-a.eml', 1, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 0, 0, NULL, NULL),
+    (60, N'clear-b.eml', 3, '1901-01-01T00:00:00', '1901-01-01T00:00:00', 2, 0, NULL, NULL);
 
 INSERT INTO dbo.hm_messagerecipients
     (recipientid, recipientmessageid)
