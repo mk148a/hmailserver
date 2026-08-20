@@ -1,25 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-20, public-folder backup payload)
+## Current authoritative parity status (2026-08-20, public-folder restore executor)
 
-Current HEAD `da57cb717` captures account-zero public-folder graph, message
-metadata, and ACL holder names in the legacy root-level `<PublicFolders>` XML
-payload. The writer preserves `IMAPFolder::XMLStore` order: messages, child
-folders, then ACLs, and omits empty containers. Focused backup coverage is `53
-passed, 1 skipped, 0 failed`; full Debug is `2379 passed, 60 skipped, 0 failed`;
-disposable LocalDB/Data is `2429 passed, 10 skipped, 0 failed`.
+Current HEAD `acde2e63b` parses and restores the legacy root-level
+`<PublicFolders>` graph during full Settings|Domains|Messages restore. It uses
+account-zero ownership, transaction-scoped folder/message/ACL stores, returned
+account IDs for user holders, and validates public graph shape before mutation.
+Focused restore/parser/integrity/writer coverage is `139 passed, 0 skipped, 0
+failed`; disposable LocalDB/Data is `2430 passed, 10 skipped, 0 failed`.
 
-Legacy references are `BackupExecuter::StartBackup`,
-`Configuration::XMLStore`, `IMAPConfiguration::XMLStore`,
-`IMAPFolder::XMLStore`, `Message::XMLStore`, and
-`ACLPermission::GetPermissionHolderName_`. Net10 backup capture is now covered,
-but `MetadataBackupRestoreExecutor` still does not parse or invoke public-folder
-restore. The current message projection also filters delivered rows while the
-legacy folder query did not explicitly filter `messagetype`; no broader parity
-claim is made. Next slice is executor wiring and a populated isolated restore
-round trip. Release remains **RED** for restore, migration, COM/DCOM, SEC-18,
-paired C++/.NET performance, and soak gates.
+Legacy references are `BackupExecuter::StartRestore`,
+`Configuration::XMLLoad`, `IMAPConfiguration::XMLLoad`,
+`Collection<T,P>::XMLLoad`, `IMAPFolder::XMLLoadSubItems`, and
+`ACLPermission::XMLLoad`. Group ACLs depend on target-preexisting groups; no
+archive group restore exists. The backup projection still filters delivered
+messages (`messagetype = 2`) while legacy did not explicitly filter that query.
+Next slice is a populated disposable SQL/Data full restore and backup-after-
+restore semantic check. Release remains **RED** for restore/migration, COM/DCOM,
+SEC-18, paired C++/.NET performance, and soak gates.
 
 ## Current authoritative parity status (2026-08-20, ACL restore storage foundation)
 

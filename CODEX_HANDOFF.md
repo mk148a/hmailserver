@@ -1,28 +1,26 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-20, public-folder backup payload)
+## Current Authoritative Continuation (2026-08-20, public-folder restore executor)
 
-HEAD is `da57cb717`. The code/test slice extends
-`BackupArchiveXmlPayload` and `BackupXmlPayloadRuntime` with account-zero public
-folder snapshots, messages, recursive children, and ACL holder names, then
-writes root-level `<PublicFolders>` from `WriteSettings`. It follows legacy
-`Configuration::XMLStore`/`IMAPConfiguration::XMLStore` and
-`IMAPFolder::XMLStore` ordering: messages, children, ACLs. No COM/IDL identity,
-SMTP trust, restore executor, or production state changed.
+HEAD is `acde2e63b`. The code/test slice parses root-level public-folder XML in
+full restore, validates its graph in `BackupRestoreIntegrityRuntime`, and calls
+`BackupRestoreMetadataWriter.RestorePublicFoldersAsync` after all domain
+accounts have been inserted. User ACL holders are resolved against returned
+account IDs; group holders use the existing target group store. Legacy anchors
+are `BackupExecuter::StartRestore`, `Configuration::XMLLoad`,
+`IMAPConfiguration::XMLLoad`, `Collection<T,P>::XMLLoad`,
+`IMAPFolder::XMLLoadSubItems`, and `ACLPermission::XMLLoad`.
 
-Legacy symbol evidence: `BackupExecuter::StartBackup`,
-`Configuration::XMLStore`, `IMAPConfiguration::XMLStore`,
-`IMAPFolder::XMLStore`, `Message::XMLStore`, and
-`ACLPermission::GetPermissionHolderName_`. Focused backup coverage is `53/53`
-with one existing reparse-point skip; full Debug is `2379 passed, 60 skipped,
-0 failed`; disposable LocalDB/Data is `2429 passed, 10 skipped, 0 failed`.
+Focused restore/parser/integrity/writer coverage is `139/139`; disposable
+LocalDB/Data is `2430 passed, 10 skipped, 0 failed`. No COM/IDL identity, SMTP
+trust, production service, production SQL/Data, or installed registration was
+changed. Residual risks are target-preexisting group dependency, no archive
+group restore path, and the delivered-only backup message projection versus
+the legacy unfiltered folder query.
 
-Residual risk: the current message store projection filters `messagetype = 2`
-where legacy backup serialized the folder query rows without that filter, and
-restore executor wiring is still absent. Next slice: parse public entries in
-`MetadataBackupRestoreExecutor` and invoke the existing transaction-scoped
-`RestorePublicFoldersAsync` writer, followed by populated isolated round-trip
-coverage. Release remains **RED** and no push was performed.
+Next slice: populated disposable full restore and backup-after-restore SQL/Data
+semantic evidence, including `hm_imapfolders`, `hm_messages`, and `hm_acl`.
+Release remains **RED** and no push was performed.
 
 ## Current Authoritative Continuation (2026-08-20, ACL restore storage foundation)
 

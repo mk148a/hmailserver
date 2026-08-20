@@ -1,31 +1,31 @@
 
-## Current next slice (2026-08-20, wire public-folder restore executor)
+## Current next slice (2026-08-20, populated public-folder SQL restore round trip)
 
-Code/test commit `da57cb717` captures account-zero public folders when
-`BackupSettingsFlag` is selected and writes the legacy root-level
-`<PublicFolders>` payload. `BackupXmlPayloadRuntime` resolves user, group, and
-`Anyone` ACL holders, preserves folder/message/child/ACL order, and omits empty
-containers. Focused backup coverage is `53 passed, 1 skipped, 0 failed`; the
-full Debug suite is `2379 passed, 60 skipped, 0 failed`; the disposable
-LocalDB/Data suite is `2429 passed, 10 skipped, 0 failed`.
+Code/test commit `acde2e63b` wires `ParsePublicFolderEntries` into
+`MetadataBackupRestoreExecutor` for the full Settings|Domains|Messages path.
+It restores account-zero folders after domain accounts, passes newly assigned
+account IDs to ACL holder resolution, and invokes the existing transaction
+scoped folder/message/permission stores. The integrity preflight now validates
+root-level `PublicFolders`, nested folders, messages, ACLs, and permissions.
+Focused restore/parser/integrity/writer coverage is `139 passed, 0 skipped, 0
+failed`; the disposable LocalDB/Data suite is `2430 passed, 10 skipped, 0
+failed`.
 
-Legacy references are `BackupExecuter::StartBackup`,
-`Configuration::XMLStore`, `IMAPConfiguration::XMLStore`,
-`IMAPFolder::XMLStore`, `Message::XMLStore`, and
-`ACLPermission::GetPermissionHolderName_` in the C++ tree. Net10 now captures
-and serializes this backup-side graph without changing COM identity, SMTP
-trust, or restore behavior. A known parity risk remains: the current message
-administration projection filters to delivered rows (`messagetype = 2`) while
-legacy `Message::XMLStore` serialized the rows returned by its folder query;
-this is not claimed closed here.
+Legacy references are `BackupExecuter::StartRestore`,
+`Configuration::XMLLoad`, `IMAPConfiguration::XMLLoad`,
+`Collection<T,P>::XMLLoad`, `IMAPFolder::XMLLoadSubItems`, and
+`ACLPermission::XMLLoad`. Net10 now follows the legacy gate and order without
+changing COM identity or SMTP behavior. Group ACLs still resolve against groups
+already present in the target; archive group restoration is not implemented.
+The backup-side message projection still filters `messagetype = 2` while the
+legacy folder query did not explicitly filter that column.
 
-Next slice: parse the captured public entries in
-`MetadataBackupRestoreExecutor`, pass resolved account/group snapshots and the
-existing transaction permission store to `RestorePublicFoldersAsync`, and add
-an isolated populated public-folder restore round trip. Do not widen to private
-folder ACLs, COM mutation, SMTP behavior, or protocol changes. Migration/
-installer, COM/DCOM, SEC-18, paired C++/.NET performance, and soak gates remain
-**RED**.
+Next slice: run a populated full restore against a disposable SQL/Data pair and
+assert committed `hm_imapfolders`, `hm_messages`, and `hm_acl` rows plus a
+backup-after-restore semantic check. Do not widen to group archive restore,
+private-folder ACLs, COM mutation, SMTP behavior, or protocol changes.
+Migration/installer, COM/DCOM, SEC-18, paired C++/.NET performance, and soak
+gates remain **RED**.
 
 ## Current next slice (2026-08-20, populated restore semantic equivalence)
 
