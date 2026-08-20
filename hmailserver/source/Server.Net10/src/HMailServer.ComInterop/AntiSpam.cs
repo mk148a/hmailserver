@@ -214,6 +214,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<int>? _publishMaximumMessageSize;
     private readonly Action<bool>? _publishDkimVerificationEnabled;
     private readonly Action<int>? _publishDkimVerificationFailureScore;
+    private readonly Action<bool>? _publishBypassGreylistingOnSpfSuccess;
+    private readonly Action<bool>? _publishBypassGreylistingOnMailFromMx;
 
     public AntiSpam()
     {
@@ -238,7 +240,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<int>? publishSpamAssassinPort,
         Action<int>? publishMaximumMessageSize,
         Action<bool>? publishDkimVerificationEnabled,
-        Action<int>? publishDkimVerificationFailureScore)
+        Action<int>? publishDkimVerificationFailureScore,
+        Action<bool>? publishBypassGreylistingOnSpfSuccess,
+        Action<bool>? publishBypassGreylistingOnMailFromMx)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -259,6 +263,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishMaximumMessageSize = publishMaximumMessageSize;
         _publishDkimVerificationEnabled = publishDkimVerificationEnabled;
         _publishDkimVerificationFailureScore = publishDkimVerificationFailureScore;
+        _publishBypassGreylistingOnSpfSuccess = publishBypassGreylistingOnSpfSuccess;
+        _publishBypassGreylistingOnMailFromMx = publishBypassGreylistingOnMailFromMx;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -433,9 +439,17 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         set => UpdateDkimVerificationFailureScore(value);
     }
 
-    public bool BypassGreylistingOnSPFSuccess { get => Snapshot.BypassGreylistingOnSpfSuccess; set => Unavailable(); }
+    public bool BypassGreylistingOnSPFSuccess
+    {
+        get => Snapshot.BypassGreylistingOnSpfSuccess;
+        set => UpdateBypassGreylistingOnSpfSuccess(value);
+    }
 
-    public bool BypassGreylistingOnMailFromMX { get => Snapshot.BypassGreylistingOnMailFromMx; set => Unavailable(); }
+    public bool BypassGreylistingOnMailFromMX
+    {
+        get => Snapshot.BypassGreylistingOnMailFromMx;
+        set => UpdateBypassGreylistingOnMailFromMx(value);
+    }
 
     public bool TestSpamAssassinConnection(string hostname, int port, out string resultText)
     {
@@ -494,7 +508,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<int>? publishSpamAssassinPort = null,
         Action<int>? publishMaximumMessageSize = null,
         Action<bool>? publishDkimVerificationEnabled = null,
-        Action<int>? publishDkimVerificationFailureScore = null)
+        Action<int>? publishDkimVerificationFailureScore = null,
+        Action<bool>? publishBypassGreylistingOnSpfSuccess = null,
+        Action<bool>? publishBypassGreylistingOnMailFromMx = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -516,7 +532,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishSpamAssassinPort,
             publishMaximumMessageSize,
             publishDkimVerificationEnabled,
-            publishDkimVerificationFailureScore);
+            publishDkimVerificationFailureScore,
+            publishBypassGreylistingOnSpfSuccess,
+            publishBypassGreylistingOnMailFromMx);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -694,6 +712,34 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishDkimVerificationFailureScore?.Invoke(value);
+    }
+
+    private void UpdateBypassGreylistingOnSpfSuccess(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamBypassGreylistingOnSpfSuccessAsync(value, CancellationToken.None),
+            "The anti-spam SPF greylisting bypass update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { BypassGreylistingOnSpfSuccess = value };
+        }
+
+        _publishBypassGreylistingOnSpfSuccess?.Invoke(value);
+    }
+
+    private void UpdateBypassGreylistingOnMailFromMx(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamBypassGreylistingOnMailFromMxAsync(value, CancellationToken.None),
+            "The anti-spam MailFrom MX greylisting bypass update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { BypassGreylistingOnMailFromMx = value };
+        }
+
+        _publishBypassGreylistingOnMailFromMx?.Invoke(value);
     }
 
     private void UpdateSetting(

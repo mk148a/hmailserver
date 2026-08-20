@@ -433,6 +433,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamBypassGreylistingSql_UsesTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @BypassGreylistingOnSpfSuccess\nWHERE settingname = N'BypassGreylistingOnSPFSuccess';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamBypassGreylistingOnSpfSuccessSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @BypassGreylistingOnMailFromMx\nWHERE settingname = N'BypassGreylistingOnMailFromMX';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamBypassGreylistingOnMailFromMxSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

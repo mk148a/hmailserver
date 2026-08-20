@@ -54,16 +54,21 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             Assert.IsTrue(await store.UpdateAntiSpamMaximumMessageSizeAsync(4096, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamDkimVerificationEnabledAsync(true, CancellationToken.None));
             Assert.IsTrue(await store.UpdateAntiSpamDkimVerificationFailureScoreAsync(11, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamBypassGreylistingOnSpfSuccessAsync(true, CancellationToken.None));
+            Assert.IsTrue(await store.UpdateAntiSpamBypassGreylistingOnMailFromMxAsync(false, CancellationToken.None));
             CollectionAssert.AreEqual(new[] { 1, 1, 9 }, await ReadValuesAsync(testConnectionString));
             Assert.AreEqual("scanner.example.test", await ReadHostAsync(testConnectionString));
             Assert.AreEqual(1783, await ReadPortAsync(testConnectionString));
             Assert.AreEqual(4096, await ReadMaximumMessageSizeAsync(testConnectionString));
             CollectionAssert.AreEqual(new[] { 1, 11 }, await ReadDkimValuesAsync(testConnectionString));
+            CollectionAssert.AreEqual(new[] { 0, 1 }, await ReadBypassGreylistingValuesAsync(testConnectionString));
 
             await DeleteRowAsync(testConnectionString, "spamassassinenabled");
             Assert.IsFalse(await store.UpdateAntiSpamSpamAssassinEnabledAsync(false, CancellationToken.None));
             await DeleteRowAsync(testConnectionString, "ASDKIMVerificationEnabled");
             Assert.IsFalse(await store.UpdateAntiSpamDkimVerificationEnabledAsync(false, CancellationToken.None));
+            await DeleteRowAsync(testConnectionString, "BypassGreylistingOnSPFSuccess");
+            Assert.IsFalse(await store.UpdateAntiSpamBypassGreylistingOnSpfSuccessAsync(false, CancellationToken.None));
         }
         finally
         {
@@ -115,7 +120,8 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             VALUES (N'spamassassinenabled', N'', 0), (N'spamassassinscore', N'', 2),
                 (N'spamassassinmergescore', N'', 0), (N'spamassassinhost', N'127.0.0.1', 0),
                 (N'spamassassinport', N'', 783), (N'antispammaxsize', N'', 2048),
-                (N'ASDKIMVerificationEnabled', N'', 0), (N'ASDKIMVerificationFailureScore', N'', 4);
+                (N'ASDKIMVerificationEnabled', N'', 0), (N'ASDKIMVerificationFailureScore', N'', 4),
+                (N'BypassGreylistingOnSPFSuccess', N'', 0), (N'BypassGreylistingOnMailFromMX', N'', 1);
             """;
 
         await using var connection = new SqlConnection(connectionString);
@@ -193,6 +199,28 @@ public sealed class SqlServerSettingsAdministrationStoreAntiSpamSpamAssassinInte
             SELECT settinginteger
             FROM dbo.hm_settings
             WHERE settingname IN (N'ASDKIMVerificationEnabled', N'ASDKIMVerificationFailureScore')
+            ORDER BY settingname;
+            """;
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+        var values = new List<int>();
+        while (await reader.ReadAsync().ConfigureAwait(false))
+        {
+            values.Add(reader.GetInt32(0));
+        }
+
+        return values.ToArray();
+    }
+
+    private static async Task<int[]> ReadBypassGreylistingValuesAsync(string connectionString)
+    {
+        const string sql = """
+            SELECT settinginteger
+            FROM dbo.hm_settings
+            WHERE settingname IN (N'BypassGreylistingOnSPFSuccess', N'BypassGreylistingOnMailFromMX')
             ORDER BY settingname;
             """;
 

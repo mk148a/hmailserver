@@ -177,4 +177,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamDkimVerificationFailureScoreAsync(
         int score,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamBypassGreylistingOnSpfSuccessAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamBypassGreylistingOnMailFromMxAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
 }

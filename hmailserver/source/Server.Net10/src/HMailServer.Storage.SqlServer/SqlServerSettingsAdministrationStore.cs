@@ -274,6 +274,18 @@ SET settinginteger = @DkimVerificationFailureScore
 WHERE settingname = N'ASDKIMVerificationFailureScore';
 """;
 
+    public const string UpdateAntiSpamBypassGreylistingOnSpfSuccessSql = """
+UPDATE hm_settings
+SET settinginteger = @BypassGreylistingOnSpfSuccess
+WHERE settingname = N'BypassGreylistingOnSPFSuccess';
+""";
+
+    public const string UpdateAntiSpamBypassGreylistingOnMailFromMxSql = """
+UPDATE hm_settings
+SET settinginteger = @BypassGreylistingOnMailFromMx
+WHERE settingname = N'BypassGreylistingOnMailFromMX';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -995,6 +1007,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamDkimVerificationFailureScoreSql, connection);
         command.Parameters.Add("@DkimVerificationFailureScore", SqlDbType.Int).Value = score;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamBypassGreylistingOnSpfSuccessAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamBypassGreylistingOnSpfSuccessSql, connection);
+        command.Parameters.Add("@BypassGreylistingOnSpfSuccess", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamBypassGreylistingOnMailFromMxAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamBypassGreylistingOnMailFromMxSql, connection);
+        command.Parameters.Add("@BypassGreylistingOnMailFromMx", SqlDbType.Int).Value = enabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

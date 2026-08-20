@@ -2204,6 +2204,20 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         {
                             _administrationSnapshot = _administrationSnapshot with { AntiSpamDkimVerificationFailureScore = value };
                         }
+                    },
+                    publishBypassGreylistingOnSpfSuccess: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamBypassGreylistingOnSpfSuccess = value };
+                        }
+                    },
+                    publishBypassGreylistingOnMailFromMx: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamBypassGreylistingOnMailFromMx = value };
+                        }
                     });
         }
     }

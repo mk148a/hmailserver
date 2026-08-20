@@ -3511,6 +3511,69 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamBypassGreylistingSettersPersistAndRefreshSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamBypassGreylistingOnSpfSuccessUpdateResult = true,
+            AntiSpamBypassGreylistingOnMailFromMxUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamBypassGreylistingOnSpfSuccess: false,
+                AntiSpamBypassGreylistingOnMailFromMx: true)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.BypassGreylistingOnSPFSuccess = true;
+        antiSpam.BypassGreylistingOnMailFromMX = false;
+
+        Assert.AreEqual(1, store.AntiSpamBypassGreylistingOnSpfSuccessUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamBypassGreylistingOnSpfSuccess);
+        Assert.AreEqual(1, store.AntiSpamBypassGreylistingOnMailFromMxUpdateCount);
+        Assert.IsFalse(store.UpdatedAntiSpamBypassGreylistingOnMailFromMx);
+        Assert.IsTrue(antiSpam.BypassGreylistingOnSPFSuccess);
+        Assert.IsFalse(antiSpam.BypassGreylistingOnMailFromMX);
+        Assert.IsTrue(settings.AntiSpam.BypassGreylistingOnSPFSuccess);
+        Assert.IsFalse(settings.AntiSpam.BypassGreylistingOnMailFromMX);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamBypassGreylistingSettersFailClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamBypassGreylistingOnSpfSuccessUpdateResult = false,
+            AntiSpamBypassGreylistingOnMailFromMxUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failedSpf = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.BypassGreylistingOnSPFSuccess = true);
+        var failedMx = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.BypassGreylistingOnMailFromMX = true);
+
+        Assert.AreEqual(EFail, failedSpf.ErrorCode);
+        Assert.AreEqual(EFail, failedMx.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamBypassGreylistingOnSpfSuccessUpdateCount);
+        Assert.AreEqual(1, store.AntiSpamBypassGreylistingOnMailFromMxUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4859,6 +4922,18 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamDkimVerificationFailureScore { get; private set; }
 
+        public bool AntiSpamBypassGreylistingOnSpfSuccessUpdateResult { get; set; }
+
+        public int AntiSpamBypassGreylistingOnSpfSuccessUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamBypassGreylistingOnSpfSuccess { get; private set; }
+
+        public bool AntiSpamBypassGreylistingOnMailFromMxUpdateResult { get; set; }
+
+        public int AntiSpamBypassGreylistingOnMailFromMxUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamBypassGreylistingOnMailFromMx { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5434,6 +5509,26 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamDkimVerificationFailureScore = score;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamDkimVerificationFailureScoreUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamBypassGreylistingOnSpfSuccessAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamBypassGreylistingOnSpfSuccessUpdateCount++;
+            UpdatedAntiSpamBypassGreylistingOnSpfSuccess = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamBypassGreylistingOnSpfSuccessUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamBypassGreylistingOnMailFromMxAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamBypassGreylistingOnMailFromMxUpdateCount++;
+            UpdatedAntiSpamBypassGreylistingOnMailFromMx = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamBypassGreylistingOnMailFromMxUpdateResult);
         }
 
     }
