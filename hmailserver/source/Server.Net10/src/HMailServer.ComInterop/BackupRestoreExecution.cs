@@ -225,6 +225,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var settingsStore = metadataTransaction.SettingsStore
             ?? throw new InvalidOperationException(
                 "Settings-only restore requires a transaction-scoped settings store.");
+        await metadataTransaction.DeleteAllGroupsForRestoreAsync(cancellationToken)
+            .ConfigureAwait(false);
         if (archiveGroups.Count > 0)
         {
             var groupStore = metadataTransaction.GroupStore
@@ -618,7 +620,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 await metadataTransaction
                     .DeleteAllDomainsForRestoreAsync(cancellationToken)
                     .ConfigureAwait(false);
-                if (archiveGroups is { Count: > 0 })
+                if (archiveGroups is not null)
                 {
                     await metadataTransaction
                         .DeleteAllGroupsForRestoreAsync(cancellationToken)

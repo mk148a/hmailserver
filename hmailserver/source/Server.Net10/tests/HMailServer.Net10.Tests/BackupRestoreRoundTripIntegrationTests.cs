@@ -373,6 +373,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             FullRestoreArchiveXml,
             async fixture =>
             {
+                var staleGroupId = await SeedGroupGraphAsync(fixture.ConnectionString, "Stale Editors").ConfigureAwait(false);
                 await fixture.CreateExecutor().ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
 
                 Assert.AreEqual(
@@ -382,6 +383,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 Assert.AreEqual(1, (await fixture.AccountStore.GetAccountsAsync(1, CancellationToken.None).ConfigureAwait(false)).Count);
                 Assert.AreEqual(2, await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 1).ConfigureAwait(false));
                 Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_messages", "messageaccountid", 1).ConfigureAwait(false));
+                Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_groups", "groupid", staleGroupId).ConfigureAwait(false));
+                Assert.AreEqual(0, await CountRowsAsync(fixture.ConnectionString, "hm_acl", "aclpermissiongroupid", staleGroupId).ConfigureAwait(false));
+                Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_group_members", "membergroupid", staleGroupId).ConfigureAwait(false));
                 Assert.AreEqual("restored", await File.ReadAllTextAsync(Path.Combine(fixture.GetDataDirectory(), "restored.txt")));
                 Assert.IsFalse(File.Exists(Path.Combine(fixture.GetDataDirectory(), "original.txt")));
             }).ConfigureAwait(false);

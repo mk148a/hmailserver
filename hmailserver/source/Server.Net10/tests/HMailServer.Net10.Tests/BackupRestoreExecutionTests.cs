@@ -368,11 +368,53 @@ public sealed class BackupRestoreExecutionTests
         await executor.ExecuteAsync(backup, CancellationToken.None);
 
         CollectionAssert.AreEqual(
-            new[] { "delete-all-domains", "insert-domain", "restore-settings" },
+            new[] { "delete-all-domains", "delete-all-groups", "insert-domain", "restore-settings" },
             stores.Events.ToArray());
         Assert.AreEqual("combined.example", stores.Settings.Properties.Single().StringValue);
         Assert.AreEqual(1, transactionFactory.BeginCount);
         Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SettingsOnlyClearsGroupsWhenGroupsContainerIsEmptyOrOmitted()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var archives = new[]
+        {
+            SettingsArchiveXml,
+            SettingsArchiveXml.Replace(
+                "</Backup>",
+                "<Groups /></Backup>",
+                StringComparison.Ordinal)
+        };
+
+        foreach (var archiveXml in archives)
+        {
+            using var fixture = await ArchiveFixture.CreateAsync(archiveXml);
+            var stores = new RecordingStores();
+            var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+            var executor = new MetadataBackupRestoreExecutor(
+                Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                fixture.DataDirectory,
+                stores.Domains,
+                stores.Accounts,
+                stores.Aliases,
+                stores.DistributionLists,
+                stores.Recipients,
+                metadataTransactionFactory: transactionFactory,
+                requireSqlTransaction: true);
+            var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+            backup.RestoreSettings = true;
+
+            await executor.ExecuteAsync(backup, CancellationToken.None);
+
+            Assert.AreEqual(1, stores.Events.Count(static eventName => eventName == "delete-all-groups"));
+            Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        }
     }
 
     [TestMethod]
