@@ -152,6 +152,69 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_ExternalACLReadRevocationBlocksSearchWithoutTrackerPublication()
+    {
+        var tracker = new ImapFolderChangeTracker();
+        var searchIndex = new CapturingSearchIndex(Array.Empty<MessageIdentity>());
+        var mailboxStore = new AclRevalidatingMailboxStore(null);
+        await using var stream = new DuplexMemoryStream("A001 UID SEARCH ALL\r\n");
+        var session = CreateSession(
+            searchIndex,
+            mailboxStore: mailboxStore,
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Select a mailbox first\r\n");
+        Assert.IsNull(searchIndex.LastRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_CopyDeniesWhenSelectedSourceAclIsRevoked()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(null);
+        var copyStore = new FakeCopyStore();
+        await using var stream = new DuplexMemoryStream("A001 COPY 1 Archive\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            copyStore: copyStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Select a mailbox first\r\n");
+        Assert.AreEqual(0, copyStore.Requests.Count);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_CopyDeniesWhenDestinationAclIsReadOnly()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            new ImapMailboxSelection(100, 20, "INBOX", 1, 0, 1, 2, null, IsReadOnly: false),
+            destinationReadOnly: true);
+        var copyStore = new FakeCopyStore();
+        await using var stream = new DuplexMemoryStream("A001 COPY 1 Archive\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            copyStore: copyStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Destination mailbox is read-only.\r\n");
+        Assert.AreEqual(0, copyStore.Requests.Count);
+    }
+
+    [TestMethod]
     public async Task RunAsync_RefreshesSelectedMailboxNameAfterSameAccountRename()
     {
         var tracker = new ImapFolderChangeTracker();
@@ -1429,7 +1492,9 @@ public sealed class ImapSessionTests
         }
     }
 
-    private sealed class AclRevalidatingMailboxStore(ImapMailboxSelection? refreshedMailbox) :
+    private sealed class AclRevalidatingMailboxStore(
+        ImapMailboxSelection? refreshedMailbox,
+        bool destinationReadOnly = false) :
         IImapMailboxStore,
         IImapSelectedMailboxAuthorization
     {
@@ -1450,7 +1515,7 @@ public sealed class ImapSessionTests
                     1,
                     2,
                     null,
-                    readOnly));
+                    readOnly || destinationReadOnly));
 
         public ValueTask<ImapMailboxSelection?> RevalidateSelectedMailboxAsync(
             int requesterAccountId,
