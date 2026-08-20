@@ -747,6 +747,29 @@ internal sealed class BackupRestoreIntegrityRuntime
 
                     break;
 
+                case "PublicFolders":
+                    if (element.Name != "PublicFolders" || element.Parent != root)
+                    {
+                        return "The domain/account graph is invalid: PublicFolders must be directly under Backup.";
+                    }
+
+                    if (root.Elements("PublicFolders").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Backup contains multiple PublicFolders containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Folder"))
+                    {
+                        return "The domain/account graph is invalid: PublicFolders contains an unexpected child.";
+                    }
+
+                    if (HasDuplicateIdentityNames(element.Elements("Folder")))
+                    {
+                        return "The domain/account graph is invalid: PublicFolders contains duplicate root folder names.";
+                    }
+
+                    break;
+
                 case "Messages":
                     if (element.Name != "Messages" || element.Parent?.Name != "Folder")
                     {
@@ -761,6 +784,24 @@ internal sealed class BackupRestoreIntegrityRuntime
                     if (element.Elements().Any(static child => child.Name != "Message"))
                     {
                         return "The domain/account graph is invalid: Messages contains an unexpected child.";
+                    }
+
+                    break;
+
+                case "ACLs":
+                    if (element.Name != "ACLs" || element.Parent?.Name != "Folder")
+                    {
+                        return "The domain/account graph is invalid: ACLs is in an unexpected location.";
+                    }
+
+                    if (element.Parent.Elements("ACLs").Skip(1).Any())
+                    {
+                        return "The domain/account graph is invalid: Folder contains multiple ACLs containers.";
+                    }
+
+                    if (element.Elements().Any(static child => child.Name != "Permission"))
+                    {
+                        return "The domain/account graph is invalid: ACLs contains an unexpected child.";
                     }
 
                     break;
@@ -875,9 +916,9 @@ internal sealed class BackupRestoreIntegrityRuntime
                     break;
 
                 case "Folder":
-                    if (element.Parent?.Name != "Folders")
+                    if (element.Parent?.Name.LocalName is not ("Folders" or "PublicFolders"))
                     {
-                        return "The domain/account graph is invalid: Folder is outside Account/Folders.";
+                        return "The domain/account graph is invalid: Folder is outside Account/Folders or PublicFolders.";
                     }
 
                     if (!HasAttributes(element, "Name", "Subscribed", "CreateTime", "CurrentUID"))
@@ -896,6 +937,19 @@ internal sealed class BackupRestoreIntegrityRuntime
                     if (!HasAttributes(element, "CreateTime", "Filename", "FromAddress", "State", "Size", "NoOfRetries", "Flags", "ID", "UID"))
                     {
                         return "The domain/account graph is invalid: Message is missing a serialized attribute.";
+                    }
+
+                    break;
+
+                case "Permission":
+                    if (element.Parent?.Name != "ACLs")
+                    {
+                        return "The domain/account graph is invalid: Permission is outside Folder/ACLs.";
+                    }
+
+                    if (!HasAttributes(element, "Type", "Rights", "Holder"))
+                    {
+                        return "The domain/account graph is invalid: Permission is missing a serialized attribute.";
                     }
 
                     break;

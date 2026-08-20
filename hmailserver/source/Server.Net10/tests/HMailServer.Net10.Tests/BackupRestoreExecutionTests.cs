@@ -48,6 +48,38 @@ public sealed class BackupRestoreExecutionTests
         </Backup>
         """;
 
+    private const string FullPublicArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="7"><DataFiles Format="Raw" FolderName="DataBackup" /></BackupInformation>
+          <Properties><hostname LongValue="0" StringValue="restored.example" /></Properties>
+          <Domains>
+            <Domain Name="restore.example" Active="1" Postmaster="postmaster@restore.example"
+                    MaxMessageSize="1024" UsePlusAddressing="1" PlusAddressingChar="+"
+                    AntiSpamOptions="1" MaxNoOfAccounts="2" MaxNoOfAliases="1" MaxNoOfLists="1"
+                    LimitationsEnabled="0" EnableSignature="0" SignatureMethod="1" MaxAccountSize="0"
+                    MaxSize="0">
+              <Accounts>
+                <Account Name="alice@restore.example" Active="1" Password="enc" PasswordEncryption="1"
+                         AdminLevel="0" MaxAccountSize="128" />
+              </Accounts>
+            </Domain>
+          </Domains>
+          <PublicFolders>
+            <Folder Name="Shared" Subscribed="1" CreateTime="2026-08-20 01:02:03" CurrentUID="7">
+              <Messages>
+                <Message CreateTime="2026-08-20 04:05:06" Filename="restored.eml"
+                         FromAddress="from@example.test" State="2" Size="10" NoOfRetries="0"
+                         Flags="0" ID="601" UID="9" />
+              </Messages>
+              <Folders>
+                <Folder Name="Child" Subscribed="0" CreateTime="2026-08-20 02:03:04" CurrentUID="8" />
+              </Folders>
+              <ACLs><Permission Type="0" Rights="3" Holder="alice@restore.example" /></ACLs>
+            </Folder>
+          </PublicFolders>
+        </Backup>
+        """;
+
     [TestMethod]
     public async Task ExecuteAsync_RestoresOnlyQueuedMetadataSections()
     {
@@ -72,6 +104,41 @@ public sealed class BackupRestoreExecutionTests
         Assert.AreEqual(1, stores.Recipients.Items.Count);
         Assert.AreEqual(0, stores.Domains.Deleted.Count);
         Assert.AreEqual(0, stores.Accounts.Deleted.Count);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_RestoresPublicFoldersAfterAccountsInsideTheSqlTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(
+            compressed: false,
+            customXml: FullPublicArchiveXml);
+        var stores = new RecordingStores();
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(7, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "Shared", "Child" },
+            stores.PublicFolders.Inserted.Select(static folder => folder.Name).ToArray());
+        Assert.AreEqual(0, stores.PublicFolders.Inserted[0].AccountId);
+        Assert.AreEqual(0, stores.PublicMessages.Inserted[0].AccountId);
+        Assert.AreEqual(1, stores.PublicPermissions.Inserted.Count);
+        Assert.AreEqual(1, stores.PublicPermissions.Inserted[0].PermissionAccountId);
+        Assert.AreEqual(1, transactionFactory.BeginCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
     }
 
     [TestMethod]
@@ -851,6 +918,10 @@ public sealed class BackupRestoreExecutionTests
         public RecordingDistributionListStore DistributionLists { get; } = new();
         public RecordingRecipientStore Recipients { get; } = new();
         public RecordingSettingsRestoreStore Settings { get; } = new();
+        public RecordingPublicFolderRestoreStore PublicFolders { get; } = new();
+        public RecordingPublicMessageRestoreStore PublicMessages { get; } = new();
+        public RecordingPublicFolderPermissionRestoreStore PublicPermissions { get; } = new();
+        public RecordingGroupStore Groups { get; } = new();
         public List<string> Events { get; set; } = [];
         public bool FailAliasInsert { get; init; }
         public bool FailDistributionListInsertAfterFirst { get; init; }
@@ -858,7 +929,9 @@ public sealed class BackupRestoreExecutionTests
         public MetadataBackupRestoreExecutor CreateExecutor(
             string dataDirectory,
             Func<CancellationToken, ValueTask>? reinitialize = null,
-            bool requireReinitialize = false)
+            bool requireReinitialize = false,
+            IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
+            bool requireSqlTransaction = false)
         {
             DistributionLists.FailInsertAfterFirst = FailDistributionListInsertAfterFirst;
             return new(
@@ -869,6 +942,11 @@ public sealed class BackupRestoreExecutionTests
                 FailAliasInsert ? new FailingAliasStore(Aliases) : Aliases,
                 DistributionLists,
                 Recipients,
+                metadataTransactionFactory: metadataTransactionFactory,
+                requireSqlTransaction: requireSqlTransaction,
+                folderRestoreStore: PublicFolders,
+                messageRestoreStore: PublicMessages,
+                groupStore: Groups,
                 reinitialize: reinitialize,
                 requireReinitialize: requireReinitialize);
         }
@@ -1001,6 +1079,9 @@ public sealed class BackupRestoreExecutionTests
         public IDistributionListAdministrationStore DistributionListStore => stores.DistributionLists;
         public IDistributionListRecipientAdministrationStore RecipientStore => stores.Recipients;
         public ISettingsRestoreAdministrationStore SettingsStore => stores.Settings;
+        public IImapFolderAdministrationRestoreStore FolderRestoreStore => stores.PublicFolders;
+        public IMessageAdministrationRestoreStore MessageRestoreStore => stores.PublicMessages;
+        public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore => stores.PublicPermissions;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
@@ -1024,9 +1105,15 @@ public sealed class BackupRestoreExecutionTests
         public IDistributionListAdministrationStore DistributionListStore => stores.DistributionLists;
         public IDistributionListRecipientAdministrationStore RecipientStore => stores.Recipients;
         public ISettingsRestoreAdministrationStore SettingsStore => stores.Settings;
+        public IImapFolderAdministrationRestoreStore FolderRestoreStore => stores.PublicFolders;
+        public IMessageAdministrationRestoreStore MessageRestoreStore => stores.PublicMessages;
+        public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore => stores.PublicPermissions;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
+
+        public ValueTask DeleteAllPublicFoldersForRestoreAsync(CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
 
         public ValueTask CommitAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
@@ -1058,6 +1145,72 @@ public sealed class BackupRestoreExecutionTests
             Properties.AddRange(properties);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class RecordingPublicFolderRestoreStore : IImapFolderAdministrationRestoreStore
+    {
+        private int _nextId = 500;
+
+        public List<ImapFolderAdministrationSnapshot> Inserted { get; } = [];
+
+        public ValueTask<ImapFolderAdministrationSnapshot> InsertFolderForRestoreAsync(
+            ImapFolderAdministrationSnapshot folder,
+            CancellationToken cancellationToken)
+        {
+            var inserted = folder with { Id = _nextId++ };
+            Inserted.Add(inserted);
+            return ValueTask.FromResult(inserted);
+        }
+    }
+
+    private sealed class RecordingPublicMessageRestoreStore : IMessageAdministrationRestoreStore
+    {
+        private long _nextId = 700;
+
+        public List<(int AccountId, int FolderId, MessageAdministrationSnapshot Snapshot)> Inserted { get; } = [];
+
+        public ValueTask<MessageAdministrationInsertResult> InsertMessageForRestoreAsync(
+            int accountId,
+            int folderId,
+            MessageAdministrationSnapshot snapshot,
+            CancellationToken cancellationToken)
+        {
+            Inserted.Add((accountId, folderId, snapshot));
+            return ValueTask.FromResult(new MessageAdministrationInsertResult(_nextId++, snapshot.Uid, snapshot.State));
+        }
+    }
+
+    private sealed class RecordingPublicFolderPermissionRestoreStore
+        : IImapFolderPermissionAdministrationRestoreStore
+    {
+        public List<(int FolderId, int PermissionType, int PermissionGroupId, int PermissionAccountId, int Value)> Inserted { get; } = [];
+
+        public ValueTask<ImapFolderPermissionAdministrationSnapshot?> InsertFolderPermissionForRestoreAsync(
+            int folderId,
+            int permissionType,
+            int permissionGroupId,
+            int permissionAccountId,
+            int value,
+            CancellationToken cancellationToken)
+        {
+            Inserted.Add((folderId, permissionType, permissionGroupId, permissionAccountId, value));
+            return ValueTask.FromResult<ImapFolderPermissionAdministrationSnapshot?>(
+                new ImapFolderPermissionAdministrationSnapshot(
+                    Inserted.Count,
+                    folderId,
+                    permissionType,
+                    permissionGroupId,
+                    permissionAccountId,
+                    value));
+        }
+    }
+
+    private sealed class RecordingGroupStore : IGroupAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(
+                new[] { new GroupAdministrationSnapshot(77, "Editors") });
     }
 
     private sealed class RecordingDomainStore : IDomainAdministrationStore
@@ -1265,7 +1418,9 @@ public sealed class BackupRestoreExecutionTests
             return new ArchiveFixture(root, archivePath, dataDirectory);
         }
 
-        public static async Task<ArchiveFixture> CreateNonDbAsync(bool compressed)
+        public static async Task<ArchiveFixture> CreateNonDbAsync(
+            bool compressed,
+            string? customXml = null)
         {
             var root = Path.Combine(Path.GetTempPath(), $"hmailserver-restore-nondb-{Guid.NewGuid():N}");
             var source = Path.Combine(root, "source");
@@ -1282,7 +1437,7 @@ public sealed class BackupRestoreExecutionTests
 
             var format = compressed ? "7z" : "Raw";
             var mode = compressed ? "14" : "6";
-            var xml = ArchiveXml.Replace(
+            var xml = customXml ?? ArchiveXml.Replace(
                 "<BackupInformation Mode=\"2\" />",
                 $"<BackupInformation Mode=\"{mode}\"><DataFiles Format=\"{format}\" FolderName=\"DataBackup\" /></BackupInformation>",
                 StringComparison.Ordinal);
