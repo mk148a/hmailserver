@@ -1,32 +1,33 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam DKIM verification mutation parity)
+## Current authoritative parity status (2026-08-21, AntiSpam greylisting bypass mutation parity)
 
-Code/test commit `838c6f636` implements the legacy Administrator
-`AntiSpam.DKIMVerificationEnabled` and `DKIMVerificationFailureScore` setters
-through the existing authenticated Settings mutation boundary, after the SPF,
-MX checks, SpamAssassin, scanner endpoint, and maximum-size scalar pairs. The
-SQL store updates only the legacy `ASDKIMVerificationEnabled` and
-`ASDKIMVerificationFailureScore` rows, reports contained missing-row failures,
-refreshes retained COM snapshots, and preserves direct
-activation/re-authentication denials. Focused COM/SQL coverage is `3 passed,
-0 skipped, 0 failed`; the disposable SQL integration setter/readback and
-missing-row checks passed; full disposable Net10 is `2471 passed, 10 skipped,
-0 failed` (`2481` total).
+Code/test commit `30587df50` implements the legacy Administrator
+`AntiSpam.BypassGreylistingOnSPFSuccess` and `BypassGreylistingOnMailFromMX`
+setters through the existing authenticated Settings mutation boundary, after
+the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, and DKIM
+verification pairs. The SQL store updates only the legacy
+`BypassGreylistingOnSPFSuccess` and `BypassGreylistingOnMailFromMX` rows,
+reports contained missing-row failures, refreshes retained COM snapshots, and
+preserves direct activation/re-authentication denials. Focused COM/SQL
+coverage is `3 passed, 0 skipped, 0 failed`; the disposable SQL integration
+setter/readback and missing-row checks passed; full disposable Net10 is `2474
+passed, 10 skipped, 0 failed` (`2484` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_DKIMVerificationEnabled` and
-`put_DKIMVerificationFailureScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:1070-1117`) and
-`AntiSpamConfiguration::SetDKIMVerificationEnabled` and
-`SetDKIMVerificationFailureScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:419-435`). This
-slice does not add DKIM signing, DNS verification, or live reconfiguration.
+Legacy anchors are `InterfaceAntiSpam::put_BypassGreylistingOnSPFSuccess` and
+`put_BypassGreylistingOnMailFromMX`
+(`source/Server/COM/InterfaceAntiSpam.cpp:1138-1181`) and
+`AntiSpamConfiguration::SetBypassGreyListingOnSPFSuccess` and
+`SetBypassGreyListingOnMailFromMX`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:444-459`). This
+slice does not add live greylisting reconfiguration or broader SPF/MX runtime
+changes.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded parity slice is the BypassGreylistingOnSPFSuccess and
-BypassGreylistingOnMailFromMX mutation pair.
+open. The next bounded parity slice is the `CheckHostInHelo` and
+`CheckHostInHeloScore` mutation pair.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

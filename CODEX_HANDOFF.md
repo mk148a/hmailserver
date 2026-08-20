@@ -1,25 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AntiSpam DKIM verification mutation parity)
+## Current Authoritative Continuation (2026-08-21, AntiSpam greylisting bypass mutation parity)
 
-Code/test commit `838c6f636` implements the authenticated Administrator
-`AntiSpam.DKIMVerificationEnabled` and `DKIMVerificationFailureScore` SQL
-mutation slice after the SPF, MX checks, SpamAssassin, scanner endpoint, and
-maximum-size pairs. Focused COM/SQL coverage is `3 passed, 0 skipped, 0
-failed`; the disposable SQL integration setter/readback and missing-row checks
-passed; the disposable LocalDB/Data full suite is `2471 passed, 10 skipped, 0
-failed` (`2481` total). Direct activation, failed reauthentication, missing-row
-failure, retained object snapshots, and existing COM identity boundaries remain
-covered.
+Code/test commit `30587df50` implements the authenticated Administrator
+`AntiSpam.BypassGreylistingOnSPFSuccess` and `BypassGreylistingOnMailFromMX`
+SQL mutation slice after the SPF, MX checks, SpamAssassin, scanner endpoint,
+maximum-size, and DKIM verification pairs. Focused COM/SQL coverage is `3
+passed, 0 skipped, 0 failed`; the disposable SQL integration setter/readback
+and missing-row checks passed; the disposable LocalDB/Data full suite is `2474
+passed, 10 skipped, 0 failed` (`2484` total). Direct activation, failed
+reauthentication, missing-row failure, retained object snapshots, and existing
+COM identity boundaries remain covered.
 
-Legacy references are `InterfaceAntiSpam::put_DKIMVerificationEnabled` and
-`put_DKIMVerificationFailureScore`
-(`source/Server/COM/InterfaceAntiSpam.cpp:1070-1117`) and
-`AntiSpamConfiguration::SetDKIMVerificationEnabled` and
-`SetDKIMVerificationFailureScore`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:419-435`). The next
-unblocked parity slice is the BypassGreylistingOnSPFSuccess and
-BypassGreylistingOnMailFromMX mutation pair;
+Legacy references are `InterfaceAntiSpam::put_BypassGreylistingOnSPFSuccess` and
+`put_BypassGreylistingOnMailFromMX`
+(`source/Server/COM/InterfaceAntiSpam.cpp:1138-1181`) and
+`AntiSpamConfiguration::SetBypassGreyListingOnSPFSuccess` and
+`SetBypassGreyListingOnMailFromMX`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:444-459`). The next
+unblocked parity slice is the `CheckHostInHelo` and `CheckHostInHeloScore`
+mutation pair;
 the migration/installer drill remains environment-gated because `Get-VM` is
 access-denied and the running MSSQLSERVER instance is not an approved
 disposable target. Live anti-spam reconfiguration is still unproven. Release
