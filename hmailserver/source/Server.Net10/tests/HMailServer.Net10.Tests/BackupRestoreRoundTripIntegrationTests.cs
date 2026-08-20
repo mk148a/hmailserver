@@ -100,6 +100,28 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             "Filename=\"one.eml\" FromAddress=\"sender@example.test\" State=\"2\" Size=\"42\" NoOfRetries=\"9\" Flags=\"1\" ID=\"77\" UID=\"8\" />\n                            <Message CreateTime=\"2026-07-01 12:33:00\" Filename=\"two.eml\" FromAddress=\"sender2@example.test\" State=\"2\" Size=\"43\" NoOfRetries=\"4\" Flags=\"1\" ID=\"78\" UID=\"9\" />",
             StringComparison.Ordinal);
 
+    private static readonly string FullRestoreArchiveXmlWithPublicFolders = FullRestoreArchiveXml
+        .Replace(
+            "</Backup>",
+            """
+              <PublicFolders>
+                <Folder Name="Shared" Subscribed="1" CreateTime="2026-07-01 13:00:00" CurrentUID="11">
+                  <Messages>
+                    <Message CreateTime="2026-07-01 13:01:00" Filename="public.eml" FromAddress="public@example.test"
+                             State="2" Size="19" NoOfRetries="2" Flags="1" ID="91" UID="12" />
+                  </Messages>
+                  <Folders>
+                    <Folder Name="Child" Subscribed="0" CreateTime="2026-07-01 13:02:00" CurrentUID="4" />
+                  </Folders>
+                  <ACLs>
+                    <Permission Type="0" Rights="3" Holder="user@roundtrip.example" />
+                  </ACLs>
+                </Folder>
+              </PublicFolders>
+            </Backup>
+            """,
+            StringComparison.Ordinal);
+
     private const string ArchiveXml = """
         <Backup>
           <Domains>
@@ -360,6 +382,42 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task RestoreExecutor_RestoresPopulatedPublicFoldersAndMessagesIntoDisposableTarget()
+    {
+        await WithFullRestoreTargetAsync(
+            "full_public_restore",
+            FullRestoreArchiveXmlWithPublicFolders,
+            async fixture =>
+            {
+                await fixture.CreateExecutor().ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
+
+                var folderStore = new SqlServerImapFolderAdministrationStore(
+                    new SqlServerConnectionFactory(fixture.ConnectionString));
+                var messageStore = new SqlServerMessageAdministrationStore(
+                    new SqlServerConnectionFactory(fixture.ConnectionString));
+                var folders = await folderStore.GetFoldersForAccountAsync(0, CancellationToken.None).ConfigureAwait(false);
+
+                Assert.AreEqual(2, folders.Count);
+                Assert.AreEqual("Shared", folders.Single(folder => folder.ParentId == -1).Name);
+                Assert.AreEqual("Child", folders.Single(folder => folder.ParentId > 0).Name);
+                Assert.AreEqual(11, folders.Single(folder => folder.Name == "Shared").CurrentUid);
+
+                var messages = await messageStore.GetFolderMessagesAsync(
+                    0,
+                    folders.Single(folder => folder.Name == "Shared").Id,
+                    CancellationToken.None).ConfigureAwait(false);
+                Assert.AreEqual(1, messages.Count);
+                Assert.AreEqual("public.eml", messages[0].FileName);
+                Assert.AreEqual(12, messages[0].Uid);
+                Assert.AreEqual(2, messages[0].CurrentNumberOfTries);
+                Assert.AreEqual(2, await CountRowsAsync(fixture.ConnectionString, "hm_imapfolders", "folderaccountid", 0).ConfigureAwait(false));
+                Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_messages", "messageaccountid", 0).ConfigureAwait(false));
+                Assert.AreEqual(1, await CountRowsAsync(fixture.ConnectionString, "hm_acl", "aclpermissionaccountid", 1).ConfigureAwait(false));
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task BackupManager_StartRestoreDispatchesRealFullRestoreIntoPopulatedTarget()
     {
         await WithFullRestoreTargetAsync(
@@ -544,6 +602,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             async fixture =>
             {
                 await fixture.CreateExecutor().ExecuteAsync(fixture.Backup, CancellationToken.None).ConfigureAwait(false);
+                await fixture.SeedExistingPublicFolderAsync().ConfigureAwait(false);
 
                 var factory = new SqlServerConnectionFactory(fixture.ConnectionString);
                 var settingsStore = new SqlServerSettingsAdministrationStore(factory);
@@ -617,6 +676,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     manager.StartBackup();
                     await WaitForBackupCompletionAsync(dispatcher.Completed.Task, dispatcher.Failed.Task).ConfigureAwait(false);
                     var firstArchive = Directory.GetFiles(firstDestination, "HMBackup *.7z").Single();
+                    var metadataReader = new SevenZipBackupArchiveMetadataReader(sevenZipPath);
+                    StringAssert.Contains(metadataReader.ReadMetadataXml(firstArchive), "<PublicFolders>");
 
                     var backup = (Backup)manager.LoadBackup(firstArchive);
                     try
@@ -637,7 +698,6 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     }
 
                     var secondArchive = Directory.GetFiles(secondDestination, "HMBackup *.7z").Single();
-                    var metadataReader = new SevenZipBackupArchiveMetadataReader(sevenZipPath);
                     Assert.AreEqual(
                         NormalizeBackupXml(metadataReader.ReadMetadataXml(firstArchive)),
                         NormalizeBackupXml(metadataReader.ReadMetadataXml(secondArchive)));
@@ -1619,6 +1679,27 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             await using var command = new SqlCommand(sql, connection);
             await command.ExecuteNonQueryAsync().ConfigureAwait(false);
         }
+
+        internal async Task SeedExistingPublicFolderAsync()
+        {
+            const string sql = """
+                DECLARE @FolderId int;
+                INSERT INTO dbo.hm_imapfolders
+                    (folderaccountid, folderparentid, foldername, folderissubscribed, foldercurrentuid, foldercreationtime)
+                VALUES (0, -1, N'Shared', 1, 11, '2026-07-01 13:00:00');
+                SET @FolderId = CONVERT(int, SCOPE_IDENTITY());
+                INSERT INTO dbo.hm_messages
+                    (messageaccountid, messagefolderid, messagefilename, messagetype, messagefrom,
+                     messagesize, messagecurnooftries, messagenexttrytime, messageflags, messagecreatetime,
+                     messagelocked, messageuid)
+                VALUES (0, @FolderId, N'public.eml', 2, N'public@example.test', 19, 2,
+                        '2026-07-01 13:00:00', 1, '2026-07-01 13:01:00', 0, 12);
+                """;
+            await using var connection = new SqlConnection(ConnectionString);
+            await connection.OpenAsync().ConfigureAwait(false);
+            await using var command = new SqlCommand(sql, connection);
+            await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+        }
     }
 
     private sealed class RecordingBackupEventDispatcher : IBackupEventDispatcher
@@ -2184,9 +2265,12 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 foldercreationtime datetime NOT NULL
             );
             CREATE TABLE dbo.hm_acl (
+                aclid int IDENTITY(1, 1) NOT NULL PRIMARY KEY,
                 aclsharefolderid bigint NOT NULL,
                 aclpermissiontype tinyint NOT NULL,
-                aclpermissionaccountid bigint NOT NULL
+                aclpermissiongroupid bigint NOT NULL,
+                aclpermissionaccountid bigint NOT NULL,
+                aclvalue bigint NOT NULL
             );
             CREATE TABLE dbo.hm_group_members (
                 memberaccountid bigint NOT NULL
