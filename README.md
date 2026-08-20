@@ -1,28 +1,32 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, AntiSpam MaximumMessageSize mutation parity)
+## Current authoritative parity status (2026-08-21, AntiSpam DKIM verification mutation parity)
 
-Code/test commit `3e8e9aee5` implements the legacy Administrator
-`AntiSpam.MaximumMessageSize` setter through the existing authenticated
-Settings mutation boundary, after the SPF, MX checks, SpamAssassin, and
-scanner endpoint scalar pairs. The SQL store updates only the legacy
-`antispammaxsize` row, reports contained missing-row failures, refreshes
-retained COM snapshots, and preserves direct activation/re-authentication
-denials. Focused COM/SQL coverage is `187 passed, 0 skipped, 0 failed`; the
-disposable SQL integration setter/readback test passed; full disposable Net10
-is `2468 passed, 10 skipped, 0 failed` (`2478` total).
+Code/test commit `838c6f636` implements the legacy Administrator
+`AntiSpam.DKIMVerificationEnabled` and `DKIMVerificationFailureScore` setters
+through the existing authenticated Settings mutation boundary, after the SPF,
+MX checks, SpamAssassin, scanner endpoint, and maximum-size scalar pairs. The
+SQL store updates only the legacy `ASDKIMVerificationEnabled` and
+`ASDKIMVerificationFailureScore` rows, reports contained missing-row failures,
+refreshes retained COM snapshots, and preserves direct
+activation/re-authentication denials. Focused COM/SQL coverage is `3 passed,
+0 skipped, 0 failed`; the disposable SQL integration setter/readback and
+missing-row checks passed; full disposable Net10 is `2471 passed, 10 skipped,
+0 failed` (`2481` total).
 
-Legacy anchors are `InterfaceAntiSpam::put_MaximumMessageSize`
-(`source/Server/COM/InterfaceAntiSpam.cpp:964-997`) and
-`AntiSpamConfiguration::SetAntiSpamMaxSizeKB`
-(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:395-405`). This
-slice does not add SMTP live reconfiguration, scanner connection testing, or
-other AntiSpam mutation. Release remains **RED** because
+Legacy anchors are `InterfaceAntiSpam::put_DKIMVerificationEnabled` and
+`put_DKIMVerificationFailureScore`
+(`source/Server/COM/InterfaceAntiSpam.cpp:1070-1117`) and
+`AntiSpamConfiguration::SetDKIMVerificationEnabled` and
+`SetDKIMVerificationFailureScore`
+(`source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:419-435`). This
+slice does not add DKIM signing, DNS verification, or live reconfiguration.
+Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded parity slice is the DKIM verification enabled/failure
-score pair.
+open. The next bounded parity slice is the BypassGreylistingOnSPFSuccess and
+BypassGreylistingOnMailFromMX mutation pair.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 

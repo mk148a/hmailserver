@@ -1,20 +1,25 @@
 
-## Current next slice (2026-08-21, AntiSpam DKIM verification mutation parity)
+## Current next slice (2026-08-21, AntiSpam BypassGreylisting mutation parity)
 
-Code/test commit `3e8e9aee5` closes the legacy Administrator
-`AntiSpam.MaximumMessageSize` mutation gap after the SPF, MX checks,
-SpamAssassin, and scanner endpoint pairs. The existing authenticated Settings
-boundary now persists only `antispammaxsize`, refreshes retained object
-snapshots, and fails closed on missing rows or reauthentication. Focused
-COM/SQL coverage is `187 passed, 0 skipped, 0 failed`; the disposable SQL
-integration setter/readback test passed; full disposable LocalDB/Data is
-`2468 passed, 10 skipped, 0 failed` (`2478` total).
+Code/test commit `838c6f636` closes the legacy Administrator
+`AntiSpam.DKIMVerificationEnabled` and `DKIMVerificationFailureScore` mutation
+gap after the SPF, MX checks, SpamAssassin, scanner endpoint, and maximum-size
+pairs. The existing authenticated Settings boundary now persists only
+`ASDKIMVerificationEnabled` and `ASDKIMVerificationFailureScore`, refreshes
+retained object snapshots, and fails closed on missing rows or
+reauthentication. Focused COM/SQL coverage is `3 passed, 0 skipped, 0 failed`;
+the disposable SQL integration setter/readback and missing-row checks passed;
+full disposable LocalDB/Data is `2471 passed, 10 skipped, 0 failed` (`2481`
+total).
 
-Legacy anchors are `InterfaceAntiSpam::put_MaximumMessageSize`
-(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:964-997`) and
-`AntiSpamConfiguration::SetAntiSpamMaxSizeKB`
-(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:395-405`).
-The next bounded slice is the DKIM verification enabled/failure score pair;
+Legacy anchors are `InterfaceAntiSpam::put_DKIMVerificationEnabled` and
+`put_DKIMVerificationFailureScore`
+(`hmailserver/source/Server/COM/InterfaceAntiSpam.cpp:1070-1117`) and
+`AntiSpamConfiguration::SetDKIMVerificationEnabled` and
+`SetDKIMVerificationFailureScore`
+(`hmailserver/source/Server/Common/AntiSpam/AntiSpamConfiguration.cpp:419-435`).
+The next bounded slice is the BypassGreylistingOnSPFSuccess and
+BypassGreylistingOnMailFromMX mutation pair;
 preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
 or live reconfiguration in that slice. In parallel, the migration/installer
