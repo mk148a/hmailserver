@@ -20,11 +20,20 @@ vCPUs on the private-only switch `HMailServer-SEC18-Private`. Inventory
 evidence is outside the repository at
 `C:\SEC18-Disposable\HMailServer-SEC18-Disposable\Evidence\hyperv-inventory.json`.
 
-Windows guest first-boot Administrator setup and the isolated hMailServer test
-installation are still pending. No production service, SQL database, Data
-directory, COM registration, DCOM ACL, or firewall rule was changed. Release
-remains **RED**. Next slice: complete guest setup, then run the disposable
-legacy-to-Net10 migration/rollback drill.
+Windows guest first boot is complete, but the VMConnect console is currently
+at the disposable Administrator password prompt. The blank-password Enter
+attempt did not authenticate; no password was entered or bypassed. Official
+Microsoft .NET Runtime 10.0.10 x64 and SQL Server 2022 Express installers were
+downloaded, final-domain checked, hashed, and transferred to guest
+`C:\SEC18\Packages`; no installer was executed. Package evidence is outside
+the repository at `C:\Users\Public\sec18-package-inventory.md`, with transfer
+evidence at `C:\Users\Public\sec18-package-transfer.json`.
+
+No production service, SQL database, Data directory, COM registration, DCOM
+ACL, or firewall rule was changed. Release remains **RED**. Next slice:
+manually complete disposable guest Administrator sign-in, then install the
+verified packages and run the disposable legacy-to-Net10 migration/rollback
+drill.
 
 ## Current authoritative migration/installer status (2026-08-14)
 
