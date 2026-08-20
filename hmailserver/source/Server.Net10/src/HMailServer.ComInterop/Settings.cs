@@ -2183,6 +2183,13 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         {
                             _administrationSnapshot = _administrationSnapshot with { AntiSpamSpamAssassinPort = value };
                         }
+                    },
+                    publishMaximumMessageSize: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamMaximumMessageSize = value };
+                        }
                     });
         }
     }

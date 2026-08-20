@@ -3397,6 +3397,57 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamMaximumMessageSizeSetterPersistsAndRefreshesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamMaximumMessageSizeUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamMaximumMessageSize: 2048)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.MaximumMessageSize = 4096;
+
+        Assert.AreEqual(1, store.AntiSpamMaximumMessageSizeUpdateCount);
+        Assert.AreEqual(4096, store.UpdatedAntiSpamMaximumMessageSize);
+        Assert.AreEqual(4096, antiSpam.MaximumMessageSize);
+        Assert.AreEqual(4096, settings.AntiSpam.MaximumMessageSize);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamMaximumMessageSizeSetterFailsClosed()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamMaximumMessageSizeUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiSpam.MaximumMessageSize = 4096);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamMaximumMessageSizeUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4727,6 +4778,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiSpamSpamAssassinPort { get; private set; }
 
+        public bool AntiSpamMaximumMessageSizeUpdateResult { get; set; }
+
+        public int AntiSpamMaximumMessageSizeUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamMaximumMessageSize { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -5272,6 +5329,16 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamSpamAssassinPort = port;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamSpamAssassinPortUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamMaximumMessageSizeAsync(
+            int maximumMessageSize,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamMaximumMessageSizeUpdateCount++;
+            UpdatedAntiSpamMaximumMessageSize = maximumMessageSize;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamMaximumMessageSizeUpdateResult);
         }
 
     }

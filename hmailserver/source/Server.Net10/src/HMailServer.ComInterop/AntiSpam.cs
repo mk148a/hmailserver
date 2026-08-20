@@ -211,6 +211,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private readonly Action<bool>? _publishSpamAssassinMergeScore;
     private readonly Action<string>? _publishSpamAssassinHost;
     private readonly Action<int>? _publishSpamAssassinPort;
+    private readonly Action<int>? _publishMaximumMessageSize;
 
     public AntiSpam()
     {
@@ -232,7 +233,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<int>? publishSpamAssassinScore,
         Action<bool>? publishSpamAssassinMergeScore,
         Action<string>? publishSpamAssassinHost,
-        Action<int>? publishSpamAssassinPort)
+        Action<int>? publishSpamAssassinPort,
+        Action<int>? publishMaximumMessageSize)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
@@ -250,6 +252,7 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         _publishSpamAssassinMergeScore = publishSpamAssassinMergeScore;
         _publishSpamAssassinHost = publishSpamAssassinHost;
         _publishSpamAssassinPort = publishSpamAssassinPort;
+        _publishMaximumMessageSize = publishMaximumMessageSize;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -388,7 +391,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             .GetResult();
     }
 
-    public int MaximumMessageSize { get => Snapshot.MaximumMessageSize; set => Unavailable(); }
+    public int MaximumMessageSize
+    {
+        get => Snapshot.MaximumMessageSize;
+        set => UpdateMaximumMessageSize(value);
+    }
 
     public ComDkimResult DKIMVerify(string file)
     {
@@ -470,7 +477,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         Action<int>? publishSpamAssassinScore = null,
         Action<bool>? publishSpamAssassinMergeScore = null,
         Action<string>? publishSpamAssassinHost = null,
-        Action<int>? publishSpamAssassinPort = null)
+        Action<int>? publishSpamAssassinPort = null,
+        Action<int>? publishMaximumMessageSize = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -489,7 +497,8 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             publishSpamAssassinScore,
             publishSpamAssassinMergeScore,
             publishSpamAssassinHost,
-            publishSpamAssassinPort);
+            publishSpamAssassinPort,
+            publishMaximumMessageSize);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -625,6 +634,20 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         }
 
         _publishSpamAssassinPort?.Invoke(value);
+    }
+
+    private void UpdateMaximumMessageSize(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamMaximumMessageSizeAsync(value, CancellationToken.None),
+            "The anti-spam maximum message size update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { MaximumMessageSize = value };
+        }
+
+        _publishMaximumMessageSize?.Invoke(value);
     }
 
     private void UpdateSetting(

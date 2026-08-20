@@ -165,4 +165,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamSpamAssassinPortAsync(
         int port,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamMaximumMessageSizeAsync(
+        int maximumMessageSize,
+        CancellationToken cancellationToken);
 }

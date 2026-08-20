@@ -256,6 +256,12 @@ SET settinginteger = @SpamAssassinPort
 WHERE settingname = N'spamassassinport';
 """;
 
+    public const string UpdateAntiSpamMaximumMessageSizeSql = """
+UPDATE hm_settings
+SET settinginteger = @MaximumMessageSize
+WHERE settingname = N'antispammaxsize';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -944,6 +950,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamSpamAssassinPortSql, connection);
         command.Parameters.Add("@SpamAssassinPort", SqlDbType.Int).Value = port;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamMaximumMessageSizeAsync(
+        int maximumMessageSize,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamMaximumMessageSizeSql, connection);
+        command.Parameters.Add("@MaximumMessageSize", SqlDbType.Int).Value = maximumMessageSize;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
