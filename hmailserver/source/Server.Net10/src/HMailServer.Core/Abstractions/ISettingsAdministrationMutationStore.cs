@@ -129,4 +129,12 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateVerifyRemoteSslCertificateAsync(
         bool verifyRemoteSslCertificate,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamUseSpfAsync(
+        bool useSpf,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateAntiSpamUseSpfScoreAsync(
+        int useSpfScore,
+        CancellationToken cancellationToken);
 }

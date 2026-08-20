@@ -202,6 +202,18 @@ SET settinginteger = @VerifyRemoteSslCertificate
 WHERE settingname = N'VerifyRemoteSslCertificate';
 """;
 
+    public const string UpdateAntiSpamUseSpfSql = """
+UPDATE hm_settings
+SET settinginteger = @UseSPF
+WHERE settingname = N'usespf';
+""";
+
+    public const string UpdateAntiSpamUseSpfScoreSql = """
+UPDATE hm_settings
+SET settinginteger = @UseSPFScore
+WHERE settingname = N'usespfscore';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -791,6 +803,28 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var command = new SqlCommand(UpdateVerifyRemoteSslCertificateSql, connection);
         command.Parameters.Add("@VerifyRemoteSslCertificate", SqlDbType.Int).Value =
             verifyRemoteSslCertificate ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamUseSpfAsync(
+        bool useSpf,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamUseSpfSql, connection);
+        command.Parameters.Add("@UseSPF", SqlDbType.Int).Value = useSpf ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiSpamUseSpfScoreAsync(
+        int useSpfScore,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiSpamUseSpfScoreSql, connection);
+        command.Parameters.Add("@UseSPFScore", SqlDbType.Int).Value = useSpfScore;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

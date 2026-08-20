@@ -2118,7 +2118,23 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                     _runtimeConfiguration.DkimVerificationRuntime,
                     _runtimeConfiguration.GreyListingTripletAdministrationStore,
                     _runtimeConfiguration.SpamAssassinConnectionTestRuntime,
-                    isServerAdministrator: _isServerAdministrator);
+                    isServerAdministrator: _isServerAdministrator,
+                    settingsMutationStore: _settingsMutationStore,
+                    authorizationLeaseFactory: _authorizationLeaseFactory,
+                    publishUseSpf: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamUseSpf = value };
+                        }
+                    },
+                    publishUseSpfScore: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with { AntiSpamUseSpfScore = value };
+                        }
+                    });
         }
     }
 

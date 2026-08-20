@@ -362,6 +362,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiSpamUseSpfSql_UsesTheLegacyFixedRows()
+    {
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @UseSPF\nWHERE settingname = N'usespf';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamUseSpfSql);
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @UseSPFScore\nWHERE settingname = N'usespfscore';",
+            SqlServerSettingsAdministrationStore.UpdateAntiSpamUseSpfScoreSql);
+    }
+
+    [TestMethod]
     public void UpdateAllowMailFromNullSql_UsesTheExactParameterizedFixedRowShape()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateAllowMailFromNullSql;

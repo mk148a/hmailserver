@@ -195,11 +195,15 @@ public sealed class AntiSpam : IInterfaceAntiSpam
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
-    private readonly AntiSpamAdministrationSnapshot? _snapshot;
+    private AntiSpamAdministrationSnapshot? _snapshot;
     private readonly IDkimVerificationRuntime? _dkimVerificationRuntime;
     private readonly IGreyListingTripletAdministrationStore? _greyListingTripletStore;
     private readonly ISpamAssassinConnectionTestRuntime? _spamAssassinConnectionTestRuntime;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly ISettingsAdministrationMutationStore? _settingsMutationStore;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
+    private readonly Action<bool>? _publishUseSpf;
+    private readonly Action<int>? _publishUseSpfScore;
 
     public AntiSpam()
     {
@@ -210,13 +214,21 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         IDkimVerificationRuntime? dkimVerificationRuntime,
         IGreyListingTripletAdministrationStore? greyListingTripletStore,
         ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        ISettingsAdministrationMutationStore? settingsMutationStore,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
+        Action<bool>? publishUseSpf,
+        Action<int>? publishUseSpfScore)
     {
         _snapshot = snapshot;
         _dkimVerificationRuntime = dkimVerificationRuntime;
         _greyListingTripletStore = greyListingTripletStore;
         _spamAssassinConnectionTestRuntime = spamAssassinConnectionTestRuntime;
         _isServerAdministrator = isServerAdministrator;
+        _settingsMutationStore = settingsMutationStore;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
+        _publishUseSpf = publishUseSpf;
+        _publishUseSpfScore = publishUseSpfScore;
     }
 
     public bool GreyListingEnabled { get => Snapshot.GreyListingEnabled; set => Unavailable(); }
@@ -272,11 +284,19 @@ public sealed class AntiSpam : IInterfaceAntiSpam
 
     public int SpamDeleteThreshold { get => Snapshot.SpamDeleteThreshold; set => Unavailable(); }
 
-    public bool UseSPF { get => Snapshot.UseSpf; set => Unavailable(); }
+    public bool UseSPF
+    {
+        get => Snapshot.UseSpf;
+        set => UpdateUseSpf(value);
+    }
 
     public bool UseMXChecks { get => Snapshot.UseMxChecks; set => Unavailable(); }
 
-    public int UseSPFScore { get => Snapshot.UseSpfScore; set => Unavailable(); }
+    public int UseSPFScore
+    {
+        get => Snapshot.UseSpfScore;
+        set => UpdateUseSpfScore(value);
+    }
 
     public int UseMXChecksScore { get => Snapshot.UseMxChecksScore; set => Unavailable(); }
 
@@ -390,7 +410,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         IDkimVerificationRuntime? dkimVerificationRuntime = null,
         IGreyListingTripletAdministrationStore? greyListingTripletStore = null,
         ISpamAssassinConnectionTestRuntime? spamAssassinConnectionTestRuntime = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        ISettingsAdministrationMutationStore? settingsMutationStore = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        Action<bool>? publishUseSpf = null,
+        Action<int>? publishUseSpfScore = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiSpam(
@@ -398,7 +422,11 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             dkimVerificationRuntime,
             greyListingTripletStore,
             spamAssassinConnectionTestRuntime,
-            isServerAdministrator);
+            isServerAdministrator,
+            settingsMutationStore,
+            authorizationLeaseFactory,
+            publishUseSpf,
+            publishUseSpfScore);
     }
 
     internal static AntiSpam CreateDenied() => new();
@@ -409,6 +437,63 @@ public sealed class AntiSpam : IInterfaceAntiSpam
             EAccessDenied);
 
     private void IgnoreObsoleteTarpitSetter() => _ = Snapshot;
+
+    private void UpdateUseSpf(bool value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamUseSpfAsync(value, CancellationToken.None),
+            "The anti-spam SPF setting update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { UseSpf = value };
+        }
+
+        _publishUseSpf?.Invoke(value);
+    }
+
+    private void UpdateUseSpfScore(int value)
+    {
+        UpdateSetting(
+            () => _settingsMutationStore!.UpdateAntiSpamUseSpfScoreAsync(value, CancellationToken.None),
+            "The anti-spam SPF score update did not affect the existing settings row.");
+
+        if (_snapshot is not null)
+        {
+            _snapshot = _snapshot with { UseSpfScore = value };
+        }
+
+        _publishUseSpfScore?.Invoke(value);
+    }
+
+    private void UpdateSetting(
+        Func<ValueTask<bool>> update,
+        string failureMessage)
+    {
+        _ = Snapshot;
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Anti-spam settings access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+
+        if (_settingsMutationStore is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        using var authorizationLease = _authorizationLeaseFactory?
+            .Invoke(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+
+        if (!update().GetAwaiter().GetResult())
+        {
+            throw new COMException(failureMessage, EFail);
+        }
+    }
 
     private void Unavailable()
     {

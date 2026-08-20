@@ -9,6 +9,7 @@ namespace HMailServer.Net10.Tests;
 public sealed class SettingsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int EInvalidArg = unchecked((int)0x80070057);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
@@ -3090,6 +3091,72 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpfSettersPersistAndRefreshRetainedSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamUseSpfUpdateResult = true,
+            AntiSpamUseSpfScoreUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiSpamUseSpf: false,
+                AntiSpamUseSpfScore: 2)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+        var antiSpam = settings.AntiSpam;
+
+        antiSpam.UseSPF = true;
+        antiSpam.UseSPFScore = 7;
+
+        Assert.AreEqual(1, store.AntiSpamUseSpfUpdateCount);
+        Assert.IsTrue(store.UpdatedAntiSpamUseSpf);
+        Assert.AreEqual(1, store.AntiSpamUseSpfScoreUpdateCount);
+        Assert.AreEqual(7, store.UpdatedAntiSpamUseSpfScore);
+        Assert.IsTrue(antiSpam.UseSPF);
+        Assert.AreEqual(7, antiSpam.UseSPFScore);
+        Assert.IsTrue(settings.AntiSpam.UseSPF);
+        Assert.AreEqual(7, settings.AntiSpam.UseSPFScore);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiSpamSpfSettersFailClosedAndRecheckAdministrator()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AntiSpamUseSpfUpdateResult = false,
+            AntiSpamUseSpfScoreUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty)
+        };
+        var isAdministrator = true;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => isAdministrator);
+
+        var failedSpf = Assert.ThrowsExactly<COMException>(() => settings.AntiSpam.UseSPF = true);
+        var failedScore = Assert.ThrowsExactly<COMException>(() => settings.AntiSpam.UseSPFScore = 7);
+        Assert.AreEqual(EFail, failedSpf.ErrorCode);
+        Assert.AreEqual(EFail, failedScore.ErrorCode);
+        Assert.IsFalse(settings.AntiSpam.UseSPF);
+        Assert.AreEqual(0, settings.AntiSpam.UseSPFScore);
+
+        isAdministrator = false;
+        var deniedSpf = Assert.ThrowsExactly<COMException>(() => settings.AntiSpam.UseSPF = true);
+        Assert.AreEqual(EAccessDenied, deniedSpf.ErrorCode);
+        Assert.AreEqual(1, store.AntiSpamUseSpfUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxSmtpRecipientsInBatchSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -4366,6 +4433,18 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
 
+        public bool AntiSpamUseSpfUpdateResult { get; set; }
+
+        public int AntiSpamUseSpfUpdateCount { get; private set; }
+
+        public bool UpdatedAntiSpamUseSpf { get; private set; }
+
+        public bool AntiSpamUseSpfScoreUpdateResult { get; set; }
+
+        public int AntiSpamUseSpfScoreUpdateCount { get; private set; }
+
+        public int UpdatedAntiSpamUseSpfScore { get; private set; }
+
         public CancellationToken CancellationToken { get; private set; }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
@@ -4821,6 +4900,26 @@ public sealed class SettingsComContractTests
             UpdatedVerifyRemoteSslCertificate = verifyRemoteSslCertificate;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(VerifyRemoteSslCertificateUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamUseSpfAsync(
+            bool useSpf,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamUseSpfUpdateCount++;
+            UpdatedAntiSpamUseSpf = useSpf;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamUseSpfUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiSpamUseSpfScoreAsync(
+            int useSpfScore,
+            CancellationToken cancellationToken)
+        {
+            AntiSpamUseSpfScoreUpdateCount++;
+            UpdatedAntiSpamUseSpfScore = useSpfScore;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AntiSpamUseSpfScoreUpdateResult);
         }
 
     }
