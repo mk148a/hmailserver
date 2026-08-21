@@ -142,6 +142,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private readonly Action<bool>? _publishCustomScannerEnabled;
     private readonly Action<string>? _publishCustomScannerExecutable;
     private readonly Action<int>? _publishCustomScannerReturnValue;
+    private readonly Action<int>? _publishMaximumMessageSize;
 
     public AntiVirus()
     {
@@ -163,7 +164,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<bool>? publishNotifySender,
         Action<bool>? publishCustomScannerEnabled,
         Action<string>? publishCustomScannerExecutable,
-        Action<int>? publishCustomScannerReturnValue)
+        Action<int>? publishCustomScannerReturnValue,
+        Action<int>? publishMaximumMessageSize)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
@@ -181,6 +183,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         _publishCustomScannerEnabled = publishCustomScannerEnabled;
         _publishCustomScannerExecutable = publishCustomScannerExecutable;
         _publishCustomScannerReturnValue = publishCustomScannerReturnValue;
+        _publishMaximumMessageSize = publishMaximumMessageSize;
     }
 
     public bool ClamWinEnabled
@@ -552,7 +555,45 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         }
     }
 
-    public int MaximumMessageSize { get => Snapshot.MaximumMessageSize; set => Unavailable(); }
+    public int MaximumMessageSize
+    {
+        get => Snapshot.MaximumMessageSize;
+        set
+        {
+            _ = Snapshot;
+            if (_settingsMutationStore is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            using var authorizationLease = _authorizationLeaseFactory is null
+                ? null
+                : _authorizationLeaseFactory(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                    ?? throw new COMException(
+                        "Anti-virus settings access requires an authenticated server administrator.",
+                        EAccessDenied);
+
+            if (!_settingsMutationStore
+                .UpdateAntiVirusMaximumMessageSizeAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The anti-virus maximum message size update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_snapshot is not null)
+            {
+                _snapshot = _snapshot with { MaximumMessageSize = value };
+            }
+
+            _publishMaximumMessageSize?.Invoke(value);
+        }
+    }
 
     public IInterfaceBlockedAttachments BlockedAttachments
     {
@@ -671,7 +712,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<bool>? publishNotifySender = null,
         Action<bool>? publishCustomScannerEnabled = null,
         Action<string>? publishCustomScannerExecutable = null,
-        Action<int>? publishCustomScannerReturnValue = null)
+        Action<int>? publishCustomScannerReturnValue = null,
+        Action<int>? publishMaximumMessageSize = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
@@ -690,7 +732,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             publishNotifySender,
             publishCustomScannerEnabled,
             publishCustomScannerExecutable,
-            publishCustomScannerReturnValue);
+            publishCustomScannerReturnValue,
+            publishMaximumMessageSize);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot

@@ -437,6 +437,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusMaximumMessageSizePersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusMaximumMessageSize: 100),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.MaximumMessageSize = 200;
+
+        Assert.AreEqual(1, store.AntiVirusMaximumMessageSizeUpdateCount);
+        Assert.AreEqual(200, store.UpdatedAntiVirusMaximumMessageSize);
+        Assert.AreEqual(200, settings.AntiVirus.MaximumMessageSize);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusMaximumMessageSizeFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusMaximumMessageSize: 100),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.MaximumMessageSize = 200);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(100, settings.AntiVirus.MaximumMessageSize);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7773,6 +7815,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiVirusCustomScannerReturnValue { get; private set; }
 
+        public int AntiVirusMaximumMessageSizeUpdateCount { get; private set; }
+
+        public int UpdatedAntiVirusMaximumMessageSize { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -9202,6 +9248,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusCustomScannerReturnValueUpdateCount++;
             UpdatedAntiVirusCustomScannerReturnValue = returnValue;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusMaximumMessageSizeAsync(
+            int maximumMessageSize,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusMaximumMessageSizeUpdateCount++;
+            UpdatedAntiVirusMaximumMessageSize = maximumMessageSize;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

@@ -411,6 +411,12 @@ SET settinginteger = @AntiVirusCustomScannerReturnValue
 WHERE settingname = N'customviursscannerreturnvalue';
 """;
 
+    public const string UpdateAntiVirusMaximumMessageSizeSql = """
+UPDATE hm_settings
+SET settinginteger = @AntiVirusMaximumMessageSize
+WHERE settingname = N'avmaxmsgsize';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1396,6 +1402,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiVirusCustomScannerReturnValueSql, connection);
         command.Parameters.Add("@AntiVirusCustomScannerReturnValue", SqlDbType.Int).Value = returnValue;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiVirusMaximumMessageSizeAsync(
+        int maximumMessageSize,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiVirusMaximumMessageSizeSql, connection);
+        command.Parameters.Add("@AntiVirusMaximumMessageSize", SqlDbType.Int).Value = maximumMessageSize;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
