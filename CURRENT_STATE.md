@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-21T10:05:00Z` / `2026-08-21T13:05:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `HEAD` (verified with `git rev-parse HEAD`; authenticated SQL script execution and documentation complete)
+- Current HEAD: `HEAD` (verified with `git rev-parse HEAD`; segmented SQL migration executor and documentation complete)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
 - Latest focused-test result: Database COM `6/6` passed; isolated SQL Server transaction/script/migration integration `4/4` passed; unique disposable databases were removed; migration evidence records the explicit non-atomic FTS boundary
 - Latest full Net10 result: `2483 passed, 87 skipped, 0 failed` (`2570` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`
