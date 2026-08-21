@@ -1551,6 +1551,75 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_TlsOptionPreferServerCiphersSetterPreservesOtherBitsAndRetainsFailedSnapshot()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TlsOptionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TlsOptions: 4),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.TlsOptionPreferServerCiphersEnabled = true;
+
+        Assert.AreEqual(1, store.TlsOptionsUpdateCount);
+        Assert.AreEqual(6, store.UpdatedTlsOptions);
+        Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+        Assert.IsTrue(settings.TlsOptionPrioritizeChaChaEnabled);
+
+        store.TlsOptionsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.TlsOptionPreferServerCiphersEnabled = false);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(4, store.UpdatedTlsOptions);
+        Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+        Assert.IsTrue(settings.TlsOptionPrioritizeChaChaEnabled);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.TlsOptionPreferServerCiphersEnabled = false);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.TlsOptionsUpdateCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_TlsOptionPreferServerCiphersSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TlsOptionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TlsOptions: 4),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.TlsOptionPreferServerCiphersEnabled = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.TlsOptionsUpdateCount);
+        Assert.IsFalse(settings.TlsOptionPreferServerCiphersEnabled);
+        Assert.IsTrue(settings.TlsOptionPrioritizeChaChaEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_ImapHierarchyDelimiterSetterPersistsBeforePublishingAndRetainsRejectedState()
     {
         var isServerAdministrator = true;
@@ -6631,6 +6700,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedSslVersions { get; private set; }
 
+        public bool TlsOptionsUpdateResult { get; set; }
+
+        public int TlsOptionsUpdateCount { get; private set; }
+
+        public int UpdatedTlsOptions { get; private set; }
+
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
@@ -7468,6 +7543,16 @@ public sealed class SettingsComContractTests
             UpdatedSslVersions = sslVersions;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(SslVersionsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateTlsOptionsAsync(
+            int tlsOptions,
+            CancellationToken cancellationToken)
+        {
+            TlsOptionsUpdateCount++;
+            UpdatedTlsOptions = tlsOptions;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(TlsOptionsUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(

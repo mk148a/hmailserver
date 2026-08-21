@@ -214,6 +214,10 @@ public interface ISettingsAdministrationMutationStore
         int sslVersions,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateTlsOptionsAsync(
+        int tlsOptions,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);
