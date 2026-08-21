@@ -2928,6 +2928,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                                 AntiVirusClamAvEnabled = value
                             };
                         }
+                    },
+                    publishClamAvHost: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                AntiVirusClamAvHost = value
+                            };
+                        }
                     });
         }
     }

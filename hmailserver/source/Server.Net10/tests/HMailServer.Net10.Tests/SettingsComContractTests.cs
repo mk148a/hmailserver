@@ -563,6 +563,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamAvHostPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamAvHost: "old-clamav"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.ClamAVHost = "new-clamav";
+
+        Assert.AreEqual(1, store.AntiVirusClamAvHostUpdateCount);
+        Assert.AreEqual("new-clamav", store.UpdatedAntiVirusClamAvHost);
+        Assert.AreEqual("new-clamav", settings.AntiVirus.ClamAVHost);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamAvHostFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamAvHost: "old-clamav"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.ClamAVHost = "new-clamav");
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("old-clamav", settings.AntiVirus.ClamAVHost);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7911,6 +7953,10 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiVirusClamAvEnabled { get; private set; }
 
+        public int AntiVirusClamAvHostUpdateCount { get; private set; }
+
+        public string? UpdatedAntiVirusClamAvHost { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -9370,6 +9416,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusClamAvEnabledUpdateCount++;
             UpdatedAntiVirusClamAvEnabled = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusClamAvHostAsync(
+            string host,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusClamAvHostUpdateCount++;
+            UpdatedAntiVirusClamAvHost = host;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

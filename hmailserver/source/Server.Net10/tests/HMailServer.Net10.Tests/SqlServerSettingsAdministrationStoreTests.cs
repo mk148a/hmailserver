@@ -1158,6 +1158,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiVirusClamAvHostSql_UsesTheLegacyFixedStringRowAndParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateAntiVirusClamAvHostSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settingstring = @AntiVirusClamAvHost\nWHERE settingname = N'ClamAVHost';",
+            sql.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_RemainsReadOnlyAndExcludesSecrets()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
