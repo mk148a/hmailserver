@@ -6,6 +6,12 @@ public interface IFetchAccountAdministrationStore
         int accountId,
         CancellationToken cancellationToken);
 
+    ValueTask<string> GetFetchAccountPasswordAsync(
+        int accountId,
+        int fetchAccountId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Fetch-account password reads are not available in this store.");
+
     ValueTask SetRetryNowAsync(
         int accountId,
         int fetchAccountId,

@@ -78,6 +78,18 @@ public sealed class SqlServerFetchAccountAdministrationStoreTests
     }
 
     [TestMethod]
+    public void GetFetchAccountPasswordSql_UsesOwnerAndFetchAccountPredicatesAndNeverProjectsAnythingElse()
+    {
+        var sql = SqlServerFetchAccountAdministrationStore.GetFetchAccountPasswordSql;
+
+        StringAssert.Contains(sql, "SELECT fapassword");
+        StringAssert.Contains(sql, "FROM hm_fetchaccounts");
+        StringAssert.Contains(sql, "WHERE faid = @FetchAccountID");
+        StringAssert.Contains(sql, "AND faaccountid = @AccountID");
+        Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void SetRetryNowSql_UsesParentAndFetchAccountOwnershipFiltersAndGetDate()
     {
         var sql = SqlServerFetchAccountAdministrationStore.SetRetryNowSql;

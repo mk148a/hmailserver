@@ -183,6 +183,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
     private readonly Func<int, int, ValueTask>? _delete;
     private readonly Func<FetchAccountAdministrationDraft, ValueTask<int>>? _insert;
     private readonly Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? _update;
+    private readonly Func<int, int, ValueTask<string>>? _password;
     private readonly int _accountId;
     private readonly Func<bool>? _isAuthenticated;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
@@ -198,6 +199,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<int, int, ValueTask>? delete,
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert,
         Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update,
+        Func<int, int, ValueTask<string>>? password,
         int accountId,
         Func<bool>? isAuthenticated,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
@@ -208,6 +210,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         _delete = delete;
         _insert = insert;
         _update = update;
+        _password = password;
         _accountId = accountId;
         _isAuthenticated = isAuthenticated;
         _authorizationLeaseFactory = authorizationLeaseFactory;
@@ -222,6 +225,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
         Func<int, int, ValueTask>? delete = null,
         Func<FetchAccountAdministrationDraft, ValueTask<int>>? insert = null,
         Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update = null,
+        Func<int, int, ValueTask<string>>? password = null,
         int accountId = 0,
         Func<bool>? isAuthenticated = null,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
@@ -234,6 +238,7 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
             delete,
             insert,
             update,
+            password,
             accountId,
             isAuthenticated,
             authorizationLeaseFactory);
@@ -250,7 +255,9 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
                 _retryNow,
                 _delete is null ? null : DeleteSelectedAsync,
                 _isAuthenticated,
-                _update is null ? null : UpdateSelectedAsync);
+                _update is null ? null : UpdateSelectedAsync,
+                _password,
+                _authorizationLeaseFactory);
     }
 
     public IInterfaceFetchAccount this[int index]
@@ -268,7 +275,9 @@ public sealed class FetchAccounts : IInterfaceFetchAccounts
                 _retryNow,
                 _delete is null ? null : DeleteSelectedAsync,
                 _isAuthenticated,
-                _update is null ? null : UpdateSelectedAsync);
+                _update is null ? null : UpdateSelectedAsync,
+                _password,
+                _authorizationLeaseFactory);
         }
     }
 
@@ -547,7 +556,9 @@ public sealed class FetchAccount : IInterfaceFetchAccount
     private readonly Func<int, int, ValueTask>? _delete;
     private readonly Func<FetchAccountAdministrationDraft, ValueTask<FetchAccountAdministrationSnapshot>>? _insert;
     private readonly Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? _update;
+    private readonly Func<int, int, ValueTask<string>>? _password;
     private readonly Func<bool>? _isAuthenticated;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private bool _passwordModified;
 
     public FetchAccount()
@@ -559,13 +570,17 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         Func<int, int, ValueTask>? retryNow,
         Func<int, int, ValueTask>? delete,
         Func<bool>? isAuthenticated,
-        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update)
+        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update,
+        Func<int, int, ValueTask<string>>? password,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _account = account;
         _retryNow = retryNow;
         _delete = delete;
         _isAuthenticated = isAuthenticated;
         _update = update;
+        _password = password;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     private FetchAccount(
@@ -590,11 +605,11 @@ public sealed class FetchAccount : IInterfaceFetchAccount
 
     public string Username { get => _draft?.Username ?? Snapshot.Username; set => Stage(value, static (draft, value) => draft with { Username = value }); }
 
-    public string Password => _draft?.Password ?? Unavailable<string>();
+    public string Password => ReadPassword();
 
     string IInterfaceFetchAccount.Password
     {
-        get => _draft?.Password ?? Unavailable<string>();
+        get => ReadPassword();
         set
         {
             Stage(value, static (draft, value) => draft with { Password = value });
@@ -642,8 +657,10 @@ public sealed class FetchAccount : IInterfaceFetchAccount
         Func<int, int, ValueTask>? retryNow = null,
         Func<int, int, ValueTask>? delete = null,
         Func<bool>? isAuthenticated = null,
-        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update = null) =>
-        new(account, retryNow, delete, isAuthenticated, update);
+        Func<int, FetchAccountAdministrationDraft, string?, ValueTask<bool>>? update = null,
+        Func<int, int, ValueTask<string>>? password = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(account, retryNow, delete, isAuthenticated, update, password, authorizationLeaseFactory);
 
     internal static FetchAccount CreateAuthorized(
         FetchAccountAdministrationDraft draft,
@@ -783,6 +800,51 @@ public sealed class FetchAccount : IInterfaceFetchAccount
                 "FetchAccount access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private string ReadPassword()
+    {
+        EnsureAuthenticated();
+
+        if (_draft is { } draft && (_account is null || _passwordModified))
+        {
+            return draft.Password;
+        }
+
+        var account = Snapshot;
+        if (_password is null)
+        {
+            return Unavailable<string>();
+        }
+
+        try
+        {
+            using var authorizationLease = AcquireAuthorizationLeaseAsync().GetAwaiter().GetResult();
+            return _password(account.AccountId, account.Id).GetAwaiter().GetResult();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to retrieve the fetch account password from the database.",
+                EFail);
+        }
+    }
+
+    private async ValueTask<IDisposable?> AcquireAuthorizationLeaseAsync()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        var lease = await _authorizationLeaseFactory(CancellationToken.None).ConfigureAwait(false);
+        return lease ?? throw new COMException(
+            "FetchAccount access requires an authenticated server administrator.",
+            EAccessDenied);
     }
 
     private void Stage<T>(
@@ -946,6 +1008,18 @@ public static class FetchAccountAdministrationRuntimeHost
                 .ConfigureAwait(false);
         }
 
+        async ValueTask<string> ReadFetchAccountPassword(int owningAccountId, int fetchAccountId)
+        {
+            if (owningAccountId != accountId)
+            {
+                throw new InvalidOperationException("The fetch account password read is outside its owning account.");
+            }
+
+            return await store
+                .GetFetchAccountPasswordAsync(owningAccountId, fetchAccountId, CancellationToken.None)
+                .ConfigureAwait(false);
+        }
+
         return FetchAccounts.CreateAuthorized(
             LoadFetchAccounts(),
             LoadFetchAccounts,
@@ -953,6 +1027,7 @@ public static class FetchAccountAdministrationRuntimeHost
             DeleteFetchAccount,
             InsertFetchAccount,
             UpdateFetchAccount,
+            ReadFetchAccountPassword,
             accountId,
             isAuthenticated,
             authorizationLeaseFactory);

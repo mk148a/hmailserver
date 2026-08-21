@@ -57,6 +57,12 @@ public sealed class SqlServerFetchAccountAdministrationStoreIntegrationTests
             Assert.AreEqual(995, readBack[0].Port);
             Assert.AreEqual(1, readBack[0].ConnectionSecurity);
             Assert.AreEqual(encryptedPassword, await ReadPasswordAsync(testConnectionString, fetchAccountId).ConfigureAwait(false));
+            Assert.AreEqual(
+                "fetch-secret",
+                await store.GetFetchAccountPasswordAsync(42, fetchAccountId, CancellationToken.None).ConfigureAwait(false));
+            Assert.AreEqual(
+                string.Empty,
+                await store.GetFetchAccountPasswordAsync(99, fetchAccountId, CancellationToken.None).ConfigureAwait(false));
 
             Assert.AreEqual(1, await CountRowsAsync(testConnectionString, "hm_fetchaccounts_uids", "uidfaid", fetchAccountId).ConfigureAwait(false));
             Assert.AreEqual("uid-1", await ReadUidAsync(testConnectionString, fetchAccountId).ConfigureAwait(false));

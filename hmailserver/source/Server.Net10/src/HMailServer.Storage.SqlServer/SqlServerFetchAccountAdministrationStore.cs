@@ -34,6 +34,13 @@ WHERE faaccountid = @AccountID
 ORDER BY faid ASC;
 """;
 
+    public const string GetFetchAccountPasswordSql = """
+SELECT fapassword
+FROM hm_fetchaccounts
+WHERE faid = @FetchAccountID
+  AND faaccountid = @AccountID;
+""";
+
     public const string SetRetryNowSql = """
 UPDATE hm_fetchaccounts
 SET fanexttry = GETDATE()
@@ -194,6 +201,31 @@ VALUES
         }
 
         return accounts;
+    }
+
+    public async ValueTask<string> GetFetchAccountPasswordAsync(
+        int accountId,
+        int fetchAccountId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory!.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(GetFetchAccountPasswordSql, connection);
+        command.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+
+        var encrypted = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        if (encrypted is null || encrypted is DBNull)
+        {
+            return string.Empty;
+        }
+
+        var encryptedValue = Convert.ToString(encrypted, CultureInfo.InvariantCulture) ?? string.Empty;
+        if (!LegacyBlowfishPasswordCipher.TryDecrypt(encryptedValue, out var password))
+        {
+            throw new InvalidDataException("The fetch-account password is not a valid legacy Blowfish value.");
+        }
+
+        return password;
     }
 
     public async ValueTask SetRetryNowAsync(

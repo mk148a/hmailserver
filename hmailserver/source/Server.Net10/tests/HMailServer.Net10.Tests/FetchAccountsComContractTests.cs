@@ -224,6 +224,110 @@ public sealed class FetchAccountsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedFetchAccountPassword_ReadsOwnerScopedPlaintextLazily()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        store.Passwords[(100, 10)] = "fetch-secret";
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+
+        Assert.AreEqual("fetch-secret", account.FetchAccounts[0].Password);
+        CollectionAssert.AreEqual(new[] { (100, 10) }, store.PasswordCalls.ToArray());
+    }
+
+    [TestMethod]
+    public void AuthorizedFetchAccountPassword_RejectsRevokedAuthenticationBeforeStoreRead()
+    {
+        var authenticated = true;
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        store.Passwords[(100, 10)] = "fetch-secret";
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            () => authenticated);
+        var fetchAccount = account.FetchAccounts[0];
+        authenticated = false;
+
+        var failure = Assert.ThrowsExactly<COMException>(() => _ = fetchAccount.Password);
+
+        Assert.AreEqual(EAccessDenied, failure.ErrorCode);
+        Assert.AreEqual(0, store.PasswordCalls.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedFetchAccountPassword_DoesNotLeakPasswordAcrossOwners()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        store.Passwords[(200, 10)] = "other-owner-secret";
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2));
+
+        Assert.AreEqual(string.Empty, account.FetchAccounts[0].Password);
+        CollectionAssert.AreEqual(new[] { (100, 10) }, store.PasswordCalls.ToArray());
+    }
+
+    [TestMethod]
+    public void AuthorizedFetchAccountPassword_DeniesWhenAuthorizationLeaseCannotBeAcquired()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => _ = account.FetchAccounts[0].Password);
+
+        Assert.AreEqual(EAccessDenied, failure.ErrorCode);
+        Assert.AreEqual(0, store.PasswordCalls.Count);
+    }
+
+    [TestMethod]
+    public void AuthorizedFetchAccountPassword_HoldsAuthorizationLeaseDuringStoreRead()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") });
+        store.Passwords[(100, 10)] = "fetch-secret";
+        var leaseDisposed = false;
+        var leaseHeldDuringRead = false;
+        store.PasswordReadObserver = () => leaseHeldDuringRead = !leaseDisposed;
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => leaseDisposed = true)));
+
+        Assert.AreEqual("fetch-secret", account.FetchAccounts[0].Password);
+
+        Assert.IsTrue(leaseHeldDuringRead);
+        Assert.IsTrue(leaseDisposed);
+    }
+
+    [TestMethod]
+    public void AuthorizedFetchAccountPassword_DisposesAuthorizationLeaseWhenStoreReadFails()
+    {
+        var store = new MutableFetchAccountAdministrationStore(
+            new[] { CreateSnapshot(10, 100, "External POP3") })
+        {
+            FailPassword = true
+        };
+        var leaseDisposeCount = 0;
+        FetchAccountAdministrationRuntimeHost.Configure(store);
+        var account = Account.CreateAuthorized(
+            new AccountAdministrationSnapshot(100, 10, "admin@example.test", true, 2),
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(
+                new TrackingLease(() => leaseDisposeCount++)));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => _ = account.FetchAccounts[0].Password);
+
+        Assert.AreEqual(EFail, failure.ErrorCode);
+        Assert.AreEqual(1, leaseDisposeCount);
+    }
+
+    [TestMethod]
     public void AuthorizedCollection_KeepsLegacyUseSslAliasLimitedToDirectTls()
     {
         IInterfaceFetchAccounts accounts = FetchAccounts.CreateAuthorized(
@@ -895,6 +999,10 @@ public sealed class FetchAccountsComContractTests
 
         public bool FailUpdate { get; set; }
 
+        public bool FailPassword { get; set; }
+
+        public Action? PasswordReadObserver { get; set; }
+
         public int NextFetchAccountId { get; set; } = 1000;
 
         public List<FetchAccountAdministrationDraft> InsertCalls { get; } = [];
@@ -902,6 +1010,10 @@ public sealed class FetchAccountsComContractTests
         public List<(int AccountId, int FetchAccountId)> DeleteCalls { get; } = [];
 
         public List<(int FetchAccountId, FetchAccountAdministrationDraft Account, string? Password)> UpdateCalls { get; } = [];
+
+        public List<(int AccountId, int FetchAccountId)> PasswordCalls { get; } = [];
+
+        public Dictionary<(int AccountId, int FetchAccountId), string> Passwords { get; } = [];
 
         public ValueTask<IReadOnlyList<FetchAccountAdministrationSnapshot>> GetFetchAccountsAsync(
             int accountId,
@@ -925,6 +1037,24 @@ public sealed class FetchAccountsComContractTests
             RetryAccountId = accountId;
             RetryFetchAccountId = fetchAccountId;
             return ValueTask.CompletedTask;
+        }
+
+        public ValueTask<string> GetFetchAccountPasswordAsync(
+            int accountId,
+            int fetchAccountId,
+            CancellationToken cancellationToken)
+        {
+            PasswordReadObserver?.Invoke();
+            PasswordCalls.Add((accountId, fetchAccountId));
+            if (FailPassword)
+            {
+                throw new InvalidOperationException("store failed");
+            }
+
+            return ValueTask.FromResult(
+                Passwords.TryGetValue((accountId, fetchAccountId), out var password)
+                    ? password
+                    : string.Empty);
         }
 
         public ValueTask<int> InsertFetchAccountAsync(
