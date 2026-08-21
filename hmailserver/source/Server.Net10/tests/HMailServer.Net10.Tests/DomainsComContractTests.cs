@@ -395,6 +395,7 @@ public sealed class DomainsComContractTests
         existing.Postmaster = "postmaster@renamed.example";
         existing.Active = false;
         existing.MaxMessageSize = 4096;
+        existing.MaxSize = 8192;
         existing.PlusAddressingEnabled = true;
         existing.AntiSpamEnableGreylisting = false;
 
@@ -407,6 +408,7 @@ public sealed class DomainsComContractTests
         Assert.AreEqual("postmaster@renamed.example", persisted.Postmaster);
         Assert.IsFalse(persisted.Active);
         Assert.AreEqual(4096, persisted.MaxMessageSize);
+        Assert.AreEqual(8192, persisted.MaxSize);
         Assert.IsTrue(persisted.PlusAddressingEnabled);
         Assert.IsFalse(persisted.AntiSpamEnableGreylisting);
         Assert.AreEqual("renamed.example", domains[0].Name);
@@ -425,17 +427,20 @@ public sealed class DomainsComContractTests
 
         var existing = domains[0];
         existing.Name = "changed.example";
+        existing.MaxSize = 8192;
 
         var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
 
         Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
         Assert.AreEqual("alpha.example", domains[0].Name);
+        Assert.AreEqual(0, domains[0].MaxSize);
 
         existing.Name = "other.example";
         failUpdate = false;
         existing.Save();
 
         Assert.AreEqual("other.example", domains[0].Name);
+        Assert.AreEqual(8192, domains[0].MaxSize);
     }
 
     [TestMethod]

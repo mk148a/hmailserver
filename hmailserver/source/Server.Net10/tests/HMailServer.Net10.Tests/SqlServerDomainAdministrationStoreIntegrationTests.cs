@@ -110,7 +110,7 @@ public sealed class SqlServerDomainAdministrationStoreIntegrationTests
                     PlusAddressingCharacter: "+",
                     AntiSpamEnableGreylisting: false,
                     AdDomainName: string.Empty,
-                    MaxSize: 0,
+                    MaxSize: 8192,
                     Size: 0,
                     AllocatedSize: 0,
                     MaxNumberOfAccounts: 3,
@@ -140,6 +140,7 @@ public sealed class SqlServerDomainAdministrationStoreIntegrationTests
             Assert.AreEqual(insertedId, afterUpdate.Id);
             Assert.AreEqual("renamed.example", afterUpdate.Name);
             Assert.IsFalse(afterUpdate.Active);
+            Assert.AreEqual(8192, afterUpdate.MaxSize);
             Assert.IsFalse(afterUpdate.AntiSpamEnableGreylisting);
             Assert.IsTrue(afterUpdate.MaxNumberOfDistributionListsEnabled);
             Assert.IsFalse(afterUpdate.DkimSignEnabled);
