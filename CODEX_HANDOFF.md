@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, IPv6 preference persistence)
+
+Legacy `InterfaceSettings::put_IPv6PreferredEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2607-2618`) calls
+`Configuration::SetIPv6Preferred`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:661-664`),
+which persists `hm_settings.settingname = 'IPv6Preferred'`. Code/test commit
+`cd055a537` adds the authenticated Net10 mutation store update, integer 0/1
+encoding, one-row fail-closed outcome, authorization lease, and publish-after-
+success snapshot behavior. Focused Settings/SQL tests pass `232`, fail `0`;
+full Net10 passes `2510`, skips `90`, fails `0` (`2600` total).
+
+The Settings COM identity and direct activation boundary are unchanged. No
+live IPv6 listener reconfiguration or SMTP trust change was added. The next
+slice is isolated disposable `6000` SQL/Data host-start success/failure with
+no listener/worker side effects, blocked until the approved SQL connection and
+isolated-create opt-in exist. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, DKIM handle containment)
 
 Parity anchors are legacy `DKIMSigner::Sign` and `DKIM::Sign` in

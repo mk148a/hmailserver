@@ -1,5 +1,23 @@
 
-# Current bounded slice: DKIM key-open hardening (2026-08-21)
+# Current bounded slice: authenticated IPv6 preference persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_IPv6PreferredEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2607-2618`) calls
+`Configuration::SetIPv6Preferred`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:661-664`),
+which writes the existing `hm_settings` row `IPv6Preferred`. Code/test commit
+`cd055a537` adds the same authenticated Net10 SQL mutation with integer 0/1
+encoding, one-row failure containment, retained-object snapshot update only
+after success, and the existing authorization lease. Focused Settings/SQL
+coverage is `232 passed, 0 skipped, 0 failed`; full Net10 is `2510 passed, 90
+skipped, 0 failed`.
+
+No listener reconfiguration, COM identity, SMTP trust, or schema change was
+added. The next slice is disposable `6000` SQL/Data host-start acceptance when
+the approved connection and isolated-create opt-in become available; release
+remains RED.
+
+## Current bounded slice: DKIM key-open hardening (2026-08-21)
 
 Legacy anchors are `DKIMSigner::Sign` and `DKIM::Sign` in
 `hmailserver/source/Server/Common/AntiSpam/DKIM/DKIMSigner.cpp:34-106` and

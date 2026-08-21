@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current IPv6 preference persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_IPv6PreferredEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2607-2618`) converts
+`VARIANT_BOOL` to a native boolean and calls
+`Configuration::SetIPv6Preferred` (`hmailserver/source/Server/Common/Application/Configuration.cpp:661-664`),
+which writes the existing `hm_settings` row named `IPv6Preferred`.
+
+Code/test commit `cd055a537` adds the matching authenticated Net10 mutation
+store update with an integer 0/1 parameter, one-row fail-closed behavior,
+authorization lease acquisition, and snapshot publication only after success.
+The installed Settings IID/vtable/DISPID shape is unchanged and no live IPv6
+listener reconfiguration was added. Focused Settings/SQL coverage is `232
+passed, 0 skipped, 0 failed`; full Net10 is `2510 passed, 90 skipped, 0
+failed` (`2600` total).
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence. It is blocked because the approved SQL connection and
+isolated-create opt-in are absent; release remains **RED**.
+
 ## Current DKIM key-open hardening slice (2026-08-21)
 
 Legacy `DKIMSigner::Sign` and `DKIM::Sign` use the configured private-key path
