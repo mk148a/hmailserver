@@ -1,21 +1,17 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, GreyListingWhiteAddresses SQL mutation evidence)
+## Current authoritative parity status (2026-08-21, GreyListingWhiteAddress item Delete evidence)
 
-Test commit `917da4a10` proves the existing legacy-compatible authenticated
-`AntiSpam.GreyListingWhiteAddresses` SQL mutation round trip through the
+Test commit `a1df950d0` proves the existing legacy-compatible authenticated
+`GreyListingWhiteAddress.Delete()` item mutation through the
 existing authenticated Settings mutation boundary, after the SPF, MX checks,
 SpamAssassin, scanner endpoint, maximum-size, DKIM verification, greylisting
 bypass, CheckHostInHelo, CheckPTR, GreyListingEnabled, AddHeader, PrependSubject,
-and threshold pairs. The SQL store updates only the legacy
-authenticated Settings boundary. The disposable SQL fixture now uses the
-legacy identity shape and proves `Add`, wildcard/description staging, generated
-ID assignment, SQL readback, collection snapshot append, and `DeleteByDBID`.
-The FinalDelete code/test slice remains in `1528f075b`; focused COM/SQL/security
-coverage is `201 passed, 0 skipped, 0 failed`, the new disposable whitelist
-round trip is `1 passed, 0 skipped, 0 failed`, and full disposable Net10 is
-`2505 passed, 10 skipped, 0 failed` (`2515` total).
+and threshold pairs, plus the disposable whitelist Add/Save/readback/DeleteByDBID
+round trip. Focused item-delete COM coverage is `18 passed, 0 skipped, 0
+failed`; full disposable Net10 is `2507 passed, 10 skipped, 0 failed` (`2517`
+total). The FinalDelete code/test slice remains in `1528f075b`.
 
 Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`source/Server/COM/InterfaceGreyListingWhiteAddresses.cpp:85-93,162-183`),
@@ -23,12 +19,13 @@ Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`), and
 `PersistentGreyListingWhiteAddress`
 (`source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
-The next production slice is item-level `GreyListingWhiteAddress.Delete()`;
-the current evidence slice intentionally changes tests/fixture only.
+The next production slice is saved-new-item `GreyListingWhiteAddress.Delete()`
+ownership after `Add()` plus `Save()`; the current evidence slice intentionally
+changes tests only.
 Release remains **RED** because
 migration/installer, COM/DCOM, SEC-18, live anti-spam reconfiguration,
 DKIM/DMARC/SPF runtime wiring, paired C++ performance, and soak gates remain
-open. The next bounded parity slice is authenticated item-level
+open. The next bounded parity slice is saved-new-item
 `GreyListingWhiteAddress.Delete()` with owning-collection snapshot removal.
 Production-hosted SMTP socket acceptance for live greylisting
 enable/disable/timing, triplet cleanup, migration/installer, SEC-18, paired C++

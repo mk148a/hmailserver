@@ -1,14 +1,14 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, GreyListingWhiteAddresses SQL mutation evidence)
+## Current Authoritative Continuation (2026-08-21, GreyListingWhiteAddress item Delete evidence)
 
-Test commit `917da4a10` proves the authenticated SQL-backed
-`GreyListingWhiteAddresses` mutation round trip after
+Test commit `a1df950d0` proves the authenticated persisted-item
+`GreyListingWhiteAddress.Delete()` path after
 the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
 verification, greylisting bypass, CheckHostInHelo, and AddHeader pairs.
 Focused COM/SQL/security coverage is `201 passed, 0 skipped, 0 failed`; the disposable SQL
 integration setter/readback and missing-row checks passed; the disposable
-LocalDB/Data full suite is `2505 passed, 10 skipped, 0 failed` (`2515` total).
+LocalDB/Data full suite is `2507 passed, 10 skipped, 0 failed` (`2517` total).
 Direct activation, failed reauthentication, missing-row failure, retained
 object snapshots, and existing COM identity boundaries remain covered.
 
@@ -18,8 +18,9 @@ Legacy references are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`), and
 `PersistentGreyListingWhiteAddress`
 (`source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
-The next unblocked parity slice is authenticated item-level
-`GreyListingWhiteAddress.Delete()` with owning-collection snapshot removal.
+The next unblocked parity slice is saved-new-item
+`GreyListingWhiteAddress.Delete()` ownership after `Add()` plus `Save()` with
+owning-collection snapshot removal.
 Triplet cleanup, production-hosted SMTP socket acceptance, migration/installer,
 SEC-18, paired C++ performance, and soak remain separate. Release remains
 `RED`.
