@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, HostName persistence parity)
+
+Code/test commit `11c95f606` implements authenticated `Settings.HostName`
+persistence through `SqlServerSettingsAdministrationStore.UpdateHostNameAsync`.
+It updates only the existing `hm_settings.settingstring` row named `hostname`,
+publishes the new snapshot value only after a successful one-row update,
+preserves the authenticated server-administrator boundary and authorization
+lease, and retains direct activation fallback. Focused COM/SQL coverage is
+`228 passed, 0 skipped, 0 failed`; disposable LocalDB SQL integration is
+included; full Net10 Debug coverage is `2548 passed, 10 skipped, 0 failed`
+(`2558` total).
+
+Legacy anchors are `InterfaceSettings::get/put_HostName`
+(`source/Server/COM/InterfaceSettings.cpp:644-676`) and
+`Configuration::Get/SetHostName`
+(`source/Server/Common/Application/Configuration.cpp:477-485`), with the
+existing `hostname` SQL seed at `source/DBScripts/CreateTablesMSSQL.sql:780`.
+The installed Settings IID/vtable/DISPID `33` shape is unchanged. SMTP
+identity/runtime listener reconfiguration and unrelated Admin settings remain
+out of scope. Migration/installer, registered COM/DCOM, SEC-18, paired C++
+performance, and 24-hour soak gates remain open. Release remains **RED**; no
+push was performed.
+
 ## Current authoritative parity status (2026-08-21, SMTP relayer password failure containment)
 
 Code/test commit `9c4438f9d` closes the authenticated

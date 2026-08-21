@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, HostName persistence parity)
+
+Code/test commit `11c95f606` implements authenticated `Settings.HostName`
+persistence through `SqlServerSettingsAdministrationStore.UpdateHostNameAsync`.
+It updates only the existing `hostname` row, requires the existing
+authenticated server-administrator boundary and authorization lease, publishes
+the snapshot after a successful one-row update, and keeps direct activation
+fallback behavior. Focused COM/SQL coverage is `228 passed, 0 skipped, 0
+failed`; disposable LocalDB SQL integration passed; full Net10 Debug is `2548
+passed, 10 skipped, 0 failed` (`2558` total).
+
+Legacy references are `InterfaceSettings::get/put_HostName`
+(`source/Server/COM/InterfaceSettings.cpp:644-676`) and
+`Configuration::Get/SetHostName`
+(`source/Server/Common/Application/Configuration.cpp:477-485`). No installed
+COM identity, direct activation boundary, SMTP listener behavior, or live
+reconfiguration was changed. The next candidate is the gated
+IMAPHierarchyDelimiter folder/rule-action parity slice. Migration/installer,
+SEC-18, paired C++ performance, and 24-hour soak remain open; release is
+`RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, SMTP relayer password failure containment)
 
 Code/test commit `9c4438f9d` fixes authenticated

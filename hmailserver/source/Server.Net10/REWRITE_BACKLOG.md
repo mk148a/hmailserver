@@ -1,5 +1,34 @@
 
-## Current next slice (2026-08-21, IMAP hierarchy delimiter parity after SMTP relayer password failure containment)
+## Current next slice (2026-08-21, IMAP hierarchy delimiter parity after HostName persistence)
+
+Code/test commit `11c95f606` closes the authenticated `Settings.HostName`
+persistence gap. The setter updates the existing `hm_settings.settingstring`
+value for `hostname` through the configured administration store, publishes the
+snapshot only after a one-row success, and retains direct activation and
+failed-save behavior. Focused COM/SQL coverage is `228 passed, 0 skipped, 0
+failed`; the disposable LocalDB SQL integration passed; full Net10 Debug is
+`2548 passed, 10 skipped, 0 failed` (`2558` total).
+
+Legacy anchors are `InterfaceSettings::get/put_HostName`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:644-676`) and
+`Configuration::Get/SetHostName`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:477-485`),
+with the existing `hostname` seed at
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:780`. The installed
+Settings IID/vtable/DISPID `33` shape and authenticated server-administrator
+boundary remain unchanged. This persistence-only slice does not change SMTP
+runtime listener reconfiguration.
+
+The next candidate is authenticated `Settings.IMAPHierarchyDelimiter`, but it
+is not a fixed-row update: legacy `IMAPConfiguration::SetHierarchyDelimiter`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:174-195`) rejects
+folder/rule-action delimiter conflicts, updates rule actions, persists the row,
+and clears rule caches. Implement it only with isolated folder/rule-action
+coverage and rollback semantics. Production-hosted SMTP/POP3 timing,
+migration/installer, SEC-18, paired C++ performance, and soak remain separate
+gates. Release remains **RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP hierarchy delimiter parity after SMTP relayer password failure containment)
 
 Code/test commit `9c4438f9d` closes the authenticated
 `Settings.SetSMTPRelayerPassword` failure-containment gap. The existing
