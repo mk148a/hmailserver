@@ -1095,6 +1095,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapAclEnabledSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapAclEnabledUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapAclEnabled: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.IMAPACLEnabled = true;
+
+        Assert.AreEqual(1, store.ImapAclEnabledUpdateCount);
+        Assert.IsTrue(store.UpdatedImapAclEnabled);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.IMAPACLEnabled);
+
+        store.ImapAclEnabledUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPACLEnabled = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ImapAclEnabledUpdateCount);
+        Assert.IsTrue(settings.IMAPACLEnabled);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPACLEnabled = false);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapAclEnabledUpdateCount);
+        Assert.IsTrue(settings.IMAPACLEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5644,6 +5686,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedImapIdleEnabled { get; private set; }
 
+        public bool ImapAclEnabledUpdateResult { get; set; }
+
+        public int ImapAclEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedImapAclEnabled { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6233,6 +6281,16 @@ public sealed class SettingsComContractTests
             UpdatedImapIdleEnabled = imapIdleEnabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ImapIdleEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapAclEnabledAsync(
+            bool imapAclEnabled,
+            CancellationToken cancellationToken)
+        {
+            ImapAclEnabledUpdateCount++;
+            UpdatedImapAclEnabled = imapAclEnabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapAclEnabledUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(
