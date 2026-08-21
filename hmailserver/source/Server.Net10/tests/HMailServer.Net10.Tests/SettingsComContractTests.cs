@@ -43,6 +43,64 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamWinEnabledPersistsWithAuthorizationLease()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            UpdateResult = true,
+            AntiVirusClamWinEnabledMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamWinEnabled: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.AntiVirus.ClamWinEnabled = false;
+
+        Assert.AreEqual(1, store.AntiVirusClamWinEnabledUpdateCount);
+        Assert.IsFalse(store.UpdatedAntiVirusClamWinEnabled);
+        Assert.IsTrue(store.AntiVirusClamWinEnabledLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.IsFalse(settings.AntiVirus.ClamWinEnabled);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamWinEnabledFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            UpdateResult = false
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamWinEnabled: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.ClamWinEnabled = false);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.IsTrue(settings.AntiVirus.ClamWinEnabled);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7343,6 +7401,14 @@ public sealed class SettingsComContractTests
 
         public bool UpdateResult { get; set; }
 
+        public int AntiVirusClamWinEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedAntiVirusClamWinEnabled { get; private set; }
+
+        public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
+
+        public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
+
         public Func<bool>? DefaultDomainMutationProbe { get; set; }
 
         public bool DefaultDomainLeaseHeldDuringUpdate { get; private set; }
@@ -8678,6 +8744,18 @@ public sealed class SettingsComContractTests
             UpdatedTlsOptions = tlsOptions;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(TlsOptionsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusClamWinEnabledAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusClamWinEnabledUpdateCount++;
+            UpdatedAntiVirusClamWinEnabled = enabled;
+            CancellationToken = cancellationToken;
+            AntiVirusClamWinEnabledLeaseHeldDuringUpdate =
+                AntiVirusClamWinEnabledMutationProbe?.Invoke() ?? false;
+            return ValueTask.FromResult(UpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(

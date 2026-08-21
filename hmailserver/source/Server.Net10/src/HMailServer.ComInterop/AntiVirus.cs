@@ -126,11 +126,14 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
-    private readonly AntiVirusAdministrationSnapshot? _snapshot;
+    private AntiVirusAdministrationSnapshot? _snapshot;
     private readonly IClamAvScannerTestRuntime? _clamAvScannerTestRuntime;
     private readonly IClamWinScannerTestRuntime? _clamWinScannerTestRuntime;
     private readonly ICustomScannerTestRuntime? _customScannerTestRuntime;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly ISettingsAdministrationMutationStore? _settingsMutationStore;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
+    private readonly Action<bool>? _publishClamWinEnabled;
 
     public AntiVirus()
     {
@@ -141,16 +144,60 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         IClamAvScannerTestRuntime? clamAvScannerTestRuntime,
         IClamWinScannerTestRuntime? clamWinScannerTestRuntime,
         ICustomScannerTestRuntime? customScannerTestRuntime,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        ISettingsAdministrationMutationStore? settingsMutationStore,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
+        Action<bool>? publishClamWinEnabled)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
         _clamWinScannerTestRuntime = clamWinScannerTestRuntime;
         _customScannerTestRuntime = customScannerTestRuntime;
         _isServerAdministrator = isServerAdministrator;
+        _settingsMutationStore = settingsMutationStore;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
+        _publishClamWinEnabled = publishClamWinEnabled;
     }
 
-    public bool ClamWinEnabled { get => Snapshot.ClamWinEnabled; set => Unavailable(); }
+    public bool ClamWinEnabled
+    {
+        get => Snapshot.ClamWinEnabled;
+        set
+        {
+            _ = Snapshot;
+            if (_settingsMutationStore is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            using var authorizationLease = _authorizationLeaseFactory is null
+                ? null
+                : _authorizationLeaseFactory(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                    ?? throw new COMException(
+                        "Anti-virus settings access requires an authenticated server administrator.",
+                        EAccessDenied);
+
+            if (!_settingsMutationStore
+                .UpdateAntiVirusClamWinEnabledAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The ClamWin enabled update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_snapshot is not null)
+            {
+                _snapshot = _snapshot with { ClamWinEnabled = value };
+            }
+
+            _publishClamWinEnabled?.Invoke(value);
+        }
+    }
 
     public string ClamWinExecutable { get => Snapshot.ClamWinExecutable; set => Unavailable(); }
 
@@ -282,7 +329,10 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         IClamAvScannerTestRuntime? clamAvScannerTestRuntime = null,
         IClamWinScannerTestRuntime? clamWinScannerTestRuntime = null,
         ICustomScannerTestRuntime? customScannerTestRuntime = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        ISettingsAdministrationMutationStore? settingsMutationStore = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
+        Action<bool>? publishClamWinEnabled = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
@@ -290,7 +340,10 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             clamAvScannerTestRuntime,
             clamWinScannerTestRuntime,
             customScannerTestRuntime,
-            isServerAdministrator);
+            isServerAdministrator,
+            settingsMutationStore,
+            authorizationLeaseFactory,
+            publishClamWinEnabled);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot

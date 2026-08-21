@@ -2806,7 +2806,19 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                     clamAvScannerTestRuntime: _runtimeConfiguration.ClamAvScannerTestRuntime,
                     clamWinScannerTestRuntime: _runtimeConfiguration.ClamWinScannerTestRuntime,
                     customScannerTestRuntime: _runtimeConfiguration.CustomScannerTestRuntime,
-                    isServerAdministrator: _isServerAdministrator);
+                    isServerAdministrator: _isServerAdministrator,
+                    settingsMutationStore: _settingsMutationStore,
+                    authorizationLeaseFactory: _authorizationLeaseFactory,
+                    publishClamWinEnabled: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                AntiVirusClamWinEnabled = value
+                            };
+                        }
+                    });
         }
     }
 
