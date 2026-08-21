@@ -884,6 +884,8 @@ public sealed class Domain : DomainComAdapter, IDomainAuthorizationBoundary
         _delete(snapshot.Id);
     }
 
+    public override void SynchronizeDirectory() => EnsureAuthorized();
+
     private void Mutate(Func<DomainAdministrationSnapshot, DomainAdministrationSnapshot> mutation)
     {
         EnsureAuthorized();
@@ -934,7 +936,7 @@ public abstract class DomainComAdapter : IInterfaceDomain
     public virtual string Postmaster { get => Unavailable<string>(); set => Unavailable(); }
     public virtual IInterfaceDomainAliases DomainAliases => Unavailable<IInterfaceDomainAliases>();
     public virtual string ADDomainName { get => Unavailable<string>(); set => Unavailable(); }
-    public void SynchronizeDirectory() => Unavailable();
+    public virtual void SynchronizeDirectory() => Unavailable();
     public virtual int MaxMessageSize { get => Unavailable<int>(); set => Unavailable(); }
     public virtual bool PlusAddressingEnabled { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string PlusAddressingCharacter { get => Unavailable<string>(); set => Unavailable(); }

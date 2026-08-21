@@ -57,6 +57,9 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(
             1,
             typeof(IInterfaceDomain).GetProperty(nameof(IInterfaceDomain.Name))?.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(
+            13,
+            typeof(IInterfaceDomain).GetMethod(nameof(IInterfaceDomain.SynchronizeDirectory))?.GetCustomAttribute<DispIdAttribute>()?.Value);
     }
 
     [TestMethod]
@@ -114,6 +117,7 @@ public sealed class DomainsComContractTests
         var greylistingError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().AntiSpamEnableGreylisting);
         var signatureError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().SignatureEnabled);
         var dkimError = Assert.ThrowsExactly<COMException>(() => _ = new Domain().DKIMSignEnabled);
+        var synchronizeError = Assert.ThrowsExactly<COMException>(new Domain().SynchronizeDirectory);
 
         Assert.AreEqual(EAccessDenied, domainsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, namesError.ErrorCode);
@@ -125,6 +129,60 @@ public sealed class DomainsComContractTests
         Assert.AreEqual(EAccessDenied, greylistingError.ErrorCode);
         Assert.AreEqual(EAccessDenied, signatureError.ErrorCode);
         Assert.AreEqual(EAccessDenied, dkimError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, synchronizeError.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomain_SynchronizeDirectoryIsIdempotentAndDoesNotInvokePersistenceCallbacks()
+    {
+        var callbackCalls = 0;
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            reload: () =>
+            {
+                callbackCalls++;
+                throw new InvalidOperationException("SynchronizeDirectory must not reload domains.");
+            },
+            insert: _ =>
+            {
+                callbackCalls++;
+                throw new InvalidOperationException("SynchronizeDirectory must not insert domains.");
+            },
+            update: _ =>
+            {
+                callbackCalls++;
+                throw new InvalidOperationException("SynchronizeDirectory must not update domains.");
+            },
+            delete: _ =>
+            {
+                callbackCalls++;
+                throw new InvalidOperationException("SynchronizeDirectory must not delete domains.");
+            });
+
+        var domain = domains[0];
+
+        domain.SynchronizeDirectory();
+        domain.SynchronizeDirectory();
+
+        Assert.AreEqual(0, callbackCalls);
+        Assert.AreEqual("alpha.example", domain.Name);
+    }
+
+    [TestMethod]
+    public void AuthorizedDomain_RetainedSynchronizeDirectoryWrapperRechecksAuthentication()
+    {
+        var authenticated = true;
+        IInterfaceDomains domains = Domains.CreateAuthorized(
+            new[] { new DomainAdministrationSnapshot(10, "alpha.example", true) },
+            isAuthenticated: () => authenticated);
+        var retainedDomain = domains[0];
+
+        retainedDomain.SynchronizeDirectory();
+        authenticated = false;
+
+        var error = Assert.ThrowsExactly<COMException>(retainedDomain.SynchronizeDirectory);
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
     }
 
     [TestMethod]
