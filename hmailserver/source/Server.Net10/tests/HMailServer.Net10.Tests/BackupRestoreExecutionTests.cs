@@ -187,6 +187,50 @@ public sealed class BackupRestoreExecutionTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_GroupMemberFailureRollsBackFullRestoreBeforeCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var archiveXml = FullPublicArchiveXml
+            .Replace(
+                "<Permission Type=\"0\" Rights=\"3\" Holder=\"alice@restore.example\" />",
+                "<Permission Type=\"1\" Rights=\"3\" Holder=\"Editors\" />",
+                StringComparison.Ordinal)
+            .Replace(
+                "</Backup>",
+                "<Groups><Group Name=\"Editors\"><GroupMembers><Member Name=\"alice@restore.example\" /></GroupMembers></Group></Groups></Backup>",
+                StringComparison.Ordinal);
+        using var fixture = await ArchiveFixture.CreateNonDbAsync(
+            compressed: false,
+            customXml: archiveXml);
+        var stores = new RecordingStores { FailGroupMemberInsert = true };
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(7, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+        backup.RestoreDomains = true;
+        backup.RestoreMessages = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        var transaction = transactionFactory.LastTransaction!;
+        Assert.AreEqual(1, stores.GroupMembers.InsertAttempts);
+        Assert.IsTrue(transaction.Disposed);
+        Assert.IsTrue(transaction.RolledBack);
+        Assert.AreEqual(0, transaction.CommitCount);
+        Assert.AreEqual(0, stores.Groups.Inserted.Count);
+        Assert.AreEqual(0, stores.GroupMembers.Inserted.Count);
+        Assert.AreEqual(0, stores.PublicPermissions.Inserted.Count);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_InvokesInjectedReinitializeOnceAfterSuccessfulRestore()
     {
         if (!OperatingSystem.IsWindows())
@@ -1013,6 +1057,7 @@ public sealed class BackupRestoreExecutionTests
         public List<string> Events { get; set; } = [];
         public bool FailAliasInsert { get; init; }
         public bool FailDistributionListInsertAfterFirst { get; init; }
+        public bool FailGroupMemberInsert { get; init; }
 
         public MetadataBackupRestoreExecutor CreateExecutor(
             string dataDirectory,
@@ -1022,6 +1067,7 @@ public sealed class BackupRestoreExecutionTests
             bool requireSqlTransaction = false)
         {
             DistributionLists.FailInsertAfterFirst = FailDistributionListInsertAfterFirst;
+            GroupMembers.FailInsert = FailGroupMemberInsert;
             return new(
                 Path.Combine(AppContext.BaseDirectory, "7za.exe"),
                 dataDirectory,
@@ -1217,15 +1263,29 @@ public sealed class BackupRestoreExecutionTests
             return ValueTask.CompletedTask;
         }
 
-        public ValueTask CommitAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
+        public ValueTask CommitAsync(CancellationToken cancellationToken)
+        {
+            CommitCount++;
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask DisposeAsync()
         {
             Disposed = true;
+            if (CommitCount == 0)
+            {
+                RolledBack = true;
+                stores.Groups.Inserted.Clear();
+                stores.GroupMembers.Inserted.Clear();
+                stores.PublicPermissions.Inserted.Clear();
+            }
+
             return ValueTask.CompletedTask;
         }
 
         public bool Disposed { get; private set; }
+        public bool RolledBack { get; private set; }
+        public int CommitCount { get; private set; }
     }
 
     private sealed class RecordingSettingsRestoreStore : ISettingsRestoreAdministrationStore
@@ -1331,6 +1391,8 @@ public sealed class BackupRestoreExecutionTests
     private sealed class RecordingGroupMemberStore : IGroupMemberAdministrationStore
     {
         public List<GroupMemberAdministrationSnapshot> Inserted { get; } = [];
+        public bool FailInsert { get; set; }
+        public int InsertAttempts { get; private set; }
 
         public ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
             int groupId,
@@ -1342,6 +1404,13 @@ public sealed class BackupRestoreExecutionTests
             GroupMemberAdministrationSnapshot member,
             CancellationToken cancellationToken)
         {
+            InsertAttempts++;
+            if (FailInsert)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Injected group-member restore failure."));
+            }
+
             var id = 88 + Inserted.Count;
             Inserted.Add(member with { Id = id });
             return ValueTask.FromResult(id);
