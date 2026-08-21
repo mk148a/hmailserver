@@ -61,6 +61,75 @@ public sealed class DeliveryQueueProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_SignsAfterOnDeliverMessageBeforeResolutionAndDispatch()
+    {
+        var identity = new MessageIdentity(101, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var order = new List<string>();
+        var leaseStore = new FakeLeaseStore(identity);
+        var contentStore = new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n");
+        var eventExecutor = new FakeDeliveryEventScriptExecutor(request =>
+        {
+            order.Add(request.EventName);
+            return DeliveryEventScriptExecutionResult.Continue(request.MessageData);
+        });
+        var resolver = new FakeTargetResolver(
+            new DeliveryTargetBatch(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                message.Recipients))
+        {
+            OnResolve = _ => order.Add("Resolve")
+        };
+        var signer = new RecordingDkimSigner(order);
+        var dispatcher = new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success());
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            resolver,
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            eventExecutor,
+            contentStore,
+            dkimSigner: signer);
+
+        await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.IsTrue(order.IndexOf("OnDeliverMessage") < order.IndexOf("Signer"));
+        Assert.IsTrue(order.IndexOf("Signer") < order.IndexOf("Resolve"));
+        StringAssert.Contains(contentStore.Text, "X-DKIM-Test: signed");
+        Assert.AreEqual(contentStore.Text, Encoding.ASCII.GetString(signer.LastBytes!));
+        Assert.AreEqual(1, dispatcher.Messages.Count);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DoesNotInvokeSignerForRetry()
+    {
+        var identity = new MessageIdentity(102, 0, 0, 0);
+        var message = CreateMessage(identity, currentRetryCount: 1);
+        var signer = new RecordingDkimSigner([]);
+        var contentStore = new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n");
+        var resolver = new FakeTargetResolver(
+            new DeliveryTargetBatch(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                message.Recipients));
+        var processor = new DeliveryQueueProcessor(
+            new FakeLeaseStore(identity),
+            new FakeMessageStore(message),
+            resolver,
+            new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success()),
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            messageContentStore: contentStore,
+            dkimSigner: signer);
+
+        await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(0, signer.CallCount);
+        Assert.AreEqual("From: sender@example.test\r\n\r\nBody\r\n", contentStore.Text);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_DefersLeaseWhenDispatcherReturnsTransientFailure()
     {
         var identity = new MessageIdentity(11, 0, 0, 0);
@@ -646,10 +715,15 @@ public sealed class DeliveryQueueProcessorTests
             _batches = batches;
         }
 
+        public Action<DeliveryQueuedMessage>? OnResolve { get; init; }
+
         public ValueTask<IReadOnlyList<DeliveryTargetBatch>> ResolveAsync(
             DeliveryQueuedMessage message,
-            CancellationToken cancellationToken) =>
-            ValueTask.FromResult(_batches);
+            CancellationToken cancellationToken)
+        {
+            OnResolve?.Invoke(message);
+            return ValueTask.FromResult(_batches);
+        }
     }
 
     private sealed class FakeTargetDispatcher : IDeliveryTargetDispatcher
@@ -818,6 +892,23 @@ public sealed class DeliveryQueueProcessorTests
 
             DeletedMessages.Add(message);
             return ValueTask.FromResult(true);
+        }
+    }
+
+    private sealed class RecordingDkimSigner(List<string> order) : IDkimSigner
+    {
+        public int CallCount { get; private set; }
+        public byte[]? LastBytes { get; private set; }
+
+        public ValueTask<byte[]?> SignAsync(
+            DeliveryQueuedMessage message,
+            byte[] messageData,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            order.Add("Signer");
+            LastBytes = Encoding.ASCII.GetBytes("X-DKIM-Test: signed\r\n" + Encoding.ASCII.GetString(messageData));
+            return ValueTask.FromResult<byte[]?>(LastBytes);
         }
     }
 }

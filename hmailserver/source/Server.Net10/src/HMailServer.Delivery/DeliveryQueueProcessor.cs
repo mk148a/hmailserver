@@ -14,6 +14,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
     private readonly IDeliveryBounceStore _bounceStore;
     private readonly IDeliveryEventScriptExecutor? _deliveryEventScriptExecutor;
     private readonly IDeliveryMessageContentStore? _messageContentStore;
+    private readonly IDkimSigner? _dkimSigner;
     private readonly IDeliveryQueueStatusObserver _statusObserver;
 
     public DeliveryQueueProcessor(
@@ -25,7 +26,8 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
         IDeliveryBounceStore bounceStore,
         IDeliveryEventScriptExecutor? deliveryEventScriptExecutor = null,
         IDeliveryMessageContentStore? messageContentStore = null,
-        IDeliveryQueueStatusObserver? statusObserver = null)
+        IDeliveryQueueStatusObserver? statusObserver = null,
+        IDkimSigner? dkimSigner = null)
     {
         _leaseStore = leaseStore;
         _messageStore = messageStore;
@@ -35,6 +37,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
         _bounceStore = bounceStore;
         _deliveryEventScriptExecutor = deliveryEventScriptExecutor;
         _messageContentStore = messageContentStore;
+        _dkimSigner = dkimSigner;
         _statusObserver = statusObserver ?? NullDeliveryQueueStatusObserver.Instance;
     }
 
@@ -174,6 +177,38 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
             }
 
             message = deliverMessage.Message;
+
+            if (message.CurrentRetryCount == 0 && _dkimSigner is not null && _messageContentStore is not null)
+            {
+                try
+                {
+                    var messageData = await _messageContentStore
+                        .TryLoadAsync(message, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (messageData is not null)
+                    {
+                        var signedMessageData = await _dkimSigner
+                            .SignAsync(message, messageData, cancellationToken)
+                            .ConfigureAwait(false);
+                        if (signedMessageData is not null
+                            && !signedMessageData.AsSpan().SequenceEqual(messageData)
+                            && await _messageContentStore
+                                .TrySaveAsync(message, signedMessageData, cancellationToken)
+                                .ConfigureAwait(false))
+                        {
+                            message = message with { Size = signedMessageData.LongLength };
+                        }
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception)
+                {
+                    // DKIM is opportunistic for delivery; retain the original message on failure.
+                }
+            }
 
             var targetBatches = await _targetResolver.ResolveAsync(message, cancellationToken).ConfigureAwait(false);
             if (targetBatches.Count == 0)

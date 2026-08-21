@@ -824,6 +824,11 @@ public static class Host
     builder.Services.AddSingleton<DeliveryMessageContentSource>();
     builder.Services.AddSingleton<IDeliveryMessageContentSource>(static serviceProvider => serviceProvider.GetRequiredService<DeliveryMessageContentSource>());
     builder.Services.AddSingleton<IDeliveryMessageContentStore>(static serviceProvider => serviceProvider.GetRequiredService<DeliveryMessageContentSource>());
+    builder.Services.AddSingleton<IDkimSigner>(serviceProvider =>
+        new DkimSignerRuntime(
+            dataDirectory,
+            serviceProvider.GetRequiredService<IDomainAdministrationStore>(),
+            serviceProvider.GetRequiredService<IDomainAliasAdministrationStore>()));
     builder.Services.AddSingleton<IDnsMxResolver, SystemDnsMxResolver>();
     builder.Services.AddSingleton(RemoteSmtpEndpointResolverOptions.Default);
     builder.Services.AddSingleton(DomainConcurrencyOptions.Default);
