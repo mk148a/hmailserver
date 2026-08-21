@@ -1106,6 +1106,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiVirusCustomScannerReturnValueSql_UsesTheLegacyFixedIntegerRowAndParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateAntiVirusCustomScannerReturnValueSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = @AntiVirusCustomScannerReturnValue\nWHERE settingname = N'customviursscannerreturnvalue';",
+            sql.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_RemainsReadOnlyAndExcludesSecrets()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
