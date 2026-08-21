@@ -6554,6 +6554,65 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AddDeliveredToHeaderSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AddDeliveredToHeaderUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AddDeliveredToHeader: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AddDeliveredToHeader = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.AddDeliveredToHeaderUpdateCount);
+        Assert.IsFalse(settings.AddDeliveredToHeader);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AddDeliveredToHeaderSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AddDeliveredToHeaderUpdateResult = true,
+            AddDeliveredToHeaderMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AddDeliveredToHeader: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.AddDeliveredToHeader = true;
+
+        Assert.IsTrue(store.AddDeliveredToHeaderLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.IsTrue(settings.AddDeliveredToHeader);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AllowIncorrectLineEndingsSetterPersistsTrueAndFalseBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7480,6 +7539,10 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAddDeliveredToHeader { get; private set; }
 
+        public Func<bool>? AddDeliveredToHeaderMutationProbe { get; set; }
+
+        public bool AddDeliveredToHeaderLeaseHeldDuringUpdate { get; private set; }
+
         public bool AllowIncorrectLineEndingsUpdateResult { get; set; }
 
         public bool GateAllowIncorrectLineEndingsMutation { get; set; }
@@ -8280,6 +8343,8 @@ public sealed class SettingsComContractTests
             AddDeliveredToHeaderUpdateCount++;
             UpdatedAddDeliveredToHeader = addDeliveredToHeader;
             CancellationToken = cancellationToken;
+            AddDeliveredToHeaderLeaseHeldDuringUpdate =
+                AddDeliveredToHeaderMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(AddDeliveredToHeaderUpdateResult);
         }
 
