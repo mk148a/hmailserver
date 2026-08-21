@@ -270,6 +270,10 @@ public interface ISettingsAdministrationMutationStore
         string host,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiVirusClamAvPortAsync(
+        int port,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

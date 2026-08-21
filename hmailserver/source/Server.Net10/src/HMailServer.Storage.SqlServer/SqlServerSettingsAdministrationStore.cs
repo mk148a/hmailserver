@@ -435,6 +435,12 @@ SET settingstring = @AntiVirusClamAvHost
 WHERE settingname = N'ClamAVHost';
 """;
 
+    public const string UpdateAntiVirusClamAvPortSql = """
+UPDATE hm_settings
+SET settinginteger = @AntiVirusClamAvPort
+WHERE settingname = N'ClamAVPort';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1464,6 +1470,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiVirusClamAvHostSql, connection);
         command.Parameters.Add("@AntiVirusClamAvHost", SqlDbType.NVarChar, 4000).Value = host;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiVirusClamAvPortAsync(
+        int port,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiVirusClamAvPortSql, connection);
+        command.Parameters.Add("@AntiVirusClamAvPort", SqlDbType.Int).Value = port;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

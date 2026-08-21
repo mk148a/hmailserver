@@ -605,6 +605,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamAvPortPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamAvPort: 3310),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.ClamAVPort = 3311;
+
+        Assert.AreEqual(1, store.AntiVirusClamAvPortUpdateCount);
+        Assert.AreEqual(3311, store.UpdatedAntiVirusClamAvPort);
+        Assert.AreEqual(3311, settings.AntiVirus.ClamAVPort);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamAvPortFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamAvPort: 3310),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.ClamAVPort = 3311);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(3310, settings.AntiVirus.ClamAVPort);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7957,6 +7999,10 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedAntiVirusClamAvHost { get; private set; }
 
+        public int AntiVirusClamAvPortUpdateCount { get; private set; }
+
+        public int UpdatedAntiVirusClamAvPort { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -9426,6 +9472,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusClamAvHostUpdateCount++;
             UpdatedAntiVirusClamAvHost = host;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusClamAvPortAsync(
+            int port,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusClamAvPortUpdateCount++;
+            UpdatedAntiVirusClamAvPort = port;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

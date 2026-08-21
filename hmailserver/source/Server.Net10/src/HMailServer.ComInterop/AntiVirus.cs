@@ -146,6 +146,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private readonly Action<bool>? _publishAttachmentBlocking;
     private readonly Action<bool>? _publishClamAvEnabled;
     private readonly Action<string>? _publishClamAvHost;
+    private readonly Action<int>? _publishClamAvPort;
 
     public AntiVirus()
     {
@@ -171,7 +172,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<int>? publishMaximumMessageSize,
         Action<bool>? publishAttachmentBlocking,
         Action<bool>? publishClamAvEnabled,
-        Action<string>? publishClamAvHost)
+        Action<string>? publishClamAvHost,
+        Action<int>? publishClamAvPort)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
@@ -193,6 +195,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         _publishAttachmentBlocking = publishAttachmentBlocking;
         _publishClamAvEnabled = publishClamAvEnabled;
         _publishClamAvHost = publishClamAvHost;
+        _publishClamAvPort = publishClamAvPort;
     }
 
     public bool ClamWinEnabled
@@ -733,7 +736,45 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         }
     }
 
-    public int ClamAVPort { get => Snapshot.ClamAvPort; set => Unavailable(); }
+    public int ClamAVPort
+    {
+        get => Snapshot.ClamAvPort;
+        set
+        {
+            _ = Snapshot;
+            if (_settingsMutationStore is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            using var authorizationLease = _authorizationLeaseFactory is null
+                ? null
+                : _authorizationLeaseFactory(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                    ?? throw new COMException(
+                        "Anti-virus settings access requires an authenticated server administrator.",
+                        EAccessDenied);
+
+            if (!_settingsMutationStore
+                .UpdateAntiVirusClamAvPortAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The ClamAV port update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_snapshot is not null)
+            {
+                _snapshot = _snapshot with { ClamAvPort = value };
+            }
+
+            _publishClamAvPort?.Invoke(value);
+        }
+    }
 
     public bool TestCustomerScanner(string customExecutable, int virusReturnCode, out string resultText)
     {
@@ -839,7 +880,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<int>? publishMaximumMessageSize = null,
         Action<bool>? publishAttachmentBlocking = null,
         Action<bool>? publishClamAvEnabled = null,
-        Action<string>? publishClamAvHost = null)
+        Action<string>? publishClamAvHost = null,
+        Action<int>? publishClamAvPort = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
@@ -862,7 +904,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             publishMaximumMessageSize,
             publishAttachmentBlocking,
             publishClamAvEnabled,
-            publishClamAvHost);
+            publishClamAvHost,
+            publishClamAvPort);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot
