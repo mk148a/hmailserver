@@ -393,6 +393,12 @@ SET settinginteger = @AntiVirusNotifySender
 WHERE settingname = N'avnotifysender';
 """;
 
+    public const string UpdateAntiVirusCustomScannerEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @AntiVirusCustomScannerEnabled
+WHERE settingname = N'usecustomvirusscanner';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1345,6 +1351,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiVirusNotifySenderSql, connection);
         command.Parameters.Add("@AntiVirusNotifySender", SqlDbType.Int).Value = notifySender ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiVirusCustomScannerEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiVirusCustomScannerEnabledSql, connection);
+        command.Parameters.Add("@AntiVirusCustomScannerEnabled", SqlDbType.Int).Value = enabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

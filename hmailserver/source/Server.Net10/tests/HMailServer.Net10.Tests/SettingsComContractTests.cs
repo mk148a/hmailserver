@@ -311,6 +311,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusCustomScannerEnabledPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusCustomScannerEnabled: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.CustomScannerEnabled = false;
+
+        Assert.AreEqual(1, store.AntiVirusCustomScannerEnabledUpdateCount);
+        Assert.IsFalse(store.UpdatedAntiVirusCustomScannerEnabled);
+        Assert.IsFalse(settings.AntiVirus.CustomScannerEnabled);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusCustomScannerEnabledFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusCustomScannerEnabled: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.CustomScannerEnabled = false);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.IsTrue(settings.AntiVirus.CustomScannerEnabled);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7635,6 +7677,10 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiVirusNotifySender { get; private set; }
 
+        public int AntiVirusCustomScannerEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedAntiVirusCustomScannerEnabled { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -9034,6 +9080,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusNotifySenderUpdateCount++;
             UpdatedAntiVirusNotifySender = notifySender;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusCustomScannerEnabledAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusCustomScannerEnabledUpdateCount++;
+            UpdatedAntiVirusCustomScannerEnabled = enabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

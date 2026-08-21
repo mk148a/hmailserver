@@ -2868,6 +2868,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                                 AntiVirusNotifySender = value
                             };
                         }
+                    },
+                    publishCustomScannerEnabled: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                AntiVirusCustomScannerEnabled = value
+                            };
+                        }
                     });
         }
     }
