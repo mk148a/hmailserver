@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current authenticated ClamWin database mutation gate (2026-08-22)
+
+Code/test commit `16ba1c809` implements the legacy authenticated
+`AntiVirus.ClamWinDBFolder` setter. The legacy reference is
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:104-119`, with the
+fixed `avclamwindb` setting key in
+`hmailserver/source/Server/Common/Application/Constants.h:24`. Net10 writes
+the existing `hm_settings` row through a parameterized SQL store method,
+requires the existing authenticated Settings lease, and updates the retained
+Settings snapshot only after a successful one-row mutation. Installed COM
+identity, direct activation denial, SMTP trust, and live reconfiguration are
+unchanged.
+
+Focused contract/store tests pass `324`, skip `0`, and fail `0`; default full
+Net10 passes `2611`, skips `92`, and fails `0` (`2703` total). No disposable
+SQL integration was available, so release remains **RED**. Next independent
+slice: establish or verify disposable Full-Text SQL Server `6000`, then
+continue the next authenticated Admin mutation.
+
 ## Current authenticated ClamWin executable mutation gate (2026-08-22)
 
 Code/test commit `aff52ba5d` implements the legacy authenticated
