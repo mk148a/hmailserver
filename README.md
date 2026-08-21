@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current WebAdmin logout POST-only security slice (2026-08-21)
+
+Code/test commit `6d9c75c1b` hardens the legacy WebAdmin logout boundary. The
+legacy path in `hmailserver/source/WebAdmin/logout.php` previously called
+`session_destroy()` for any GET request; the legacy callers in
+`include_treemenu.php` and `error.php` also navigated with GET. The bounded fix
+loads the existing `include/functions.php` CSRF helpers, requires POST plus the
+session token before destruction, and converts both callers to token-bearing
+POST forms. It preserves the existing redirect and does not load
+`initialize.php`, create COM state, access SQL, or alter COM identity.
+
+`WebAdminLogoutPostOnlySourceTests` passes `4/4`; the combined WebAdmin source
+filter passes `95`, skips `1`, and fails `0`; full Net10 passes `2540`, skips
+`90`, and fails `0` (`2630` total). PHP runtime/lint is unavailable on this
+host, so runtime GET/invalid-token/valid-POST evidence remains open. Plaintext
+`session_password` retention, SEC-18 broker proof, disposable SQL/Data
+restore, installer rollback, paired C++ performance, and 24-hour service/COM
+soak remain open. Release remains **RED**.
+
 ## Current WebAdmin login POST-only security slice (2026-08-21)
 
 Code/test commit `24769cf1d` hardens

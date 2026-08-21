@@ -1,4 +1,23 @@
 
+## Current bounded slice: WebAdmin logout POST-only CSRF hardening (2026-08-21)
+
+Code/test commit `6d9c75c1b` documents and implements the legacy WebAdmin
+logout boundary from `source/WebAdmin/logout.php`,
+`source/WebAdmin/include_treemenu.php`, and `source/WebAdmin/error.php`.
+Legacy logout called `session_destroy()` directly for GET; the two existing
+callers navigated to `logout.php` by GET. The fix requires
+`hmailRequirePostCsrfToken()` before `session_destroy()` and converts both
+callers to POST forms containing `PrintHiddenCsrfToken()`. The existing
+redirect is preserved and the path remains free of `initialize.php`, COM, SQL,
+broker registration, and installed COM contract changes.
+
+`WebAdminLogoutPostOnlySourceTests` passes `4/4`; combined WebAdmin tests pass
+`95`, skip `1`, and fail `0`; full Net10 passes `2540`, skips `90`, and fails
+`0`. PHP runtime/lint is unavailable, so actual HTTP 405, invalid-CSRF, and
+successful logout behavior are not yet integration-proven. The next slice is
+disposable `6000` SQL/Data host-start success/failure and no-side-effect
+evidence when SQL opt-in is approved. Release remains **RED**.
+
 ## Current bounded slice: WebAdmin login POST-only credential input (2026-08-21)
 
 Code/test commit `24769cf1d` hardens

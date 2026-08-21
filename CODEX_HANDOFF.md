@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, WebAdmin logout POST-only)
+
+Code/test commit `6d9c75c1b` closes the bounded WebAdmin logout method/CSRF
+gap. Legacy `logout.php` called `session_destroy()` on GET; legacy callers in
+`include_treemenu.php` and `error.php` issued GET navigation. The new path
+requires the existing `hmailRequirePostCsrfToken()` before destruction, and
+both callers submit a hidden `PrintHiddenCsrfToken()` field by POST. Existing
+redirect/session-destruction behavior remains; no `initialize.php`, COM, SQL,
+broker registration, or installed COM contract was changed.
+
+Focused logout source tests pass `4/4`; combined WebAdmin coverage is `95
+passed, 1 skipped, 0 failed`; full Net10 is `2540 passed, 90 skipped, 0 failed`
+(`2630` total). PHP runtime/lint is unavailable, so this is source-contract
+evidence only. The next independent production-gate slice remains disposable
+`6000` SQL/Data host-start success/failure and no-side-effect evidence, blocked
+until approved disposable SQL/isolated-create opt-in exists. Release remains
+RED.
+
 ## Current Authoritative Continuation (2026-08-21, WebAdmin login POST-only)
 
 Code/test commit `24769cf1d` adds POST-only CSRF validation to
