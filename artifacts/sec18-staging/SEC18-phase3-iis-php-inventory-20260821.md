@@ -50,10 +50,13 @@
 - Binding: http/127.0.0.1:8088:
 - Health request: HTTP 200,
   {"status":"ok","php":"8.4.23","com_dotnet":true,"openssl":true}
-- Worker: PID 2664, C:\Windows\System32\inetsrv\w3wp.exe
-- The OS-reported worker account and resolved worker token SID matched the
-  dedicated pool account/SID. The raw SID is retained in the local JSON
-  evidence and is intentionally not repeated in this committed report.
+- Worker: PID 3684, C:\Windows\System32\inetsrv\w3wp.exe
+- The OS-reported worker account and the live primary-token SID read through
+  `OpenProcessToken` plus `WindowsIdentity(token)` matched the dedicated pool
+  account/SID. The redacted report is
+  `worker-token-evidence-public-20260821.json`; the raw SID is retained only
+  in the local `worker-token-evidence-20260821.json` evidence.
+- Worker token collector code/test commit: `e2c9387ff`.
 - The collector found exactly one site mapped to the dedicated pool.
 
 The guest did not expose a non-loopback IPv4 address during the bounded
@@ -66,10 +69,11 @@ GREEN decision.
 
 RED for broker implementation. The live collector report is Incomplete: the
 existing hMailServer Application AppID is not registered in the disposable
-guest, no trusted caller-token evidence was supplied, and the legacy
-hMailServer service is intentionally absent. This is expected for the
-pre-registration gate and proves that no existing Application registration or
-DCOM ACL was changed.
+guest, no effective COM caller-token evidence was captured, and the legacy
+hMailServer service is intentionally absent. The worker primary-token proof
+only establishes the IIS process identity; it does not establish the caller
+identity seen through COM. This is expected for the pre-registration gate and
+proves that no existing Application registration or DCOM ACL was changed.
 
 Do not register WebAdminSessionBroker, modify any DCOM ACL, alter the existing
 Application identity, or change PHP authentication/session behavior. Remaining
@@ -80,8 +84,9 @@ security/reality GREEN reviews.
 ## Verification
 
 - Hyper-V disposable script tests: passed.
-- Full Net10 Debug suite: 2556 passed, 10 skipped, 0 failed; TRX:
-  artifacts/net10-disposable/test-results/full-net10-sec18-staging-20260821.trx
-- Collector inventory, registry-binary evidence, denial attestation, and
-  Hyper-V disposable script tests all passed after the UTC timestamp parser
-  fix in code/test commit 8d43f9a18.
+- Full Net10 Debug suite: 2482 passed, 84 skipped, 0 failed; TRX:
+  artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx
+- Collector inventory, registry-binary evidence, denial attestation, Hyper-V
+  disposable script, and worker-token collector tests all passed. Full Net10
+  Debug passed `2482`, skipped `84`, failed `0` (`2566` total); TRX:
+  `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`.

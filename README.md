@@ -11,13 +11,16 @@ collector report are recorded in
 artifacts/sec18-staging/SEC18-phase3-iis-php-inventory-20260821.md and
 sec18-phase3-evidence-20260821.json.
 
-The pre-registration gate remains RED: no trusted caller-token/native-reader
-evidence exists, the legacy hMailServer service is intentionally absent from
-the guest, and no broker COM registration or DCOM ACL change was made. The
-official PHP archive has no checksum sidecar; the locally verified hash is
-disposable-test integrity evidence only. SEC-18 collector and attestation
-timestamps now canonicalize UTC in code/test commit 8d43f9a18. Release remains
-RED. The exact remaining procedure is in RELEASE_GATE_EXECUTION_CHECKLIST.md.
+The pre-registration gate remains RED: a direct primary-token SID read from the
+live `w3wp.exe` worker now matches the dedicated pool SID and is recorded in
+`artifacts/sec18-staging/worker-token-evidence-public-20260821.json`; however,
+no trusted COM caller-token/native-reader evidence exists. The legacy
+hMailServer service is intentionally absent from the guest, and no broker COM
+registration or DCOM ACL change was made. The official PHP archive has no
+checksum sidecar; the locally verified hash is disposable-test integrity
+evidence only. SEC-18 collector and attestation timestamps now canonicalize
+UTC in code/test commit 8d43f9a18. Release remains RED. The exact remaining
+procedure is in RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 

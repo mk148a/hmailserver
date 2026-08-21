@@ -1,20 +1,21 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, SEC-18 pre-registration evidence)
+## Current Authoritative Continuation (2026-08-21, SEC-18 caller evidence after worker-token proof)
 
 The approved HMailServer-SEC18-Disposable VM now has the isolated IIS staging
 infrastructure, PHP 8.4.23 NTS x64, Microsoft VC++ x64 runtime, dedicated
 HMailWebAdminBrokerPool, and loopback HMailWebAdminBrokerStaging binding on
-127.0.0.1:8088. The actual worker PID/account/SID evidence and collector
-output are in
-artifacts/sec18-staging/SEC18-phase3-iis-php-inventory-20260821.md and
-sec18-phase3-evidence-20260821.json.
+127.0.0.1:8088. A read-only native collector now reads the live w3wp primary
+token and verifies its SID against the pool SID. The redacted report is
+artifacts/sec18-staging/worker-token-evidence-public-20260821.json; raw SID
+evidence remains local-only.
 
-The next slice is an independently trusted caller-token/native-reader probe
-and authorized/non-pool denial evidence. The collector is Incomplete because
-the guest has no existing hMailServer Application registration or service.
-UTC timestamp normalization for collector and attestation evidence is complete
-in code/test commit 8d43f9a18.
+The next slice is an independently trusted COM caller-token/native-reader probe
+and authorized/non-pool denial evidence. Worker primary-token proof does not
+establish the effective COM caller SID. The collector remains Incomplete because
+the guest has no existing hMailServer Application registration or service and
+no COM caller request was issued. UTC timestamp normalization is complete in
+8d43f9a18; direct worker-token collection is in e2c9387ff.
 Do not register the broker, change the existing Application COM identity or
 DCOM ACLs, or change PHP authentication/session behavior. Release remains RED;
 use RELEASE_GATE_EXECUTION_CHECKLIST.md for the remaining steps.

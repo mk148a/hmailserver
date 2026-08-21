@@ -1,21 +1,25 @@
 
-## Current next slice (2026-08-21, SEC-18 pre-registration evidence)
+## Current next slice (2026-08-21, SEC-18 caller evidence after worker-token proof)
 
 The isolated IIS staging infrastructure is complete on
 HMailServer-SEC18-Disposable: PHP/VC++ prerequisites, the dedicated
-HMailWebAdminBrokerPool, the HMailWebAdminBrokerStaging loopback binding, the
-real worker SID evidence, and the live collector report are recorded in
-artifacts/sec18-staging/SEC18-phase3-iis-php-inventory-20260821.md.
+HMailWebAdminBrokerPool, the HMailWebAdminBrokerStaging loopback binding, and
+the live worker primary-token SID proof are recorded in
+artifacts/sec18-staging/SEC18-phase3-iis-php-inventory-20260821.md and the
+redacted report artifacts/sec18-staging/worker-token-evidence-public-20260821.json.
 
-The next slice is an independently trusted caller-token/native-reader probe
-plus authorized/non-pool denial evidence. Do not register
+The next slice is an independently trusted COM caller-token/native-reader
+probe plus authorized/non-pool denial evidence. The worker-token proof does
+not establish the effective COM caller SID. Do not register
 WebAdminSessionBroker, change the existing Application AppID/COM identity,
 alter DCOM ACLs, or change PHP authentication/session behavior until security
-and reality reviews are GREEN. The collector is correctly Incomplete because
-the disposable guest has no existing hMailServer Application registration or
-service. UTC timestamp normalization for collector/attestation evidence is
-complete in code/test commit 8d43f9a18. Release remains RED. The exact
-procedure is in the repository-root RELEASE_GATE_EXECUTION_CHECKLIST.md.
+and reality reviews are GREEN. The collector remains Incomplete because the
+disposable guest has no existing hMailServer Application registration or
+service, and no COM caller request was issued. UTC timestamp normalization for
+collector/attestation evidence is complete in code/test commit 8d43f9a18;
+direct worker-token collection is in code/test commit e2c9387ff. Release
+remains RED. The exact procedure is in the repository-root
+RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
 ## Historical current slice (2026-08-21, production-hosted SMTP/POP3 acceptance after UserInterfaceLanguage parity)
 
