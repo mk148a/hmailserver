@@ -2,6 +2,7 @@ using System.Data;
 using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
+using System.Xml.Linq;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
@@ -685,6 +686,118 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 finally
                 {
                     backup.CleanupArchiveBinding();
+                    await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                }
+            }).ConfigureAwait(false);
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling()
+    {
+        await WithFullRestoreTargetAsync(
+            "manager_backup_raw_non_db_only_2_4",
+            FullRestoreArchiveXmlWithNonDeliveredMessage,
+            async fixture =>
+            {
+                var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+                var destination = Path.Combine(
+                    Directory.GetParent(fixture.GetDataDirectory())!.FullName,
+                    "generated-raw-backup");
+                Directory.CreateDirectory(destination);
+                var generatedMessagePath = Path.Combine(
+                    fixture.GetDataDirectory(),
+                    "roundtrip.example",
+                    "user",
+                    "ne");
+                Directory.CreateDirectory(generatedMessagePath);
+                await File.WriteAllTextAsync(
+                    Path.Combine(generatedMessagePath, "generated.eml"),
+                    "From: generated@example.test\r\n\r\ncreated by raw StartBackup")
+                    .ConfigureAwait(false);
+
+                using var queue = new BackupTaskQueue();
+                var readiness = new ServerReadinessSignal();
+                readiness.SetBootstrapComplete();
+                using var service = new BackupTaskHostedService(
+                    queue,
+                    NullLogger<BackupTaskHostedService>.Instance,
+                    readiness);
+                var dispatcher = new RecordingBackupEventDispatcher();
+                var evidence = new BackupStartPlanEvidence(
+                    Destination: destination,
+                    BackupOptions: 2 | 4,
+                    BackupMessagesDbOnly: false,
+                    AllMessageFilesInDataDirectory: true,
+                    DestinationExists: true,
+                    Settings: new SettingsAdministrationSnapshot(
+                        "generated.example",
+                        "generated smtp",
+                        "generated pop3",
+                        "generated imap"));
+                var archiveRuntime = new SevenZipBackupArchiveRuntime(
+                    sevenZipPath,
+                    "10.0.0-B0",
+                    static () => new DateTime(2026, 8, 21, 4, 5, 7),
+                    payloadProvider: (startEvidence, _) => ValueTask.FromResult(
+                        new BackupArchiveXmlPayload(
+                            startEvidence.Settings,
+                            new[]
+                            {
+                                new DomainAdministrationSnapshot(
+                                    0,
+                                    "generated.example",
+                                    true,
+                                    Postmaster: "postmaster@generated.example")
+                            })),
+                    dataDirectory: fixture.GetDataDirectory());
+                var operationRuntime = new BackupOperationRuntime(
+                    queue,
+                    startPlanEvidence: _ => ValueTask.FromResult(evidence),
+                    executeBackupAsync: (startEvidence, cancellationToken) =>
+                        archiveRuntime.CreateAsync(startEvidence, cancellationToken));
+                var manager = BackupManager.CreateAuthorized(
+                    new SevenZipBackupArchiveMetadataReader(sevenZipPath),
+                    operationRuntime,
+                    eventDispatcher: dispatcher,
+                    restoreExecutor: fixture.CreateExecutor());
+
+                await service.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    manager.StartBackup();
+                    await WaitForBackupCompletionAsync(dispatcher.Completed.Task, dispatcher.Failed.Task)
+                        .ConfigureAwait(false);
+
+                    var archivePath = Path.Combine(destination, "HMBackup 2026-08-21 040507.7z");
+                    var rawMessagePath = Path.Combine(
+                        destination,
+                        "DataBackup",
+                        "roundtrip.example",
+                        "user",
+                        "ne",
+                        "generated.eml");
+                    Assert.IsTrue(File.Exists(archivePath), archivePath);
+                    Assert.IsTrue(File.Exists(rawMessagePath), rawMessagePath);
+                    Assert.AreEqual(
+                        "From: generated@example.test\r\n\r\ncreated by raw StartBackup",
+                        await File.ReadAllTextAsync(rawMessagePath).ConfigureAwait(false));
+
+                    var metadata = XDocument.Parse(
+                        new SevenZipBackupArchiveMetadataReader(sevenZipPath)
+                            .ReadMetadataXml(archivePath));
+                    var dataFiles = metadata
+                        .Element("Backup")?
+                        .Element("BackupInformation")?
+                        .Element("DataFiles");
+                    Assert.AreEqual("Raw", dataFiles?.Attribute("Format")?.Value);
+                    Assert.AreEqual("DataBackup", dataFiles?.Attribute("FolderName")?.Value);
+                    Assert.AreEqual(
+                        "6",
+                        metadata.Element("Backup")?.Element("BackupInformation")?.Attribute("Mode")?.Value);
+                }
+                finally
+                {
                     await service.StopAsync(CancellationToken.None).ConfigureAwait(false);
                 }
             }).ConfigureAwait(false);
