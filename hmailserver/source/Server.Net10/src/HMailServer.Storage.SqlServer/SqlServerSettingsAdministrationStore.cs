@@ -363,6 +363,12 @@ SET settinginteger = @AntiVirusClamWinEnabled
 WHERE settingname = N'avclamwinenable';
 """;
 
+    public const string UpdateAntiVirusClamWinExecutableSql = """
+UPDATE hm_settings
+SET settingstring = @AntiVirusClamWinExecutable
+WHERE settingname = N'avclamwinexec';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1260,6 +1266,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiVirusClamWinEnabledSql, connection);
         command.Parameters.Add("@AntiVirusClamWinEnabled", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiVirusClamWinExecutableAsync(
+        string executable,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiVirusClamWinExecutableSql, connection);
+        command.Parameters.Add("@AntiVirusClamWinExecutable", SqlDbType.NVarChar, 4000).Value = executable;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

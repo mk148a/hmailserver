@@ -101,6 +101,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamWinExecutablePersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamWinExecutable: "old-clamwin.exe"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.ClamWinExecutable = "new-clamwin.exe";
+
+        Assert.AreEqual(1, store.AntiVirusClamWinExecutableUpdateCount);
+        Assert.AreEqual("new-clamwin.exe", store.UpdatedAntiVirusClamWinExecutable);
+        Assert.AreEqual("new-clamwin.exe", settings.AntiVirus.ClamWinExecutable);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamWinExecutableFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamWinExecutable: "old-clamwin.exe"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.ClamWinExecutable = "new-clamwin.exe");
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("old-clamwin.exe", settings.AntiVirus.ClamWinExecutable);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7405,6 +7447,10 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiVirusClamWinEnabled { get; private set; }
 
+        public int AntiVirusClamWinExecutableUpdateCount { get; private set; }
+
+        public string? UpdatedAntiVirusClamWinExecutable { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -8755,6 +8801,16 @@ public sealed class SettingsComContractTests
             CancellationToken = cancellationToken;
             AntiVirusClamWinEnabledLeaseHeldDuringUpdate =
                 AntiVirusClamWinEnabledMutationProbe?.Invoke() ?? false;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusClamWinExecutableAsync(
+            string executable,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusClamWinExecutableUpdateCount++;
+            UpdatedAntiVirusClamWinExecutable = executable;
+            CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }
 

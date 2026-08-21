@@ -222,6 +222,10 @@ public interface ISettingsAdministrationMutationStore
         bool enabled,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiVirusClamWinExecutableAsync(
+        string executable,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

@@ -1015,6 +1015,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiVirusClamWinExecutableSql_UsesTheLegacyFixedStringRowAndParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateAntiVirusClamWinExecutableSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settingstring = @AntiVirusClamWinExecutable\nWHERE settingname = N'avclamwinexec';",
+            sql.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_RemainsReadOnlyAndExcludesSecrets()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;

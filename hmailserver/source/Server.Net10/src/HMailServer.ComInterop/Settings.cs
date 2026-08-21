@@ -2818,6 +2818,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                                 AntiVirusClamWinEnabled = value
                             };
                         }
+                    },
+                    publishClamWinExecutable: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                AntiVirusClamWinExecutable = value
+                            };
+                        }
                     });
         }
     }
