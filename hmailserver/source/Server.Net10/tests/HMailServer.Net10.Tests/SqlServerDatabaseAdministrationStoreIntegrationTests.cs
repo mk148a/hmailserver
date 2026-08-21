@@ -60,6 +60,42 @@ public sealed class SqlServerDatabaseAdministrationStoreIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task DatabaseAdministrationTransaction_CanBeginCommitAndRollbackOnIsolatedDatabase()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_dbtx_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            var store = new SqlServerDatabaseAdministrationStore(
+                new SqlServerConnectionFactory(testConnectionString),
+                new LegacyDatabaseConfiguration(
+                    DatabaseType: 2,
+                    DatabaseExists: true,
+                    ServerName: string.Empty,
+                    DatabaseName: databaseName));
+
+            await using (var committed = await store.BeginTransactionAsync(CancellationToken.None).ConfigureAwait(false))
+            {
+                await committed.CommitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            await using (var rolledBack = await store.BeginTransactionAsync(CancellationToken.None).ConfigureAwait(false))
+            {
+                await rolledBack.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);

@@ -5,7 +5,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerDatabaseAdministrationStore : IDatabaseAdministrationStore
+public sealed class SqlServerDatabaseAdministrationStore : IDatabaseAdministrationMutationStore
 {
     public const int RequiredDatabaseVersion = 5708;
 
@@ -54,6 +54,22 @@ FROM hm_dbversion;
             DatabaseName: _configuration.DatabaseName);
     }
 
+    public async ValueTask<IDatabaseAdministrationTransaction> BeginTransactionAsync(
+        CancellationToken cancellationToken)
+    {
+        var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+            return new SqlServerDatabaseAdministrationTransaction(connection, transaction);
+        }
+        catch
+        {
+            await connection.DisposeAsync().ConfigureAwait(false);
+            throw;
+        }
+    }
+
     private async ValueTask<SqlConnection?> TryOpenAsync(CancellationToken cancellationToken)
     {
         try
@@ -71,6 +87,45 @@ FROM hm_dbversion;
         catch (TimeoutException)
         {
             return null;
+        }
+    }
+
+    private sealed class SqlServerDatabaseAdministrationTransaction(
+        SqlConnection connection,
+        SqlTransaction transaction) : IDatabaseAdministrationTransaction
+    {
+        private SqlConnection? _connection = connection;
+        private SqlTransaction? _transaction = transaction;
+
+        public async ValueTask CommitAsync(CancellationToken cancellationToken)
+        {
+            var transactionToCommit = _transaction
+                ?? throw new InvalidOperationException("The SQL transaction is no longer active.");
+            await transactionToCommit.CommitAsync(cancellationToken).ConfigureAwait(false);
+            await DisposeAsync().ConfigureAwait(false);
+        }
+
+        public async ValueTask RollbackAsync(CancellationToken cancellationToken)
+        {
+            var transactionToRollback = _transaction
+                ?? throw new InvalidOperationException("The SQL transaction is no longer active.");
+            await transactionToRollback.RollbackAsync(cancellationToken).ConfigureAwait(false);
+            await DisposeAsync().ConfigureAwait(false);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            var transaction = Interlocked.Exchange(ref _transaction, null);
+            if (transaction is not null)
+            {
+                await transaction.DisposeAsync().ConfigureAwait(false);
+            }
+
+            var connection = Interlocked.Exchange(ref _connection, null);
+            if (connection is not null)
+            {
+                await connection.DisposeAsync().ConfigureAwait(false);
+            }
         }
     }
 }

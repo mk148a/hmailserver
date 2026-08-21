@@ -139,8 +139,8 @@ public sealed class DatabaseComContractTests
         AssertOperationPending(() => database.ExecuteSQL("select 1"));
         AssertOperationPending(() => database.ExecuteSQLWithReturn("select 1"));
         AssertOperationPending(database.BeginTransaction);
-        AssertOperationPending(database.CommitTransaction);
-        AssertOperationPending(database.RollbackTransaction);
+        AssertNoTransactionStarted(database.CommitTransaction);
+        AssertNoTransactionStarted(database.RollbackTransaction);
         AssertOperationPending(() => database.ExecuteSQLScript("upgrade.sql"));
         AssertOperationPending(database.CreateInternalDatabase);
         AssertOperationPending(
@@ -160,6 +160,42 @@ public sealed class DatabaseComContractTests
                 "sa",
                 "secret"));
         AssertOperationPending(() => database.EnsurePrerequisites(5708));
+    }
+
+    [TestMethod]
+    public void AuthenticatedTransactionMethodsUseConfiguredMutationStoreAndPreserveBoundaries()
+    {
+        var store = new RecordingMutationStore();
+        var authenticated = false;
+        IInterfaceDatabase database = Database.CreateForApplication(
+            new DatabaseAdministrationSnapshot(
+                RequiredVersion: 5708,
+                CurrentVersion: 5708,
+                DatabaseType: (int)ComDatabaseType.MSSQL,
+                DatabaseExists: true,
+                IsConnected: true,
+                ServerName: "isolated",
+                DatabaseName: "disposable"),
+            () => authenticated,
+            store: store);
+
+        var denied = Assert.ThrowsExactly<COMException>(database.BeginTransaction);
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+
+        authenticated = true;
+
+        database.BeginTransaction();
+        Assert.IsTrue(store.Transaction.Began);
+        database.CommitTransaction();
+        Assert.IsTrue(store.Transaction.Committed);
+        Assert.IsTrue(store.Transaction.Disposed);
+
+        database.BeginTransaction();
+        database.RollbackTransaction();
+        Assert.IsTrue(store.Transaction.RolledBack);
+
+        var noTransaction = Assert.ThrowsExactly<COMException>(database.CommitTransaction);
+        Assert.AreEqual(EFail, noTransaction.ErrorCode);
     }
 
     [TestMethod]
@@ -194,6 +230,14 @@ public sealed class DatabaseComContractTests
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
     }
 
+    private static void AssertNoTransactionStarted(Action action)
+    {
+        var error = Assert.ThrowsExactly<COMException>(action);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        StringAssert.Contains(error.Message, "No transaction started");
+    }
+
     private sealed class RecordingAdministratorAuthenticationProvider(string password)
         : IServerAdministratorAuthenticationProvider
     {
@@ -207,6 +251,60 @@ public sealed class DatabaseComContractTests
     {
         public ValueTask<DatabaseAdministrationSnapshot> GetDatabaseAsync(CancellationToken cancellationToken) =>
             ValueTask.FromResult(snapshot);
+    }
+
+    private sealed class RecordingMutationStore : IDatabaseAdministrationMutationStore
+    {
+        public RecordingMutationStore()
+        {
+            Transaction = new RecordingTransaction();
+        }
+
+        public RecordingTransaction Transaction { get; }
+
+        public ValueTask<DatabaseAdministrationSnapshot> GetDatabaseAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult(
+                new DatabaseAdministrationSnapshot(
+                    RequiredVersion: 5708,
+                    CurrentVersion: 5708,
+                    DatabaseType: (int)ComDatabaseType.MSSQL,
+                    DatabaseExists: true,
+                    IsConnected: true,
+                    ServerName: "isolated",
+                    DatabaseName: "disposable"));
+
+        public ValueTask<IDatabaseAdministrationTransaction> BeginTransactionAsync(
+            CancellationToken cancellationToken)
+        {
+            Transaction.Began = true;
+            return ValueTask.FromResult<IDatabaseAdministrationTransaction>(Transaction);
+        }
+    }
+
+    private sealed class RecordingTransaction : IDatabaseAdministrationTransaction
+    {
+        public bool Began { get; set; }
+        public bool Committed { get; private set; }
+        public bool RolledBack { get; private set; }
+        public bool Disposed { get; private set; }
+
+        public ValueTask CommitAsync(CancellationToken cancellationToken)
+        {
+            Committed = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask RollbackAsync(CancellationToken cancellationToken)
+        {
+            RolledBack = true;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            Disposed = true;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class FixedMessageFileNameLookup(IReadOnlyDictionary<long, string> fileNames)

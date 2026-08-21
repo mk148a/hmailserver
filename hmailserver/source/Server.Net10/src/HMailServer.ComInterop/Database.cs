@@ -94,6 +94,8 @@ public sealed class Database : IInterfaceDatabase
     private readonly DatabaseAdministrationSnapshot? _snapshot;
     private readonly Func<bool>? _isServerAdministrator;
     private readonly IMessageFileNameLookup? _messageFileNameLookup;
+    private readonly IDatabaseAdministrationMutationStore? _mutationStore;
+    private IDatabaseAdministrationTransaction? _transaction;
 
     public Database()
     {
@@ -102,11 +104,13 @@ public sealed class Database : IInterfaceDatabase
     private Database(
         DatabaseAdministrationSnapshot snapshot,
         Func<bool> isServerAdministrator,
-        IMessageFileNameLookup? messageFileNameLookup)
+        IMessageFileNameLookup? messageFileNameLookup,
+        IDatabaseAdministrationStore? store)
     {
         _snapshot = snapshot;
         _isServerAdministrator = isServerAdministrator;
         _messageFileNameLookup = messageFileNameLookup;
+        _mutationStore = store as IDatabaseAdministrationMutationStore;
     }
 
     public int RequiredVersion => Snapshot.RequiredVersion;
@@ -149,11 +153,12 @@ public sealed class Database : IInterfaceDatabase
     internal static Database CreateForApplication(
         DatabaseAdministrationSnapshot snapshot,
         Func<bool> isServerAdministrator,
-        IMessageFileNameLookup? messageFileNameLookup = null)
+        IMessageFileNameLookup? messageFileNameLookup = null,
+        IDatabaseAdministrationStore? store = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(isServerAdministrator);
-        return new Database(snapshot, isServerAdministrator, messageFileNameLookup);
+        return new Database(snapshot, isServerAdministrator, messageFileNameLookup, store);
     }
 
     public void ExecuteSQL(string sqlStatement) => Unavailable();
@@ -184,11 +189,40 @@ public sealed class Database : IInterfaceDatabase
         string password) =>
         Unavailable();
 
-    public void BeginTransaction() => Unavailable();
+    public void BeginTransaction()
+    {
+        EnsureServerAdministrator();
+        if (_mutationStore is null)
+        {
+            Unavailable();
+            return;
+        }
 
-    public void CommitTransaction() => Unavailable();
+        if (_transaction is not null)
+        {
+            throw new COMException("A database transaction is already active.", EFail);
+        }
 
-    public void RollbackTransaction() => Unavailable();
+        try
+        {
+            _transaction = _mutationStore.BeginTransactionAsync(CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new COMException(exception.Message, EFail);
+        }
+    }
+
+    public void CommitTransaction() => CompleteTransaction(commit: true);
+
+    public void RollbackTransaction() => CompleteTransaction(commit: false);
 
     public void ExecuteSQLScript(string filename) => Unavailable();
 
@@ -225,6 +259,41 @@ public sealed class Database : IInterfaceDatabase
             throw new COMException(
                 "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.",
                 EAccessDenied);
+        }
+    }
+
+    private void CompleteTransaction(bool commit)
+    {
+        EnsureServerAdministrator();
+        var transaction = _transaction;
+        if (transaction is null)
+        {
+            throw new COMException("No transaction started.", EFail);
+        }
+
+        _transaction = null;
+        try
+        {
+            if (commit)
+            {
+                transaction.CommitAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+            }
+            else
+            {
+                transaction.RollbackAsync(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+            }
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new COMException(exception.Message, EFail);
+        }
+        finally
+        {
+            transaction.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 
@@ -278,6 +347,7 @@ public static class DatabaseAdministrationRuntimeHost
         return Database.CreateForApplication(
             snapshot,
             isServerAdministrator,
-            Volatile.Read(ref _messageFileNameLookup));
+            Volatile.Read(ref _messageFileNameLookup),
+            store);
     }
 }
