@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, IMAP QUOTA persistence parity)
+
+Code/test commit `36c8ffa86` implements authenticated
+`Settings.IMAPQuotaEnabled` persistence through
+`SqlServerSettingsAdministrationStore.UpdateImapQuotaEnabledAsync`. It updates
+only the existing `enableimapquota` row, requires the existing authenticated
+server-administrator boundary, publishes the snapshot after a successful
+one-row update, and keeps direct activation fallback behavior. Focused COM/SQL
+coverage is `214 passed, 0 skipped, 0 failed`; disposable LocalDB SQL
+integration passed; full Net10 Debug is `2527 passed, 10 skipped, 0 failed`
+(`2537` total).
+
+Legacy references are `InterfaceSettings::get/put_IMAPQuotaEnabled`
+(`source/Server/COM/InterfaceSettings.cpp:1400-1426`) and
+`IMAPConfiguration::Get/SetUseIMAPQuota`
+(`source/Server/IMAP/IMAPConfiguration.cpp:75-83`). No installed COM
+identity, direct activation boundary, SMTP trust behavior, or live IMAP
+capability was changed. The next slice is IMAPIdleEnabled persistence parity.
+Migration/installer, SEC-18, paired C++ performance, and 24-hour soak remain
+open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, IMAP SORT persistence parity)
 
 Code/test commit `73d8e9e13` implements authenticated
