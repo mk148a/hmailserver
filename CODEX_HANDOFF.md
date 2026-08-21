@@ -1,6 +1,32 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, AddDeliveredToHeader lease)
+## Current Authoritative Continuation (2026-08-21, MaxNumberOfMXHosts lease)
+
+Code/test commit `4cf6bbde4` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.MaxNumberOfMXHosts` (`DispId(90)`).
+Legacy `InterfaceSettings::get/put_MaxNumberOfMXHosts` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:2189-2217` delegates to
+`SMTPConfiguration::Get/SetMaxNumberOfMXHosts` at
+`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:237-245`, using
+`PROPERTY_MAX_NUMBER_OF_MXHOSTS` from
+`hmailserver/source/Server/Common/Application/Constants.h:120` and persisting
+the existing `hm_settings.maxnumberofmxhosts` row seeded by
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:926`.
+
+Net10 holds the generation-bound authorization lease across the fixed-row
+update, fails closed when the lease is unavailable, disposes it on
+success/failure, and publishes the retained snapshot only after success.
+Focused tests pass `8`, skip `0`, and fail `0`; full Net10 passes `2596`, skips
+`90`, and fails `0` (`2686` total). No COM identity, SQL schema, SMTP
+MX-host behavior, live reconfiguration, service, registry, DCOM, IIS, or
+production state changed.
+
+Next slice: audit and lease-guard the remaining authenticated
+`VerifyRemoteSslCertificate` Settings mutation. Release remains RED;
+disposable SQL/Data, SEC-18, registered COM, paired C++ performance, and
+long-soak evidence remain open or environment-blocked.
+
+## Historical Authoritative Continuation (2026-08-21, AddDeliveredToHeader lease)
 
 Code/test commit `c54114f4e` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.AddDeliveredToHeader` (`DispId(73)`).

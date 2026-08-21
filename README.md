@@ -1,7 +1,33 @@
 hMailServer
 ===========
 
-## Current AddDeliveredToHeader authorization-lease slice (2026-08-21)
+## Current MaxNumberOfMXHosts authorization-lease slice (2026-08-21)
+
+Code/test commit `4cf6bbde4` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.MaxNumberOfMXHosts` (`DispId(90)`).
+Legacy `InterfaceSettings::get/put_MaxNumberOfMXHosts` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:2189-2217` delegates to
+`SMTPConfiguration::Get/SetMaxNumberOfMXHosts` at
+`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:237-245`, using
+`PROPERTY_MAX_NUMBER_OF_MXHOSTS` from
+`hmailserver/source/Server/Common/Application/Constants.h:120` and the
+existing `hm_settings.maxnumberofmxhosts` row seeded at
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:926`.
+
+Net10 now holds the existing generation-bound authorization lease across
+`UpdateMaxNumberOfMXHostsAsync`, fails closed before store access when the
+lease is unavailable, disposes it on success/failure, and publishes the new
+retained snapshot only after a successful fixed-row update. The installed
+Settings IID/vtable/DISPID/class identity, SQL schema, SMTP MX-host behavior,
+and live reconfiguration remain unchanged. Focused tests pass `7`, skip `0`,
+and fail `0`; full Net10 passes `2596`, skips `90`, and fails `0` (`2686`
+total).
+
+Release remains **RED**. Disposable SQL/Data restore, SEC-18 cutover,
+registered/out-of-process COM, paired C++ performance, and long-soak evidence
+remain open or environment-blocked.
+
+## Historical AddDeliveredToHeader authorization-lease slice (2026-08-21)
 
 Code/test commit `c54114f4e` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.AddDeliveredToHeader` (`DispId(73)`).

@@ -1,5 +1,31 @@
 
-## Current bounded slice: AddDeliveredToHeader authorization lease (2026-08-21)
+## Current bounded slice: MaxNumberOfMXHosts authorization lease (2026-08-21)
+
+Code/test commit `4cf6bbde4` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.MaxNumberOfMXHosts` (`DispId(90)`).
+Legacy `InterfaceSettings::get/put_MaxNumberOfMXHosts` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:2189-2217` delegates to
+`SMTPConfiguration::Get/SetMaxNumberOfMXHosts` at
+`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:237-245`, using
+`PROPERTY_MAX_NUMBER_OF_MXHOSTS` from
+`hmailserver/source/Server/Common/Application/Constants.h:120` and persisting
+the existing `hm_settings.maxnumberofmxhosts` row seeded by
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:926`.
+
+Net10 holds the generation-bound authorization lease around
+`UpdateMaxNumberOfMXHostsAsync`, fails closed when the lease is unavailable,
+disposes it on success/failure, and publishes the retained snapshot only
+after a successful update. Focused tests pass `8`, skip `0`, and fail `0`;
+full Net10 passes `2596`, skips `90`, and fails `0` (`2686` total). Settings
+IID/vtable/DISPID/class identity, SQL schema, SMTP MX-host behavior, and live
+reconfiguration are unchanged.
+
+Next independent slice: audit and lease-guard the remaining authenticated
+`VerifyRemoteSslCertificate` Settings mutation. The disposable SQL/Data
+acceptance gate remains blocked by the absent approved SQL connection and
+isolated-create opt-in. Release remains **RED**.
+
+## Historical bounded slice: AddDeliveredToHeader authorization lease (2026-08-21)
 
 Code/test commit `c54114f4e` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.AddDeliveredToHeader` (`DispId(73)`).
