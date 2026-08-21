@@ -177,7 +177,12 @@ if (hmailGetAdminLevel() == 2)
     $dtree .= "d.add(" . $dtitem++ . ", $utilities_root,'" . GetStringForJavaScript("Diagnostics") . "','index.php?page=diagnostics','','','" . "images/heart.png','" . "images/heart.png');\r\n";
 }
 
-$dtree .= "d.add(" . $dtitem++ .",-1,'" . GetStringForJavaScript("Logout") . "','logout.php','" . "" ."');\r\n";
+?>
+<form name="logoutform" action="logout.php" method="post" style="display:none;">
+   <?php PrintHiddenCsrfToken(); ?>
+</form>
+<?php
+$dtree .= "d.add(" . $dtitem++ .",-1,'" . GetStringForJavaScript("Logout") . "','javascript:document.forms.logoutform.submit();','" . "" ."');\r\n";
 
 $dtree .= "document.write(d);";
 

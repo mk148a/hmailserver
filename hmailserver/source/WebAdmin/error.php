@@ -24,7 +24,10 @@
          </font>
          <br/><br/>
          <input type="submit" onClick="history.back();" value="Go back">
-         <input type="submit" onClick="document.location.href='logout.php';" value="Log out">
+         <form action="logout.php" method="post" style="display:inline">
+            <?php PrintHiddenCsrfToken(); ?>
+            <input type="submit" value="Log out">
+         </form>
          
          
       </tr>

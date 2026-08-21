@@ -1,9 +1,13 @@
 <?php
-session_start();
-session_destroy();
-
 define('IN_WEBADMIN', true);
+define('CSRF_ENABLED', true);
 require_once("config.php");
+require_once("include/functions.php");
+
+session_start();
+ensure_csrf_session_token_exists();
+hmailRequirePostCsrfToken();
+session_destroy();
 
 ?>
 
