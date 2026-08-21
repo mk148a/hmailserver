@@ -1,5 +1,34 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, backup archive publication)
+
+Code/test commit `0bee6aa75` closes the bounded partial-archive publication
+gap. Legacy `BackupExecuter::StartBackup` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57`,
+`BackupManager::OnBackupFailed`/`OnBackupCompleted` at
+`hmailserver/source/Server/Common/Application/BackupManager.cpp:38`, and
+`Compression::Compress` at
+`hmailserver/source/Server/Common/Application/Compression.cpp:28` preserve
+raw `DataBackup`, accept 7z exit codes `0` and `1`, and remove failed
+compressed staging and metadata.
+
+Net10 `SevenZipBackupArchiveRuntime.CreateAsync` writes to a unique temporary
+archive beside the destination, moves it to the legacy final name only after
+all 7z operations succeed, and removes the temporary file on failure or
+completion. Focused `BackupArchiveRuntimeTests`: `59 passed, 1 skipped,
+0 failed`; full Net10: `2572 passed, 90 skipped, 0 failed` (`2662` total).
+The installed COM identity, SQL schema, XML/layout, raw `DataBackup` behavior,
+and service wiring are unchanged.
+
+Next code slice: real SQL-backed raw `BackupOptions = 2 | 4`,
+`BackupMessagesDbOnly = false` acceptance with external `DataBackup` evidence,
+blocked until `HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` are set.
+Release remains RED. Residual risks are concurrent path replacement, crash
+durability/abandoned temporary files, timestamp collision/overwrite policy,
+and the existing disposable SQL/Data, restore/rollback, SEC-18, registered
+COM, paired C++ performance, and long-soak blockers.
+
 ## Current Authoritative Continuation (2026-08-21, backup reparse containment)
 
 Code/test commit `d31f374b6` closes the bounded raw

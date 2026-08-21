@@ -1,6 +1,38 @@
 hMailServer
 ===========
 
+## Current backup archive publication slice (2026-08-21)
+
+Code/test commit `0bee6aa75` closes the bounded partial-archive publication
+gap. Legacy `BackupExecuter::StartBackup` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57`,
+`BackupManager::OnBackupFailed`/`OnBackupCompleted` at
+`hmailserver/source/Server/Common/Application/BackupManager.cpp:38`, and
+`Compression::Compress` at
+`hmailserver/source/Server/Common/Application/Compression.cpp:28` retain raw
+`DataBackup` for non-DB-only message backups, publish the final archive only
+after the 7z operation succeeds with legacy exit code `0` or `1`, and clean
+failed compressed staging and metadata.
+
+Net10 `SevenZipBackupArchiveRuntime.CreateAsync` now writes each archive to a
+unique temporary file in the destination directory, moves it to the legacy
+`HMBackup yyyy-MM-dd HHmmss.7z` name only after all archive operations pass,
+and deletes the temporary archive in the failure/finally path. The existing
+raw `DataBackup` retention, XML/layout, SQL schema, COM identity, and service
+wiring are unchanged. Focused `BackupArchiveRuntimeTests` pass `59`, skip `1`
+when Windows-only reparse coverage is unavailable, and fail `0`; full Net10
+passes `2572`, skips `90`, and fails `0` (`2662` total).
+
+The next independent acceptance slice remains the real SQL-backed raw
+`BackupOptions = 2 | 4`, `BackupMessagesDbOnly = false` test with external
+`DataBackup` evidence. It is blocked until
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` are present.
+Release remains **RED**. Residual risks are concurrent path replacement,
+crash durability/abandoned temporary files, and legacy timestamp collision or
+overwrite policy; disposable SQL/Data, restore/rollback, SEC-18, registered
+COM, paired C++ performance, and long-soak gates also remain open.
+
 ## Current backup reparse-chain containment slice (2026-08-21)
 
 Code/test commit `d31f374b6` closes the bounded raw `BODomains|BOMessages`

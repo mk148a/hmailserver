@@ -1,5 +1,32 @@
 
-## Current bounded slice: backup reparse-chain containment (2026-08-21)
+## Current bounded slice: backup archive publication cleanup (2026-08-21)
+
+Code/test commit `0bee6aa75` closes the bounded partial-archive publication
+gap. Legacy `BackupExecuter::StartBackup` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57`,
+`BackupManager::OnBackupFailed`/`OnBackupCompleted` at
+`hmailserver/source/Server/Common/Application/BackupManager.cpp:38`, and
+`Compression::Compress` at
+`hmailserver/source/Server/Common/Application/Compression.cpp:28` retain raw
+`DataBackup` for non-DB-only message backups, accept 7z exit codes `0` and
+`1`, and clean failed compressed staging and metadata.
+
+Net10 `SevenZipBackupArchiveRuntime.CreateAsync` now uses a unique same-
+directory temporary archive for every 7z operation and publishes the legacy
+final name only after success. The temporary archive is deleted on failure or
+completion, while successful raw mode keeps external `DataBackup`. Focused
+`BackupArchiveRuntimeTests` pass `59`, skip `1`, and fail `0`; full Net10
+passes `2572`, skips `90`, and fails `0` (`2662` total). No COM, IDL, SQL
+schema, XML/layout, or service wiring contract changed.
+
+Next independent slice: real SQL-backed raw `BackupOptions = 2 | 4`,
+`BackupMessagesDbOnly = false` acceptance with external `DataBackup` evidence.
+It is blocked until the approved disposable SQL/isolated-create opt-in is
+available. Release remains **RED**. Residual risks: concurrent path
+replacement, crash durability/abandoned temporary files, and legacy timestamp
+collision or overwrite policy.
+
+## Historical bounded slice: backup reparse-chain containment (2026-08-21)
 
 Code/test commit `d31f374b6` closes the bounded raw
 `BODomains|BOMessages` staging gap for existing source and destination
