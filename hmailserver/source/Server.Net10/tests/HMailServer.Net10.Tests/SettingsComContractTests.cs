@@ -740,9 +740,6 @@ public sealed class SettingsComContractTests
             Assert.ThrowsExactly<COMException>(() => settings.VerifyRemoteSslCertificate = false).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.SslCipherList = "DEFAULT").ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.AutoBanOnLogonFailure = false).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
@@ -3757,6 +3754,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_SslCipherListSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SslCipherListUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SslCipherList: "OLD"),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SslCipherList = "DEFAULT";
+
+        Assert.AreEqual(1, store.SslCipherListUpdateCount);
+        Assert.AreEqual("DEFAULT", store.UpdatedSslCipherList);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual("DEFAULT", settings.SslCipherList);
+
+        store.SslCipherListUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SslCipherList = "FAILED");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.SslCipherListUpdateCount);
+        Assert.AreEqual("DEFAULT", settings.SslCipherList);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SslCipherList = "DENIED");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.SslCipherListUpdateCount);
+        Assert.AreEqual("DEFAULT", settings.SslCipherList);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamSpfSettersPersistAndRefreshRetainedSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6228,6 +6267,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedIpv6Preferred { get; private set; }
 
+        public bool SslCipherListUpdateResult { get; set; }
+
+        public int SslCipherListUpdateCount { get; private set; }
+
+        public string? UpdatedSslCipherList { get; private set; }
+
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
@@ -7005,6 +7050,16 @@ public sealed class SettingsComContractTests
             UpdatedIpv6Preferred = ipv6Preferred;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(Ipv6PreferredUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSslCipherListAsync(
+            string sslCipherList,
+            CancellationToken cancellationToken)
+        {
+            SslCipherListUpdateCount++;
+            UpdatedSslCipherList = sslCipherList;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SslCipherListUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(

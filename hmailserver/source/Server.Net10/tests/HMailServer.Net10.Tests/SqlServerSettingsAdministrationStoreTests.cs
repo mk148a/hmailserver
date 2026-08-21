@@ -917,6 +917,16 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateSslCipherListSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateSslCipherListSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settingstring = @SslCipherList");
+        StringAssert.Contains(sql, "WHERE settingname = N'SslCipherList'");
+    }
+
+    [TestMethod]
     public void GetSettingsSql_RemainsReadOnlyAndExcludesSecrets()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;

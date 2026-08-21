@@ -190,6 +190,10 @@ public interface ISettingsAdministrationMutationStore
         bool ipv6Preferred,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateSslCipherListAsync(
+        string sslCipherList,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

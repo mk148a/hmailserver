@@ -315,6 +315,12 @@ SET settinginteger = @IPv6Preferred
 WHERE settingname = N'IPv6Preferred';
 """;
 
+    public const string UpdateSslCipherListSql = """
+UPDATE hm_settings
+SET settingstring = @SslCipherList
+WHERE settingname = N'SslCipherList';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1094,6 +1100,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateIpv6PreferredSql, connection);
         command.Parameters.Add("@IPv6Preferred", SqlDbType.Int).Value = ipv6Preferred ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateSslCipherListAsync(
+        string sslCipherList,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSslCipherListSql, connection);
+        command.Parameters.Add("@SslCipherList", SqlDbType.NVarChar, -1).Value = sslCipherList;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
