@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, TLS option persistence)
+
+Legacy `InterfaceSettings::put_TlsOptionPreferServerCiphersEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2426-2439`) calls
+`Configuration::SetTlsOptionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:642-657`),
+reading and rewriting only bit `2` in `hm_settings.TlsOptions`. Code/test
+commit `b7e2f1d56` adds the authenticated Net10 mutation, exact parameterized
+SQL, bit-preserving behavior, fail-closed update handling, and snapshot
+publication only after success. Focused Settings/SQL tests pass `251`, and
+full Net10 passes `2530`, skips `90`, and fails `0` (`2620` total).
+
+No TLS live reconfiguration, SMTP trust, COM identity, or direct activation
+boundary changed. The next slice is the same bounded persistence parity for
+`TlsOptionPrioritizeChaChaEnabled` (bit `4`). Disposable SQL/Data host-start,
+SEC-18, rollback, paired C++ performance, and 24-hour soak remain blocked or
+unproven; release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, TLS 1.3 flag persistence)
 
 Legacy `InterfaceSettings::put_TlsVersion13Enabled`

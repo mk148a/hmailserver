@@ -1,4 +1,23 @@
 
+## Current bounded slice: authenticated TLS option persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsOptionPreferServerCiphersEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2426-2439`) calls
+`Configuration::SetTlsOptionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:642-657`),
+which reads and rewrites only bit `2` in `hm_settings.TlsOptions`. The legacy
+setter returns `S_OK` after the persistence call; TLS context initialization is
+separate and remains out of scope. Code/test commit `b7e2f1d56` preserves the
+installed IID/DISPID/`VARIANT_BOOL` contract, authenticated Settings access,
+bit-preserving mutation, fail-closed SQL outcome, and publish-after-success
+snapshot behavior. Focused Settings/SQL tests pass `251`; full Net10 passes
+`2530`, skips `90`, and fails `0`.
+
+The next independent slice is `TlsOptionPrioritizeChaChaEnabled` persistence
+(legacy bit `4`) using the same bounded store path. Disposable SQL/Data
+host-start, SEC-18, rollback, paired C++ performance, and soak gates remain
+environment-blocked or unproven; release remains **RED**.
+
 ## Current bounded slice: authenticated TLS 1.3 flag persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsVersion13Enabled`

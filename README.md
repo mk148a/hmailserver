@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current TLS option persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsOptionPreferServerCiphersEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2426-2439`) calls
+`Configuration::SetTlsOptionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:642-657`),
+which changes only bit `2` in `hm_settings.TlsOptions` and preserves all other
+bits. The installed COM contract remains `IInterfaceSettings` IID
+`A4C709A3-98B2-410D-84F4-EDA999BF0CB2`, DISPID `105`, `VARIANT_BOOL`.
+
+Code/test commit `b7e2f1d56` adds authenticated Net10 persistence, exact
+parameterized SQL, fail-closed update handling, and publish-after-success
+snapshot behavior. Focused Settings/SQL coverage is `251 passed, 0 skipped,
+0 failed`; full Net10 is `2530 passed, 90 skipped, 0 failed` (`2620` total).
+No TLS live reconfiguration, SMTP trust, COM identity, or direct activation
+boundary changed. The next independent slice is the same bounded persistence
+parity for `TlsOptionPrioritizeChaChaEnabled` (bit `4`); release remains
+**RED** because disposable SQL/Data host-start, SEC-18, rollback, paired
+C++ performance, and soak evidence remain unavailable.
+
 ## Current TLS 1.3 flag persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsVersion13Enabled`
