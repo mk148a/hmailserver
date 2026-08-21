@@ -40,13 +40,9 @@ public sealed class Sec18TokenSnapshot
     public Sec18TokenSnapshot(string sid)
     {
         Sid = sid;
-        TokenType = 1;
-        ImpersonationLevel = 0;
     }
 
     public string Sid;
-    public int TokenType;
-    public int ImpersonationLevel;
 }
 
 public static class Sec18NativeTokenReader
@@ -119,12 +115,9 @@ $evidence = [ordered]@{
     WorkerExecutableSha256 = $hash
     WorkerReportedUserName = $worker.UserName
     WorkerTokenSid = $token.Sid
-    WorkerTokenType = $token.TokenType
-    WorkerTokenImpersonationLevel = $token.ImpersonationLevel
+    WorkerTokenSource = 'OpenProcessToken primary process token handle'
     TokenSidMatchesPoolSid = [string]::Equals($token.Sid, $poolSid, [StringComparison]::OrdinalIgnoreCase)
     CapturedUtc = [DateTimeOffset]::UtcNow.ToString('o')
-    ProductionPathsTouched = @()
-    RegistrationOrDcomChanged = $false
 }
 
 if (-not $evidence.TokenSidMatchesPoolSid) {
@@ -133,14 +126,39 @@ if (-not $evidence.TokenSidMatchesPoolSid) {
 
 $json = $evidence | ConvertTo-Json -Depth 5
 if (-not [string]::IsNullOrWhiteSpace($OutputPath)) {
+    $stagingRoot = [IO.Path]::GetFullPath('C:\SEC18-Staging').TrimEnd('\') + '\'
+    $fullOutputPath = [IO.Path]::GetFullPath($OutputPath)
+    if (-not $fullOutputPath.StartsWith($stagingRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "OutputPath must remain under C:\SEC18-Staging."
+    }
     $parent = Split-Path -Parent $OutputPath
     if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
         throw "Output directory does not exist: $parent"
     }
-    [IO.File]::WriteAllText(
-        [IO.Path]::GetFullPath($OutputPath),
-        $json + [Environment]::NewLine,
-        [Text.UTF8Encoding]::new($false))
+    $parentItem = Get-Item -LiteralPath $parent -Force
+    if (($parentItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Output directory cannot be a reparse point: $parent"
+    }
+    if (Test-Path -LiteralPath $fullOutputPath) {
+        throw "OutputPath already exists: $fullOutputPath"
+    }
+    $stream = [IO.File]::Open(
+        $fullOutputPath,
+        [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write,
+        [IO.FileShare]::None)
+    try {
+        $writer = New-Object IO.StreamWriter($stream, [Text.UTF8Encoding]::new($false))
+        try {
+            $writer.WriteLine($json)
+        }
+        finally {
+            $writer.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
 }
 
 $json
