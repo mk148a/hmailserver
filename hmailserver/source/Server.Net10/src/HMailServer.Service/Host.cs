@@ -1033,6 +1033,7 @@ public static class Host
         return new HostBuildResult(
             builder.Build(),
             dataDirectory,
+            initializationFile,
             backupMessagesDbOnly,
             userInterfaceLanguage,
             rewriteEnvelopeFromWhenForwarding);
@@ -1134,6 +1135,7 @@ public static class Host
 public sealed record HostBuildResult(
     IHost Host,
     string DataDirectory,
+    string InitializationFile,
     bool BackupMessagesDbOnly,
     string UserInterfaceLanguage,
     bool RewriteEnvelopeFromWhenForwarding);

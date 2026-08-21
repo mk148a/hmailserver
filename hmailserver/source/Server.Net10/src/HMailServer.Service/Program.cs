@@ -25,6 +25,7 @@ if (TryHandleComRegistrationCommand(args))
 var hostComposition = HMailServer.Service.Host.Build(args);
 var host = hostComposition.Host;
 var dataDirectory = hostComposition.DataDirectory;
+var initializationFile = hostComposition.InitializationFile;
 BackupRestoreRecoveryJournal.EnsureNoPendingRecovery(dataDirectory);
 var backupMessagesDbOnly = hostComposition.BackupMessagesDbOnly;
 var userInterfaceLanguage = hostComposition.UserInterfaceLanguage;
@@ -102,6 +103,10 @@ SettingsAdministrationRuntimeHost.Configure(
     host.Services.GetRequiredService<ISettingsAdministrationStore>(),
     new SettingsRuntimeConfiguration(
         UserInterfaceLanguage: userInterfaceLanguage,
+        UserInterfaceLanguageReader: () =>
+            LegacyInitializationFile.LoadUserInterfaceLanguage(initializationFile),
+        UserInterfaceLanguageWriter: value =>
+            LegacyInitializationFile.SaveUserInterfaceLanguage(initializationFile, value),
         RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding,
         LoggingDirectory: directoryAdministrationSnapshot.LogDirectory,
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,

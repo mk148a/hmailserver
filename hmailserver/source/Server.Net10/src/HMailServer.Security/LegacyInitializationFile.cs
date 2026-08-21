@@ -54,6 +54,18 @@ public static class LegacyInitializationFile
         return configuration["Settings:UseLanguage"] ?? "English";
     }
 
+    public static void SaveUserInterfaceLanguage(string path, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(value);
+
+        _ = WritePrivateProfileString(
+            "Settings",
+            "UseLanguage",
+            value,
+            Path.GetFullPath(path));
+    }
+
     public static IReadOnlyList<string> LoadValidGuiLanguages(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
@@ -104,6 +116,18 @@ public static class LegacyInitializationFile
             _ => 0
         };
     }
+
+    [System.Runtime.InteropServices.DllImport(
+        "kernel32.dll",
+        CharSet = System.Runtime.InteropServices.CharSet.Unicode,
+        EntryPoint = "WritePrivateProfileStringW",
+        ExactSpelling = true,
+        SetLastError = true)]
+    private static extern bool WritePrivateProfileString(
+        string? section,
+        string? key,
+        string? value,
+        string filePath);
 
     private static IReadOnlyList<string> SplitLegacyString(string value, string separator)
     {

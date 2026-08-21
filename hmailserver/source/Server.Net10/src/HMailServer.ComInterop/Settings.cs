@@ -433,6 +433,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private const int TlsOptionPreferServerCiphersFlag = 2;
     private const int TlsOptionPrioritizeChaChaFlag = 4;
     private readonly bool _authorized;
+    private string _userInterfaceLanguage = "English";
     private SettingsAdministrationSnapshot? _administrationSnapshot;
     private readonly SettingsRuntimeConfiguration _runtimeConfiguration = new();
     private readonly Func<bool>? _isServerAdministrator;
@@ -454,6 +455,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         _authorized = authorized;
         _administrationSnapshot = administrationSnapshot;
         _runtimeConfiguration = runtimeConfiguration ?? new SettingsRuntimeConfiguration();
+        _userInterfaceLanguage = _runtimeConfiguration.UserInterfaceLanguage;
         _isServerAdministrator = isServerAdministrator;
         _settingsMutationStore = settingsMutationStore;
         _authorizationLeaseFactory = authorizationLeaseFactory;
@@ -464,9 +466,22 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return _runtimeConfiguration.UserInterfaceLanguage;
+            return _runtimeConfiguration.UserInterfaceLanguageReader?.Invoke()
+                ?? _userInterfaceLanguage;
         }
-        set => base.UserInterfaceLanguage = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+            if (_runtimeConfiguration.UserInterfaceLanguageWriter is null)
+            {
+                base.UserInterfaceLanguage = value;
+                return;
+            }
+
+            _runtimeConfiguration.UserInterfaceLanguageWriter(value);
+            _userInterfaceLanguage = value;
+        }
     }
 
     public override bool RewriteEnvelopeFromWhenForwarding
@@ -3145,6 +3160,8 @@ public abstract class SettingsComAdapter : IInterfaceSettings
 [ComVisible(false)]
 public sealed record SettingsRuntimeConfiguration(
     string UserInterfaceLanguage = "English",
+    Func<string>? UserInterfaceLanguageReader = null,
+    Action<string>? UserInterfaceLanguageWriter = null,
     bool RewriteEnvelopeFromWhenForwarding = false,
     int CrashSimulationMode = 0,
     string LoggingDirectory = "",

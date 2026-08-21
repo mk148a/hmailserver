@@ -1349,6 +1349,42 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_UserInterfaceLanguageWritesIniAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var language = "English";
+        var writeCount = 0;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                UserInterfaceLanguage: language,
+                UserInterfaceLanguageReader: () => language,
+                UserInterfaceLanguageWriter: value =>
+                {
+                    writeCount++;
+                    language = value;
+                }),
+            isServerAdministrator: () => isServerAdministrator);
+
+        settings.UserInterfaceLanguage = "Turkish";
+
+        Assert.AreEqual(1, writeCount);
+        Assert.AreEqual("Turkish", settings.UserInterfaceLanguage);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.UserInterfaceLanguage = "Swedish");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, writeCount);
+        Assert.AreEqual("Turkish", settings.UserInterfaceLanguage);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_ImapHierarchyDelimiterSetterPersistsBeforePublishingAndRetainsRejectedState()
     {
         var isServerAdministrator = true;

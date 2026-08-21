@@ -75,6 +75,25 @@ public sealed class LegacyInitializationFileTests
     }
 
     [TestMethod]
+    public void SaveUserInterfaceLanguage_WritesLegacySettingAndPreservesOtherSettings()
+    {
+        var path = CreateTemporaryInitializationFile(
+            "[Settings]\nUseLanguage=English\nRewriteEnvelopeFromWhenForwarding=1\n");
+
+        try
+        {
+            LegacyInitializationFile.SaveUserInterfaceLanguage(path, "Turkish");
+
+            Assert.AreEqual("Turkish", LegacyInitializationFile.LoadUserInterfaceLanguage(path));
+            Assert.IsTrue(LegacyInitializationFile.LoadRewriteEnvelopeFromWhenForwarding(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public void LoadValidGuiLanguages_ReadsLegacyGuiLanguageList()
     {
         var configuredPath = CreateTemporaryInitializationFile(
