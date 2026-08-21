@@ -1264,6 +1264,49 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapMasterUserSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapMasterUserUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapMasterUser: "old-master"),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        const string newMasterUser = "new-master";
+        settings.IMAPMasterUser = newMasterUser;
+
+        Assert.AreEqual(1, store.ImapMasterUserUpdateCount);
+        Assert.AreEqual(newMasterUser, store.UpdatedImapMasterUser);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(newMasterUser, settings.IMAPMasterUser);
+
+        store.ImapMasterUserUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPMasterUser = "failed-master");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ImapMasterUserUpdateCount);
+        Assert.AreEqual(newMasterUser, settings.IMAPMasterUser);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPMasterUser = "denied-master");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapMasterUserUpdateCount);
+        Assert.AreEqual(newMasterUser, settings.IMAPMasterUser);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5837,6 +5880,12 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedImapPublicFolderName { get; private set; }
 
+        public bool ImapMasterUserUpdateResult { get; set; }
+
+        public int ImapMasterUserUpdateCount { get; private set; }
+
+        public string? UpdatedImapMasterUser { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6466,6 +6515,16 @@ public sealed class SettingsComContractTests
             UpdatedImapPublicFolderName = imapPublicFolderName;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ImapPublicFolderNameUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapMasterUserAsync(
+            string imapMasterUser,
+            CancellationToken cancellationToken)
+        {
+            ImapMasterUserUpdateCount++;
+            UpdatedImapMasterUser = imapMasterUser;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapMasterUserUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

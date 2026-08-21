@@ -2311,7 +2311,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.IMAPMasterUser
                 : _administrationSnapshot.ImapMasterUser;
         }
-        set => base.IMAPMasterUser = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.IMAPMasterUser = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateImapMasterUserAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP master-user update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    ImapMasterUser = value
+                };
+            }
+        }
     }
 
     public override IInterfaceLogging Logging

@@ -160,6 +160,12 @@ SET settingstring = @IMAPPublicFolderName
 WHERE settingname = N'imappublicfoldername';
 """;
 
+    public const string UpdateImapMasterUserSql = """
+UPDATE hm_settings
+SET settingstring = @IMAPMasterUser
+WHERE settingname = N'ImapMasterUser';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -1147,6 +1153,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateImapPublicFolderNameSql, connection);
         command.Parameters.Add("@IMAPPublicFolderName", SqlDbType.NVarChar, 4000).Value = imapPublicFolderName;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateImapMasterUserAsync(
+        string imapMasterUser,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateImapMasterUserSql, connection);
+        command.Parameters.Add("@IMAPMasterUser", SqlDbType.NVarChar, 4000).Value = imapMasterUser;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

@@ -323,6 +323,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateImapMasterUserSql_UpdatesOnlyTheExistingSettingWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateImapMasterUserSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settingstring = @IMAPMasterUser");
+        StringAssert.Contains(sql, "WHERE settingname = N'ImapMasterUser'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateWorkerThreadPrioritySql_UpdatesOnlyTheExistingWorkerPriorityRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateWorkerThreadPrioritySql;
