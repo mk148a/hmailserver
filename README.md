@@ -25,9 +25,32 @@ failure, and uses the existing atomic content-store save path.
 
 Focused DKIM/delivery coverage is `23/23`; the full Net10 Debug run is
 `2502 passed, 88 skipped, 0 failed` (`2590` total). This is not release
-acceptance: key opening still has a reparse TOCTOU risk, queue `messagesize`
-is not persisted with the signed file, and no paired legacy/C++ SMTP or live
-remote-delivery evidence exists. Release remains **RED**.
+acceptance: key opening still has a reparse TOCTOU risk, and no paired
+legacy/C++ SMTP or live remote-delivery evidence exists. Release remains
+**RED**.
+
+## Current delivery queue size persistence slice (2026-08-21)
+
+Legacy `PersistentMessage::SaveObject`, `PersistentMessage::EnsureFileExistance`,
+and `Message::SetSize` persist the message-file length in
+`hm_messages.messagesize`; queue processing and external retry then consume
+that persisted value. The .NET 10 implementation previously replaced signed or
+script-mutated files and updated only the in-memory message record.
+
+Code/test commit `eed5188e9` adds `IDeliveryQueueMessageStore.TryUpdateSizeAsync`
+and a lease-scoped SQL update requiring the matching `messageid`, `messagetype=1`,
+`messagelocked=1`, and `messageleaseowner`. DKIM replacement and all delivery
+event content-mutation paths now persist the file size before target dispatch or
+completion; a zero-row, exception, or cancellation path defers without dispatch.
+Focused delivery/SQL-store coverage is `22/22`; the full Net10 Debug run is
+`2507 passed, 88 skipped, 0 failed` (`2595` total).
+
+This is bounded parity work, not release acceptance. File replacement and SQL
+size update are still separate operations, so a process or storage failure
+between them remains a crash-consistency risk. Live SQL acceptance is blocked
+because the approved disposable connection and isolated-create opt-in are not
+present; no production database was used. The next slice is disposable `6000`
+SQL/Data host-start evidence, with DKIM reparse-safe key opening after that.
 
 ## Current release-gate status (2026-08-21, SEC-18 staging infrastructure)
 

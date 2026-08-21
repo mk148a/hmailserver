@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, delivery queue size persistence)
+
+Parity review confirmed legacy size persistence in
+`PersistentMessage::SaveObject`, `PersistentMessage::EnsureFileExistance`,
+`Message::GetSize/SetSize`, `SMTPDeliveryManager::GetNextMessage_`, and
+`ExternalDelivery::RescheduleDelivery_`. The persisted source is
+`hm_messages.messagesize` and the queue row remains lease-owned during delivery.
+
+Code/test commit `eed5188e9` adds the lease-scoped
+`IDeliveryQueueMessageStore.TryUpdateSizeAsync` SQL update and applies it after
+DKIM replacement plus `OnDeliveryStart`, `OnDeliverMessage`, and
+`OnDeliveryFailed` content mutation. The exact predicate requires the matching
+message id, queued type, lock, and lease owner. Failed, zero-row, and cancelled
+updates prevent dispatch/completion. Focused delivery/SQL-store tests pass
+`22/22`; full Net10 passes `2507`, with `88` environment-gated skips.
+
+This closes the recorded queue-size persistence gap as bounded code/test work,
+but file replacement and SQL update are not one atomic operation. Live SQL
+acceptance, host-start, installer rollback, COM/DCOM, SEC-18, paired C++ load,
+and soak gates remain RED. The next slice is disposable `6000` SQL/Data
+host-start evidence; when the approved SQL opt-in remains unavailable, continue
+with Windows reparse-safe DKIM key opening. No production SQL/Data/service or
+COM/DCOM state was touched.
+
 ## Current Authoritative Continuation (2026-08-21, outbound DKIM slice)
 
 Code/test commit `f6729bf3d` adds `IDkimSigner` and

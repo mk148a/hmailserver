@@ -1,4 +1,27 @@
 
+## Current delivery queue size persistence status (2026-08-21, code/test `eed5188e9`)
+
+Parity review traced legacy `PersistentMessage::SaveObject`,
+`PersistentMessage::EnsureFileExistance`, `Message::GetSize/SetSize`,
+`SMTPDeliveryManager::GetNextMessage_`, and
+`ExternalDelivery::RescheduleDelivery_`: the file length is persisted in
+`hm_messages.messagesize` and is part of subsequent queue/retry reads.
+
+`eed5188e9` adds the lease-scoped `IDeliveryQueueMessageStore.TryUpdateSizeAsync`
+SQL update and applies it after DKIM replacement and every delivery-event
+message-content replacement. The predicate requires the leased queue row
+(`messageid`, `messagetype=1`, `messagelocked=1`, `messageleaseowner`); failure,
+zero-row lease loss, or cancellation prevents dispatch/completion. Focused
+delivery/SQL-store tests pass `22/22`; full Net10 passes `2507/2595` with `88`
+environment-gated skips.
+
+This closes the recorded queue-size persistence gap as bounded code/test work.
+It does not make file replacement plus SQL update atomic, and live disposable
+SQL acceptance is still unavailable. The stale DKIM current entry below is
+historical for this risk and is superseded by this section. The next slice is
+isolated disposable `6000` SQL/Data host-start evidence; if still blocked, work
+continues with Windows reparse-safe DKIM key opening.
+
 ## Current outbound DKIM status (2026-08-21, code/test `f6729bf3d`)
 
 Parity review confirmed legacy outbound signing in
