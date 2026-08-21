@@ -1,4 +1,21 @@
 
+## Current bounded slice: authenticated RewriteEnvelopeFromWhenForwarding INI persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2641-2652`) calls
+`IniFileSettings::SetRewriteEnvelopeFromWhenForwarding`
+(`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:537-541`),
+which updates the cached value and writes the legacy `[Settings]` integer
+`RewriteEnvelopeFromWhenForwarding` key. Code/test commit `b38db417e` adds the
+authenticated Net10 writer callback, publish-after-write retained state, and
+integer 0/1 file coverage. Focused Settings/INI tests pass `180`, fail `0`;
+full Net10 passes `2522`, skips `90`, fails `0`.
+
+No SMTP/rule forwarding, live reconfiguration, COM identity, or direct
+activation boundary changed. The next slice remains disposable `6000` SQL/Data
+host-start acceptance when the approved connection and isolated-create opt-in
+become available; release remains RED.
+
 ## Current bounded slice: authenticated automatic-ban duration persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_AutoBanMinutes`

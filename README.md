@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current RewriteEnvelopeFromWhenForwarding persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2641-2652`) delegates to
+`IniFileSettings::SetRewriteEnvelopeFromWhenForwarding`
+(`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:537-541`),
+which updates the in-memory value and writes `[Settings]
+RewriteEnvelopeFromWhenForwarding=0|1` to the initialization file.
+
+Code/test commit `b38db417e` adds the matching authenticated Net10 writer
+callback, retained runtime value update only after the writer returns, and
+`LegacyInitializationFile` integer 0/1 write coverage. Focused Settings/INI
+coverage is `180 passed, 0 skipped, 0 failed`; full Net10 is `2522 passed, 90
+skipped, 0 failed` (`2612` total). Installed COM identity, direct activation
+denial, SMTP/rule forwarding behavior, and live reconfiguration remain
+unchanged.
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence, blocked because the approved SQL connection and
+isolated-create opt-in are absent. Release remains **RED**.
+
 ## Current automatic-ban duration persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_AutoBanMinutes`

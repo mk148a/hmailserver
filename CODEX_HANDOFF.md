@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, RewriteEnvelopeFromWhenForwarding)
+
+Legacy `InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2641-2652`) calls
+`IniFileSettings::SetRewriteEnvelopeFromWhenForwarding`
+(`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:537-541`),
+which updates the cached boolean and writes the legacy INI key. Code/test
+commit `b38db417e` adds the authenticated Net10 writer callback, retained
+runtime state update after successful writer return, and integer 0/1 file
+coverage. Focused Settings/INI tests pass `180`, fail `0`; full Net10 passes
+`2522`, skips `90`, fails `0` (`2612` total).
+
+Installed COM identity, direct activation denial, SMTP/rule forwarding, and
+live reconfiguration are unchanged. The next slice is disposable `6000`
+SQL/Data host-start success/failure with no listener or worker side effects,
+blocked until the approved SQL connection and isolated-create opt-in exist.
+Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, automatic-ban duration)
 
 Legacy `InterfaceSettings::put_AutoBanMinutes`
