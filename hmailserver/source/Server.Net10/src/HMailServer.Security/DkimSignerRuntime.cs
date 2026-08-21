@@ -1,7 +1,9 @@
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using MimeKit;
+using Microsoft.Win32.SafeHandles;
 
 namespace HMailServer.Security;
 
@@ -9,6 +11,10 @@ public sealed class DkimSignerRuntime : IDkimSigner
 {
     public const int LegacyMaximumMessageBytes = 10 * 1024 * 1024;
     public const int MaxPrivateKeyBytes = 1024 * 1024;
+    private const uint GenericRead = 0x80000000;
+    private const uint FileShareRead = 0x00000001;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagOpenReparsePoint = 0x00200000;
 
     private static readonly string[] RecommendedHeaders =
     [
@@ -221,13 +227,12 @@ public sealed class DkimSignerRuntime : IDkimSigner
     {
         try
         {
-            await using var stream = new FileStream(
-                path,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 4096,
-                FileOptions.SequentialScan);
+            await using var stream = OpenPrivateKeyStream(path);
+            if (stream is null)
+            {
+                return null;
+            }
+
             if (stream.Length <= 0 || stream.Length > MaxPrivateKeyBytes)
             {
                 return null;
@@ -477,6 +482,73 @@ public sealed class DkimSignerRuntime : IDkimSigner
 
     private static bool HasReparsePoint(string path) =>
         (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
+
+    private static FileStream? OpenPrivateKeyStream(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 4096,
+                FileOptions.SequentialScan);
+        }
+
+        var rawHandle = CreateFile(
+            path,
+            GenericRead,
+            FileShareRead,
+            IntPtr.Zero,
+            OpenExisting,
+            FileFlagOpenReparsePoint,
+            IntPtr.Zero);
+        if (rawHandle == IntPtr.Zero || rawHandle == new IntPtr(-1))
+        {
+            return null;
+        }
+
+        var handle = new SafeFileHandle(rawHandle, ownsHandle: true);
+        if (!GetFileInformationByHandle(handle, out var information)
+            || (information.FileAttributes & (uint)FileAttributes.ReparsePoint) != 0)
+        {
+            handle.Dispose();
+            return null;
+        }
+
+        return new FileStream(handle, FileAccess.Read, bufferSize: 4096, isAsync: false);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ByHandleFileInformation
+    {
+        public uint FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll", EntryPoint = "GetFileInformationByHandle", SetLastError = true)]
+    private static extern bool GetFileInformationByHandle(
+        SafeFileHandle file,
+        out ByHandleFileInformation fileInformation);
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateFile(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
 
     private static bool IsValidHeaderBlock(string headerBlock)
     {

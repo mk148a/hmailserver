@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Reflection;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
@@ -97,6 +98,28 @@ public sealed class DkimSignerRuntimeTests
     }
 
     [TestMethod]
+    public async Task SignAsync_RejectsFinalReparsePointKey()
+    {
+        using var fixture = new SignerFixture();
+        try
+        {
+            fixture.ReplaceKeyWithFinalReparsePoint();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            Assert.Inconclusive("The test host does not allow creating a disposable key reparse point: " + exception.Message);
+        }
+
+        var openMethod = typeof(DkimSignerRuntime).GetMethod(
+            "OpenPrivateKeyStream",
+            BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(openMethod);
+        using var opened = (FileStream?)openMethod.Invoke(null, [fixture.ConfiguredKeyPath]);
+        Assert.IsNull(opened);
+        Assert.IsNull(await fixture.Signer.SignAsync(fixture.Message, fixture.MessageBytes, CancellationToken.None));
+    }
+
+    [TestMethod]
     public async Task SignAsync_PreservesLegacyTenMegabyteNoSignBoundary()
     {
         using var fixture = new SignerFixture();
@@ -168,6 +191,15 @@ public sealed class DkimSignerRuntimeTests
         public DeliveryQueuedMessage Message { get; }
         public byte[] MessageBytes { get; }
         public string PublicKeyBase64 { get; }
+        public string ConfiguredKeyPath => Path.Combine(_root, "keys", "example.pem");
+
+        public void ReplaceKeyWithFinalReparsePoint()
+        {
+            var keyPath = ConfiguredKeyPath;
+            var targetPath = Path.Combine(_root, "real.pem");
+            File.Move(keyPath, targetPath);
+            File.CreateSymbolicLink(keyPath, targetPath);
+        }
 
         public void Dispose()
         {
