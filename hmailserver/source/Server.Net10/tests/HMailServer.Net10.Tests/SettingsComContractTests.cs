@@ -3950,6 +3950,65 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxAsynchronousThreadsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxAsynchronousThreadsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxAsynchronousThreads: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxAsynchronousThreads = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.MaxAsynchronousThreadsUpdateCount);
+        Assert.AreEqual(10, settings.MaxAsynchronousThreads);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxAsynchronousThreadsSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxAsynchronousThreadsUpdateResult = true,
+            MaxAsynchronousThreadsMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxAsynchronousThreads: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.MaxAsynchronousThreads = 25;
+
+        Assert.IsTrue(store.MaxAsynchronousThreadsLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.AreEqual(25, settings.MaxAsynchronousThreads);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_RuleLoopLimitSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7168,6 +7227,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxAsynchronousThreads { get; private set; }
 
+        public Func<bool>? MaxAsynchronousThreadsMutationProbe { get; set; }
+
+        public bool MaxAsynchronousThreadsLeaseHeldDuringUpdate { get; private set; }
+
         public bool RuleLoopLimitUpdateResult { get; set; }
 
         public int RuleLoopLimitUpdateCount { get; private set; }
@@ -7924,6 +7987,8 @@ public sealed class SettingsComContractTests
             MaxAsynchronousThreadsUpdateCount++;
             UpdatedMaxAsynchronousThreads = maxAsynchronousThreads;
             CancellationToken = cancellationToken;
+            MaxAsynchronousThreadsLeaseHeldDuringUpdate =
+                MaxAsynchronousThreadsMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(MaxAsynchronousThreadsUpdateResult);
         }
 
