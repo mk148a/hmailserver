@@ -1,7 +1,31 @@
 hMailServer
 ===========
 
-## Current DefaultDomain authorization-lease slice (2026-08-21)
+## Current AddDeliveredToHeader authorization-lease slice (2026-08-21)
+
+Code/test commit `c54114f4e` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.AddDeliveredToHeader` (`DispId(73)`).
+Legacy `InterfaceSettings::get/put_AddDeliveredToHeader` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1833-1862` delegates to
+the SMTP configuration setting `PROPERTY_ADDDELIVEREDTOHEADER` at
+`hmailserver/source/Server/Common/Application/Constants.h:94`, persisting the
+existing `hm_settings.adddeliveredtoheader` row seeded at
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:874`.
+
+Net10 now holds the existing generation-bound authorization lease across
+`UpdateAddDeliveredToHeaderAsync`, fails closed before store access when the
+lease is unavailable, disposes it on success/failure, and publishes the new
+retained snapshot only after a successful fixed-row update. The installed
+Settings IID/vtable/DISPID/class identity, SQL schema, SMTP header behavior,
+and live reconfiguration remain unchanged. Focused tests pass `4`, skip `0`,
+and fail `0`; full Net10 passes `2593`, skips `90`, and fails `0` (`2683`
+total).
+
+Release remains **RED**. Disposable SQL/Data restore, SEC-18 cutover,
+registered/out-of-process COM, paired C++ performance, and long-soak evidence
+remain open or environment-blocked.
+
+## Historical DefaultDomain authorization-lease slice (2026-08-21)
 
 Code/test commit `a2905f81f` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.DefaultDomain` (`DispId(50)`).

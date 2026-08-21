@@ -1,5 +1,30 @@
 
-## Current bounded slice: DefaultDomain authorization lease (2026-08-21)
+## Current bounded slice: AddDeliveredToHeader authorization lease (2026-08-21)
+
+Code/test commit `c54114f4e` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.AddDeliveredToHeader` (`DispId(73)`).
+Legacy `InterfaceSettings::get/put_AddDeliveredToHeader` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1833-1862` delegates to
+`PROPERTY_ADDDELIVEREDTOHEADER` from
+`hmailserver/source/Server/Common/Application/Constants.h:94` and persists
+the existing `hm_settings.adddeliveredtoheader` row seeded by
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:874`.
+
+Net10 holds the generation-bound authorization lease around
+`UpdateAddDeliveredToHeaderAsync`, fails closed when the lease is unavailable,
+disposes it on success/failure, and publishes the retained snapshot only after
+a successful update. Focused tests pass `4`, skip `0`, and fail `0`; full Net10
+passes `2593`, skips `90`, and fails `0` (`2683` total). Settings
+IID/vtable/DISPID/class identity, SQL schema, SMTP header behavior, and live
+reconfiguration are unchanged.
+
+Next independent slice: audit the next remaining authenticated Settings/Admin
+mutation lease gap, prioritizing `MaxNumberOfMXHosts` or
+`VerifyRemoteSslCertificate`. The disposable SQL/Data acceptance gate remains
+blocked by the absent approved SQL connection and isolated-create opt-in.
+Release remains **RED**.
+
+## Historical bounded slice: DefaultDomain authorization lease (2026-08-21)
 
 Code/test commit `a2905f81f` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.DefaultDomain` (`DispId(50)`).
