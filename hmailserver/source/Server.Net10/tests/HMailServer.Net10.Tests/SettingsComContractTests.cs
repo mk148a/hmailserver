@@ -927,6 +927,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_SmtpDeliveryBindToIpSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SmtpDeliveryBindToIpUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SmtpDeliveryBindToIp: "192.0.2.25"),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.SMTPDeliveryBindToIP = "192.0.2.26";
+
+        Assert.AreEqual(1, store.SmtpDeliveryBindToIpUpdateCount);
+        Assert.AreEqual("192.0.2.26", store.UpdatedSmtpDeliveryBindToIp);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual("192.0.2.26", settings.SMTPDeliveryBindToIP);
+
+        store.SmtpDeliveryBindToIpUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPDeliveryBindToIP = "192.0.2.27");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.SmtpDeliveryBindToIpUpdateCount);
+        Assert.AreEqual("192.0.2.26", settings.SMTPDeliveryBindToIP);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.SMTPDeliveryBindToIP = "192.0.2.28");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.SmtpDeliveryBindToIpUpdateCount);
+        Assert.AreEqual("192.0.2.26", settings.SMTPDeliveryBindToIP);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5452,6 +5494,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedServiceImap { get; private set; }
 
+        public bool SmtpDeliveryBindToIpUpdateResult { get; set; }
+
+        public int SmtpDeliveryBindToIpUpdateCount { get; private set; }
+
+        public string? UpdatedSmtpDeliveryBindToIp { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6001,6 +6049,16 @@ public sealed class SettingsComContractTests
             UpdatedServiceImap = serviceImap;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ServiceImapUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSmtpDeliveryBindToIpAsync(
+            string smtpDeliveryBindToIp,
+            CancellationToken cancellationToken)
+        {
+            SmtpDeliveryBindToIpUpdateCount++;
+            UpdatedSmtpDeliveryBindToIp = smtpDeliveryBindToIp;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SmtpDeliveryBindToIpUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

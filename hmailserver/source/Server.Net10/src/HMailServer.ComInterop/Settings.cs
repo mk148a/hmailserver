@@ -1585,7 +1585,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.SMTPDeliveryBindToIP
                 : _administrationSnapshot.SmtpDeliveryBindToIp;
         }
-        set => base.SMTPDeliveryBindToIP = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.SMTPDeliveryBindToIP = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateSmtpDeliveryBindToIpAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The SMTP delivery bind address update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SmtpDeliveryBindToIp = value
+                };
+            }
+        }
     }
 
     public override int MaxSMTPRecipientsInBatch

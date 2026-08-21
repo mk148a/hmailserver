@@ -16,6 +16,12 @@ SET settingstring = @DefaultDomain
 WHERE settingname = N'defaultdomain';
 """;
 
+    public const string UpdateSmtpDeliveryBindToIpSql = """
+UPDATE hm_settings
+SET settingstring = @SMTPDeliveryBindToIP
+WHERE settingname = N'smtpdeliverybindtoip';
+""";
+
     public const string UpdateMirrorEmailAddressSql = """
 UPDATE hm_settings
 SET settingstring = @MirrorEmailAddress
@@ -633,6 +639,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateDefaultDomainSql, connection);
         command.Parameters.Add("@DefaultDomain", SqlDbType.NVarChar, 255).Value = defaultDomain;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateSmtpDeliveryBindToIpAsync(
+        string smtpDeliveryBindToIp,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSmtpDeliveryBindToIpSql, connection);
+        command.Parameters.Add("@SMTPDeliveryBindToIP", SqlDbType.NVarChar, 4000).Value = smtpDeliveryBindToIp;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

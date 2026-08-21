@@ -6,6 +6,10 @@ public interface ISettingsAdministrationMutationStore
         string defaultDomain,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateSmtpDeliveryBindToIpAsync(
+        string smtpDeliveryBindToIp,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateMirrorEmailAddressAsync(
         string mirrorEmailAddress,
         CancellationToken cancellationToken);
