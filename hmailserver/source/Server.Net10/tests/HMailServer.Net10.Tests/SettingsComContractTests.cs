@@ -4034,6 +4034,64 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxImapConnectionsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxImapConnectionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxImapConnections: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxIMAPConnections = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.MaxImapConnectionsUpdateCount);
+        Assert.AreEqual(10, settings.MaxIMAPConnections);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxImapConnectionsSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxImapConnectionsUpdateResult = true,
+            MaxImapConnectionsMutationProbe = () => activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxImapConnections: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.MaxIMAPConnections = 25;
+
+        Assert.IsTrue(store.MaxImapConnectionsLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.AreEqual(25, settings.MaxIMAPConnections);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxNumberOfMXHostsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7084,6 +7142,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxImapConnections { get; private set; }
 
+        public Func<bool>? MaxImapConnectionsMutationProbe { get; set; }
+
+        public bool MaxImapConnectionsLeaseHeldDuringUpdate { get; private set; }
+
         public bool MaxMessageSizeUpdateResult { get; set; }
 
         public int MaxMessageSizeUpdateCount { get; private set; }
@@ -7830,6 +7892,7 @@ public sealed class SettingsComContractTests
             MaxImapConnectionsUpdateCount++;
             UpdatedMaxImapConnections = maxImapConnections;
             CancellationToken = cancellationToken;
+            MaxImapConnectionsLeaseHeldDuringUpdate = MaxImapConnectionsMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(MaxImapConnectionsUpdateResult);
         }
 
