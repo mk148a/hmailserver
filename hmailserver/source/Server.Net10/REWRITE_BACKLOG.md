@@ -1,4 +1,22 @@
 
+## Current bounded slice: authenticated automatic-ban duration persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_AutoBanMinutes`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2118-2129`) calls
+`Configuration::SetAutoBanMinutes`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:550-559`),
+which persists the existing `hm_settings` row `AutoBanMinutes`, seeded by
+`CreateTablesMSSQL.sql:914`. Code/test commit `f2faa45a0` adds the authenticated
+Net10 parameterized integer mutation, one-row failure containment,
+authorization lease, and publish-after-success snapshot behavior. Focused
+Settings/SQL tests pass `242`, fail `0`; full Net10 passes `2520`, skips `90`,
+fails `0`.
+
+No logon-failure algorithm, SMTP trust, live reconfiguration, COM identity, or
+direct activation boundary changed. The next slice remains disposable `6000`
+SQL/Data host-start acceptance when the approved connection and isolated-create
+opt-in become available; release remains RED.
+
 ## Current bounded slice: authenticated invalid logon-attempt window persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_MaxInvalidLogonAttemptsWithin`

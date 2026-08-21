@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current automatic-ban duration persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_AutoBanMinutes`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2118-2129`) calls
+`Configuration::SetAutoBanMinutes`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:550-559`),
+which writes the existing `hm_settings` integer row `AutoBanMinutes` seeded by
+`CreateTablesMSSQL.sql:914`.
+
+Code/test commit `f2faa45a0` adds the authenticated Net10 SQL mutation with a
+parameterized integer update, one-row fail-closed behavior, authorization
+lease, and retained snapshot publication only after success. Focused
+Settings/SQL coverage is `242 passed, 0 skipped, 0 failed`; full Net10 is
+`2520 passed, 90 skipped, 0 failed` (`2610` total). The installed Settings COM
+identity, direct activation boundary, logon-failure algorithm, SMTP trust, and
+live reconfiguration behavior are unchanged.
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence, blocked because the approved SQL connection and
+isolated-create opt-in are absent. Release remains **RED**.
+
 ## Current invalid logon-attempt window persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_MaxInvalidLogonAttemptsWithin`

@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, automatic-ban duration)
+
+Legacy `InterfaceSettings::put_AutoBanMinutes`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2118-2129`) calls
+`Configuration::SetAutoBanMinutes`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:550-559`),
+which persists `hm_settings.settingname = 'AutoBanMinutes'`, seeded by
+`CreateTablesMSSQL.sql:914`. Code/test commit `f2faa45a0` adds the authenticated
+Net10 mutation, parameterized integer encoding, one-row fail-closed outcome,
+authorization lease, and publish-after-success snapshot behavior. Focused
+Settings/SQL tests pass `242`, fail `0`; full Net10 passes `2520`, skips `90`,
+fails `0` (`2610` total).
+
+No logon-failure algorithm, SMTP trust, live reconfiguration, COM identity, or
+direct activation boundary changed. The next slice is disposable `6000`
+SQL/Data host-start success/failure with no listener or worker side effects,
+blocked until the approved SQL connection and isolated-create opt-in exist.
+Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, invalid logon-attempt window)
 
 Legacy `InterfaceSettings::put_MaxInvalidLogonAttemptsWithin`
