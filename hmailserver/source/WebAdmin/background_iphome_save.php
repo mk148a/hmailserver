@@ -5,9 +5,11 @@
    if (hmailGetAdminLevel() != 2)
    	hmailHackingAttemp(); // Only server admins can change this.
 
-   $iphomeid 	= hmailGetVar("iphomeid",0);
-   $iphomeaddress	= hmailGetVar("iphomeaddress",0);
-   $action	   = hmailGetVar("action","");
+   hmailRequirePostCsrfToken();
+
+   $iphomeid 	= hmailGetPostVar("iphomeid",0);
+   $iphomeaddress	= hmailGetPostVar("iphomeaddress",0);
+   $action	   = hmailGetPostVar("action","");
    
    $obSettings	= $obBaseApp->Settings();
    $obIPHomes  = $obSettings->IPHomes;
