@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current outbound DKIM slice (2026-08-21)
+
+Code/test commit `f6729bf3d` adds fail-closed outbound DKIM signing at the
+legacy delivery boundary. Legacy `SMTPDeliverer::PreProcessMessage`
+(`hmailserver/source/Server/SMTP/SMTPDeliverer.cpp:183-225`) signs only the
+first attempt after `OnDeliverMessage` and before local/remote target splitting;
+`DKIMSigner::Sign` and `DKIM::Sign`
+(`hmailserver/source/Server/Common/AntiSpam/DKIM/DKIMSigner.cpp:28-106`,
+`DKIM.cpp:89-180`) select the final RFC5322 From domain, apply the persisted
+domain/alias settings, canonicalize, and sign. Legacy skips messages above
+10 MB (`DKIM.cpp:111-115`). DKIM configuration storage and COM DISPIDs remain
+the existing `PersistentDomain`, `InterfaceDomain`, and IDL paths; no COM
+identity or SMTP trust behavior changed.
+
+The .NET 10 `IDkimSigner`/`DkimSignerRuntime` is invoked by
+`DeliveryQueueProcessor.ProcessOneAsync` after successful `OnDeliverMessage`
+and before `ResolveAsync`, and is registered from `HMailServer.Service/Host.cs`.
+It signs only retry zero, preserves an existing same-domain signature, rejects
+invalid selector/header input, confines keys to the configured Data directory,
+rejects traversal/reparse/oversized/invalid keys, preserves original bytes on
+failure, and uses the existing atomic content-store save path.
+
+Focused DKIM/delivery coverage is `23/23`; the full Net10 Debug run is
+`2502 passed, 88 skipped, 0 failed` (`2590` total). This is not release
+acceptance: key opening still has a reparse TOCTOU risk, queue `messagesize`
+is not persisted with the signed file, and no paired legacy/C++ SMTP or live
+remote-delivery evidence exists. Release remains **RED**.
+
 ## Current release-gate status (2026-08-21, SEC-18 staging infrastructure)
 
 The approved disposable VM HMailServer-SEC18-Disposable now has the required

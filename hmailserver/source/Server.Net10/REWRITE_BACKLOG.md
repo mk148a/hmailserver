@@ -1,4 +1,28 @@
 
+## Current outbound DKIM status (2026-08-21, code/test `f6729bf3d`)
+
+Parity review confirmed legacy outbound signing in
+`hmailserver/source/Server/SMTP/SMTPDeliverer.cpp:183-225`,
+`hmailserver/source/Server/Common/AntiSpam/DKIM/DKIMSigner.cpp:28-106`, and
+`DKIM.cpp:89-180`; the legacy 10 MB no-sign boundary is `DKIM.cpp:111-115`.
+Domain DKIM persistence and COM identity remain the existing
+`PersistentDomain`, `InterfaceDomain`, and `hMailServer.idl` DISPIDs 34-40.
+
+`f6729bf3d` adds `IDkimSigner` and `DkimSignerRuntime`, wires signing after
+`OnDeliverMessage` and before target resolution, and keeps retry, alias/domain,
+same-signature, selector/header, Data-directory containment, invalid-key,
+reparse, size, and atomic-save failure behavior bounded and fail-closed.
+Focused coverage is `23/23`; full Net10 Debug is `2502 passed, 88 skipped,
+0 failed` (`2590` total). No SQL schema, COM registration, DCOM ACL, service,
+IIS, firewall, or SMTP trust change was made.
+
+This slice is complete as bounded code/test work, not as release acceptance.
+Security residuals are reparse TOCTOU between validation and open and queue
+`messagesize` persistence after a signed-file replace. Live C++/Net10 SMTP,
+remote-delivery, restart, and key ACL acceptance remain unproven. The next
+priority remains disposable `6000` SQL/Data host-start evidence, blocked until
+the approved SQL connection and isolated-create opt-in are present.
+
 ## Current migration and startup status (2026-08-21, runtime readiness gate)
 
 Code/test commit `0edebbfed` adds the first production startup boundary for the

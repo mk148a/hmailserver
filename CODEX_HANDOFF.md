@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, outbound DKIM slice)
+
+Code/test commit `f6729bf3d` adds `IDkimSigner` and
+`HMailServer.Security.DkimSignerRuntime`, wired into
+`DeliveryQueueProcessor.ProcessOneAsync` after `OnDeliverMessage` and before
+`ResolveAsync`, with service registration in `HMailServer.Service/Host.cs`.
+Legacy anchors are `SMTPDeliverer::PreProcessMessage`
+(`hmailserver/source/Server/SMTP/SMTPDeliverer.cpp:183-225`),
+`DKIMSigner::Sign` (`DKIMSigner.cpp:28-106`), and `DKIM::Sign`
+(`DKIM.cpp:89-180`, including the 10 MB boundary at `:111-115`). Existing
+domain DKIM storage/COM DISPIDs 34-40 were not changed.
+
+Focused signer/delivery tests pass `23/23`; full Net10 Debug passes
+`2502/2502` with `88` environment-gated skips. Security review found no COM,
+SMTP-trust, SQL construction, or secret-logging regression. Residual risks are
+reparse TOCTOU during key open, non-persisted queue `messagesize` after signed
+file replacement, and absent paired legacy/C++ SMTP/remote acceptance. Release
+remains RED; this is not live performance, migration, SEC-18, or release-gate
+evidence.
+
+The next independent gate is disposable `6000` SQL/Data host-start success and
+failure evidence with no listener/worker side effects, still blocked by the
+missing approved `HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION` and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` in the current
+process. Do not touch production SQL/Data/service/COM/DCOM/IIS state.
+
 ## Current Authoritative Continuation (2026-08-21, isolated upgrade handoff refusal)
 
 Code/test commit `8242303c7` adds `SqlServerUpgradeArtifactHandoff`. The
