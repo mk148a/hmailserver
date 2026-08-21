@@ -1,4 +1,33 @@
 
+## Current bounded slice: Application.SubmitEMail delivery wake parity (2026-08-22)
+
+Code/test commit `173685313` closes the legacy `IInterfaceApplication`
+`SubmitEMail` (`DISPID 8`) gap. Legacy
+`InterfaceApplication::SubmitEMail` at
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:289-303` performs no
+administrator check, sends service opcode `200`, and returns `S_OK`.
+`ServiceController` at
+`hmailserver/source/Server/hMailServer/hMailServer.cpp:395-423` routes that
+opcode to `Application::SubmitPendingEmail` at
+`hmailserver/source/Server/Common/Application/Application.cpp:453-464`,
+which wakes the SMTP delivery manager.
+
+Net10 now calls only the configured `IDeliveryQueueWakeSignal` through
+`DeliveryQueueAdministrationRuntimeHost`; it performs no SQL, Data, service,
+registry, COM-registration, or DCOM mutation and retains no-auth legacy
+behavior. An unconfigured runtime remains `E_NOTIMPL`; a signal failure maps to
+`E_FAIL`. Application IID `2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8`, vtable, and
+DISPID remain unchanged.
+
+Focused Application/delivery queue coverage passes `32`, skip `0`, fail `0`;
+full Debug Net10 passes `2650`, skips `92`, and fails `0` (`2742` total).
+Repeated calls are covered against the existing coalescing signal. Registered
+COM activation, actual SCM opcode delivery, and service-stopped behavior are
+not claimed. Release remains **RED**. Next independent gates are the approved
+Full-Text-capable SQL/Data round-trip, isolated registered COM/SEC-18 caller
+evidence when the disposable guest is visible, and installer/service/data
+rollback acceptance.
+
 ## Current bounded slice: Domain.SynchronizeDirectory compatibility (2026-08-22)
 
 Code/test commit `8c264991d` closes the obsolete compatibility-call gap for

@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-22, Application.SubmitEMail)
+
+Code/test commit `173685313` implements the legacy no-auth
+`Application.SubmitEMail` (`DISPID 8`) behavior. Legacy
+`InterfaceApplication::SubmitEMail` at
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:289-303` sends service
+opcode `200`; `ServiceController` routes it to
+`Application::SubmitPendingEmail`, which wakes delivery. Net10 uses the
+already configured `DeliveryQueueWakeSignal` through
+`DeliveryQueueAdministrationRuntimeHost`, with no SQL/Data mutation.
+
+Unconfigured runtime remains `E_NOTIMPL`, signal failures map to `E_FAIL`, and
+Application IID/vtable/DISPID are unchanged. Focused tests pass `32/32`; full
+Debug Net10 passes `2650`, skips `92`, and fails `0`. Registered COM, actual
+SCM delivery, and service-stopped behavior remain unproven. Release remains
+**RED**; Full-Text SQL/Data, COM/SEC-18, installer rollback, paired C++
+performance, protocol/load, and soak gates remain open.
+
+Next: use an approved Full-Text SQL/Data environment if available; otherwise
+continue isolated registered COM/SEC-18 evidence only when the disposable guest
+is visible, then installer/service/data rollback acceptance.
+
 ## Current Authoritative Continuation (2026-08-22, Domain compatibility)
 
 Code/test commit `8c264991d` implements the legacy

@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current Application.SubmitEMail gate (2026-08-22)
+
+Code/test commit `173685313` restores the legacy `Application.SubmitEMail`
+compatibility path. Legacy `InterfaceApplication::SubmitEMail` in
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:289-303` performs no
+administrator check, sends service opcode `200`, and returns `S_OK`.
+`ServiceController` forwards that opcode to
+`Application::SubmitPendingEmail` in
+`hmailserver/source/Server/hMailServer/hMailServer.cpp:395-423` and
+`hmailserver/source/Server/Common/Application/Application.cpp:453-464`, which
+wakes the SMTP delivery manager.
+
+Net10 now signals the already configured in-process delivery wake signal
+without SQL/Data mutation or authentication, preserves Application IID
+`2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8`, DISPID `8`, and retains `E_NOTIMPL`
+when the runtime signal is not configured. Signal failures map to `E_FAIL`.
+Focused Application/delivery queue tests pass `32/32`; the full Debug Net10
+suite passes `2650`, skips `92`, and fails `0` (`2742` total). This does not
+prove registered COM activation, SCM opcode delivery, or behavior while the
+service is stopped. Release remains **RED**.
+
 ## Current Domain compatibility gate (2026-08-22)
 
 Code/test commit `8c264991d` restores the legacy
