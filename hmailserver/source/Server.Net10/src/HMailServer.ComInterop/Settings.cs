@@ -2711,6 +2711,12 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                             .UpdateBackupMessagesAsync(value, CancellationToken.None)
                             .GetAwaiter()
                             .GetResult(),
+                    updateBackupCompression: _settingsMutationStore is null
+                        ? null
+                        : value => _settingsMutationStore!
+                            .UpdateBackupCompressionAsync(value, CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult(),
                     destinationUpdated: value =>
                     {
                         if (_administrationSnapshot is not null)
@@ -2748,6 +2754,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                             _administrationSnapshot = _administrationSnapshot with
                             {
                                 BackupOptions = (_administrationSnapshot.BackupOptions & ~4) | (options & 4)
+                            };
+                        }
+                    },
+                    backupCompressionUpdated: options =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                BackupOptions = (_administrationSnapshot.BackupOptions & ~8) | (options & 8)
                             };
                         }
                     },

@@ -71,12 +71,14 @@ public sealed class BackupSettingsComContractTests
         var logFileError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().LogFile);
         var backupSettingsError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().BackupSettings);
         var backupMessagesError = Assert.ThrowsExactly<COMException>(() => new BackupSettingsComClass().BackupMessages = true);
+        var compressionError = Assert.ThrowsExactly<COMException>(() => new BackupSettingsComClass().CompressDestinationFiles = true);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Backup);
 
         Assert.AreEqual(EAccessDenied, destinationError.ErrorCode);
         Assert.AreEqual(EAccessDenied, logFileError.ErrorCode);
         Assert.AreEqual(EAccessDenied, backupSettingsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, backupMessagesError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, compressionError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -381,6 +383,72 @@ public sealed class BackupSettingsComContractTests
             isServerAdministrator: static () => false);
 
         var denied = Assert.ThrowsExactly<COMException>(() => backup.BackupMessages = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, updateCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_CompressionSetterTransitionsBitEightAndPreservesOtherBits()
+    {
+        var persisted = new List<bool>();
+        var published = new List<int>();
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 15, string.Empty),
+            updateBackupCompression: value =>
+            {
+                persisted.Add(value);
+                return true;
+            },
+            backupCompressionUpdated: published.Add,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        backup.CompressDestinationFiles = false;
+        Assert.IsFalse(backup.CompressDestinationFiles);
+        Assert.AreEqual(7, published[0]);
+
+        backup.CompressDestinationFiles = true;
+        Assert.IsTrue(backup.CompressDestinationFiles);
+        CollectionAssert.AreEqual(new[] { false, true }, persisted);
+        CollectionAssert.AreEqual(new[] { 7, 15 }, published);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_CompressionSetterFailureAndDenialDoNotPublishOrStore()
+    {
+        var publishCount = 0;
+        var updateCount = 0;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 7, string.Empty),
+            updateBackupCompression: _ =>
+            {
+                updateCount++;
+                return false;
+            },
+            backupCompressionUpdated: _ => publishCount++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => backup.CompressDestinationFiles = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(1, updateCount);
+        Assert.AreEqual(0, publishCount);
+        Assert.IsFalse(backup.CompressDestinationFiles);
+
+        backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 7, string.Empty),
+            updateBackupCompression: _ =>
+            {
+                updateCount++;
+                return true;
+            },
+            isServerAdministrator: static () => false);
+
+        var denied = Assert.ThrowsExactly<COMException>(() => backup.CompressDestinationFiles = true);
 
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(1, updateCount);

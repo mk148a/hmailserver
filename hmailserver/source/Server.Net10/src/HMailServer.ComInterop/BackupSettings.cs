@@ -71,6 +71,8 @@ public sealed class BackupSettings : BackupSettingsComAdapter
     private readonly Action<int>? _backupDomainsUpdated;
     private readonly Func<bool, bool>? _updateBackupMessages;
     private readonly Action<int>? _backupMessagesUpdated;
+    private readonly Func<bool, bool>? _updateBackupCompression;
+    private readonly Action<int>? _backupCompressionUpdated;
     private readonly Func<bool>? _isServerAdministrator;
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
@@ -88,6 +90,8 @@ public sealed class BackupSettings : BackupSettingsComAdapter
         Action<int>? backupDomainsUpdated,
         Func<bool, bool>? updateBackupMessages,
         Action<int>? backupMessagesUpdated,
+        Func<bool, bool>? updateBackupCompression,
+        Action<int>? backupCompressionUpdated,
         Func<bool>? isServerAdministrator,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
@@ -100,6 +104,8 @@ public sealed class BackupSettings : BackupSettingsComAdapter
         _backupDomainsUpdated = backupDomainsUpdated;
         _updateBackupMessages = updateBackupMessages;
         _backupMessagesUpdated = backupMessagesUpdated;
+        _updateBackupCompression = updateBackupCompression;
+        _backupCompressionUpdated = backupCompressionUpdated;
         _isServerAdministrator = isServerAdministrator;
         _authorizationLeaseFactory = authorizationLeaseFactory;
     }
@@ -222,7 +228,32 @@ public sealed class BackupSettings : BackupSettingsComAdapter
     public override bool CompressDestinationFiles
     {
         get => HasFlag(CompressDestinationFilesFlag);
-        set => base.CompressDestinationFiles = value;
+        set => SetBackupCompression(value);
+    }
+
+    protected override void SetBackupCompression(bool value)
+    {
+        var snapshot = Snapshot;
+        if (_updateBackupCompression is null)
+        {
+            base.SetBackupCompression(value);
+            return;
+        }
+
+        EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
+        if (!_updateBackupCompression(value))
+        {
+            throw new COMException(
+                "The backup compression update did not affect the existing settings row.",
+                EFail);
+        }
+
+        var options = value
+            ? snapshot.Options | CompressDestinationFilesFlag
+            : snapshot.Options & ~CompressDestinationFilesFlag;
+        _snapshot = snapshot with { Options = options };
+        _backupCompressionUpdated?.Invoke(options);
     }
 
     public override string LogFile
@@ -249,6 +280,8 @@ public sealed class BackupSettings : BackupSettingsComAdapter
         Action<int>? backupDomainsUpdated = null,
         Func<bool, bool>? updateBackupMessages = null,
         Action<int>? backupMessagesUpdated = null,
+        Func<bool, bool>? updateBackupCompression = null,
+        Action<int>? backupCompressionUpdated = null,
         Func<bool>? isServerAdministrator = null,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
@@ -263,6 +296,8 @@ public sealed class BackupSettings : BackupSettingsComAdapter
             backupDomainsUpdated,
             updateBackupMessages,
             backupMessagesUpdated,
+            updateBackupCompression,
+            backupCompressionUpdated,
             isServerAdministrator,
             authorizationLeaseFactory);
     }
@@ -307,7 +342,7 @@ public abstract class BackupSettingsComAdapter : IInterfaceBackupSettings
     public bool BackupSettings { get => GetBackupSettings(); set => SetBackupSettings(value); }
     public virtual bool BackupDomains { get => Unavailable<bool>(); set => SetBackupDomains(value); }
     public virtual bool BackupMessages { get => Unavailable<bool>(); set => SetBackupMessages(value); }
-    public virtual bool CompressDestinationFiles { get => Unavailable<bool>(); set => Unavailable(); }
+    public virtual bool CompressDestinationFiles { get => Unavailable<bool>(); set => SetBackupCompression(value); }
     public virtual string LogFile => Unavailable<string>();
 
     protected virtual bool GetBackupSettings() => Unavailable<bool>();
@@ -317,6 +352,8 @@ public abstract class BackupSettingsComAdapter : IInterfaceBackupSettings
     protected virtual void SetBackupDomains(bool value) => Unavailable();
 
     protected virtual void SetBackupMessages(bool value) => Unavailable();
+
+    protected virtual void SetBackupCompression(bool value) => Unavailable();
 
     private T Unavailable<T>() => BackupSettingsComAuthorization.Unavailable<T>(this);
 
