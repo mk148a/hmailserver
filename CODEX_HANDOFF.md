@@ -18,9 +18,11 @@ Focused tests pass `357`, skip `0`, and fail `0`; default full Net10 passes
 database, Data directory, registration, DCOM ACL, IIS, or firewall state was
 changed. Release remains RED because disposable Full-Text SQL/Data round-trip,
 installer rollback, registered COM/SEC-18, protocol/load parity, and soak
-evidence remain open or environment-blocked. Next: verify the Full-Text-capable
-disposable SQL Server `6000` gate once, then continue the next release-gate
-slice.
+evidence remain open or environment-blocked. Next: continue the isolated
+registered COM/SEC-18 evidence and installer rollback gates. Read-only
+verification of the two artifact-named MSSQLSERVER databases failed with
+`Login failed for user 'NOUTML-KANDIL\\Kandil'`; historical
+`FullTextAvailable: true` metadata is not SQL acceptance.
 
 ## Current Authoritative Continuation (2026-08-22, ClamAV host mutation)
 

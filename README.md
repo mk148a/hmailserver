@@ -13,8 +13,11 @@ Installed COM identity and direct activation boundaries are unchanged.
 Focused contract/store tests pass `357`, skip `0`, and fail `0`; default full
 Net10 passes `2644`, skips `92`, and fails `0` (`2736` total). No disposable
 SQL integration was available, so release remains **RED**. The AntiVirus
-Admin setter surface is now complete in code/tests; next independent work is
-the Full-Text SQL Server `6000` gate or its exact blocker record.
+Admin setter surface is now complete in code/tests. The SQL gate was checked
+read-only: the artifact-named disposable MSSQLSERVER databases cannot be
+opened by the current Windows identity, so historical `FullTextAvailable:
+true` metadata is insufficient. An approved disposable Full-Text SQL Server
+connection and SQL/Data round-trip remain required.
 
 ## Current authenticated ClamAV host mutation gate (2026-08-22)
 

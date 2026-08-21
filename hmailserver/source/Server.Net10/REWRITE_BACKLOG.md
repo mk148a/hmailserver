@@ -15,10 +15,13 @@ Focused tests pass `357`, skip `0`, and fail `0`; default full Net10 passes
 `2644`, skips `92`, and fails `0` (`2736` total). No approved disposable
 Full-Text-capable SQL Server was available, so release remains RED.
 
-Next independent slices: establish or record the exact Full-Text SQL Server
-`6000` blocker, then continue registered COM/SEC-18 evidence and
-installer/service/data rollback acceptance. Older sections below are
-historical; do not treat their “Next independent slice” paragraphs as current.
+The exact SQL gate blocker is now recorded: the two artifact-named MSSQLSERVER
+databases cannot be opened by the current Windows identity (`Login failed for
+user 'NOUTML-KANDIL\\Kandil'`). Continue isolated registered COM/SEC-18
+evidence, installer/service/data rollback acceptance, and paired performance
+work; do not treat historical `FullTextAvailable: true` metadata as SQL
+acceptance. Older sections below are historical; do not treat their “Next
+independent slice” paragraphs as current.
 
 ## Historical bounded slice: handle-relative recursive DataBackup traversal (2026-08-22)
 
