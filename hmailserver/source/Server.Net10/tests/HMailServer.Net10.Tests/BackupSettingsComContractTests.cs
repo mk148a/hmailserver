@@ -70,11 +70,13 @@ public sealed class BackupSettingsComContractTests
         var destinationError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().Destination);
         var logFileError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().LogFile);
         var backupSettingsError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().BackupSettings);
+        var backupMessagesError = Assert.ThrowsExactly<COMException>(() => new BackupSettingsComClass().BackupMessages = true);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Backup);
 
         Assert.AreEqual(EAccessDenied, destinationError.ErrorCode);
         Assert.AreEqual(EAccessDenied, logFileError.ErrorCode);
         Assert.AreEqual(EAccessDenied, backupSettingsError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, backupMessagesError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -313,6 +315,72 @@ public sealed class BackupSettingsComContractTests
             isServerAdministrator: static () => false);
 
         var denied = Assert.ThrowsExactly<COMException>(() => backup.BackupDomains = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, updateCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_BackupMessagesSetterTransitionsBitFourAndPreservesOtherBits()
+    {
+        var persisted = new List<bool>();
+        var published = new List<int>();
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 11, string.Empty),
+            updateBackupMessages: value =>
+            {
+                persisted.Add(value);
+                return true;
+            },
+            backupMessagesUpdated: published.Add,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        backup.BackupMessages = true;
+        Assert.IsTrue(backup.BackupMessages);
+        Assert.AreEqual(15, published[0]);
+
+        backup.BackupMessages = false;
+        Assert.IsFalse(backup.BackupMessages);
+        CollectionAssert.AreEqual(new[] { true, false }, persisted);
+        CollectionAssert.AreEqual(new[] { 15, 11 }, published);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_BackupMessagesSetterFailureAndDenialDoNotPublishOrStore()
+    {
+        var publishCount = 0;
+        var updateCount = 0;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 15, string.Empty),
+            updateBackupMessages: _ =>
+            {
+                updateCount++;
+                return false;
+            },
+            backupMessagesUpdated: _ => publishCount++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => backup.BackupMessages = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(1, updateCount);
+        Assert.AreEqual(0, publishCount);
+        Assert.IsTrue(backup.BackupMessages);
+
+        backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 11, string.Empty),
+            updateBackupMessages: _ =>
+            {
+                updateCount++;
+                return true;
+            },
+            isServerAdministrator: static () => false);
+
+        var denied = Assert.ThrowsExactly<COMException>(() => backup.BackupMessages = true);
 
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(1, updateCount);

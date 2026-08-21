@@ -5136,6 +5136,94 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_BackupMessagesSetterPersistsTransitionsAndPreservesOtherBits()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            BackupMessagesUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                BackupOptions: 11)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true);
+
+        settings.Backup.BackupMessages = true;
+        Assert.IsTrue(settings.Backup.BackupMessages);
+        Assert.IsTrue(settings.Backup.BackupSettings);
+        Assert.IsTrue(settings.Backup.BackupDomains);
+        Assert.IsTrue(settings.Backup.CompressDestinationFiles);
+
+        settings.Backup.BackupMessages = false;
+        Assert.IsFalse(settings.Backup.BackupMessages);
+        Assert.AreEqual(2, store.BackupMessagesUpdateCount);
+        CollectionAssert.AreEqual(new[] { true, false }, store.UpdatedBackupMessages);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_BackupMessagesSetterFailureExpiredLeaseAndRetainedChildPreserveSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            BackupMessagesUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                BackupOptions: 11)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true);
+
+        var failed = Assert.ThrowsExactly<COMException>(() => settings.Backup.BackupMessages = true);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, store.BackupMessagesUpdateCount);
+        Assert.IsFalse(settings.Backup.BackupMessages);
+
+        settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(() => settings.Backup.BackupMessages = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, store.BackupMessagesUpdateCount);
+
+        store.BackupMessagesUpdateResult = true;
+        store.BackupSettingsUpdateResult = true;
+        settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                BackupOptions: 14),
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true);
+        var settingsChild = settings.Backup;
+        var messagesChild = settings.Backup;
+
+        settingsChild.BackupSettings = true;
+        messagesChild.BackupMessages = false;
+
+        Assert.IsTrue(settings.Backup.BackupSettings);
+        Assert.IsFalse(settings.Backup.BackupMessages);
+        Assert.IsTrue(settings.Backup.BackupDomains);
+        Assert.IsTrue(settings.Backup.CompressDestinationFiles);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamThresholdSettersPersistAndRefreshSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6583,17 +6671,23 @@ public sealed class SettingsComContractTests
 
         public bool BackupDomainsUpdateResult { get; set; }
 
+        public bool BackupMessagesUpdateResult { get; set; }
+
         public int BackupDestinationUpdateCount { get; private set; }
 
         public int BackupSettingsUpdateCount { get; private set; }
 
         public int BackupDomainsUpdateCount { get; private set; }
 
+        public int BackupMessagesUpdateCount { get; private set; }
+
         public string UpdatedBackupDestination { get; private set; } = string.Empty;
 
         public List<bool> UpdatedBackupSettings { get; } = [];
 
         public List<bool> UpdatedBackupDomains { get; } = [];
+
+        public List<bool> UpdatedBackupMessages { get; } = [];
 
         public bool MirrorUpdateResult { get; set; }
 
@@ -8158,6 +8252,16 @@ public sealed class SettingsComContractTests
             UpdatedBackupDomains.Add(backupDomains);
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(BackupDomainsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateBackupMessagesAsync(
+            bool backupMessages,
+            CancellationToken cancellationToken)
+        {
+            BackupMessagesUpdateCount++;
+            UpdatedBackupMessages.Add(backupMessages);
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(BackupMessagesUpdateResult);
         }
 
     }
