@@ -869,7 +869,7 @@ WHERE recipientmessageid = @MessageId;
                 Assert.AreEqual("Added network", readback.GetString(1));
             }
 
-            greyListingWhiteAddresses.DeleteByDBID(addedGreyListingWhiteAddress.ID);
+            addedGreyListingWhiteAddress.Delete();
             Assert.AreEqual(2, greyListingWhiteAddresses.Count);
             await using (var greyListingWhiteAddressDeleteConnection = new SqlConnection(testConnectionString))
             {

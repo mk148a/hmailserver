@@ -143,7 +143,8 @@ public sealed class GreyListingWhiteAddresses : IInterfaceGreyListingWhiteAddres
             new GreyListingWhiteAddressAdministrationSnapshot(0, string.Empty, string.Empty),
             insert: _insert,
             publish: Publish,
-            isServerAdministrator: _isServerAdministrator);
+            isServerAdministrator: _isServerAdministrator,
+            delete: _delete is null ? null : DeleteExistingAddress);
     }
 
     public IInterfaceGreyListingWhiteAddress get_ItemByDBID(int databaseId)

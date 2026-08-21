@@ -176,6 +176,48 @@ public sealed class GreyListingWhiteAddressesComContractTests
     }
 
     [TestMethod]
+    public void NewGreyListingWhiteAddress_DeleteAfterSaveRemovesOnlyItsOwnerSnapshot()
+    {
+        var deleted = new List<long>();
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            Array.Empty<GreyListingWhiteAddressAdministrationSnapshot>(),
+            insert: static _ => 42,
+            delete: id =>
+            {
+                deleted.Add(id);
+                return true;
+            },
+            isServerAdministrator: static () => true);
+        var draft = addresses.Add();
+
+        draft.IPAddress = "198.51.100.*";
+        draft.Save();
+        draft.Delete();
+
+        Assert.AreEqual(1, deleted.Count);
+        Assert.AreEqual(42L, deleted[0]);
+        Assert.AreEqual(0, addresses.Count);
+    }
+
+    [TestMethod]
+    public void NewGreyListingWhiteAddress_DeleteFailureAfterSaveRetainsOwnerSnapshot()
+    {
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            Array.Empty<GreyListingWhiteAddressAdministrationSnapshot>(),
+            insert: static _ => 42,
+            delete: static _ => false,
+            isServerAdministrator: static () => true);
+        var draft = addresses.Add();
+        draft.Save();
+
+        var error = Assert.ThrowsExactly<COMException>(draft.Delete);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(42, addresses[0].ID);
+    }
+
+    [TestMethod]
     public void NewGreyListingWhiteAddress_RechecksLiveAdministratorBeforeSetterAndSave()
     {
         var isAdministrator = true;
