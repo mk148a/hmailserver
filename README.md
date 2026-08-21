@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authenticated AntiVirus NotifySender mutation gate (2026-08-22)
+
+Code/test commit `1444bea7e` implements legacy
+`AntiVirus.NotifySender` mutation. The legacy reference is
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:275-309`; it writes the
+`avnotifysender` setting from
+`hmailserver/source/Server/Common/Application/Constants.h:25`. Net10 uses a
+parameterized fixed-row SQL update, the existing authenticated Settings
+lease, and retained snapshot publication only after a successful one-row
+mutation. Installed COM identity and direct activation boundaries are
+unchanged.
+
+Focused contract/store tests pass `333`, skip `0`, and fail `0`; default full
+Net10 passes `2620`, skips `92`, and fails `0` (`2712` total). No disposable
+SQL integration was available, so release remains **RED**. Next independent
+slice: establish or verify disposable Full-Text SQL Server `6000`, then
+continue the next authenticated AntiVirus/Admin mutation.
+
 ## Current authenticated AntiVirus NotifyReceiver mutation gate (2026-08-22)
 
 Code/test commit `5e48295f7` implements legacy
