@@ -33,10 +33,15 @@ Full-Text segmentation, atomic JSON checkpoints, and
 service upgrade/installer flow, and the non-atomic FTS boundary keeps
 migration/rollback release acceptance open.
 
-The next bounded slice is the isolated upgrade runner boundary: require a
-verified backup/checkpoint, invoke the executor and reinitialize callback,
-record partial-commit outcomes, and prove installer refusal/rollback without
-touching production SQL, Data, service, registry, or COM state. Legacy anchors remain
+Code/test commit `fc5f37373` adds the isolated upgrade runner. It recomputes
+and matches the verified backup SHA-256 before opening SQL, refuses missing or
+altered artifacts, invokes reinitialize only after successful migration, and
+reports migration/reinitialize/refusal outcomes. It is not wired into the
+production installer or service cutover, so release acceptance remains open.
+
+The next bounded slice is installer/service rollback refusal and artifact
+handoff around this runner without touching production SQL, Data, service,
+registry, or COM state. Legacy anchors remain
 `hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`,
 `hmailserver/source/Server/COM/InterfaceDatabase.cpp:403-424,687-717`, and
 `hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql:1-110`.

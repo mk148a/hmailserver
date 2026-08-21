@@ -28,9 +28,12 @@ authenticated `Database.ExecuteSQLScript` execution through the active SQL
 transaction, preserving the legacy blank-line command splitting and command
 timeout behavior. Code/test commit `bbd8981f8` adds the isolated migration
 executor with explicit transactional/Full-Text segmentation, atomic JSON
-checkpoints, and partial-commit failure reporting. The next slice is the
-isolated upgrade runner boundary: verified-backup requirement, executor/
-reinitialize wiring, and installer refusal/rollback evidence. Do not target
+checkpoints, and partial-commit failure reporting. Code/test commit
+`fc5f37373` adds the isolated upgrade runner: it recomputes and matches the
+verified backup SHA-256 before opening SQL, refuses missing or altered
+artifacts, invokes reinitialize only after successful migration, and reports
+refusal/migration/reinitialize outcomes. The next slice is installer/service
+rollback refusal and artifact handoff around this runner. Do not target
 production SQL/Data or installed COM state.
 
 SEC-18 remains RED: worker primary-token evidence exists, but effective COM

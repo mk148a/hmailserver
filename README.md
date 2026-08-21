@@ -70,10 +70,21 @@ suite is `2483 passed, 87 skipped, 0 failed` (`2570` total). The SQL fixture cre
 only unique disposable databases on local Developer SQL Server and removed
 them in cleanup; no existing hMailServer database or Data directory was used.
 
-The next bounded slice is the isolated upgrade runner boundary: require a
-verified backup/checkpoint, invoke the executor and reinitialize callback,
-record non-atomic FTS partial-commit outcomes, and prove rollback/installer
-refusal without touching production service, SQL, Data, registry, or COM state.
+Code/test commit `fc5f37373` adds the isolated upgrade runner boundary. It
+recomputes and matches the verified backup SHA-256 before opening SQL, refuses
+missing or altered artifacts, invokes reinitialize only after migration
+completion, and reports migration/reinitialize/refusal outcomes. It remains
+isolated and is not wired into the production installer or service cutover.
+
+The runner slice is covered by 2 focused refusal tests and 1 explicit isolated
+SQL upgrade test; the full suite is `2484 passed, 88 skipped, 0 failed`
+(`2572` total). Migration/rollback release acceptance remains **RED** because
+the FTS boundary is non-atomic and production installer/service wiring is not
+yet proven.
+
+The next bounded slice is installer/service rollback refusal and artifact
+handoff around this runner, without touching production service, SQL, Data,
+registry, or COM state.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 
