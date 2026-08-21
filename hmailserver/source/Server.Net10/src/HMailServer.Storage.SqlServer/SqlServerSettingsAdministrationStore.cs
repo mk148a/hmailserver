@@ -399,6 +399,12 @@ SET settinginteger = @AntiVirusCustomScannerEnabled
 WHERE settingname = N'usecustomvirusscanner';
 """;
 
+    public const string UpdateAntiVirusCustomScannerExecutableSql = """
+UPDATE hm_settings
+SET settingstring = @AntiVirusCustomScannerExecutable
+WHERE settingname = N'customvirusscannerexecutable';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1362,6 +1368,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiVirusCustomScannerEnabledSql, connection);
         command.Parameters.Add("@AntiVirusCustomScannerEnabled", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiVirusCustomScannerExecutableAsync(
+        string executable,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiVirusCustomScannerExecutableSql, connection);
+        command.Parameters.Add("@AntiVirusCustomScannerExecutable", SqlDbType.NVarChar, 4000).Value = executable;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

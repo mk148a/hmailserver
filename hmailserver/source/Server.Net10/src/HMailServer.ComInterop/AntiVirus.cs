@@ -140,6 +140,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private readonly Action<bool>? _publishNotifyReceiver;
     private readonly Action<bool>? _publishNotifySender;
     private readonly Action<bool>? _publishCustomScannerEnabled;
+    private readonly Action<string>? _publishCustomScannerExecutable;
 
     public AntiVirus()
     {
@@ -159,7 +160,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<int>? publishAction,
         Action<bool>? publishNotifyReceiver,
         Action<bool>? publishNotifySender,
-        Action<bool>? publishCustomScannerEnabled)
+        Action<bool>? publishCustomScannerEnabled,
+        Action<string>? publishCustomScannerExecutable)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
@@ -175,6 +177,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         _publishNotifyReceiver = publishNotifyReceiver;
         _publishNotifySender = publishNotifySender;
         _publishCustomScannerEnabled = publishCustomScannerEnabled;
+        _publishCustomScannerExecutable = publishCustomScannerExecutable;
     }
 
     public bool ClamWinEnabled
@@ -466,7 +469,45 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         }
     }
 
-    public string CustomScannerExecutable { get => Snapshot.CustomScannerExecutable; set => Unavailable(); }
+    public string CustomScannerExecutable
+    {
+        get => Snapshot.CustomScannerExecutable;
+        set
+        {
+            _ = Snapshot;
+            if (_settingsMutationStore is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            using var authorizationLease = _authorizationLeaseFactory is null
+                ? null
+                : _authorizationLeaseFactory(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                    ?? throw new COMException(
+                        "Anti-virus settings access requires an authenticated server administrator.",
+                        EAccessDenied);
+
+            if (!_settingsMutationStore
+                .UpdateAntiVirusCustomScannerExecutableAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The custom scanner executable update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_snapshot is not null)
+            {
+                _snapshot = _snapshot with { CustomScannerExecutable = value };
+            }
+
+            _publishCustomScannerExecutable?.Invoke(value);
+        }
+    }
 
     public int CustomScannerReturnValue { get => Snapshot.CustomScannerReturnValue; set => Unavailable(); }
 
@@ -587,7 +628,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<int>? publishAction = null,
         Action<bool>? publishNotifyReceiver = null,
         Action<bool>? publishNotifySender = null,
-        Action<bool>? publishCustomScannerEnabled = null)
+        Action<bool>? publishCustomScannerEnabled = null,
+        Action<string>? publishCustomScannerExecutable = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
@@ -604,7 +646,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             publishAction,
             publishNotifyReceiver,
             publishNotifySender,
-            publishCustomScannerEnabled);
+            publishCustomScannerEnabled,
+            publishCustomScannerExecutable);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot

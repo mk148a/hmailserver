@@ -353,6 +353,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusCustomScannerExecutablePersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusCustomScannerExecutable: "old-scanner.exe"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.CustomScannerExecutable = "new-scanner.exe";
+
+        Assert.AreEqual(1, store.AntiVirusCustomScannerExecutableUpdateCount);
+        Assert.AreEqual("new-scanner.exe", store.UpdatedAntiVirusCustomScannerExecutable);
+        Assert.AreEqual("new-scanner.exe", settings.AntiVirus.CustomScannerExecutable);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusCustomScannerExecutableFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusCustomScannerExecutable: "old-scanner.exe"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.CustomScannerExecutable = "new-scanner.exe");
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("old-scanner.exe", settings.AntiVirus.CustomScannerExecutable);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7681,6 +7723,10 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiVirusCustomScannerEnabled { get; private set; }
 
+        public int AntiVirusCustomScannerExecutableUpdateCount { get; private set; }
+
+        public string? UpdatedAntiVirusCustomScannerExecutable { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -9090,6 +9136,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusCustomScannerEnabledUpdateCount++;
             UpdatedAntiVirusCustomScannerEnabled = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusCustomScannerExecutableAsync(
+            string executable,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusCustomScannerExecutableUpdateCount++;
+            UpdatedAntiVirusCustomScannerExecutable = executable;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

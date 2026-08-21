@@ -1093,6 +1093,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAntiVirusCustomScannerExecutableSql_UsesTheLegacyFixedStringRowAndParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateAntiVirusCustomScannerExecutableSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settingstring = @AntiVirusCustomScannerExecutable\nWHERE settingname = N'customvirusscannerexecutable';",
+            sql.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void GetSettingsSql_RemainsReadOnlyAndExcludesSecrets()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;
