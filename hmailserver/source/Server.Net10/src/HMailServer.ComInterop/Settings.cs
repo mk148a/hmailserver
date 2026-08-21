@@ -1392,7 +1392,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.IMAPQuotaEnabled
                 : _administrationSnapshot.ImapQuotaEnabled;
         }
-        set => base.IMAPQuotaEnabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.IMAPQuotaEnabled = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateImapQuotaEnabledAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP QUOTA setting update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    ImapQuotaEnabled = value
+                };
+            }
+        }
     }
 
     public override bool IMAPIdleEnabled

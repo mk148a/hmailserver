@@ -1011,6 +1011,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapQuotaEnabledSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapQuotaEnabledUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapQuotaEnabled: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.IMAPQuotaEnabled = true;
+
+        Assert.AreEqual(1, store.ImapQuotaEnabledUpdateCount);
+        Assert.IsTrue(store.UpdatedImapQuotaEnabled);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.IMAPQuotaEnabled);
+
+        store.ImapQuotaEnabledUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPQuotaEnabled = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ImapQuotaEnabledUpdateCount);
+        Assert.IsTrue(settings.IMAPQuotaEnabled);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPQuotaEnabled = false);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapQuotaEnabledUpdateCount);
+        Assert.IsTrue(settings.IMAPQuotaEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5548,6 +5590,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedImapSortEnabled { get; private set; }
 
+        public bool ImapQuotaEnabledUpdateResult { get; set; }
+
+        public int ImapQuotaEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedImapQuotaEnabled { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6117,6 +6165,16 @@ public sealed class SettingsComContractTests
             UpdatedImapSortEnabled = imapSortEnabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ImapSortEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapQuotaEnabledAsync(
+            bool imapQuotaEnabled,
+            CancellationToken cancellationToken)
+        {
+            ImapQuotaEnabledUpdateCount++;
+            UpdatedImapQuotaEnabled = imapQuotaEnabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapQuotaEnabledUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

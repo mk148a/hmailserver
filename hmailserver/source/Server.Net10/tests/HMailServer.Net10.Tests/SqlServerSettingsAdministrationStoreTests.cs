@@ -245,6 +245,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateImapQuotaEnabledSql_UpdatesOnlyTheExistingSettingWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateImapQuotaEnabledSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @IMAPQuotaEnabled");
+        StringAssert.Contains(sql, "WHERE settingname = N'enableimapquota'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateWorkerThreadPrioritySql_UpdatesOnlyTheExistingWorkerPriorityRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateWorkerThreadPrioritySql;
