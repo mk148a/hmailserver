@@ -548,7 +548,7 @@ public sealed class BackupArchiveRuntimeTests
     {
         if (!OperatingSystem.IsWindows())
         {
-            return;
+            Assert.Inconclusive("Reparse-point backup coverage requires Windows.");
         }
 
         var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
@@ -607,6 +607,135 @@ public sealed class BackupArchiveRuntimeTests
             Directory.Delete(destination, recursive: true);
             Directory.Delete(sourceDirectory, recursive: true);
             Directory.Delete(outsideDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task RejectsRawStagingWhenConfiguredSourceHasAncestorJunctionBeforeWrites()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Reparse-point backup coverage requires Windows.");
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-reparse-{Guid.NewGuid():N}");
+        var sourceTarget = Path.Combine(root, "source-target");
+        var sourceJunction = Path.Combine(root, "source-junction");
+        var sourceDirectory = Path.Combine(sourceJunction, "data");
+        var destination = Path.Combine(root, "destination");
+        var payloadCalled = false;
+        try
+        {
+            Directory.CreateDirectory(sourceTarget);
+            Directory.CreateDirectory(destination);
+            CreateJunctionOrInconclusive(sourceJunction, sourceTarget);
+            Directory.CreateDirectory(sourceDirectory);
+            File.WriteAllText(Path.Combine(sourceDirectory, "message.eml"), "message");
+
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                payloadProvider: (_, _) =>
+                {
+                    payloadCalled = true;
+                    return ValueTask.FromResult(
+                        new BackupArchiveXmlPayload(
+                            Settings: null,
+                            Domains: Array.Empty<DomainAdministrationSnapshot>()));
+                },
+                dataDirectory: sourceDirectory);
+
+            var exception = await Assert.ThrowsExactlyAsync<IOException>(
+                () => runtime.CreateAsync(
+                    new BackupStartPlanEvidence(
+                        Destination: destination,
+                        BackupOptions: BackupStartPlan.BackupDomainsFlag
+                            | BackupStartPlan.BackupMessagesFlag,
+                        BackupMessagesDbOnly: false,
+                        AllMessageFilesInDataDirectory: true,
+                        DestinationExists: true),
+                    CancellationToken.None).AsTask());
+
+            StringAssert.Contains(exception.Message, "reparse point");
+            Assert.IsFalse(payloadCalled);
+            CollectionAssert.AreEqual(Array.Empty<string>(), Directory.GetFileSystemEntries(destination));
+            Assert.IsTrue(File.Exists(Path.Combine(sourceTarget, "data", "message.eml")));
+        }
+        finally
+        {
+            if (Directory.Exists(sourceJunction))
+            {
+                Directory.Delete(sourceJunction);
+            }
+
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task RejectsRawStagingWhenDestinationHasAncestorJunctionBeforeWrites()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Reparse-point backup coverage requires Windows.");
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-reparse-{Guid.NewGuid():N}");
+        var sourceDirectory = Path.Combine(root, "source");
+        var destinationTarget = Path.Combine(root, "destination-target");
+        var destinationJunction = Path.Combine(root, "destination-junction");
+        var destination = Path.Combine(destinationJunction, "backup");
+        var payloadCalled = false;
+        try
+        {
+            Directory.CreateDirectory(sourceDirectory);
+            Directory.CreateDirectory(destinationTarget);
+            File.WriteAllText(Path.Combine(sourceDirectory, "message.eml"), "message");
+            CreateJunctionOrInconclusive(destinationJunction, destinationTarget);
+            Directory.CreateDirectory(destination);
+
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                payloadProvider: (_, _) =>
+                {
+                    payloadCalled = true;
+                    return ValueTask.FromResult(
+                        new BackupArchiveXmlPayload(
+                            Settings: null,
+                            Domains: Array.Empty<DomainAdministrationSnapshot>()));
+                },
+                dataDirectory: sourceDirectory);
+
+            var exception = await Assert.ThrowsExactlyAsync<IOException>(
+                () => runtime.CreateAsync(
+                    new BackupStartPlanEvidence(
+                        Destination: destination,
+                        BackupOptions: BackupStartPlan.BackupDomainsFlag
+                            | BackupStartPlan.BackupMessagesFlag,
+                        BackupMessagesDbOnly: false,
+                        AllMessageFilesInDataDirectory: true,
+                        DestinationExists: true),
+                    CancellationToken.None).AsTask());
+
+            StringAssert.Contains(exception.Message, "reparse point");
+            Assert.IsFalse(payloadCalled);
+            CollectionAssert.AreEqual(
+                Array.Empty<string>(),
+                Directory.GetFileSystemEntries(Path.Combine(destinationTarget, "backup")));
+        }
+        finally
+        {
+            if (Directory.Exists(destinationJunction))
+            {
+                Directory.Delete(destinationJunction);
+            }
+
+            Directory.Delete(root, recursive: true);
         }
     }
 
@@ -3085,6 +3214,35 @@ public sealed class BackupArchiveRuntimeTests
             process.ExitCode is 0 or 1,
             $"7za metadata extraction failed: {error}");
         return output;
+    }
+
+    private static void CreateJunctionOrInconclusive(string linkPath, string targetPath)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("/c");
+        startInfo.ArgumentList.Add("mklink");
+        startInfo.ArgumentList.Add("/J");
+        startInfo.ArgumentList.Add(linkPath);
+        startInfo.ArgumentList.Add(targetPath);
+
+        using var process = Process.Start(startInfo);
+        Assert.IsNotNull(process);
+        var output = process.StandardOutput.ReadToEnd();
+        var error = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+        if (process.ExitCode != 0)
+        {
+            Assert.Inconclusive(
+                "The Windows test host cannot create the required junction: "
+                + output + error);
+        }
     }
 
     private static async Task<IReadOnlyList<string>> ReadArchiveEntriesAsync(

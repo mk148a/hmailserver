@@ -86,6 +86,23 @@ public sealed class SevenZipBackupArchiveRuntime
                 "The data directory is required for physical message backup staging.");
         }
 
+        var destination = BackupStartPlanRuntime.NormalizeDestination(evidence.Destination);
+        if (!Directory.Exists(destination))
+        {
+            throw new InvalidOperationException(
+                "The specified backup directory is not accessible: " + destination);
+        }
+
+        if (stagesPhysicalMessageData)
+        {
+            EnsureNoExistingAncestorReparsePoints(
+                _dataDirectory!,
+                "configured data directory");
+            EnsureNoExistingAncestorReparsePoints(
+                destination,
+                "backup directory");
+        }
+
         BackupArchiveXmlPayload? payload = null;
         if ((evidence.BackupOptions
                 & (BackupStartPlan.BackupSettingsFlag | BackupStartPlan.BackupDomainsFlag)) != 0)
@@ -98,13 +115,6 @@ public sealed class SevenZipBackupArchiveRuntime
 
             payload = await _payloadProvider(evidence, cancellationToken)
                 .ConfigureAwait(false);
-        }
-
-        var destination = BackupStartPlanRuntime.NormalizeDestination(evidence.Destination);
-        if (!Directory.Exists(destination))
-        {
-            throw new InvalidOperationException(
-                "The specified backup directory is not accessible: " + destination);
         }
 
         var timestamp = _localNow().ToString(
@@ -183,6 +193,56 @@ public sealed class SevenZipBackupArchiveRuntime
         {
             throw new InvalidOperationException(
                 "The backup DataBackup staging path must be outside the data directory.");
+        }
+    }
+
+    private static void EnsureNoExistingAncestorReparsePoints(
+        string path,
+        string pathDescription)
+    {
+        var currentPath = Path.GetFullPath(path);
+        while (!string.IsNullOrWhiteSpace(currentPath))
+        {
+            FileAttributes attributes;
+            try
+            {
+                attributes = File.GetAttributes(currentPath);
+            }
+            catch (FileNotFoundException)
+            {
+                attributes = 0;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                attributes = 0;
+            }
+            catch (IOException exception)
+            {
+                throw new IOException(
+                    "The " + pathDescription + " path could not be validated for reparse points.",
+                    exception);
+            }
+            catch (UnauthorizedAccessException exception)
+            {
+                throw new IOException(
+                    "The " + pathDescription + " path could not be validated for reparse points.",
+                    exception);
+            }
+
+            if ((attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException(
+                    "The " + pathDescription + " path traverses a reparse point: "
+                    + currentPath);
+            }
+
+            var parentPath = Path.GetDirectoryName(currentPath);
+            if (string.Equals(parentPath, currentPath, StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            currentPath = parentPath!;
         }
     }
 
