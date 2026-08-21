@@ -12,7 +12,5 @@
   "WorkerTokenSid": "<local-only>",
   "WorkerTokenSource": "OpenProcessToken primary process token handle",
   "TokenSidMatchesPoolSid": true,
-  "CapturedUtc": "2026-08-21T06:48:05.5645368Z",
-  "ProductionPathsTouched": [],
-  "RegistrationOrDcomChanged": false
+  "CapturedUtc": "2026-08-21T06:48:05.5645368Z"
 }

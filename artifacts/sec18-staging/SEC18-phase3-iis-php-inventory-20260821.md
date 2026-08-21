@@ -59,7 +59,7 @@
 - Worker token collector code/test commits: `e2c9387ff` (initial capture) and
   `301a88580` (claim and output-path hardening).
 - Redacted worker evidence SHA-256:
-  `42C6CD7D8829135406614B72CD3E253517724E9BE2ACC4075CCDEFD09B81752E`.
+  `06F7C28D31D6EDA4C167A7C2C384F715DD313F936A2A5847DFF2D8D6240215EF`.
 - The collector found exactly one site mapped to the dedicated pool.
 
 The guest did not expose a non-loopback IPv4 address during the bounded
