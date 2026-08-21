@@ -1221,6 +1221,49 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapPublicFolderNameSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapPublicFolderNameUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapPublicFolderName: "#Public"),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        const string newName = "#Shared";
+        settings.IMAPPublicFolderName = newName;
+
+        Assert.AreEqual(1, store.ImapPublicFolderNameUpdateCount);
+        Assert.AreEqual(newName, store.UpdatedImapPublicFolderName);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(newName, settings.IMAPPublicFolderName);
+
+        store.ImapPublicFolderNameUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPPublicFolderName = "#Failed");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ImapPublicFolderNameUpdateCount);
+        Assert.AreEqual(newName, settings.IMAPPublicFolderName);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPPublicFolderName = "#Denied");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapPublicFolderNameUpdateCount);
+        Assert.AreEqual(newName, settings.IMAPPublicFolderName);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5788,6 +5831,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedImapSaslInitialResponseEnabled { get; private set; }
 
+        public bool ImapPublicFolderNameUpdateResult { get; set; }
+
+        public int ImapPublicFolderNameUpdateCount { get; private set; }
+
+        public string? UpdatedImapPublicFolderName { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6407,6 +6456,16 @@ public sealed class SettingsComContractTests
             UpdatedImapSaslInitialResponseEnabled = imapSaslInitialResponseEnabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ImapSaslInitialResponseEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapPublicFolderNameAsync(
+            string imapPublicFolderName,
+            CancellationToken cancellationToken)
+        {
+            ImapPublicFolderNameUpdateCount++;
+            UpdatedImapPublicFolderName = imapPublicFolderName;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapPublicFolderNameUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

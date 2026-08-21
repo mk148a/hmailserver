@@ -154,6 +154,12 @@ SET settinginteger = @IMAPSASLInitialResponseEnabled
 WHERE settingname = N'EnableImapSASLInitialResponse';
 """;
 
+    public const string UpdateImapPublicFolderNameSql = """
+UPDATE hm_settings
+SET settingstring = @IMAPPublicFolderName
+WHERE settingname = N'imappublicfoldername';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -1130,6 +1136,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var command = new SqlCommand(UpdateImapSaslInitialResponseEnabledSql, connection);
         command.Parameters.Add("@IMAPSASLInitialResponseEnabled", SqlDbType.Int).Value =
             imapSaslInitialResponseEnabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateImapPublicFolderNameAsync(
+        string imapPublicFolderName,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateImapPublicFolderNameSql, connection);
+        command.Parameters.Add("@IMAPPublicFolderName", SqlDbType.NVarChar, 4000).Value = imapPublicFolderName;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

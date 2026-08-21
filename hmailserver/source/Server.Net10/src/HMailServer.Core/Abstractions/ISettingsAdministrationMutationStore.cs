@@ -98,6 +98,10 @@ public interface ISettingsAdministrationMutationStore
         bool imapSaslInitialResponseEnabled,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateImapPublicFolderNameAsync(
+        string imapPublicFolderName,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);
