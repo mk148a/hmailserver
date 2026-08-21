@@ -1,10 +1,10 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, domain MaxSize setter/save parity)
+## Current authoritative parity status (2026-08-21, domain quota setter/save parity)
 
-Code/test commit `5dce4f02b` adds focused evidence for the legacy-compatible
-authenticated domain `MaxSize` setter/save path, while
+Code/test commit `8a5bcb5ad` adds focused evidence for the legacy-compatible
+authenticated domain `MaxSize` and `MaxAccountSize` setter/save paths, while
 retaining the authenticated
 `GreyListingWhiteAddress.Delete()` mutation for an item created by `Add()`,
 saved, and then deleted through the
@@ -25,11 +25,14 @@ Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
 Domain anchors are `InterfaceDomain::get/put_MaxSize`
 (`source/Server/COM/InterfaceDomain.cpp:518-554`) and
-`Domain::GetMaxSizeMB/SetMaxSizeMB` (`source/Server/Common/BO/Domain.cpp`).
-The domain facade stages `MaxSize`, and the SQL store persists it through
-`UpdateDomainAsync` before the collection snapshot is replaced. The legacy
-getter remains domain-admin scoped and the setter server-admin scoped; the
-existing authenticated server-admin boundary is preserved.
+`InterfaceDomain::get/put_MaxAccountSize`
+(`source/Server/COM/InterfaceDomain.cpp:1008-1044`), with
+`Domain::GetMaxSizeMB/SetMaxSizeMB` and `Domain::GetMaxAccountSize/SetMaxAccountSize`
+in `source/Server/Common/BO/Domain.cpp`. The domain facade stages both
+values, and the SQL store persists them through `UpdateDomainAsync` before the
+collection snapshot is replaced. The legacy getters remain domain-admin
+scoped and setters server-admin scoped; the existing authenticated
+server-admin boundary is preserved.
 The saved-new-item `Delete()` callback now uses the owning collection's
 authenticated SQL delete path and removes only the successfully deleted item
 from that collection snapshot. The next production slice is SMTP

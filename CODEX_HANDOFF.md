@@ -1,9 +1,9 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, domain MaxSize setter/save parity)
+## Current Authoritative Continuation (2026-08-21, domain quota setter/save parity)
 
-Code/test commit `5dce4f02b` adds focused COM and disposable SQL coverage for
-authenticated domain `MaxSize` staging and Save, while retaining the authenticated
+Code/test commit `8a5bcb5ad` adds focused COM and disposable SQL coverage for
+authenticated domain `MaxSize` and `MaxAccountSize` staging and Save, while retaining the authenticated
 `Add()` -> `Save()` ->
 `GreyListingWhiteAddress.Delete()` path after
 the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
@@ -16,10 +16,12 @@ object snapshots, and existing COM identity boundaries remain covered.
 
 Legacy references for this slice are `InterfaceDomain::get/put_MaxSize`
 (`source/Server/COM/InterfaceDomain.cpp:518-554`) and
-`Domain::GetMaxSizeMB/SetMaxSizeMB` (`source/Server/Common/BO/Domain.cpp`).
+`InterfaceDomain::get/put_MaxAccountSize`
+(`source/Server/COM/InterfaceDomain.cpp:1008-1044`), plus the matching
+`Domain` setters in `source/Server/Common/BO/Domain.cpp`.
 `DomainsComContractTests` proves Save publication and failed-save snapshot
 retention; `SqlServerDomainAdministrationStoreIntegrationTests` proves
-`domainmaxsize` update/readback in disposable SQL.
+`domainmaxsize` and `domainmaxaccountsize` update/readback in disposable SQL.
 Legacy references are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`source/Server/COM/InterfaceGreyListingWhiteAddresses.cpp:85-93,162-183`),
 `InterfaceGreyListingWhiteAddress::Save/Delete`
