@@ -35,9 +35,12 @@ public sealed class BackupManagerMode7DispatchTests
                 "From: sender@example.test\r\n\r\nbody");
 
             using var queue = new RecordingBackupTaskQueue();
+            var readiness = new ServerReadinessSignal();
+            readiness.SetBootstrapComplete();
             service = new BackupTaskHostedService(
                 queue,
-                NullLogger<BackupTaskHostedService>.Instance);
+                NullLogger<BackupTaskHostedService>.Instance,
+                readiness);
             var backupCompleted = new TaskCompletionSource<string>(
                 TaskCreationOptions.RunContinuationsAsynchronously);
             var backupThreadStopped = new TaskCompletionSource<object?>(

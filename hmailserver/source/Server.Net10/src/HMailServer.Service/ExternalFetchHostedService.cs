@@ -12,24 +12,31 @@ public sealed class ExternalFetchHostedService : BackgroundService
     private readonly ExternalFetchProcessor _processor;
     private readonly IExternalFetchWakeSignal _wakeSignal;
     private readonly ILogger<ExternalFetchHostedService> _logger;
+    private readonly ServerReadinessSignal _serverReadinessSignal;
 
     public ExternalFetchHostedService(
         ExternalFetchHostedServiceOptions hostedOptions,
         ExternalFetchProcessorOptions processorOptions,
         ExternalFetchProcessor processor,
         IExternalFetchWakeSignal wakeSignal,
-        ILogger<ExternalFetchHostedService> logger)
+        ILogger<ExternalFetchHostedService> logger,
+        ServerReadinessSignal serverReadinessSignal)
     {
         _hostedOptions = hostedOptions;
         _processorOptions = processorOptions;
         _processor = processor;
         _wakeSignal = wakeSignal;
         _logger = logger;
+        _serverReadinessSignal = serverReadinessSignal;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(hostedOptions.PollInterval.Ticks, 0);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _serverReadinessSignal
+            .WaitForBootstrapAsync(stoppingToken)
+            .ConfigureAwait(false);
+
         try
         {
             await _processor.ResetLocksAsync(stoppingToken).ConfigureAwait(false);

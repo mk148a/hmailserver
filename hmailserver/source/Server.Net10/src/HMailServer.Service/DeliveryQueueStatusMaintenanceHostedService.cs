@@ -9,19 +9,26 @@ public sealed class DeliveryQueueStatusMaintenanceHostedService : BackgroundServ
     private readonly DeliveryQueueStatusMaintenanceOptions _options;
     private readonly SqlServerDeliveryQueueStatusMaintenanceStore _store;
     private readonly ILogger<DeliveryQueueStatusMaintenanceHostedService> _logger;
+    private readonly ServerReadinessSignal _serverReadinessSignal;
 
     public DeliveryQueueStatusMaintenanceHostedService(
         DeliveryQueueStatusMaintenanceOptions options,
         SqlServerDeliveryQueueStatusMaintenanceStore store,
-        ILogger<DeliveryQueueStatusMaintenanceHostedService> logger)
+        ILogger<DeliveryQueueStatusMaintenanceHostedService> logger,
+        ServerReadinessSignal serverReadinessSignal)
     {
         _options = options;
         _store = store;
         _logger = logger;
+        _serverReadinessSignal = serverReadinessSignal;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _serverReadinessSignal
+            .WaitForBootstrapAsync(stoppingToken)
+            .ConfigureAwait(false);
+
         if (!_options.Enabled)
         {
             _logger.LogInformation("Delivery queue status retention cleanup is disabled.");

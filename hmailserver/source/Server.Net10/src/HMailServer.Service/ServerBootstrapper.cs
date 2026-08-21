@@ -9,17 +9,20 @@ public sealed class ServerBootstrapper : BackgroundService
 {
     private readonly SqlServerFullTextSearchHealthCheck _fullTextSearchHealthCheck;
     private readonly IMessageSearchIndex _messageSearchIndex;
+    private readonly DatabaseVersionStartupGuard _databaseVersionStartupGuard;
     private readonly ServerReadinessSignal _serverReadinessSignal;
     private readonly ILogger<ServerBootstrapper> _logger;
 
     public ServerBootstrapper(
         SqlServerFullTextSearchHealthCheck fullTextSearchHealthCheck,
         IMessageSearchIndex messageSearchIndex,
+        DatabaseVersionStartupGuard databaseVersionStartupGuard,
         ServerReadinessSignal serverReadinessSignal,
         ILogger<ServerBootstrapper> logger)
     {
         _fullTextSearchHealthCheck = fullTextSearchHealthCheck;
         _messageSearchIndex = messageSearchIndex;
+        _databaseVersionStartupGuard = databaseVersionStartupGuard;
         _serverReadinessSignal = serverReadinessSignal;
         _logger = logger;
     }
@@ -28,6 +31,10 @@ public sealed class ServerBootstrapper : BackgroundService
     {
         try
         {
+            await _databaseVersionStartupGuard
+                .EnsureCompatibleAsync(stoppingToken)
+                .ConfigureAwait(false);
+
             var fullTextReady = await _fullTextSearchHealthCheck
                 .IsFullTextInstalledAsync(stoppingToken)
                 .ConfigureAwait(false);

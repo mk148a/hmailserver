@@ -8,21 +8,28 @@ public sealed class BackupTaskHostedService : BackgroundService
 {
     private readonly IBackupTaskQueue _queue;
     private readonly ILogger<BackupTaskHostedService> _logger;
+    private readonly ServerReadinessSignal _serverReadinessSignal;
     private readonly object _activeTaskGate = new();
     private TaskCompletionSource<object?>? _activeTaskCompletion;
 
     public BackupTaskHostedService(
         IBackupTaskQueue queue,
-        ILogger<BackupTaskHostedService> logger)
+        ILogger<BackupTaskHostedService> logger,
+        ServerReadinessSignal serverReadinessSignal)
     {
         ArgumentNullException.ThrowIfNull(queue);
         ArgumentNullException.ThrowIfNull(logger);
         _queue = queue;
         _logger = logger;
+        _serverReadinessSignal = serverReadinessSignal;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _serverReadinessSignal
+            .WaitForBootstrapAsync(stoppingToken)
+            .ConfigureAwait(false);
+
         await foreach (var task in _queue.ReadAllAsync(stoppingToken).ConfigureAwait(false))
         {
             var activeTaskCompletion = new TaskCompletionSource<object?>(

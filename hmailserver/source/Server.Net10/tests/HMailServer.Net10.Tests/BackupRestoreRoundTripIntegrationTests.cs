@@ -520,9 +520,12 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 await fixture.SeedExistingDomainAndPublicFolderAsync().ConfigureAwait(false);
 
                 using var queue = new BackupTaskQueue();
+                var readiness = new ServerReadinessSignal();
+                readiness.SetBootstrapComplete();
                 using var service = new BackupTaskHostedService(
                     queue,
-                    NullLogger<BackupTaskHostedService>.Instance);
+                    NullLogger<BackupTaskHostedService>.Instance,
+                    readiness);
                 var dispatcher = new RecordingBackupEventDispatcher();
                 var manager = BackupManager.CreateAuthorized(
                     new SevenZipBackupArchiveMetadataReader(Path.Combine(AppContext.BaseDirectory, "7za.exe")),
@@ -594,9 +597,12 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     .ConfigureAwait(false);
 
                 using var queue = new BackupTaskQueue();
+                var readiness = new ServerReadinessSignal();
+                readiness.SetBootstrapComplete();
                 using var service = new BackupTaskHostedService(
                     queue,
-                    NullLogger<BackupTaskHostedService>.Instance);
+                    NullLogger<BackupTaskHostedService>.Instance,
+                    readiness);
                 var dispatcher = new RecordingBackupEventDispatcher();
                 var evidence = new BackupStartPlanEvidence(
                     Destination: destination,
@@ -769,7 +775,12 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     dataDirectory: fixture.GetDataDirectory());
 
                 using var queue = new BackupTaskQueue();
-                using var service = new BackupTaskHostedService(queue, NullLogger<BackupTaskHostedService>.Instance);
+                var readiness = new ServerReadinessSignal();
+                readiness.SetBootstrapComplete();
+                using var service = new BackupTaskHostedService(
+                    queue,
+                    NullLogger<BackupTaskHostedService>.Instance,
+                    readiness);
                 var dispatcher = new RecordingBackupEventDispatcher();
                 var operationRuntime = new BackupOperationRuntime(
                     queue,

@@ -18,6 +18,7 @@ public static class HMailServerServiceCollectionExtensions
         services.AddSingleton<ServiceReinitializationCoordinator>(provider =>
             new ServiceReinitializationCoordinator(
                 provider.GetRequiredService<ServerReadinessSignal>()));
+        services.AddSingleton<DatabaseVersionStartupGuard>();
         services.AddHostedService<ServerBootstrapper>();
         services.AddHostedService<BackupTaskHostedService>();
         services.AddHostedService<MessageSearchBackfillHostedService>();

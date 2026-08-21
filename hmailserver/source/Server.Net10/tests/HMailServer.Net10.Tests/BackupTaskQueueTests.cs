@@ -93,9 +93,12 @@ public sealed class BackupTaskQueueTests
         Assert.IsTrue(queue.TryEnqueue(CreateRequest(
             () => Interlocked.Increment(ref aborted),
             () => Interlocked.Increment(ref pendingThreadStopped))));
+        var readiness = new ServerReadinessSignal();
+        readiness.SetBootstrapComplete();
         using var service = new BackupTaskHostedService(
             queue,
-            NullLogger<BackupTaskHostedService>.Instance);
+            NullLogger<BackupTaskHostedService>.Instance,
+            readiness);
 
         await service.StartAsync(CancellationToken.None);
         await runningStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
@@ -127,9 +130,12 @@ public sealed class BackupTaskQueueTests
             static _ => { },
             static () => { },
             static () => { })));
+        var readiness = new ServerReadinessSignal();
+        readiness.SetBootstrapComplete();
         using var service = new BackupTaskHostedService(
             queue,
-            NullLogger<BackupTaskHostedService>.Instance);
+            NullLogger<BackupTaskHostedService>.Instance,
+            readiness);
 
         await service.StartAsync(CancellationToken.None);
         await runningStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));

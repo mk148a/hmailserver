@@ -48,6 +48,9 @@ public sealed class ImapTcpListenerHostedService : BackgroundService
                 return;
             }
 
+            await _serverReadinessSignal
+                .WaitForBootstrapAsync(stoppingToken)
+                .ConfigureAwait(false);
             await StartListenerAsync(stoppingToken).ConfigureAwait(false);
             await Task.WhenAny(
                 _unexpectedStop.Task,

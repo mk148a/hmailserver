@@ -18,12 +18,15 @@ public sealed class ExternalFetchHostedServiceTests
             new UnusedExternalFetchSessionFactory(),
             new UnusedSmtpMessageReceiver());
         using var signal = new ExternalFetchWakeSignal();
+        var readiness = new ServerReadinessSignal();
+        readiness.SetBootstrapComplete();
         var service = new ExternalFetchHostedService(
             new ExternalFetchHostedServiceOptions(TimeSpan.FromSeconds(30)),
             ExternalFetchProcessorOptions.Default,
             processor,
             signal,
-            NullLogger<ExternalFetchHostedService>.Instance);
+            NullLogger<ExternalFetchHostedService>.Instance,
+            readiness);
         using var cancellation = new CancellationTokenSource();
 
         await service.StartAsync(cancellation.Token);

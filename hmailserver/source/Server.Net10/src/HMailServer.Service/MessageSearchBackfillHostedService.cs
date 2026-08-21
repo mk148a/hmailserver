@@ -10,20 +10,27 @@ public sealed class MessageSearchBackfillHostedService : BackgroundService
 
     private readonly MessageSearchBackfillOptions _options;
     private readonly MessageSearchBackfillProcessor _processor;
+    private readonly ServerReadinessSignal _serverReadinessSignal;
     private readonly ILogger<MessageSearchBackfillHostedService> _logger;
 
     public MessageSearchBackfillHostedService(
         MessageSearchBackfillOptions options,
         MessageSearchBackfillProcessor processor,
-        ILogger<MessageSearchBackfillHostedService> logger)
+        ILogger<MessageSearchBackfillHostedService> logger,
+        ServerReadinessSignal serverReadinessSignal)
     {
         _options = options;
         _processor = processor;
         _logger = logger;
+        _serverReadinessSignal = serverReadinessSignal;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await _serverReadinessSignal
+            .WaitForBootstrapAsync(stoppingToken)
+            .ConfigureAwait(false);
+
         while (!stoppingToken.IsCancellationRequested)
         {
             var processed = await _processor.RunBatchAsync(_options, stoppingToken).ConfigureAwait(false);

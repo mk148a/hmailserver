@@ -20,6 +20,10 @@ public sealed class ProductionHostedServiceRegistrationTests
                 descriptor.ServiceType == typeof(ServiceReinitializationCoordinator));
             Assert.AreEqual(ServiceLifetime.Singleton, coordinator.Lifetime);
 
+            var databaseVersionGuard = services.Single(descriptor =>
+                descriptor.ServiceType == typeof(DatabaseVersionStartupGuard));
+            Assert.AreEqual(ServiceLifetime.Singleton, databaseVersionGuard.Lifetime);
+
             var descriptors = services
                 .Where(descriptor => descriptor.ServiceType == typeof(IHostedService))
                 .ToArray();

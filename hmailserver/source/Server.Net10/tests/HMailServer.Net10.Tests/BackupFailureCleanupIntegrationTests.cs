@@ -57,9 +57,12 @@ public sealed class BackupFailureCleanupIntegrationTests
                 operationRuntime,
                 dispatcher,
                 authorizationGuard: static () => true);
+            var readiness = new ServerReadinessSignal();
+            readiness.SetBootstrapComplete();
             service = new BackupTaskHostedService(
                 queue,
-                NullLogger<BackupTaskHostedService>.Instance);
+                NullLogger<BackupTaskHostedService>.Instance,
+                readiness);
 
             await service.StartAsync(CancellationToken.None);
             manager.StartBackup();
