@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-22, AntiVirus NotifyReceiver mutation)
+
+Code/test commit `5e48295f7` closes the legacy authenticated
+`InterfaceAntiVirus::put_NotifyReceiver` gap from
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:326-347`. The Net10
+setter is in `hmailserver/source/Server.Net10/src/HMailServer.ComInterop/AntiVirus.cs`;
+the Settings-owned retained snapshot is published by
+`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/Settings.cs`; SQL
+uses the fixed `hm_settings` row `avnotifyreceiver` in
+`SqlServerSettingsAdministrationStore.cs`. The mutation is authenticated,
+lease-bound, parameterized, and publishes only after exactly one row updates.
+Installed COM identity and direct activation boundaries are unchanged.
+
+Focused tests pass `330`, skip `0`, and fail `0`; default full Net10 passes
+`2617`, skips `92`, and fails `0` (`2709` total). No production service,
+database, Data directory, registration, DCOM ACL, IIS, or firewall state was
+changed. Release remains RED because disposable Full-Text SQL/Data round-trip,
+installer rollback, registered COM/SEC-18, protocol/load parity, and soak
+evidence remain open or environment-blocked. Next: verify the Full-Text-capable
+disposable SQL Server `6000` gate once, then continue the next smallest
+authenticated Admin mutation.
+
 ## Current Authoritative Continuation (2026-08-22, AntiVirus Action mutation)
 
 Code/test commit `304796fd4` closes the legacy authenticated
