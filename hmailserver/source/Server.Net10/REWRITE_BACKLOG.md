@@ -29,10 +29,22 @@ Focused startup/readiness coverage is `32/32`; full Net10 Debug is
 database, Data directory, COM registration, DCOM ACL, IIS, or firewall state
 was changed.
 
+Code/test commit `8242303c7` adds the isolated
+`SqlServerUpgradeArtifactHandoff` guard. It revalidates the backup SHA-256,
+target identity, matching completed upgrade result, and completed migration
+report before writing an atomic handoff manifest. Any missing, failed, altered,
+or malformed evidence writes `ServiceMutationAllowed=false`; the class does
+not invoke an installer, Windows service, registry, COM, or DCOM operation.
+Focused handoff coverage is `4/4`; full Net10 Debug is `2493 passed, 88
+skipped, 0 failed` (`2581` total).
+
 The next bounded slice is an isolated disposable `6000` SQL/Data host-start
 acceptance proving success/failure readiness and zero listener/worker side
-effects, followed by installer/service rollback refusal and artifact handoff.
-Paired C++ performance remains RED.
+effects. It is currently environment-blocked because the approved
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION=...` plus
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` opt-in is not
+present in this process. Do not claim host-start PASS without it. Paired C++
+performance remains RED.
 
 ## Historical migration status (2026-08-21, disposable 5708-to-6000 evidence)
 

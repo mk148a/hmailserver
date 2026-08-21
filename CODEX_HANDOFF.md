@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, isolated upgrade handoff refusal)
+
+Code/test commit `8242303c7` adds `SqlServerUpgradeArtifactHandoff`. The
+handoff revalidates backup SHA-256, target identity, matching completed
+`SqlServerUpgradeRunResult`, and completed migration report evidence before
+writing an atomic JSON manifest. Failed, missing, changed, or malformed
+evidence always produces `Refused` and `ServiceMutationAllowed=false`. No
+installer, service, registry, COM, or DCOM mutation is performed. Focused
+handoff coverage is `4/4`; full Net10 Debug is `2493 passed, 88 skipped, 0
+failed` (`2581` total).
+
+Parity anchors for the remaining real rollback gap are
+`hmailserver/installation/hMailServerInnoExtension.iss` (`InitializeSetup`,
+`NextButtonClick`, `CurStepChanged`, `RunPostInstallTasks`) and
+`hmailserver/installation/section_uninstallrun.iss`. The legacy installer has
+no transactional service/SQL/Data rollback hook. The next slice is disposable
+`6000` SQL/Data host-start acceptance, but the current process lacks the
+approved SQL connection and isolated-create opt-in. Do not claim host-start
+PASS without that evidence. Older Current Next Slice entries below are
+historical/superseded.
+
 ## Current Authoritative Continuation (2026-08-21, runtime startup/readiness gate)
 
 Parity review traced legacy `Application::OnDatabaseConnected`

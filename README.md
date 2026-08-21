@@ -107,6 +107,23 @@ Focused startup/readiness tests pass `32/32`; the full Net10 Debug suite passes
 service start against disposable SQL/Data, installer rollback, paired C++
 performance, SEC-18, or soak acceptance. Release remains **RED**.
 
+## Current upgrade handoff gate (2026-08-21)
+
+Code/test commit `8242303c7` adds the isolated
+`SqlServerUpgradeArtifactHandoff` guard. It revalidates the verified backup
+SHA-256, target identity, matching completed upgrade result, and completed
+migration report before writing an atomic JSON handoff manifest. Missing,
+failed, altered, or malformed evidence always yields
+`ServiceMutationAllowed=false`. It performs no installer, Windows service,
+registry, COM, or DCOM mutation. Focused handoff tests pass `4/4`; full Net10
+Debug passes `2493`, skips `88`, and fails `0` (`2581` total).
+
+This is an operational refusal boundary, not a rollback drill. Real installer,
+service, SQL/Data replacement and rollback remain unproven. The next slice is
+an isolated disposable `6000` SQL/Data host-start acceptance, currently blocked
+because the approved local SQL connection and isolated-create opt-in are not
+present in the current process. Release remains **RED**.
+
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 
 Code/test commit `2110b400e` implements authenticated
