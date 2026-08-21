@@ -33,6 +33,14 @@ round-trip when the connection is available; otherwise continue isolated
 registered COM/SEC-18 caller evidence, then installer/service/data rollback
 acceptance and paired C++/.NET performance.
 
+SEC-18 environment blocker confirmation (2026-08-22): the prior
+`SEC18-phase3-iis-php-inventory-20260821.md` evidence is historical and
+explicitly RED for broker registration because the disposable guest has no
+existing Application AppID registration or effective COM caller-token proof.
+The current host has Hyper-V `vmms` running but `Get-VM`, `Get-VMHost`, and the
+named disposable guest query return no VM. Do not rerun the collector or change
+COM/DCOM/IIS state until an approved disposable guest is visible.
+
 ## Current bounded slice: authenticated AntiVirus.ClamAVPort mutation (2026-08-22)
 
 Code/test commit `8f173c0ff` closes the final remaining setter in the current

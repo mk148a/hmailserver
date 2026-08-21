@@ -30,6 +30,15 @@ the artifact-named MSSQLSERVER databases cannot be opened by the current
 Windows identity, and registered COM/SEC-18, installer rollback, paired C++
 performance, protocol thresholds, and long-soak evidence remain open.
 
+The SEC-18 staging evidence dated 2026-08-21 is historical for the disposable
+guest and remains RED for broker registration: it lacks existing Application
+AppID registration and effective COM caller-token proof. A fresh read-only
+host check on 2026-08-22 found Hyper-V `vmms` running but no visible VM or
+`HMailServer-SEC18-Disposable` guest (`Get-VM`/`Get-VMHost` returned no
+guest). No new collector run is justified without a visible disposable guest;
+no COM registration, DCOM ACL, IIS, firewall, production service, SQL, or Data
+state was changed.
+
 ## Current authenticated ClamAV port mutation gate (2026-08-22)
 
 Code/test commit `8f173c0ff` implements legacy `AntiVirus.ClamAVPort`

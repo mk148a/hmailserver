@@ -24,6 +24,14 @@ paired C++ performance, protocol thresholds, and long-soak evidence remain
 open. Next: use an approved Full-Text SQL/Data environment when available,
 then continue isolated registered COM/SEC-18 and installer gates.
 
+SEC-18 blocker confirmation: the 2026-08-21 disposable IIS/PHP report remains
+historical and RED for broker registration because it lacks Application AppID
+registration and effective COM caller-token evidence. On the current host,
+Hyper-V `vmms` is running but `Get-VM`, `Get-VMHost`, and the named disposable
+guest query return no guest. Do not rerun the staging collector or alter COM,
+DCOM, IIS, firewall, service, SQL, or Data state until the approved guest is
+visible.
+
 ## Current Authoritative Continuation (2026-08-22, ClamAV port mutation)
 
 Code/test commit `8f173c0ff` closes the legacy authenticated
