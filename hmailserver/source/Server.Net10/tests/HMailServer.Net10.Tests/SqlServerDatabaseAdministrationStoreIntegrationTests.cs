@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Text.Json;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -128,6 +129,86 @@ public sealed class SqlServerDatabaseAdministrationStoreIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task MigrationExecutor_StagesFullTextOutsideTransactionsAndWritesDurableReport()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_mig_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var reportPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-migration-{Guid.NewGuid():N}.json");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateMigrationBaselineAsync(testConnectionString).ConfigureAwait(false);
+            var store = CreateStore(testConnectionString, databaseName);
+            var executor = new SqlServerDatabaseMigrationExecutor(store);
+            var result = await executor.Execute5708To6000Async(
+                FindRepositoryFile("hmailserver", "source", "DBScripts", "Upgrade5708to6000MSSQL.sql"),
+                reportPath,
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual(SqlServerDatabaseMigrationStatus.Completed, result.Status, result.Error);
+            Assert.AreEqual(5708, result.InitialVersion);
+            Assert.AreEqual(6000, result.FinalVersion);
+            Assert.IsTrue(result.Checkpoints.Any(checkpoint => checkpoint.Kind == "FullText"));
+            Assert.AreEqual(6000, await ReadVersionAsync(testConnectionString).ConfigureAwait(false));
+            Assert.IsTrue(await FullTextCatalogExistsAsync(testConnectionString).ConfigureAwait(false));
+
+            using var report = JsonDocument.Parse(await File.ReadAllTextAsync(reportPath).ConfigureAwait(false));
+            Assert.AreEqual("Completed", report.RootElement.GetProperty("status").GetString());
+            Assert.IsTrue(report.RootElement.GetProperty("checkpoints").GetArrayLength() >= 3);
+        }
+        finally
+        {
+            File.Delete(reportPath);
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task MigrationExecutor_RollsBackFailedTransactionalSegmentAndReportsFailure()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_migfail_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var scriptPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-migration-fail-{Guid.NewGuid():N}.sql");
+        var reportPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-migration-fail-{Guid.NewGuid():N}.json");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateMigrationBaselineAsync(testConnectionString).ConfigureAwait(false);
+            await File.WriteAllTextAsync(
+                scriptPath,
+                "CREATE TABLE dbo.hm_net10_migration_failure_probe (probeid int NOT NULL)\r\n\r\n" +
+                "RAISERROR('Injected migration failure.', 16, 1);").ConfigureAwait(false);
+            var executor = new SqlServerDatabaseMigrationExecutor(CreateStore(testConnectionString, databaseName));
+
+            var result = await executor.Execute5708To6000Async(
+                scriptPath,
+                reportPath,
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual(SqlServerDatabaseMigrationStatus.FailedAndRolledBack, result.Status);
+            Assert.AreEqual(5708, result.FinalVersion);
+            Assert.AreEqual(5708, await ReadVersionAsync(testConnectionString).ConfigureAwait(false));
+            Assert.IsFalse(await ObjectExistsAsync(testConnectionString, "hm_net10_migration_failure_probe", "U").ConfigureAwait(false));
+            Assert.IsTrue(result.Checkpoints.Any(checkpoint => checkpoint.State == "Failed"));
+            Assert.IsTrue(File.Exists(reportPath));
+        }
+        finally
+        {
+            File.Delete(scriptPath);
+            File.Delete(reportPath);
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -198,6 +279,46 @@ public sealed class SqlServerDatabaseAdministrationStoreIntegrationTests
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
+    private static SqlServerDatabaseAdministrationStore CreateStore(string connectionString, string databaseName) =>
+        new(
+            new SqlServerConnectionFactory(connectionString),
+            new LegacyDatabaseConfiguration(
+                DatabaseType: 2,
+                DatabaseExists: true,
+                ServerName: string.Empty,
+                DatabaseName: databaseName));
+
+    private static async Task CreateMigrationBaselineAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "CREATE TABLE dbo.hm_dbversion ([value] int NOT NULL); " +
+            "INSERT INTO dbo.hm_dbversion ([value]) VALUES (5708); " +
+            "CREATE TABLE dbo.hm_messages (" +
+            "messageid bigint NULL, messagetype int NULL, messagelocked bit NULL, " +
+            "messagenexttrytime datetime NULL, messagesize bigint NULL, messagecurnooftries int NULL);",
+            connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static string FindRepositoryFile(params string[] parts)
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            var candidate = Path.Combine(new[] { directory.FullName }.Concat(parts).ToArray());
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        Assert.Fail($"Repository file was not found: {string.Join(Path.DirectorySeparatorChar, parts)}");
+        return string.Empty;
+    }
+
     private static async Task SetVersionAsync(string connectionString, int version)
     {
         await using var connection = new SqlConnection(connectionString);
@@ -219,6 +340,41 @@ public sealed class SqlServerDatabaseAdministrationStoreIntegrationTests
         return Convert.ToInt64(
             await command.ExecuteScalarAsync().ConfigureAwait(false),
             CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<int> ReadVersionAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT TOP (1) [value] FROM dbo.hm_dbversion;",
+            connection);
+        return Convert.ToInt32(await command.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<bool> ObjectExistsAsync(
+        string connectionString,
+        string objectName,
+        string objectType)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT CASE WHEN OBJECT_ID(@ObjectName, @ObjectType) IS NULL THEN 0 ELSE 1 END;",
+            connection);
+        command.Parameters.AddWithValue("@ObjectName", $"dbo.{objectName}");
+        command.Parameters.AddWithValue("@ObjectType", objectType);
+        return Convert.ToBoolean(await command.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
+    }
+
+    private static async Task<bool> FullTextCatalogExistsAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.fulltext_catalogs WHERE name = 'hm_message_search_catalog') THEN 1 ELSE 0 END;",
+            connection);
+        return Convert.ToBoolean(await command.ExecuteScalarAsync().ConfigureAwait(false), CultureInfo.InvariantCulture);
     }
 
     private static async Task DropDatabaseAsync(string connectionString, string databaseName)
