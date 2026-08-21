@@ -2926,7 +2926,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxInvalidLogonAttempts
                 : _administrationSnapshot.MaxInvalidLogonAttempts;
         }
-        set => base.MaxInvalidLogonAttempts = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxInvalidLogonAttempts = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateMaxInvalidLogonAttemptsAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum invalid logon-attempts update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxInvalidLogonAttempts = value
+                };
+            }
+        }
     }
 
     public override int MaxInvalidLogonAttemptsWithin
