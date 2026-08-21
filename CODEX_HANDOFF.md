@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, BackupSettings domains)
+
+Code/test commit `d8d872a76` completes the bounded authenticated
+`IInterfaceBackupSettings.BackupDomains` setter. Legacy
+`InterfaceBackupSettings::get/put_BackupDomains` is at
+`hmailserver/source/Server/COM/InterfaceBackupSettings.cpp:120-152` and
+delegates to `Configuration::SetBackupOption` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:450-474` for
+`HM::Backup::BODomains = 2` from
+`hmailserver/source/Server/Common/Application/Backup.h:14-20`.
+
+Net10 preserves IID `2C5559F0-DF3F-43C0-935C-F79D41CF8A5B`, DISPID `3`,
+`VARIANT_BOOL`, CLSID, ProgID, and vtable order. The SQL store atomically sets
+or clears only bit `2` in the current `hm_settings.backupoptions` row. The
+existing authenticated owning Settings boundary and authorization lease
+cover the write; failed or zero-row writes do not publish snapshots.
+
+Focused tests pass `272/272`; full Net10 passes `2559`, skips `90`, and fails
+`0` (`2649` total). Next code slice: `BackupMessages` bit `4` parity. Release
+remains RED because backup execution, disposable SQL/Data host-start and
+restore, rollback, SEC-18, registered/out-of-process COM, paired C++
+performance, and long-soak evidence remain open.
+
 ## Current Authoritative Continuation (2026-08-21, BackupSettings option flag)
 
 Code/test commit `428281bcc` completes the bounded authenticated

@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current BackupSettings domain-flag persistence slice (2026-08-21)
+
+Code/test commit `d8d872a76` completes the bounded authenticated
+`IInterfaceBackupSettings.BackupDomains` setter. Legacy
+`InterfaceBackupSettings::get/put_BackupDomains` is at
+`hmailserver/source/Server/COM/InterfaceBackupSettings.cpp:120-152`; it uses
+`Configuration::SetBackupOption` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:450-474` and
+`HM::Backup::BODomains = 2` from
+`hmailserver/source/Server/Common/Application/Backup.h:14-20`.
+
+The installed child contract remains IID
+`2C5559F0-DF3F-43C0-935C-F79D41CF8A5B`, BackupDomains DISPID `3`,
+`VARIANT_BOOL`, CLSID `E0213ECF-BAEC-4E20-9813-0F75A97D0B16`, ProgID
+`hMailServer.BackupSettings.1`, and the existing vtable shape. Net10 now
+atomically sets or clears only bit `2` in the current
+`hm_settings.backupoptions` row, keeps the authenticated owning Settings and
+lease boundary, and publishes child/parent snapshots only after an exact-one-
+row success. Focused tests pass `272/272`; full Net10 passes `2559`, skips
+`90`, and fails `0` (`2649` total).
+
+The release gate remains **RED**. BackupMessages bit `4`, compression bit `8`,
+backup execution, disposable SQL/Data host-start and restore, rollback,
+SEC-18, registered/out-of-process COM, paired C++ performance, and long-soak
+evidence remain open.
+
 ## Current BackupSettings option-flag persistence slice (2026-08-21)
 
 Code/test commit `428281bcc` completes the bounded authenticated
