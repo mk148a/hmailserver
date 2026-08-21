@@ -1,0 +1,24 @@
+﻿{
+    "CollectedUtc":  "2026-08-21T05:45:39.1969186Z",
+    "VmName":  "HMailServer-SEC18-Disposable",
+    "VmState":  "Running",
+    "VmPath":  "C:\\SEC18-Disposable\\HMailServer-SEC18-Disposable\\HMailServer-SEC18-Disposable",
+    "MemoryStartupBytes":  3221225472,
+    "MemoryAssignedBytes":  3581935616,
+    "ProcessorCount":  4,
+    "VhdPaths":  [
+                     "C:\\SEC18-Disposable\\HMailServer-SEC18-Disposable\\VirtualHardDisks\\HMailServer-SEC18-Disposable.vhdx"
+                 ],
+    "SwitchName":  "HMailServer-SEC18-Private",
+    "SwitchType":  "Private",
+    "AdapterCount":  1,
+    "AdapterSwitches":  [
+                            "HMailServer-SEC18-Private"
+                        ],
+    "IsoPath":  "C:\\SEC18-Disposable\\HMailServer-SEC18-Disposable\\WindowsServer2025-Eval-x64.iso",
+    "IsoLength":  8152356864,
+    "IsoSha256":  "7B052573BA7894C9924E3E87BA732CCD354D18CB75A883EFA9B900EA125BFD51",
+    "ProductionPathsTouched":  [
+
+                               ]
+}

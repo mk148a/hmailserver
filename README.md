@@ -1,17 +1,22 @@
 hMailServer
 ===========
 
-## Current release-gate status (2026-08-21, SEC-18 IIS Phase 2)
+## Current release-gate status (2026-08-21, SEC-18 staging infrastructure)
 
-The approved disposable VM `HMailServer-SEC18-Disposable` is running Windows
-Server 2025. The five required IIS features are enabled with no restart
-pending; evidence is in
-`artifacts/sec18-staging/staging-inventory-20260821-phase2-iis.json` and its
-Markdown report. PHP/FastCGI, the loopback site/pool, worker identity, and
-SEC-18 caller evidence are not complete. PHP 8.4.23 archive metadata is
-officially listed, but no official checksum sidecar exists, so extraction is
-paused pending approval for local-hash verification. Release remains **RED**.
-The exact remaining procedure is in `RELEASE_GATE_EXECUTION_CHECKLIST.md`.
+The approved disposable VM HMailServer-SEC18-Disposable now has the required
+IIS features, PHP 8.4.23 NTS x64, VC++ x64 runtime, a dedicated
+HMailWebAdminBrokerPool, and a loopback-bound HMailWebAdminBrokerStaging site
+on 127.0.0.1:8088. The real w3wp.exe worker PID/account/SID evidence and live
+collector report are recorded in
+artifacts/sec18-staging/SEC18-phase3-iis-php-inventory-20260821.md and
+sec18-phase3-evidence-20260821.json.
+
+The pre-registration gate remains RED: no trusted caller-token/native-reader
+evidence exists, the legacy hMailServer service is intentionally absent from
+the guest, and no broker COM registration or DCOM ACL change was made. The
+official PHP archive has no checksum sidecar; the locally verified hash is
+disposable-test integrity evidence only. Release remains RED. The exact
+remaining procedure is in RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 

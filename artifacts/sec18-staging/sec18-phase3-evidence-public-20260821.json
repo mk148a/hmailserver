@@ -1,0 +1,265 @@
+{
+  "schema": "sec18-staging-phase3-evidence-v1",
+  "generatedUtc": "2026-08-21T05:46:30.9425278Z",
+  "php": {
+    "schema": "sec18-php-download-v1",
+    "downloadUrl": "https://downloads.php.net/~windows/releases/archives/php-8.4.23-nts-Win32-vs17-x64.zip",
+    "finalUrl": "https://downloads.php.net/~windows/releases/archives/php-8.4.23-nts-Win32-vs17-x64.zip",
+    "finalHost": "downloads.php.net",
+    "fileName": "php-8.4.23-nts-Win32-vs17-x64.zip",
+    "filePath": "C:\\SEC18-Staging\\downloads\\php-8.4.23-nts-Win32-vs17-x64.zip",
+    "fileSizeBytes": 34680647,
+    "sha256": "826EFA189B21F46314AD497FF31467DE9F0953292F42B235542BE4FEEA182B48",
+    "officialChecksumSidecarAvailable": false,
+    "officialChecksumEvidence": "Official archive listing and release page; no checksum sidecar exposed",
+    "transferMethod": "Hyper-V Guest Service Interface Copy-VMFile from approved host download",
+    "verifiedUtc": "2026-08-21T05:29:54.1345611Z"
+  },
+  "vcRedist": {
+    "requestedUrl": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+    "finalUrl": "https://download.visualstudio.microsoft.com/download/pr/9d270333-8b7b-4f96-9458-6fcdb2ec0b25/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe",
+    "finalHost": "download.visualstudio.microsoft.com",
+    "hostFileSizeBytes": 25635768,
+    "hostSha256": "CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B",
+    "authenticodeStatus": "Valid",
+    "signerSubject": "CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US",
+    "guest": {
+      "schema": "sec18-vc-redist-install-v1",
+      "installerPath": "C:\\SEC18-Staging\\downloads\\vc_redist.x64.exe",
+      "installerHash": "CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B",
+      "processExitCode": 0,
+      "restartRequested": false,
+      "before": null,
+      "after": {
+        "Installed": 1,
+        "Version": "v14.44.35211.00",
+        "Bld": 35211
+      },
+      "completedUtc": "2026-08-21T05:31:06.201854Z"
+    }
+  },
+  "phpInstall": {
+    "schema": "sec18-php-install-v1",
+    "phpRoot": "C:\\SEC18-Staging\\PHP\\8.4.23",
+    "phpIni": "C:\\SEC18-Staging\\PHP\\8.4.23\\php.ini",
+    "phpExecutable": "C:\\SEC18-Staging\\PHP\\8.4.23\\php.exe",
+    "phpCgiExecutable": "C:\\SEC18-Staging\\PHP\\8.4.23\\php-cgi.exe",
+    "phpVersion": "8.4.23",
+    "comDotNetLoaded": true,
+    "opensslLoaded": true,
+    "phpCgiVersionExitCode": 0,
+    "phpComDotNetPath": "C:\\SEC18-Staging\\PHP\\8.4.23\\ext\\php_com_dotnet.dll",
+    "completedUtc": "2026-08-21T05:32:08.9343229Z"
+  },
+  "iisWorker": {
+    "schema": "sec18-iis-evidence-v1",
+    "site": "HMailWebAdminBrokerStaging",
+    "pool": "HMailWebAdminBrokerPool",
+    "poolIdentityType": "ApplicationPoolIdentity",
+    "poolEnable32Bit": false,
+    "poolAccount": "IIS APPPOOL\\HMailWebAdminBrokerPool",
+    "poolSid": "REDACTED_LOCAL_ONLY",
+    "sitesUsingDedicatedPool": [
+      {
+        "name": "HMailWebAdminBrokerStaging",
+        "state": "Started",
+        "physicalPath": "C:\\SEC18-Staging\\WebAdmin",
+        "applicationPool": "HMailWebAdminBrokerPool"
+      }
+    ],
+    "workerPid": 2664,
+    "workerExecutable": "c:\\windows\\system32\\inetsrv\\w3wp.exe",
+    "workerUserName": "IIS APPPOOL\\HMailWebAdminBrokerPool",
+    "workerTokenSid": "REDACTED_LOCAL_ONLY",
+    "workerCommandLine": "c:\\windows\\system32\\inetsrv\\w3wp.exe -ap \"HMailWebAdminBrokerPool\" -a \\\\.\\pipe\\iisipm97fa551b-6085-439d-987e-d397ef7555e0 -h \"C:\\inetpub\\temp\\apppools\\HMailWebAdminBrokerPool\\HMailWebAdminBrokerPool.config\" -w \"\" -m 0 -t 20 -ta 0",
+    "loopbackListener": [],
+    "hMailServerService": [],
+    "mssqlserverService": [],
+    "collectedUtc": "2026-08-21T05:37:53.4450047Z"
+  },
+  "bindingTest": {
+    "ips": [],
+    "tests": []
+  },
+  "collector": {
+    "SchemaVersion": 1,
+    "CollectionStartedUtc": "2026-08-21T08:42:08.0770856+03:00",
+    "CollectedUtc": "2026-08-21T08:42:08.249261+03:00",
+    "CollectorInvocationId": "sec18-phase2-live-20260821",
+    "CallerEvidenceMaxAgeSeconds": 300,
+    "ComputerName": "WIN-6TGBDE5C01K",
+    "RequestedWebAdminPath": "C:\\SEC18-STAGING\\WEBADMIN",
+    "WebAdminPathExists": true,
+    "ApplicationAppId": "{5EDEC473-39E0-43F6-A234-1947071721C8}",
+    "Registry": [
+      {
+        "View": "Registry64",
+        "ApplicationAppId": {
+          "Present": false,
+          "LocalService": null,
+          "LaunchPermission": {
+            "Present": false,
+            "Length": 0,
+            "Sddl": null,
+            "DecodeError": null
+          },
+          "AccessPermission": {
+            "Present": false,
+            "Length": 0,
+            "Sddl": null,
+            "DecodeError": null
+          }
+        },
+        "MachineDefaults": {
+          "Present": true,
+          "EnableDcom": "Y",
+          "DefaultLaunchPermission": {
+            "Present": true,
+            "Length": 124,
+            "Sddl": "REDACTED_LOCAL_ONLY",
+            "DecodeError": null
+          },
+          "DefaultAccessPermission": {
+            "Present": false,
+            "Length": 0,
+            "Sddl": null,
+            "DecodeError": null
+          }
+        }
+      },
+      {
+        "View": "Registry32",
+        "ApplicationAppId": {
+          "Present": false,
+          "LocalService": null,
+          "LaunchPermission": {
+            "Present": false,
+            "Length": 0,
+            "Sddl": null,
+            "DecodeError": null
+          },
+          "AccessPermission": {
+            "Present": false,
+            "Length": 0,
+            "Sddl": null,
+            "DecodeError": null
+          }
+        },
+        "MachineDefaults": {
+          "Present": true,
+          "EnableDcom": "Y",
+          "DefaultLaunchPermission": {
+            "Present": true,
+            "Length": 124,
+            "Sddl": "REDACTED_LOCAL_ONLY",
+            "DecodeError": null
+          },
+          "DefaultAccessPermission": {
+            "Present": false,
+            "Length": 0,
+            "Sddl": null,
+            "DecodeError": null
+          }
+        }
+      }
+    ],
+    "Iis": {
+      "Available": true,
+      "Reason": null,
+      "TargetPath": "C:\\SEC18-STAGING\\WEBADMIN",
+      "Mappings": [
+        {
+          "Site": "HMailWebAdminBrokerStaging",
+          "Path": "/",
+          "PhysicalPath": "C:\\SEC18-Staging\\WebAdmin",
+          "NormalizedPhysicalPath": "C:\\SEC18-STAGING\\WEBADMIN",
+          "ApplicationPool": "HMailWebAdminBrokerPool",
+          "Source": "WebsiteRoot"
+        }
+      ],
+      "Pools": [
+        {
+          "Name": "HMailWebAdminBrokerPool",
+          "IdentityType": "ApplicationPoolIdentity",
+          "IdentityName": "IIS AppPool\\HMailWebAdminBrokerPool",
+          "WorkerSid": "REDACTED_LOCAL_ONLY",
+          "MappingCount": 1,
+          "Mappings": [
+            {
+              "Site": "HMailWebAdminBrokerStaging",
+              "Path": "/",
+              "PhysicalPath": "C:\\SEC18-Staging\\WebAdmin",
+              "NormalizedPhysicalPath": "C:\\SEC18-STAGING\\WEBADMIN",
+              "ApplicationPool": "HMailWebAdminBrokerPool",
+              "Source": "WebsiteRoot"
+            }
+          ],
+          "DedicatedPoolCandidate": true,
+          "TrustReviewRequired": true
+        }
+      ]
+    },
+    "HMailServerService": {
+      "Name": "hMailServer",
+      "Present": false,
+      "Status": null,
+      "StatusName": null,
+      "StartType": null,
+      "StartTypeName": null,
+      "ProcessPresent": false,
+      "ProcessIds": {},
+      "ServiceReadError": null,
+      "ProcessReadError": null,
+      "ReadError": null
+    },
+    "CallerTokenEvidence": {
+      "Present": false,
+      "Valid": false,
+      "Reason": "No caller-token evidence file was supplied.",
+      "ProbeVersion": null,
+      "ObservedUtc": null,
+      "ObservedAgeSeconds": null,
+      "TimestampParseable": false,
+      "TimestampFresh": false,
+      "Transport": null,
+      "CallerSid": null,
+      "CorrelationId": null,
+      "CollectorInvocationId": "sec18-phase2-live-20260821",
+      "CorrelationMatchesCollectorInvocation": false,
+      "ImpersonationSucceeded": false,
+      "MatchesWorkerSid": false
+    },
+    "Gate": {
+      "DedicatedPoolCandidate": true,
+      "ExistingApplicationAppIdPresent": false,
+      "ExistingApplicationHasExplicitAcl": false,
+      "CallerTokenMatchesWorkerSid": false,
+      "HMailServerServiceSafe": false,
+      "ReadyForBrokerRegistration": false,
+      "Status": "Incomplete",
+      "Reason": "This collector never approves broker registration. A reviewed broker-only AppID ACL and method-level caller-SID checks remain required."
+    }
+  },
+  "hyperv": {
+    "CollectedUtc": "2026-08-21T05:45:39.1969186Z",
+    "VmName": "HMailServer-SEC18-Disposable",
+    "VmState": "Running",
+    "VmPath": "C:\\SEC18-Disposable\\HMailServer-SEC18-Disposable\\HMailServer-SEC18-Disposable",
+    "MemoryStartupBytes": 3221225472,
+    "MemoryAssignedBytes": 3581935616,
+    "ProcessorCount": 4,
+    "VhdPaths": [
+      "C:\\SEC18-Disposable\\HMailServer-SEC18-Disposable\\VirtualHardDisks\\HMailServer-SEC18-Disposable.vhdx"
+    ],
+    "SwitchName": "HMailServer-SEC18-Private",
+    "SwitchType": "Private",
+    "AdapterCount": 1,
+    "AdapterSwitches": [
+      "HMailServer-SEC18-Private"
+    ],
+    "IsoPath": "C:\\SEC18-Disposable\\HMailServer-SEC18-Disposable\\WindowsServer2025-Eval-x64.iso",
+    "IsoLength": 8152356864,
+    "IsoSha256": "7B052573BA7894C9924E3E87BA732CCD354D18CB75A883EFA9B900EA125BFD51",
+    "ProductionPathsTouched": []
+  }
+}

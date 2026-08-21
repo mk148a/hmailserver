@@ -1,6 +1,7 @@
 # SEC-18 Phase 2 IIS Inventory
 
-- Status: `PARTIAL`, PHP/FastCGI and site configuration not started
+- Status: `HISTORICAL` pre-install snapshot; superseded by
+  SEC18-phase3-iis-php-inventory-20260821.md
 - Collected UTC: `2026-08-21T04:29:33.8456973Z`
 - Guest: `HMailServer-SEC18-Disposable`
 - Guest computer: `WIN-6TGBDE5C01K`
@@ -28,7 +29,7 @@ All five were previously disabled. No restart is pending.
 - No listener was found on `8088`, `2525`, `1143`, or `25110`.
 - IIS `W3SVC` is present and running after feature enablement.
 
-## Gate status
+## Historical gate status
 
 `YELLOW`: the disposable VM and required IIS components are proven, but the
 staging site, PHP runtime, FastCGI mapping, application pool, PHP COM probe,

@@ -1,15 +1,20 @@
 
-## Current next slice (2026-08-21, SEC-18 IIS Phase 2 on disposable VM)
+## Current next slice (2026-08-21, SEC-18 pre-registration evidence)
 
-The approved `HMailServer-SEC18-Disposable` VM now has the exact required IIS
-features enabled and no restart pending. The phase-2 inventory is recorded in
-`artifacts/sec18-staging/staging-inventory-20260821-phase2-iis.json` and
-`SEC18-phase2-iis-inventory-20260821.md`. PHP 8.4.23 archive metadata is
-officially listed, but its archived official source has no checksum sidecar;
-PHP/FastCGI, the loopback site/pool, worker identity, and caller-SID evidence
-remain incomplete pending approval for local-hash verification. Release stays
-**RED**. The exact procedure is in the repository-root
-`RELEASE_GATE_EXECUTION_CHECKLIST.md`.
+The isolated IIS staging infrastructure is complete on
+HMailServer-SEC18-Disposable: PHP/VC++ prerequisites, the dedicated
+HMailWebAdminBrokerPool, the HMailWebAdminBrokerStaging loopback binding, the
+real worker SID evidence, and the live collector report are recorded in
+artifacts/sec18-staging/SEC18-phase3-iis-php-inventory-20260821.md.
+
+The next slice is an independently trusted caller-token/native-reader probe
+plus authorized/non-pool denial evidence. Do not register
+WebAdminSessionBroker, change the existing Application AppID/COM identity,
+alter DCOM ACLs, or change PHP authentication/session behavior until security
+and reality reviews are GREEN. The collector is correctly Incomplete because
+the disposable guest has no existing hMailServer Application registration or
+service. Release remains RED. The exact procedure is in the repository-root
+RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
 ## Historical current slice (2026-08-21, production-hosted SMTP/POP3 acceptance after UserInterfaceLanguage parity)
 
