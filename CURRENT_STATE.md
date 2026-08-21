@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T23:19:35Z` / `2026-08-22T02:19:35+03:00`
+- UTC/local timestamp: `2026-08-21T23:21:04Z` / `2026-08-22T02:21:04+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `3733acc28`
+- Current HEAD: verify with `git rev-parse HEAD`; this state is maintained by the latest documentation commit
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: native restore/containment/execution `50 passed, 0 skipped, 0 failed`; isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default Debug `2644 passed, 92 skipped, 0 failed` (`2736` total)
