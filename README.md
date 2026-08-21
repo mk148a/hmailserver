@@ -57,14 +57,23 @@ controls through a store-backed SQL transaction with direct-activation denial
 preserved. Code/test commit `29d628705` adds authenticated
 `Database.ExecuteSQLScript` execution through that active transaction, using
 the legacy blank-line command boundaries and 30-minute per-command timeout.
-The .NET migration executor/orchestration remains unimplemented; release stays
-**RED**.
+Code/test commit `bbd8981f8` adds an isolated SQL Server migration executor.
+It partitions the legacy script into transactional and Full-Text segments,
+writes atomic JSON checkpoints after each segment, reports partial-commit
+failures, and verifies the final version. The executor is not yet wired into
+the service upgrade/installer/reinitialize flow; because the FTS boundary is
+non-atomic, migration/rollback release acceptance remains **RED**.
 
-The transaction/script slices are covered by 6/6 focused COM tests and 2/2
-explicit isolated SQL Server transaction tests. The full Net10 Debug suite is
-`2483 passed, 85 skipped, 0 failed` (`2568` total). The SQL fixture created
+The transaction/script/executor slices are covered by 6/6 focused COM tests
+and 4/4 explicit isolated SQL Server migration tests. The full Net10 Debug
+suite is `2483 passed, 87 skipped, 0 failed` (`2570` total). The SQL fixture created
 only unique disposable databases on local Developer SQL Server and removed
 them in cleanup; no existing hMailServer database or Data directory was used.
+
+The next bounded slice is the isolated upgrade runner boundary: require a
+verified backup/checkpoint, invoke the executor and reinitialize callback,
+record non-atomic FTS partial-commit outcomes, and prove rollback/installer
+refusal without touching production service, SQL, Data, registry, or COM state.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 

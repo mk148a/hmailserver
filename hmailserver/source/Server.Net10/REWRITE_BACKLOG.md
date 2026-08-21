@@ -26,14 +26,17 @@ required version `5708` and does not execute the migration. Code/test commit
 controls while preserving direct activation denial and the installed COM
 shape. Code/test commit `29d628705` now executes authenticated scripts
 through the active configured transaction store with legacy blank-line command
-boundaries and failure propagation. Migration orchestration, the FTS/non-FTS
-transaction boundary, durable checkpointing, and rollback release acceptance
-remain open.
+boundaries and failure propagation. Code/test commit `bbd8981f8` adds the
+isolated `SqlServerDatabaseMigrationExecutor`, including transactional and
+Full-Text segmentation, atomic JSON checkpoints, and
+`FailedAfterCommittedBoundary` reporting. The executor is not wired into the
+service upgrade/installer flow, and the non-atomic FTS boundary keeps
+migration/rollback release acceptance open.
 
-The next bounded slice is the isolated .NET 5708-to-6000 migration executor:
-define the FTS/non-FTS transaction boundary, durable version/checkpoint
-semantics, failure cleanup, and rollback reporting without touching production
-SQL, Data, service, registry, or COM state. Legacy anchors remain
+The next bounded slice is the isolated upgrade runner boundary: require a
+verified backup/checkpoint, invoke the executor and reinitialize callback,
+record partial-commit outcomes, and prove installer refusal/rollback without
+touching production SQL, Data, service, registry, or COM state. Legacy anchors remain
 `hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`,
 `hmailserver/source/Server/COM/InterfaceDatabase.cpp:403-424,687-717`, and
 `hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql:1-110`.

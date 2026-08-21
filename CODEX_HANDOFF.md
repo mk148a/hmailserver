@@ -26,9 +26,12 @@ store-backed `Database.BeginTransaction`, `CommitTransaction`, and
 installed COM identity preserved. Code/test commit `29d628705` adds
 authenticated `Database.ExecuteSQLScript` execution through the active SQL
 transaction, preserving the legacy blank-line command splitting and command
-timeout behavior. The next slice is the isolated .NET migration executor with
-an explicit FTS/non-FTS transaction boundary, checkpoint, failure cleanup,
-and rollback report. Do not target production SQL/Data or installed COM state.
+timeout behavior. Code/test commit `bbd8981f8` adds the isolated migration
+executor with explicit transactional/Full-Text segmentation, atomic JSON
+checkpoints, and partial-commit failure reporting. The next slice is the
+isolated upgrade runner boundary: verified-backup requirement, executor/
+reinitialize wiring, and installer refusal/rollback evidence. Do not target
+production SQL/Data or installed COM state.
 
 SEC-18 remains RED: worker primary-token evidence exists, but effective COM
 caller-token evidence and non-pool denial are absent.
