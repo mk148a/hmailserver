@@ -19,6 +19,7 @@ public sealed class SevenZipBackupArchiveRuntime
     private readonly Func<DateTime> _localNow;
     private readonly Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? _payloadProvider;
     private readonly string? _dataDirectory;
+    private readonly Func<ProcessStartInfo, Process?> _processStarter;
 
     public SevenZipBackupArchiveRuntime(
         string sevenZipExecutablePath,
@@ -26,7 +27,8 @@ public sealed class SevenZipBackupArchiveRuntime
         Func<DateTime>? localNow = null,
         Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? payloadProvider = null,
         string? dataDirectory = null,
-        Func<CancellationToken, ValueTask>? restoreReinitializer = null)
+        Func<CancellationToken, ValueTask>? restoreReinitializer = null,
+        Func<ProcessStartInfo, Process?>? processStarter = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentNullException.ThrowIfNull(applicationVersion);
@@ -36,6 +38,7 @@ public sealed class SevenZipBackupArchiveRuntime
         _localNow = localNow ?? (static () => DateTime.Now);
         _payloadProvider = payloadProvider;
         _dataDirectory = dataDirectory;
+        _processStarter = processStarter ?? Process.Start;
         if (_dataDirectory is not null
             && _payloadProvider?.Target is BackupXmlPayloadRuntime payloadRuntime)
         {
@@ -121,6 +124,9 @@ public sealed class SevenZipBackupArchiveRuntime
             "yyyy-MM-dd HHmmss",
             CultureInfo.InvariantCulture);
         var archivePath = Path.Combine(destination, $"HMBackup {timestamp}.7z");
+        var temporaryArchivePath = Path.Combine(
+            destination,
+            $".{Path.GetFileName(archivePath)}.{Guid.NewGuid():N}.tmp");
         var metadataPath = Path.Combine(destination, SevenZipBackupArchiveMetadataReader.MetadataEntryName);
         var dataBackupPath = stagesPhysicalMessageData
             ? Path.Combine(destination, "DataBackup")
@@ -144,21 +150,27 @@ public sealed class SevenZipBackupArchiveRuntime
                 new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
                 cancellationToken).ConfigureAwait(false);
             await AddFileAsync(
-                archivePath,
+                temporaryArchivePath,
                 metadataPath,
                 cancellationToken).ConfigureAwait(false);
             if (stagesCompressedMessageData && dataBackupPath is not null)
             {
                 await AddDirectoryAsync(
-                    archivePath,
+                    temporaryArchivePath,
                     dataBackupPath,
                     cancellationToken).ConfigureAwait(false);
             }
 
+            File.Move(temporaryArchivePath, archivePath, overwrite: true);
             backupCompleted = true;
         }
         finally
         {
+            if (File.Exists(temporaryArchivePath))
+            {
+                File.Delete(temporaryArchivePath);
+            }
+
             if (File.Exists(metadataPath))
             {
                 File.Delete(metadataPath);
@@ -1221,7 +1233,7 @@ public sealed class SevenZipBackupArchiveRuntime
         startInfo.ArgumentList.Add("-mmt");
         startInfo.ArgumentList.Add("-mx1");
 
-        using var process = Process.Start(startInfo)
+        using var process = _processStarter(startInfo)
             ?? throw new InvalidOperationException("The legacy 7z writer could not be started.");
         var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         try

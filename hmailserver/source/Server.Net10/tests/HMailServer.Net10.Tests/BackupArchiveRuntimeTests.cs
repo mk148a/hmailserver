@@ -252,7 +252,7 @@ public sealed class BackupArchiveRuntimeTests
     {
         if (!OperatingSystem.IsWindows())
         {
-            return;
+            Assert.Inconclusive("Archive publication failure coverage requires Windows.");
         }
 
         var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
@@ -369,6 +369,87 @@ public sealed class BackupArchiveRuntimeTests
         finally
         {
             Directory.Delete(destination, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public async Task FailedArchiveCreationRemovesPartialTemporaryArchiveAndRawStaging()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sourceDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-data-{Guid.NewGuid():N}");
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(sourceDirectory, "example.test", "user"));
+        Directory.CreateDirectory(destination);
+        var messagePath = Path.Combine(sourceDirectory, "example.test", "user", "message.eml");
+        File.WriteAllText(messagePath, "message");
+        var timestamp = new DateTime(2026, 8, 21, 4, 5, 6);
+        var archivePath = Path.Combine(destination, $"HMBackup {timestamp:yyyy-MM-dd HHmmss}.7z");
+        var processStartCount = 0;
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                "stub-archive-process",
+                "10.0.0-B0",
+                () => timestamp,
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: null,
+                        Domains: new[]
+                        {
+                            new DomainAdministrationSnapshot(10, "example.test", true)
+                        })),
+                dataDirectory: sourceDirectory,
+                processStarter: startInfo =>
+                {
+                    processStartCount++;
+                    var partialArchivePath = startInfo.ArgumentList[1];
+                    File.WriteAllText(partialArchivePath, "partial archive");
+                    var process = new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe",
+                            UseShellExecute = false,
+                            CreateNoWindow = true,
+                            RedirectStandardOutput = true,
+                            RedirectStandardError = true
+                        }
+                    };
+                    process.StartInfo.ArgumentList.Add("/c");
+                    process.StartInfo.ArgumentList.Add("exit 7");
+                    Assert.IsTrue(process.Start());
+                    return process;
+                });
+
+            var exception = await Assert.ThrowsExactlyAsync<InvalidDataException>(
+                () => runtime.CreateAsync(
+                    new BackupStartPlanEvidence(
+                        Destination: destination,
+                        BackupOptions: BackupStartPlan.BackupDomainsFlag
+                            | BackupStartPlan.BackupMessagesFlag,
+                        BackupMessagesDbOnly: false,
+                        AllMessageFilesInDataDirectory: true,
+                        DestinationExists: true),
+                    CancellationToken.None).AsTask());
+
+            StringAssert.Contains(exception.Message, "exit code 7");
+            Assert.AreEqual(1, processStartCount);
+            Assert.IsFalse(File.Exists(archivePath));
+            Assert.IsFalse(File.Exists(Path.Combine(destination, "hMailServerBackup.xml")));
+            CollectionAssert.AreEqual(
+                Array.Empty<string>(),
+                Directory.GetFileSystemEntries(destination));
+            Assert.IsTrue(File.Exists(messagePath));
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+            Directory.Delete(sourceDirectory, recursive: true);
         }
     }
 
