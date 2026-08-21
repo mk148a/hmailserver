@@ -1,0 +1,2 @@
+scenario,git_commit,message_count,seed,expected_matches,actual_matches,correct,p50_ms,p95_ms,p99_ms,mean_ms,throughput_messages_per_second,mean_allocated_bytes,mean_gen0_collections,mean_gen1_collections,mean_gen2_collections,threshold_ms,threshold_passed,peak_working_set_bytes
+"offline-imap-search-sort-100k","b89fb81f24a3fc343b7fbe6885e21c2e4976ed2d",100000,5700,9091,9091,True,8.725,9.426,9.614,8.773,1036283.014,459024,0,0,0,2500,True,62017536
