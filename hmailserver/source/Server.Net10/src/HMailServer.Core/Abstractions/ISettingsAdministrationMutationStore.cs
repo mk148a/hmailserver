@@ -58,6 +58,10 @@ public interface ISettingsAdministrationMutationStore
         string welcomeImap,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateServiceSmtpAsync(
+        bool serviceSmtp,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);

@@ -94,6 +94,12 @@ SET settingstring = @WelcomeIMAP
 WHERE settingname = N'welcomeimap';
 """;
 
+    public const string UpdateServiceSmtpSql = """
+UPDATE hm_settings
+SET settinginteger = @ServiceSMTP
+WHERE settingname = N'protocolsmtp';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -959,6 +965,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var command = new SqlCommand(UpdateVerifyRemoteSslCertificateSql, connection);
         command.Parameters.Add("@VerifyRemoteSslCertificate", SqlDbType.Int).Value =
             verifyRemoteSslCertificate ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateServiceSmtpAsync(
+        bool serviceSmtp,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateServiceSmtpSql, connection);
+        command.Parameters.Add("@ServiceSMTP", SqlDbType.Int).Value = serviceSmtp ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
