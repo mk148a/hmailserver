@@ -19,7 +19,7 @@ internal sealed class BackupRestoreDataDirectoryRuntime
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         _sevenZipExecutablePath = sevenZipExecutablePath;
-        _copyTree = copyTree ?? CopyTree;
+        _copyTree = copyTree ?? WindowsHandleRelativeDirectoryCopier.Copy;
         _flushJournalDirectory = flushJournalDirectory;
         _filesystemMutation = filesystemMutation ?? new WindowsBackupRestoreDataDirectoryMutation();
     }
@@ -101,7 +101,7 @@ internal sealed class BackupRestoreDataDirectoryRuntime
             _filesystemMutation.MoveDirectory(targetPath, rollbackPath);
             try
             {
-                Directory.CreateDirectory(targetPath);
+                WindowsHandleRelativeDirectoryCopier.EnsureDirectory(targetPath);
                 _copyTree(sourcePath, targetPath, cancellationToken);
                 manifest = manifest with { Phase = BackupRestoreRecoveryPhase.FilesystemSwapped };
                 BackupRestoreRecoveryJournal.Persist(journalPath, manifest, _flushJournalDirectory);
@@ -253,28 +253,6 @@ internal sealed class BackupRestoreDataDirectoryRuntime
         finally
         {
             process?.Dispose();
-        }
-    }
-
-    private static void CopyTree(
-        string sourcePath,
-        string targetPath,
-        CancellationToken cancellationToken)
-    {
-        foreach (var directory in Directory.EnumerateDirectories(sourcePath))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RejectReparsePoint(directory);
-            var targetDirectory = Path.Combine(targetPath, Path.GetFileName(directory));
-            Directory.CreateDirectory(targetDirectory);
-            CopyTree(directory, targetDirectory, cancellationToken);
-        }
-
-        foreach (var file in Directory.EnumerateFiles(sourcePath))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RejectReparsePoint(file);
-            File.Copy(file, Path.Combine(targetPath, Path.GetFileName(file)), overwrite: false);
         }
     }
 

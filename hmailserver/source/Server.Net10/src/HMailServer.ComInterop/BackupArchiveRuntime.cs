@@ -268,33 +268,10 @@ public sealed class SevenZipBackupArchiveRuntime
                 "The configured data directory is not accessible: " + sourceDirectory);
         }
 
-        CopyDirectory(sourceDirectory, dataBackupPath);
+        WindowsHandleRelativeDirectoryCopier.Copy(sourceDirectory, dataBackupPath);
         foreach (var file in Directory.EnumerateFiles(dataBackupPath))
         {
             File.Delete(file);
-        }
-    }
-
-    private static void CopyDirectory(
-        string sourceDirectory,
-        string destinationDirectory)
-    {
-        EnsureNotReparsePoint(sourceDirectory);
-        Directory.CreateDirectory(destinationDirectory);
-        foreach (var entry in Directory.EnumerateFileSystemEntries(sourceDirectory))
-        {
-            EnsureNotReparsePoint(entry);
-            var destinationPath = Path.Combine(
-                destinationDirectory,
-                Path.GetFileName(entry));
-            if (Directory.Exists(entry))
-            {
-                CopyDirectory(entry, destinationPath);
-            }
-            else
-            {
-                File.Copy(entry, destinationPath);
-            }
         }
     }
 

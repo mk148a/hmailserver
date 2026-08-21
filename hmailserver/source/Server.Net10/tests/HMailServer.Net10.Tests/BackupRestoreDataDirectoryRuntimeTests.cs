@@ -45,6 +45,22 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
     }
 
     [TestMethod]
+    public void HandleRelativeCopier_PreservesNestedFilesAndEmptyDirectories()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var nested = Path.Combine(fixture.SourcePath, "example.test", "user", "nested");
+        Directory.CreateDirectory(nested);
+        File.WriteAllText(Path.Combine(nested, "message.eml"), "message");
+
+        WindowsHandleRelativeDirectoryCopier.Copy(fixture.SourcePath, fixture.TargetPath);
+
+        Assert.AreEqual(
+            "message",
+            File.ReadAllText(Path.Combine(fixture.TargetPath, "example.test", "user", "nested", "message.eml")));
+        Assert.IsTrue(Directory.Exists(Path.Combine(fixture.TargetPath, "example.test", "user", "nested")));
+    }
+
+    [TestMethod]
     public async Task RestoreAsync_CompressedArchiveStagesDataBackupAndCleansExtraction()
     {
         using var fixture = new DataDirectoryFixture();
