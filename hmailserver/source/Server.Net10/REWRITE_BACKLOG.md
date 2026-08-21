@@ -1,5 +1,26 @@
 
-## Current bounded slice: handle-relative recursive DataBackup traversal (2026-08-22)
+## Current bounded slice: authenticated AntiVirus.ClamAVPort mutation (2026-08-22)
+
+Code/test commit `8f173c0ff` closes the final remaining setter in the current
+Net10 AntiVirus COM surface. Legacy
+`InterfaceAntiVirus::put_ClamAVPort` in
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:519-533` returns access
+denied before mutation for unauthenticated callers, writes the fixed
+`ClamAVPort` setting, and returns `S_OK` on success. Net10 preserves the
+existing Settings authentication boundary and COM identity, performs a
+parameterized one-row update through `ISettingsAdministrationMutationStore`,
+and updates the retained Settings snapshot only after persistence succeeds.
+
+Focused tests pass `357`, skip `0`, and fail `0`; default full Net10 passes
+`2644`, skips `92`, and fails `0` (`2736` total). No approved disposable
+Full-Text-capable SQL Server was available, so release remains RED.
+
+Next independent slices: establish or record the exact Full-Text SQL Server
+`6000` blocker, then continue registered COM/SEC-18 evidence and
+installer/service/data rollback acceptance. Older sections below are
+historical; do not treat their “Next independent slice” paragraphs as current.
+
+## Historical bounded slice: handle-relative recursive DataBackup traversal (2026-08-22)
 
 Code/test commit `4a71e82e1` replaces the path-based recursive DataBackup
 staging/copy operations with `WindowsHandleRelativeDirectoryCopier`. Source
