@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current TLS 1.2 flag persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsVersion12Enabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2359-2372`) calls the
+same `Configuration::SetSslVersionEnabled` read-modify-write path
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:632-640`),
+changing only flag `8` in `hm_settings.SslVersions`.
+
+Code/test commit `01fa372ff` adds the authenticated Net10 bit-8 mutation,
+preserves unrelated bits, fails closed on update failure, and publishes the
+retained snapshot only after success. Focused Settings/SQL coverage is `247
+passed, 0 skipped, 0 failed`; full Net10 is `2526 passed, 90 skipped, 0 failed`
+(`2616` total). No TLS live reconfiguration, SMTP trust, COM identity, or
+direct activation boundary changed.
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence, blocked because the approved SQL connection and
+isolated-create opt-in are absent. Release remains **RED**.
+
 ## Current TLS 1.1 flag persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsVersion11Enabled`
