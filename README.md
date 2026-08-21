@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current TLS ChaCha option persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsOptionPrioritizeChaChaEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2458-2471`) calls
+`Configuration::SetTlsOptionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:642-657`),
+which changes only bit `4` in `hm_settings.TlsOptions` and preserves bit `2`
+and all other bits. The installed COM contract remains `IInterfaceSettings`
+IID `A4C709A3-98B2-410D-84F4-EDA999BF0CB2`, DISPID `106`, `VARIANT_BOOL`.
+
+Code/test commit `7bd6159e5` adds the authenticated Net10 persistence through
+the existing parameterized `UpdateTlsOptionsAsync` path, with fail-closed
+update handling and publish-after-success snapshot behavior. Focused
+Settings/SQL coverage is `254 passed, 0 skipped, 0 failed`; full Net10 is
+`2533 passed, 90 skipped, 0 failed` (`2623` total). No TLS context rebuild,
+restart orchestration, SMTP trust, COM identity, or direct activation boundary
+changed. Release remains **RED** because disposable SQL/Data host-start,
+SEC-18, rollback, paired C++ performance, and soak evidence remain
+unavailable.
+
 ## Current TLS option persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsOptionPreferServerCiphersEnabled`

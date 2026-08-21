@@ -1,4 +1,24 @@
 
+## Current bounded slice: authenticated TLS ChaCha option persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsOptionPrioritizeChaChaEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2458-2471`) calls
+`Configuration::SetTlsOptionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:642-657`),
+which reads and rewrites only bit `4` in `hm_settings.TlsOptions`. The legacy
+setter returns `S_OK`; TLS context rebuild and restart-required behavior are
+separate and remain out of scope. Code/test commit `7bd6159e5` preserves the
+installed IID/DISPID/`VARIANT_BOOL` contract, authenticated Settings access,
+bit-preserving mutation, fail-closed SQL outcome, and publish-after-success
+snapshot behavior. Focused Settings/SQL tests pass `254`; full Net10 passes
+`2533`, skips `90`, and fails `0`.
+
+The next production-gate item is disposable `6000` SQL/Data host-start
+success/failure evidence, still blocked by the absent approved SQL connection
+and isolated-create opt-in. Independent parity work is complete for these two
+TLS option flags; live TLS reconfiguration is intentionally not claimed.
+Release remains **RED**.
+
 ## Current bounded slice: authenticated TLS option persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsOptionPreferServerCiphersEnabled`

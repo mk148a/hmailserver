@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, TLS ChaCha option persistence)
+
+Legacy `InterfaceSettings::put_TlsOptionPrioritizeChaChaEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2458-2471`) calls
+`Configuration::SetTlsOptionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:642-657`),
+reading and rewriting only bit `4` in `hm_settings.TlsOptions`. Code/test
+commit `7bd6159e5` adds the authenticated Net10 mutation through the existing
+parameterized store path, preserves unrelated bits, fails closed on a missing
+row, and publishes the retained snapshot only after success. Focused
+Settings/SQL tests pass `254`; full Net10 passes `2533`, skips `90`, and fails
+`0` (`2623` total).
+
+No TLS context rebuild, restart orchestration, SMTP trust, COM identity, or
+direct activation boundary changed. The next production-gate item is
+disposable `6000` SQL/Data host-start success/failure with no listener side
+effects, blocked until the approved SQL connection and isolated-create opt-in
+exist. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, TLS option persistence)
 
 Legacy `InterfaceSettings::put_TlsOptionPreferServerCiphersEnabled`
