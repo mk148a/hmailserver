@@ -1,22 +1,22 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, SEC-18 caller evidence after worker-token proof)
+## Current Authoritative Continuation (2026-08-21, disposable 5708-to-6000 migration)
 
-The approved HMailServer-SEC18-Disposable VM now has the isolated IIS staging
-infrastructure, PHP 8.4.23 NTS x64, Microsoft VC++ x64 runtime, dedicated
-HMailWebAdminBrokerPool, and loopback HMailWebAdminBrokerStaging binding on
-127.0.0.1:8088. A read-only native collector now reads the live w3wp primary
-token and verifies its SID against the pool SID. The redacted report is
-artifacts/sec18-staging/worker-token-evidence-public-20260821.json; raw SID
-evidence remains local-only.
+Parity review identified the next independent slice as the disposable legacy
+`5708 -> 6000` SQL migration. Legacy `DBUpdater.formMain::DoUpgrade` executes
+the strict SQL version chain in one transaction, rolls back on failure, then
+calls `Application.Reinitialize`; source anchors are
+`hmailserver/source/Tools/DBUpdater/formMain.cs` and
+`hmailserver/source/Server/COM/InterfaceDatabase.cpp`.
 
-The next slice is an independently trusted COM caller-token/native-reader probe
-and authorized/non-pool denial evidence. Worker primary-token proof does not
-establish the effective COM caller SID. The collector remains Incomplete because
-the guest has no existing hMailServer Application registration or service and
-no COM caller request was issued. UTC timestamp normalization is complete in
-8d43f9a18; direct worker-token collection and claim hardening are in
-301a88580.
+The .NET host currently reads required version `5708`, does not execute
+`Upgrade5708to6000MSSQL.sql`, and keeps database transaction COM methods
+unimplemented. The slice is blocked until an approved disposable SQL/Full-Text
+target exists. It must verify DDL, Full-Text objects, final version `6000`, and
+failure rollback without production state changes.
+
+SEC-18 remains RED: worker primary-token evidence exists, but effective COM
+caller-token evidence and non-pool denial are absent.
 Do not register the broker, change the existing Application COM identity or
 DCOM ACLs, or change PHP authentication/session behavior. Release remains RED;
 use RELEASE_GATE_EXECUTION_CHECKLIST.md for the remaining steps.

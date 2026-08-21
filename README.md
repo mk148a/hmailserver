@@ -22,6 +22,19 @@ evidence only. SEC-18 collector and attestation timestamps now canonicalize
 UTC in code/test commit 8d43f9a18. Release remains RED. The exact remaining
 procedure is in RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
+## Current diagnostic benchmark (2026-08-21)
+
+The current HEAD offline synthetic 100k-message IMAP SEARCH/SORT run passed
+with `9091/9091` expected matches and p50/p95/p99 of
+`8.725/9.426/9.614 ms`. JSON, CSV, and Markdown evidence is in
+`artifacts/benchmarks/offline-net10-current-b89fb81f2/` and records commit
+`0ba5384332a106867e00b489ffdb9ed49e4b61a3`.
+
+This is a Net10-only in-memory diagnostic. It does not prove SQL Server FTS,
+live IMAP latency, C++ parity, paired speedup, or soak acceptance. The paired
+performance gate remains **RED** until the same SQL/Data/message fixture and
+workload matrix runs in a registry-isolated C++ environment.
+
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 
 Code/test commit `2110b400e` implements authenticated

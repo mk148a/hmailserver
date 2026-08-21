@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T06:57:38Z` / `2026-08-21T09:57:38+03:00`
+- UTC/local timestamp: `2026-08-21T07:54:39Z` / `2026-08-21T10:54:39+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `8065817c5` (documentation commit; local and unpushed)
+- Current HEAD: `0ba538433` (benchmark evidence commit; documentation commit will contain this state file)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: SEC18 worker-token collector, collector, registry-binary, and denial-attestation tests passed; SEC18 Hyper-V script test passed
+- Latest focused-test result: current-head offline 100k SEARCH/SORT benchmark gate passed; SEC18 worker-token collector, collector, registry-binary, denial-attestation, and Hyper-V script tests passed
 - Latest full Net10 result: `2482 passed, 84 skipped, 0 failed` (`2566` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`
 - Opt-in tests passed/skipped/blocked: UserInterfaceLanguage, hierarchy delimiter, and prior LocalDB integrations passed; production SMTP/POP3, paired C++, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: SEC-18 trusted COM caller-token/native-reader and authorized/non-pool denial evidence after direct worker primary-token proof
+- Current bounded slice: current-head offline 100k SEARCH/SORT diagnostic completed; paired C++ performance remains RED
 - Completed milestones: authenticated Settings persistence through UserInterfaceLanguage and IMAP hierarchy delimiter; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
 - Open production blockers: isolated COM/service backup acceptance, restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF runtime wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains RED
-- Environment-blocked work: trusted COM caller-token/native-reader evidence, authorized/non-pool denial matrix, broker rollback validation, paired C++ runner, migration/rollback, AD, live DNS/TLS, and long-soak infrastructure remain unavailable; the official PHP checksum sidecar is absent and local hash remains disposable-test evidence only
+- Environment-blocked work: disposable 5708-to-6000 SQL/Full-Text migration target, trusted COM caller-token/native-reader evidence, authorized/non-pool denial matrix, broker rollback validation, paired C++ runner, AD, live DNS/TLS, and long-soak infrastructure remain unavailable; the official PHP checksum sidecar is absent and local hash remains disposable-test evidence only
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
-- Next three independent slices: complete trusted SEC-18 COM caller-token/native-reader and denial evidence; run isolated migration/installer rollback drill; obtain registry-isolated paired C++/.NET runner and execute the performance checklist
+- Next three independent slices: execute disposable 5708-to-6000 SQL migration with rollback proof; obtain registry-isolated paired C++/.NET runner and execute the matched performance matrix; complete trusted SEC-18 COM caller-token/native-reader and denial evidence

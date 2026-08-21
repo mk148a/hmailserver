@@ -1,25 +1,27 @@
 
-## Current next slice (2026-08-21, SEC-18 caller evidence after worker-token proof)
+## Current next independent slice (2026-08-21, disposable 5708-to-6000 migration)
 
-The isolated IIS staging infrastructure is complete on
-HMailServer-SEC18-Disposable: PHP/VC++ prerequisites, the dedicated
-HMailWebAdminBrokerPool, the HMailWebAdminBrokerStaging loopback binding, and
-the live worker primary-token SID proof are recorded in
-artifacts/sec18-staging/SEC18-phase3-iis-php-inventory-20260821.md and the
-redacted report artifacts/sec18-staging/worker-token-evidence-public-20260821.json.
+Parity review confirms the smallest independent Milestone C slice is the real
+legacy `5708 -> 6000` SQL migration against a uniquely named disposable
+database. Legacy `DBUpdater::formMain::DoUpgrade` executes the version-chain
+SQL scripts in one transaction, commits on success, rolls back on failure, and
+then calls `Application::Reinitialize` (`hmailserver/source/Tools/DBUpdater/formMain.cs`;
+`hmailserver/source/Server/COM/InterfaceDatabase.cpp`). The exact SQL is
+`hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql`.
 
-The next slice is an independently trusted COM caller-token/native-reader
-probe plus authorized/non-pool denial evidence. The worker-token proof does
-not establish the effective COM caller SID. Do not register
-WebAdminSessionBroker, change the existing Application AppID/COM identity,
-alter DCOM ACLs, or change PHP authentication/session behavior until security
-and reality reviews are GREEN. The collector remains Incomplete because the
-disposable guest has no existing hMailServer Application registration or
-service, and no COM caller request was issued. UTC timestamp normalization for
-collector/attestation evidence is complete in code/test commit 8d43f9a18;
-direct worker-token collection is in code/test commit 301a88580. Release
-remains RED. The exact procedure is in the repository-root
-RELEASE_GATE_EXECUTION_CHECKLIST.md.
+The .NET 10 rewrite currently reads `hm_dbversion` as required version `5708`,
+does not execute the migration, and leaves `Database.ExecuteSQLScript` and
+transaction COM methods as `E_NOTIMPL`. The migration slice is environment-
+blocked until an approved disposable SQL Server/LocalDB target with Full-Text
+support is available. It must verify DDL, indexes, Full-Text objects,
+`hm_dbversion = 6000`, and injected-failure rollback without production SQL,
+Data, service, registry, or COM changes.
+
+SEC-18 remains RED and independently environment-blocked: the isolated IIS
+worker primary-token proof exists, but trusted COM caller-token evidence,
+non-pool denial, and broker registration are still absent. Do not register
+WebAdminSessionBroker, alter the existing Application identity/DCOM ACLs, or
+change PHP authentication/session behavior.
 
 ## Historical current slice (2026-08-21, production-hosted SMTP/POP3 acceptance after UserInterfaceLanguage parity)
 
