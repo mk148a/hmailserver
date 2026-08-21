@@ -1,7 +1,30 @@
 hMailServer
 ===========
 
-## Current MaxMessageSize authorization-lease slice (2026-08-21)
+## Current RuleLoopLimit authorization-lease slice (2026-08-21)
+
+Code/test commit `52687fe48` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.RuleLoopLimit` (`DispId(48)`).
+Legacy `InterfaceSettings::get/put_RuleLoopLimit` delegates through the
+configuration object to the existing `hm_settings.rulelooplimit` row; the
+legacy key is `PROPERTY_RULELOOPLIMIT` in
+`hmailserver/source/Server/Common/Application/Constants.h:44`, seeded at
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:814`. The COM setter path
+is in `hmailserver/source/Server/COM/InterfaceSettings.cpp`.
+
+Net10 now holds the existing generation-bound authorization lease across
+`UpdateRuleLoopLimitAsync`, fails closed before store access when the lease is
+unavailable, disposes it on success/failure, and publishes the new retained
+snapshot only after a successful fixed-row update. The installed Settings
+IID/vtable/DISPID/class identity, SQL schema, rule runtime, and live
+reconfiguration remain unchanged. Focused tests pass `5`, skip `0`, and fail
+`0`; full Net10 passes `2589`, skips `90`, and fails `0` (`2679` total).
+
+Release remains **RED**. Disposable SQL/Data restore, SEC-18 cutover,
+registered/out-of-process COM, paired C++ performance, and long-soak evidence
+remain open or environment-blocked.
+
+## Historical MaxMessageSize authorization-lease slice (2026-08-21)
 
 Code/test commit `e5a54bb01` closes the retained-object authorization lease gap
 for authenticated `IInterfaceSettings.MaxMessageSize` (`DispId(44)`). Legacy
