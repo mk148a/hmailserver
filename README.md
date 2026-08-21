@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, SMTP delivery bind persistence parity)
+
+Code/test commit `10339d49a` implements the bounded authenticated
+`Settings.SMTPDeliveryBindToIP` setter path. It updates the existing
+`hm_settings.settingstring` row whose name is `smtpdeliverybindtoip`, publishes
+the new value only after a successful one-row store result, preserves the
+authenticated server-administrator boundary, and retains direct activation
+fallback behavior. Focused COM/SQL coverage is `210 passed, 0 skipped, 0
+failed`; disposable LocalDB SQL integration is included; full Net10 Debug
+coverage is `2521 passed, 10 skipped, 0 failed` (`2531` total).
+
+Legacy anchors are `InterfaceSettings::get/put_SMTPDeliveryBindToIP`
+(`source/Server/COM/InterfaceSettings.cpp:1336-1363`) and
+`SMTPConfiguration::Get/SetSMTPDeliveryBindToIP`
+(`source/Server/SMTP/SMTPConfiguration.cpp:126-134`), using
+`PROPERTY_SMTPDELIVERYBINDTOIP` and the existing SQL seed. The installed
+Settings IID/vtable/DISPID shape is unchanged. Outbound socket bind behavior
+and live reconfiguration remain out of scope. Migration/installer,
+registered COM/DCOM, SEC-18, paired C++ performance, and 24-hour soak gates
+remain open. Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, ServiceIMAP persistence parity)
 
 Code/test commit `5ba1ceb68` implements the bounded authenticated

@@ -1,5 +1,32 @@
 
-## Current next slice (2026-08-21, SMTP runtime acceptance after ServiceIMAP parity)
+## Current next slice (2026-08-21, SMTP runtime acceptance after delivery-bind persistence parity)
+
+Code/test commit `10339d49a` closes the authenticated
+`Settings.SMTPDeliveryBindToIP` persistence gap. The setter updates the
+existing `hm_settings.settingstring` value for `smtpdeliverybindtoip` through
+the configured administration store, publishes the snapshot only after a
+one-row success, and retains direct activation and failed-save behavior.
+Focused COM/SQL coverage is `210 passed, 0 skipped, 0 failed`; the disposable
+LocalDB SQL integration passed; full Net10 Debug is `2521 passed, 10 skipped,
+0 failed` (`2531` total).
+
+Legacy anchors are `InterfaceSettings::get/put_SMTPDeliveryBindToIP`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1336-1363`) and
+`SMTPConfiguration::Get/SetSMTPDeliveryBindToIP`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:126-134`), with
+`PROPERTY_SMTPDELIVERYBINDTOIP` and the existing `hm_settings` seed. The
+installed Settings IID/vtable/DISPID shape and authenticated
+server-administrator boundary remain unchanged. Outbound socket binding and
+live reconfiguration are deliberately out of scope.
+
+The next bounded slice is production-hosted SMTP enable/disable/timing
+acceptance against the persisted settings on an isolated production-like
+host. It must prove socket behavior without changing production state. Do not
+add live outbound bind reconfiguration, DKIM, DNS verification, or unrelated
+Admin mutations. Migration/installer, SEC-18, paired C++ performance, and
+soak remain separate gates. Release remains **RED**. No push was performed.
+
+## Historical current slice (2026-08-21, SMTP runtime acceptance after ServiceIMAP parity)
 
 Code/test commit `5ba1ceb68` closes the authenticated `Settings.ServiceIMAP`
 persistence gap. The setter updates the existing `hm_settings.settinginteger`

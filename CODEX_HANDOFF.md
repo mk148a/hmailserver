@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, SMTP delivery bind persistence parity)
+
+Code/test commit `10339d49a` implements authenticated
+`Settings.SMTPDeliveryBindToIP` persistence through
+`SqlServerSettingsAdministrationStore.UpdateSmtpDeliveryBindToIpAsync`.
+It updates only the existing `smtpdeliverybindtoip` row, requires the existing
+authenticated server-administrator boundary, publishes the snapshot after a
+successful one-row update, and keeps direct activation fallback behavior.
+Focused COM/SQL coverage is `210 passed, 0 skipped, 0 failed`; disposable
+LocalDB SQL integration passed; full Net10 Debug is `2521 passed, 10 skipped,
+0 failed` (`2531` total).
+
+Legacy references are `InterfaceSettings::get/put_SMTPDeliveryBindToIP`
+(`source/Server/COM/InterfaceSettings.cpp:1336-1363`) and
+`SMTPConfiguration::Get/SetSMTPDeliveryBindToIP`
+(`source/Server/SMTP/SMTPConfiguration.cpp:126-134`). No installed COM
+identity, direct activation boundary, SMTP trust behavior, or live outbound
+socket was changed. The next slice is production-hosted SMTP
+enable/disable/timing acceptance. Migration/installer, SEC-18, paired C++
+performance, and 24-hour soak remain open; release is `RED`; no push was
+performed.
+
 ## Current Authoritative Continuation (2026-08-21, ServiceIMAP persistence parity)
 
 Code/test commit `5ba1ceb68` implements authenticated `Settings.ServiceIMAP`
