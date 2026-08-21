@@ -143,6 +143,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamWinDbFolderPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamWinDatabase: "old-clamwin-db"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.ClamWinDBFolder = "new-clamwin-db";
+
+        Assert.AreEqual(1, store.AntiVirusClamWinDatabaseUpdateCount);
+        Assert.AreEqual("new-clamwin-db", store.UpdatedAntiVirusClamWinDatabase);
+        Assert.AreEqual("new-clamwin-db", settings.AntiVirus.ClamWinDBFolder);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamWinDbFolderFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamWinDatabase: "old-clamwin-db"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.ClamWinDBFolder = "new-clamwin-db");
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual("old-clamwin-db", settings.AntiVirus.ClamWinDBFolder);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7451,6 +7493,10 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedAntiVirusClamWinExecutable { get; private set; }
 
+        public int AntiVirusClamWinDatabaseUpdateCount { get; private set; }
+
+        public string? UpdatedAntiVirusClamWinDatabase { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -8810,6 +8856,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusClamWinExecutableUpdateCount++;
             UpdatedAntiVirusClamWinExecutable = executable;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusClamWinDatabaseAsync(
+            string database,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusClamWinDatabaseUpdateCount++;
+            UpdatedAntiVirusClamWinDatabase = database;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

@@ -135,6 +135,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
     private readonly Action<bool>? _publishClamWinEnabled;
     private readonly Action<string>? _publishClamWinExecutable;
+    private readonly Action<string>? _publishClamWinDatabase;
 
     public AntiVirus()
     {
@@ -149,7 +150,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         ISettingsAdministrationMutationStore? settingsMutationStore,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
         Action<bool>? publishClamWinEnabled,
-        Action<string>? publishClamWinExecutable)
+        Action<string>? publishClamWinExecutable,
+        Action<string>? publishClamWinDatabase)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
@@ -160,6 +162,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         _authorizationLeaseFactory = authorizationLeaseFactory;
         _publishClamWinEnabled = publishClamWinEnabled;
         _publishClamWinExecutable = publishClamWinExecutable;
+        _publishClamWinDatabase = publishClamWinDatabase;
     }
 
     public bool ClamWinEnabled
@@ -242,7 +245,45 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         }
     }
 
-    public string ClamWinDBFolder { get => Snapshot.ClamWinDatabase; set => Unavailable(); }
+    public string ClamWinDBFolder
+    {
+        get => Snapshot.ClamWinDatabase;
+        set
+        {
+            _ = Snapshot;
+            if (_settingsMutationStore is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            using var authorizationLease = _authorizationLeaseFactory is null
+                ? null
+                : _authorizationLeaseFactory(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                    ?? throw new COMException(
+                        "Anti-virus settings access requires an authenticated server administrator.",
+                        EAccessDenied);
+
+            if (!_settingsMutationStore
+                .UpdateAntiVirusClamWinDatabaseAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The ClamWin database update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_snapshot is not null)
+            {
+                _snapshot = _snapshot with { ClamWinDatabase = value };
+            }
+
+            _publishClamWinDatabase?.Invoke(value);
+        }
+    }
 
     public ComAntivirusAction Action
     {
@@ -374,7 +415,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         ISettingsAdministrationMutationStore? settingsMutationStore = null,
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null,
         Action<bool>? publishClamWinEnabled = null,
-        Action<string>? publishClamWinExecutable = null)
+        Action<string>? publishClamWinExecutable = null,
+        Action<string>? publishClamWinDatabase = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
@@ -386,7 +428,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             settingsMutationStore,
             authorizationLeaseFactory,
             publishClamWinEnabled,
-            publishClamWinExecutable);
+            publishClamWinExecutable,
+            publishClamWinDatabase);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot
