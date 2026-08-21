@@ -1,34 +1,34 @@
 hMailServer
 ===========
 
-## Current raw non-DB-only backup acceptance (2026-08-21)
+## Current disposable host-start gate (2026-08-21)
 
-Code/test commit `35cb6f5b7` adds the isolated SQL/Data acceptance test
-`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling`.
-It proves that `BackupOptions = 2 | 4` with
-`BackupMessagesDbOnly = false` publishes the raw `DataBackup` directory beside
-the archive, preserves nested message files, and records `Format="Raw"`,
-`FolderName="DataBackup"`, and mode `6` in the archive metadata.
+Code/test commit `fae8fcb83` adds
+`HostStart_RefusesLegacy5708DatabaseBeforeReadinessAndLeavesDisposableStateUntouched`.
+Against a disposable LocalDB database and temporary Data root, the test proves
+that a legacy-version `5708` database is rejected before readiness, the
+readiness signal carries the required `6000` error, the database version is
+unchanged, and the Data root is not created.
 
-The legacy reference is `hmailserver/source/Server/Common/Application/BackupExecuter.cpp`:
-`BackupExecuter::StartBackup` selects `BODomains|BOMessages`, calls
-`BackupDataDirectory_` for non-DB-only raw staging, and leaves the sibling
-directory after archive publication; `BackupExecuter::BackupDataDirectory_`
-copies nested message files while omitting root files. The disposable evidence
-is recorded in `artifacts/net10-disposable/net10-disposable-localdb.json`.
+Legacy behavior is in
+`hmailserver/source/Server/Common/Application/Application.cpp`,
+`Application::OnDatabaseConnected` (around lines 180-211): the server rejects
+any database version below or above `Configuration::GetRequiredDBVersion()`.
+Net10 applies the corresponding `6000` gate in
+`hmailserver/source/Server.Net10/src/HMailServer.Service/DatabaseVersionStartupGuard.cs`
+and `ServerBootstrapper.cs`. The raw backup slice remains covered by
+`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling` in
+the backup integration tests.
 
-Focused raw backup acceptance passes `1/1`; the complete backup/restore
-integration group passes `24/24`. Default full Net10 passes `2599`, skips `91`,
-and fails `0` (`2690` total). The opt-in LocalDB run passes `2674`, skips `12`,
-and fails `4`; the four failures are existing LocalDB Full-Text and
-authenticated COM capability mismatches, not this backup test.
+Startup/guard focused tests pass `6/6`; default full Net10 passes `2599`, skips
+`92`, and fails `0` (`2691` total). The opt-in LocalDB run passes `2675`, skips
+`12`, and fails `4`; the four failures remain LocalDB Full-Text and
+authenticated COM capability mismatches.
 
-Release remains **RED**. Open gates include disposable host-start and
-installer rollback, SEC-18 cutover, registered/out-of-process COM, paired C++
-performance, SMTP/delivery thresholds, and 24-hour leak evidence. The next
-independent slice is isolated disposable `6000` SQL/Data host-start
-success/failure and no-side-effect evidence, if the host-start prerequisites
-are available.
+Release remains **RED**. The next independent gate is a Full-Text-capable
+disposable SQL Server `6000` startup success test. Installer rollback,
+SEC-18, registered/out-of-process COM, paired C++ performance, SMTP/delivery
+thresholds, and 24-hour leak evidence remain open or environment-blocked.
 
 ## Historical MaxNumberOfMXHosts authorization-lease slice (2026-08-21)
 

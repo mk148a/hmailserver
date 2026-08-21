@@ -1,28 +1,26 @@
 
-## Current bounded slice: raw non-DB-only backup acceptance (2026-08-21)
+## Current bounded slice: disposable legacy-version host-start refusal (2026-08-21)
 
-Code/test commit `35cb6f5b7` adds
-`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling` in
-`hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/BackupRestoreRoundTripIntegrationTests.cs`.
-The test uses the disposable `(localdb)\MSSQLLocalDB` harness and an isolated
-Data root to prove `BackupOptions = 2 | 4` with
-`BackupMessagesDbOnly = false`: nested message files are copied to the sibling
-`DataBackup` directory, root-file omission remains intact, and archive metadata
-publishes raw mode `6` with `FolderName="DataBackup"`.
+Code/test commit `fae8fcb83` adds
+`HostStart_RefusesLegacy5708DatabaseBeforeReadinessAndLeavesDisposableStateUntouched` in
+`hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/SqlServerDatabaseAdministrationStoreIntegrationTests.cs`.
+The isolated LocalDB/Data test proves that a `5708` database is refused before
+Net10 readiness, reports the required `6000` version, leaves the SQL version
+unchanged, and does not create the configured Data root. The existing raw
+backup acceptance remains complete in `35cb6f5b7`.
 
 Legacy behavior is anchored to
-`hmailserver/source/Server/Common/Application/BackupExecuter.cpp`:
-`BackupExecuter::StartBackup` selects the domain/message branches and invokes
-`BackupDataDirectory_` for raw non-DB-only backups;
-`BackupExecuter::BackupDataDirectory_` copies nested message files, omits root
-files, and the raw path leaves `DataBackup` beside the archive. Focused
-acceptance passes `1/1`; the backup/restore integration group passes `24/24`.
-Default full Net10 passes `2599`, skips `91`, and fails `0` (`2690` total).
+`hmailserver/source/Server/Common/Application/Application.cpp`,
+`Application::OnDatabaseConnected` (around lines 180-211), which rejects any
+version that differs from `Configuration::GetRequiredDBVersion()`. Net10’s
+corresponding symbols are `DatabaseVersionStartupGuard.EnsureCompatibleAsync`
+and `ServerBootstrapper.ExecuteAsync`. Startup/guard focused tests pass `6/6`;
+default full Net10 passes `2599`, skips `92`, and fails `0` (`2691` total).
 
-Next independent slice: isolated disposable `6000` SQL/Data host-start
-success/failure and no-side-effect evidence, subject to host-start prerequisites.
-The LocalDB FTS migration failures and authenticated COM capability mismatches
-remain environment/capability blockers. Release remains **RED**.
+Next independent slice: Full-Text-capable disposable SQL Server `6000`
+startup success and no-side-effect evidence. LocalDB cannot satisfy that
+positive path because Full-Text is unavailable; authenticated COM capability
+mismatches remain separate blockers. Release remains **RED**.
 
 ## Historical bounded slice: MaxNumberOfMXHosts authorization lease (2026-08-21)
 

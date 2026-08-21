@@ -1,30 +1,29 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, raw backup acceptance)
+## Current Authoritative Continuation (2026-08-21, host-start refusal)
 
-Code/test commit `35cb6f5b7` adds the isolated SQL/Data test
-`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling`.
-It proves legacy raw `BackupOptions = 2 | 4` and
-`BackupMessagesDbOnly = false` behavior against `(localdb)\MSSQLLocalDB` and a
-marker-guarded temporary Data root: nested message files appear in the sibling
-`DataBackup` directory, root files are omitted, and archive metadata records
-raw `DataBackup` mode `6`.
+Code/test commit `fae8fcb83` adds
+`HostStart_RefusesLegacy5708DatabaseBeforeReadinessAndLeavesDisposableStateUntouched`.
+The test uses the disposable `(localdb)\MSSQLLocalDB` target with a temporary
+Data root and proves that a legacy `5708` database is refused before Net10
+readiness, the readiness error names required version `6000`, the SQL version
+remains `5708`, and no Data root is created.
 
 The C++ reference is
-`hmailserver/source/Server/Common/Application/BackupExecuter.cpp`, symbols
-`BackupExecuter::StartBackup` and `BackupExecuter::BackupDataDirectory_`.
-Focused acceptance passes `1/1`; backup/restore integration passes `24/24`;
-default full Net10 passes `2599`, skips `91`, and fails `0` (`2690` total).
-The opt-in LocalDB full run is `2674 passed, 12 skipped, 4 failed`; those four
-are the pre-existing LocalDB Full-Text and authenticated COM capability
+`hmailserver/source/Server/Common/Application/Application.cpp`,
+`Application::OnDatabaseConnected` around lines 180-211. Net10’s corresponding
+symbols are `DatabaseVersionStartupGuard.EnsureCompatibleAsync` and
+`ServerBootstrapper.ExecuteAsync`. Startup/guard focused tests pass `6/6`;
+default full Net10 passes `2599`, skips `92`, and fails `0` (`2691` total).
+The opt-in LocalDB full run is `2675 passed, 12 skipped, 4 failed`; the four
+failures remain the known LocalDB Full-Text and authenticated COM capability
 failures. No production service, SQL database, Data directory, COM identity,
 registry, DCOM ACL, IIS site, or firewall state changed.
 
-Next slice: isolated disposable `6000` SQL/Data host-start success/failure and
-no-side-effect evidence when host-start prerequisites are available. Release
-remains RED; SEC-18, registered/out-of-process COM, paired C++ performance,
-SMTP/delivery thresholds, installer rollback, and long-soak evidence remain
-open or environment-blocked.
+Next slice: Full-Text-capable disposable SQL Server `6000` startup success and
+no-side-effect evidence. Release remains RED; SEC-18, registered/out-of-process
+COM, paired C++ performance, SMTP/delivery thresholds, installer rollback, and
+long-soak evidence remain open or environment-blocked.
 
 ## Historical Authoritative Continuation (2026-08-21, MaxNumberOfMXHosts lease)
 
