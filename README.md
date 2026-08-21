@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current BackupSettings option-flag persistence slice (2026-08-21)
+
+Code/test commit `428281bcc` completes the bounded authenticated
+`IInterfaceBackupSettings.BackupSettings` setter. Legacy
+`InterfaceBackupSettings::put_BackupSettings` at
+`hmailserver/source/Server/COM/InterfaceBackupSettings.cpp:103-118` delegates
+to `Configuration::SetBackupOption` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:450-474`;
+`HM::Backup::BOSettings` is bit `1` in
+`hmailserver/source/Server/Common/Application/Backup.h:14`. Net10 preserves
+the installed `IInterfaceBackupSettings` IID
+`2C5559F0-DF3F-43C0-935C-F79D41CF8A5B`, BackupSettings DISPID `2`, VARIANT_BOOL
+marshalling, CLSID, ProgID, vtable order, authenticated owning Settings
+boundary, and direct-activation denial.
+
+The SQL Server store now atomically clears or sets only bit `1` in the current
+`hm_settings.backupoptions` row with parameterized mask/value parameters. It
+preserves bits `2`, `4`, `8`, and unrelated bits without stale-snapshot
+lost-update behavior. The authorization lease covers the store call, and
+child/parent snapshots publish only after an exact-one-row success. Focused
+BackupSettings/Settings/SQL tests pass `267/267`; full Net10 passes `2554`,
+skips `90`, and fails `0` (`2644` total). The release gate remains **RED**:
+the other backup option setters and backup execution, disposable SQL/Data
+host-start/restore, rollback, SEC-18, registered/out-of-process COM, paired
+C++ performance, and long soak evidence remain open.
+
 ## Current BackupSettings destination persistence slice (2026-08-21)
 
 Code/test commit `8505d7aef` completes the bounded authenticated
