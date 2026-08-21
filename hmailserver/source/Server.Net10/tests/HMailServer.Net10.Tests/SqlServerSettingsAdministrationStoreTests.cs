@@ -927,6 +927,16 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateAutoBanOnLogonFailureSql_UsesTheExactParameterizedFixedRowShape()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateAutoBanOnLogonFailureSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @AutoBanOnLogonFailure");
+        StringAssert.Contains(sql, "WHERE settingname = N'AutoBanOnLogonFailureEnabled'");
+    }
+
+    [TestMethod]
     public void GetSettingsSql_RemainsReadOnlyAndExcludesSecrets()
     {
         var sql = SqlServerSettingsAdministrationStore.GetSettingsSql;

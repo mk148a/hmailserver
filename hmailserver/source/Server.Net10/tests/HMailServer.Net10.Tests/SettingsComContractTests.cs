@@ -740,9 +740,6 @@ public sealed class SettingsComContractTests
             Assert.ThrowsExactly<COMException>(() => settings.VerifyRemoteSslCertificate = false).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.AutoBanOnLogonFailure = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.MaxInvalidLogonAttempts = 4).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
@@ -3796,6 +3793,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AutoBanOnLogonFailureSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AutoBanOnLogonFailureUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AutoBanOnLogonFailure: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.AutoBanOnLogonFailure = true;
+
+        Assert.AreEqual(1, store.AutoBanOnLogonFailureUpdateCount);
+        Assert.IsTrue(store.UpdatedAutoBanOnLogonFailure);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.AutoBanOnLogonFailure);
+
+        store.AutoBanOnLogonFailureUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.AutoBanOnLogonFailure = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.AutoBanOnLogonFailureUpdateCount);
+        Assert.IsTrue(settings.AutoBanOnLogonFailure);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.AutoBanOnLogonFailure = false);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.AutoBanOnLogonFailureUpdateCount);
+        Assert.IsTrue(settings.AutoBanOnLogonFailure);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamSpfSettersPersistAndRefreshRetainedSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6273,6 +6312,12 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedSslCipherList { get; private set; }
 
+        public bool AutoBanOnLogonFailureUpdateResult { get; set; }
+
+        public int AutoBanOnLogonFailureUpdateCount { get; private set; }
+
+        public bool UpdatedAutoBanOnLogonFailure { get; private set; }
+
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
@@ -7060,6 +7105,16 @@ public sealed class SettingsComContractTests
             UpdatedSslCipherList = sslCipherList;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(SslCipherListUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAutoBanOnLogonFailureAsync(
+            bool autoBanOnLogonFailure,
+            CancellationToken cancellationToken)
+        {
+            AutoBanOnLogonFailureUpdateCount++;
+            UpdatedAutoBanOnLogonFailure = autoBanOnLogonFailure;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AutoBanOnLogonFailureUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(

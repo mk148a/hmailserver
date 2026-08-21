@@ -194,6 +194,10 @@ public interface ISettingsAdministrationMutationStore
         string sslCipherList,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAutoBanOnLogonFailureAsync(
+        bool autoBanOnLogonFailure,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

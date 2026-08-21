@@ -2885,7 +2885,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.AutoBanOnLogonFailure
                 : _administrationSnapshot.AutoBanOnLogonFailure;
         }
-        set => base.AutoBanOnLogonFailure = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.AutoBanOnLogonFailure = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateAutoBanOnLogonFailureAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The automatic logon-failure ban update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    AutoBanOnLogonFailure = value
+                };
+            }
+        }
     }
 
     public override int MaxInvalidLogonAttempts

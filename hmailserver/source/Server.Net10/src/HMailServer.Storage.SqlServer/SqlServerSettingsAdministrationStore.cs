@@ -321,6 +321,12 @@ SET settingstring = @SslCipherList
 WHERE settingname = N'SslCipherList';
 """;
 
+    public const string UpdateAutoBanOnLogonFailureSql = """
+UPDATE hm_settings
+SET settinginteger = @AutoBanOnLogonFailure
+WHERE settingname = N'AutoBanOnLogonFailureEnabled';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1111,6 +1117,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateSslCipherListSql, connection);
         command.Parameters.Add("@SslCipherList", SqlDbType.NVarChar, -1).Value = sslCipherList;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAutoBanOnLogonFailureAsync(
+        bool autoBanOnLogonFailure,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAutoBanOnLogonFailureSql, connection);
+        command.Parameters.Add("@AutoBanOnLogonFailure", SqlDbType.Int).Value = autoBanOnLogonFailure ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
