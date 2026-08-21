@@ -1367,6 +1367,42 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_RewriteEnvelopeFromWhenForwardingWritesIniAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var rewriteEnvelope = true;
+        var writeCount = 0;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                RewriteEnvelopeFromWhenForwarding: rewriteEnvelope,
+                RewriteEnvelopeFromWhenForwardingWriter: value =>
+                {
+                    writeCount++;
+                    rewriteEnvelope = value;
+                }),
+            isServerAdministrator: () => isServerAdministrator);
+
+        settings.RewriteEnvelopeFromWhenForwarding = false;
+
+        Assert.AreEqual(1, writeCount);
+        Assert.IsFalse(rewriteEnvelope);
+        Assert.IsFalse(settings.RewriteEnvelopeFromWhenForwarding);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.RewriteEnvelopeFromWhenForwarding = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, writeCount);
+        Assert.IsFalse(settings.RewriteEnvelopeFromWhenForwarding);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_ImapHierarchyDelimiterSetterPersistsBeforePublishingAndRetainsRejectedState()
     {
         var isServerAdministrator = true;

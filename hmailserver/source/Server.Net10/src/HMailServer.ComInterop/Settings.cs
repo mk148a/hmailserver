@@ -434,6 +434,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
     private const int TlsOptionPrioritizeChaChaFlag = 4;
     private readonly bool _authorized;
     private string _userInterfaceLanguage = "English";
+    private bool _rewriteEnvelopeFromWhenForwarding;
     private SettingsAdministrationSnapshot? _administrationSnapshot;
     private readonly SettingsRuntimeConfiguration _runtimeConfiguration = new();
     private readonly Func<bool>? _isServerAdministrator;
@@ -456,6 +457,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         _administrationSnapshot = administrationSnapshot;
         _runtimeConfiguration = runtimeConfiguration ?? new SettingsRuntimeConfiguration();
         _userInterfaceLanguage = _runtimeConfiguration.UserInterfaceLanguage;
+        _rewriteEnvelopeFromWhenForwarding = _runtimeConfiguration.RewriteEnvelopeFromWhenForwarding;
         _isServerAdministrator = isServerAdministrator;
         _settingsMutationStore = settingsMutationStore;
         _authorizationLeaseFactory = authorizationLeaseFactory;
@@ -489,9 +491,21 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return _runtimeConfiguration.RewriteEnvelopeFromWhenForwarding;
+            return _rewriteEnvelopeFromWhenForwarding;
         }
-        set => base.RewriteEnvelopeFromWhenForwarding = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+            if (_runtimeConfiguration.RewriteEnvelopeFromWhenForwardingWriter is null)
+            {
+                base.RewriteEnvelopeFromWhenForwarding = value;
+                return;
+            }
+
+            _runtimeConfiguration.RewriteEnvelopeFromWhenForwardingWriter(value);
+            _rewriteEnvelopeFromWhenForwarding = value;
+        }
     }
 
     public override int CrashSimulationMode
@@ -3354,7 +3368,8 @@ public sealed record SettingsRuntimeConfiguration(
     Action<int>? GreyListingInitialDeletePublisher = null,
     Action<int>? GreyListingFinalDeletePublisher = null,
     ISpamAssassinConnectionTestRuntime? SpamAssassinConnectionTestRuntime = null,
-    ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null);
+    ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null,
+    Action<bool>? RewriteEnvelopeFromWhenForwardingWriter = null);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost

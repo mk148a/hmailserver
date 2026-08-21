@@ -88,7 +88,18 @@ public static class LegacyInitializationFile
         return int.TryParse(
                 configuration["Settings:RewriteEnvelopeFromWhenForwarding"],
                 out var value)
-            && value == 1;
+                && value == 1;
+    }
+
+    public static void SaveRewriteEnvelopeFromWhenForwarding(string path, bool value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        _ = WritePrivateProfileString(
+            "Settings",
+            "RewriteEnvelopeFromWhenForwarding",
+            value ? "1" : "0",
+            Path.GetFullPath(path));
     }
 
     public static bool LoadBackupMessagesDbOnly(string path)

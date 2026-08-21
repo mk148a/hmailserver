@@ -139,6 +139,25 @@ public sealed class LegacyInitializationFileTests
     }
 
     [TestMethod]
+    public void SaveRewriteEnvelopeFromWhenForwarding_WritesLegacyIntegerValues()
+    {
+        var path = CreateTemporaryInitializationFile("[Settings]\nRewriteEnvelopeFromWhenForwarding=1\n");
+
+        try
+        {
+            LegacyInitializationFile.SaveRewriteEnvelopeFromWhenForwarding(path, false);
+            Assert.IsFalse(LegacyInitializationFile.LoadRewriteEnvelopeFromWhenForwarding(path));
+
+            LegacyInitializationFile.SaveRewriteEnvelopeFromWhenForwarding(path, true);
+            Assert.IsTrue(LegacyInitializationFile.LoadRewriteEnvelopeFromWhenForwarding(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public void LoadBackupMessagesDbOnly_EnablesOnlyLegacyIntegerOne()
     {
         var enabledPath = CreateTemporaryInitializationFile(

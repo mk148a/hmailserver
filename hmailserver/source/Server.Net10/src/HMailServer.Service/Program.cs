@@ -108,6 +108,8 @@ SettingsAdministrationRuntimeHost.Configure(
         UserInterfaceLanguageWriter: value =>
             LegacyInitializationFile.SaveUserInterfaceLanguage(initializationFile, value),
         RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding,
+        RewriteEnvelopeFromWhenForwardingWriter: value =>
+            LegacyInitializationFile.SaveRewriteEnvelopeFromWhenForwarding(initializationFile, value),
         LoggingDirectory: directoryAdministrationSnapshot.LogDirectory,
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,
         ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),
