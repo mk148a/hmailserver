@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current FetchAccount password getter slice (2026-08-21)
+
+Code/test commit `5b91bbe90` completes the bounded retained
+`IInterfaceFetchAccount.Password` getter path. Legacy
+`InterfaceFetchAccount::get_Password` at
+`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp:239` returns the
+attached object's decrypted value; `PersistentFetchAccount::ReadObject` at
+`hmailserver/source/Server/Common/Persistence/PersistentFetchAccount.cpp:86`
+decrypts `hm_fetchaccounts.fapassword` using the legacy Blowfish cipher. The
+installed contract remains IID `752C1F5E-74DD-424F-AB60-07D9ABB5B7A4`, CLSID
+`6F5E2977-2F51-40B0-847B-DD44C9ACC5A5`, ProgID `hMailServer.FetchAccount.1`,
+and Password DISPID `7`.
+
+Net10 now performs a parameterized `faid` plus `faaccountid` read through the
+existing administration store, decrypts the value without exposing
+ciphertext, and holds the existing generation-bound authorization lease for
+the read. Direct activation remains denied; setters, external-fetch workers,
+protocol behavior, schema, and COM identity are unchanged. Focused
+FetchAccount/store coverage passes `48`, skips `3` SQL integration tests, and
+fails `0`; full Net10 passes `2579`, skips `90`, and fails `0` (`2669` total).
+
+The SQL integration connection and isolated-create opt-in are absent, so live
+encrypted readback, malformed-ciphertext, missing-row, and disposable owner
+scope evidence remain unproven. The next production gate is approved
+disposable SQL/Data acceptance. Release remains **RED**.
+
 ## Current backup archive publication slice (2026-08-21)
 
 Code/test commit `0bee6aa75` closes the bounded partial-archive publication

@@ -1,5 +1,30 @@
 
-## Current bounded slice: backup archive publication cleanup (2026-08-21)
+## Current bounded slice: FetchAccount password getter parity (2026-08-21)
+
+Code/test commit `5b91bbe90` completes the bounded retained
+`IInterfaceFetchAccount.Password` getter path. Legacy
+`InterfaceFetchAccount::get_Password` at
+`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp:239` returns the
+attached decrypted object value, and `PersistentFetchAccount::ReadObject` at
+`hmailserver/source/Server/Common/Persistence/PersistentFetchAccount.cpp:86`
+decrypts `hm_fetchaccounts.fapassword` with legacy Blowfish.
+
+Net10 preserves IID `752C1F5E-74DD-424F-AB60-07D9ABB5B7A4`, CLSID
+`6F5E2977-2F51-40B0-847B-DD44C9ACC5A5`, ProgID `hMailServer.FetchAccount.1`,
+and DISPID `7`. The retained getter uses a parameterized owner-scoped
+`faid`/`faaccountid` read, decrypts the value, and holds the existing
+generation-bound authorization lease during the read. Direct activation,
+setters, external-fetch workers, protocol behavior, schema, and installed COM
+identity are unchanged. Focused coverage passes `48`, skips `3` SQL
+integration tests, and fails `0`; full Net10 passes `2579`, skips `90`, and
+fails `0` (`2669` total).
+
+Live SQL encrypted readback, malformed-ciphertext, missing-row, and disposable
+owner-scope evidence remain blocked by the absent approved SQL connection and
+isolated-create opt-in. Next gate: approved disposable SQL/Data acceptance.
+Release remains **RED**.
+
+## Historical bounded slice: backup archive publication cleanup (2026-08-21)
 
 Code/test commit `0bee6aa75` closes the bounded partial-archive publication
 gap. Legacy `BackupExecuter::StartBackup` at

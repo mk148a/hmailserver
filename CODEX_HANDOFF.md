@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, FetchAccount password getter)
+
+Code/test commit `5b91bbe90` completes retained
+`IInterfaceFetchAccount.Password` getter parity. Legacy
+`InterfaceFetchAccount::get_Password` at
+`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp:239` returns the
+attached decrypted value; `PersistentFetchAccount::ReadObject` at
+`hmailserver/source/Server/Common/Persistence/PersistentFetchAccount.cpp:86`
+decrypts `hm_fetchaccounts.fapassword` with legacy Blowfish.
+
+Net10 performs a parameterized `faid` and `faaccountid` read through the
+existing store, decrypts without returning ciphertext, and holds the existing
+generation-bound authorization lease during the read. IID/CLSID/ProgID/DISPID
+(`752C1F5E-74DD-424F-AB60-07D9ABB5B7A4`, `6F5E2977-2F51-40B0-847B-DD44C9ACC5A5`,
+`hMailServer.FetchAccount.1`, `7`) remain unchanged. Focused coverage is
+`48 passed, 3 skipped, 0 failed`; full Net10 is `2579 passed, 90 skipped,
+0 failed` (`2669` total).
+
+Next gate: approved disposable SQL/Data acceptance. The integration connection
+and isolated-create opt-in are absent, so live encrypted readback,
+malformed-ciphertext, missing-row, and disposable owner-scope evidence remain
+unproven. Release remains RED; no production SQL/Data, service, registry,
+DCOM, IIS, or COM registration was changed.
+
 ## Current Authoritative Continuation (2026-08-21, backup archive publication)
 
 Code/test commit `0bee6aa75` closes the bounded partial-archive publication
