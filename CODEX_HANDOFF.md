@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, ServicePOP3 persistence parity)
+
+Code/test commit `2698fd964` implements authenticated `Settings.ServicePOP3`
+persistence through `SqlServerSettingsAdministrationStore.UpdateServicePop3Async`.
+It updates only the existing `protocolpop3` row, requires the existing
+authenticated server-administrator boundary, publishes the snapshot after a
+successful one-row update, and keeps direct activation fallback behavior.
+Focused COM/SQL coverage is `206 passed, 0 skipped, 0 failed`; disposable
+LocalDB SQL integration passed; full Net10 Debug is `2515 passed, 10 skipped,
+0 failed` (`2525` total).
+
+Legacy references are `InterfaceSettings::get/put_ServicePOP3`
+(`source/Server/COM/InterfaceSettings.cpp:821-860`) and
+`Configuration::GetUsePOP3/SetUsePOP3`
+(`source/Server/Common/Application/Configuration.cpp:187-195`). No installed
+COM identity, direct activation boundary, SMTP trust behavior, or live POP3
+listener was changed. The next slice is ServiceIMAP persistence parity.
+Migration/installer, registered COM/DCOM, SEC-18, paired C++ performance, and
+24-hour soak remain open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, ServiceSMTP persistence parity)
 
 Code/test commit `43d4b9abf` implements authenticated `Settings.ServiceSMTP`

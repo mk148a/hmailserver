@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, ServicePOP3 persistence parity)
+
+Code/test commit `2698fd964` implements the bounded authenticated
+`Settings.ServicePOP3` setter path. It updates the existing
+`hm_settings.settinginteger` row whose name is `protocolpop3`, publishes the
+new value only after a successful one-row store result, preserves the
+authenticated server-administrator boundary, and retains direct activation
+fallback behavior. Focused COM/SQL coverage is `206 passed, 0 skipped, 0
+failed`; disposable LocalDB SQL integration is included; full Net10 Debug
+coverage is `2515 passed, 10 skipped, 0 failed` (`2525` total).
+
+Legacy anchors are `InterfaceSettings::get/put_ServicePOP3`
+(`source/Server/COM/InterfaceSettings.cpp:821-860`) and
+`Configuration::GetUsePOP3/SetUsePOP3`
+(`source/Server/Common/Application/Configuration.cpp:187-195`). The .NET
+slice preserves the installed Settings IID/vtable/DISPID shape and writes
+only the existing settings row through
+`SqlServerSettingsAdministrationStore.UpdateServicePop3Async`. Live POP3
+listener reconfiguration and socket timing acceptance are intentionally out
+of scope. Migration/installer, registered COM/DCOM, SEC-18, paired C++
+performance, and 24-hour soak gates remain open. Release remains **RED**; no
+push was performed.
+
 ## Current authoritative parity status (2026-08-21, ServiceSMTP persistence parity)
 
 Code/test commit `43d4b9abf` implements the bounded authenticated
