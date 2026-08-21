@@ -82,9 +82,30 @@ SQL upgrade test; the full suite is `2484 passed, 88 skipped, 0 failed`
 the FTS boundary is non-atomic and production installer/service wiring is not
 yet proven.
 
-The next bounded slice is installer/service rollback refusal and artifact
-handoff around this runner, without touching production service, SQL, Data,
-registry, or COM state.
+The installer/service rollback-refusal and artifact-handoff item described in
+this migration history remains open; it is not the current slice. The current
+startup/readiness gate is recorded below.
+
+## Current runtime startup gate (2026-08-21)
+
+Code/test commit `0edebbfed` adds `DatabaseVersionStartupGuard` for the fast-mode
+runtime schema. It refuses disconnected, unreadable, or non-`6000` databases
+before bootstrap completion. Enabled IMAP, POP3, and SMTP listeners plus backup,
+search-backfill, delivery, status-maintenance, and external-fetch workers await
+bootstrap before binding or performing database work. The existing COM local
+server still waits for final readiness.
+
+The legacy COM `Database.RequiredVersion` value remains `5708`; `6000` is a
+separate .NET 10 fast-mode runtime target so installed COM identity and behavior
+are not silently changed. Legacy references are
+`source/Server/Common/Application/Application.cpp:180-214`,
+`source/Server/Common/Application/Constants.h:139`, and
+`source/Server/Common/SQL/DatabaseConnectionManager.cpp:217-226`.
+
+Focused startup/readiness tests pass `32/32`; the full Net10 Debug suite passes
+`2489`, skips `88`, and fails `0` (`2577` total). This does not prove a real
+service start against disposable SQL/Data, installer rollback, paired C++
+performance, SEC-18, or soak acceptance. Release remains **RED**.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 

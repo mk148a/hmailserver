@@ -1,5 +1,40 @@
 
-## Current migration status (2026-08-21, disposable 5708-to-6000 evidence)
+## Current migration and startup status (2026-08-21, runtime readiness gate)
+
+Code/test commit `0edebbfed` adds the first production startup boundary for the
+fast-mode schema. `DatabaseVersionStartupGuard` refuses disconnected, unreadable,
+legacy `5708`, pre-runtime, or otherwise non-`6000` databases before bootstrap
+completion. Enabled IMAP, POP3, and SMTP listeners now await bootstrap before
+binding, and backup, search-backfill, delivery, status-maintenance, and external
+fetch workers await the same gate before their first database operation. The
+existing COM local server continues to wait for final readiness.
+
+The installed/legacy COM `Database.RequiredVersion` contract remains `5708` in
+`SqlServerDatabaseAdministrationStore`; the new `6000` target is intentionally a
+separate .NET 10 fast-mode runtime schema contract. This avoids changing the
+installed IID/vtable/DISPID behavior while preventing the fast-mode host from
+starting against the pre-migration schema.
+
+Legacy anchors are `Application::OnDatabaseConnected`
+(`hmailserver/source/Server/Common/Application/Application.cpp:180-214`),
+`Configuration::GetRequiredDBVersion`
+(`hmailserver/source/Server/Common/Application/Constants.h:139`), and
+`DatabaseConnectionManager::GetCurrentDatabaseVersion`
+(`hmailserver/source/Server/Common/SQL/DatabaseConnectionManager.cpp:217-226`).
+The legacy installer still has no transactional installer/service rollback;
+that remains a separate release blocker.
+
+Focused startup/readiness coverage is `32/32`; full Net10 Debug is
+`2489 passed, 88 skipped, 0 failed` (`2577` total). No production service,
+database, Data directory, COM registration, DCOM ACL, IIS, or firewall state
+was changed.
+
+The next bounded slice is an isolated disposable `6000` SQL/Data host-start
+acceptance proving success/failure readiness and zero listener/worker side
+effects, followed by installer/service rollback refusal and artifact handoff.
+Paired C++ performance remains RED.
+
+## Historical migration status (2026-08-21, disposable 5708-to-6000 evidence)
 
 Parity review confirms the smallest independent Milestone C slice is the real
 legacy `5708 -> 6000` SQL migration against a uniquely named disposable
@@ -39,9 +74,9 @@ altered artifacts, invokes reinitialize only after successful migration, and
 reports migration/reinitialize/refusal outcomes. It is not wired into the
 production installer or service cutover, so release acceptance remains open.
 
-The next bounded slice is installer/service rollback refusal and artifact
-handoff around this runner without touching production SQL, Data, service,
-registry, or COM state. Legacy anchors remain
+The next bounded slice in this historical entry was installer/service rollback
+refusal and artifact handoff around this runner without touching production SQL,
+Data, service, registry, or COM state. Legacy anchors remain
 `hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`,
 `hmailserver/source/Server/COM/InterfaceDatabase.cpp:403-424,687-717`, and
 `hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql:1-110`.

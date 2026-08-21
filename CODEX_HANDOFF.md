@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, runtime startup/readiness gate)
+
+Parity review traced legacy `Application::OnDatabaseConnected`
+(`hmailserver/source/Server/Common/Application/Application.cpp:180-214`),
+`Configuration::GetRequiredDBVersion`
+(`hmailserver/source/Server/Common/Application/Constants.h:139`), and
+`DatabaseConnectionManager::GetCurrentDatabaseVersion`
+(`hmailserver/source/Server/Common/SQL/DatabaseConnectionManager.cpp:217-226`).
+Legacy refuses unavailable, zero, older, and newer database versions before
+protocol startup.
+
+Code/test commit `0edebbfed` adds the .NET 10 fast-mode
+`DatabaseVersionStartupGuard`, targeting runtime schema `6000` while preserving
+the installed COM `Database.RequiredVersion=5708` contract. IMAP/POP3/SMTP
+listeners now wait for bootstrap before binding; backup, search-backfill,
+delivery, status-maintenance, and external-fetch workers wait before their first
+database operation. The existing COM local server final-readiness wait is
+unchanged. Focused startup/readiness coverage is `32/32`; full Net10 Debug is
+`2489 passed, 88 skipped, 0 failed` (`2577` total).
+
+This is not a production release claim: no real disposable 6000 SQL/Data host
+start has been run, and installer/service rollback, paired C++ performance,
+SEC-18, registered COM/DCOM, AD, and soak gates remain RED. The next slice is
+isolated disposable 6000 SQL/Data host-start success/failure evidence with zero
+listener/worker side effects. Older Current Next Slice entries below are
+historical/superseded.
+
 ## Current Authoritative Continuation (2026-08-21, migration evidence and blocker)
 
 Parity review identified the next independent slice as the disposable legacy
