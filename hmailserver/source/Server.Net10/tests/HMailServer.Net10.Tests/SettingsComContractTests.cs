@@ -3837,6 +3837,77 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxDeliveryThreadsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxDeliveryThreadsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxDeliveryThreads: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxDeliveryThreads = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.MaxDeliveryThreadsUpdateCount);
+        Assert.AreEqual(10, settings.MaxDeliveryThreads);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxDeliveryThreadsSetterAcquiresLeaseThroughStoreUpdateAndDisposesOnSuccessAndFailure()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var leases = new List<TrackingAuthorizationLease>();
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxDeliveryThreadsUpdateResult = true,
+            MaxDeliveryThreadsMutationProbe = () => activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxDeliveryThreads: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                leases.Add(activeLease);
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.MaxDeliveryThreads = 25;
+
+        Assert.AreEqual(1, store.MaxDeliveryThreadsUpdateCount);
+        Assert.IsTrue(store.MaxDeliveryThreadsLeaseHeldDuringUpdate);
+        Assert.IsTrue(leases[0].Disposed);
+        Assert.AreEqual(25, settings.MaxDeliveryThreads);
+
+        store.MaxDeliveryThreadsUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxDeliveryThreads = 30);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(2, store.MaxDeliveryThreadsUpdateCount);
+        Assert.IsTrue(store.MaxDeliveryThreadsLeaseHeldDuringUpdate);
+        Assert.IsTrue(leases[1].Disposed);
+        Assert.AreEqual(25, settings.MaxDeliveryThreads);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxAsynchronousThreadsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7021,6 +7092,10 @@ public sealed class SettingsComContractTests
 
         public bool MaxDeliveryThreadsUpdateResult { get; set; }
 
+        public Func<bool>? MaxDeliveryThreadsMutationProbe { get; set; }
+
+        public bool MaxDeliveryThreadsLeaseHeldDuringUpdate { get; private set; }
+
         public int MaxDeliveryThreadsUpdateCount { get; private set; }
 
         public int UpdatedMaxDeliveryThreads { get; private set; }
@@ -7775,6 +7850,7 @@ public sealed class SettingsComContractTests
             MaxDeliveryThreadsUpdateCount++;
             UpdatedMaxDeliveryThreads = maxDeliveryThreads;
             CancellationToken = cancellationToken;
+            MaxDeliveryThreadsLeaseHeldDuringUpdate = MaxDeliveryThreadsMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(MaxDeliveryThreadsUpdateResult);
         }
 
