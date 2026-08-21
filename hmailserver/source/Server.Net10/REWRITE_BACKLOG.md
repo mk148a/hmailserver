@@ -1,4 +1,40 @@
 
+## Current bounded slice: authenticated backup worker archive path (2026-08-22)
+
+Code/test commit `2d1139665` adds focused evidence that the authenticated
+production-shaped path reaches the hosted backup worker and real 7-Zip archive
+runtime. `BackupManager::StartBackup` is exercised through
+`Application.Authenticate`, `Application.BackupManager`,
+`BackupOperationRuntime`, `BackupTaskHostedService`, and
+`SevenZipBackupArchiveRuntime.CreateAsync`.
+
+The legacy reference remains `InterfaceBackupManager::StartBackup` in
+`hmailserver/source/Server/COM/InterfaceBackupManager.cpp:26-69`, which
+delegates to `HM::BackupManager::StartBackup`, queues `BackupTask`, and reaches
+`BackupExecuter::StartBackup` in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-217`.
+The .NET production composition is
+`hmailserver/source/Server.Net10/src/HMailServer.Service/Program.cs:41-84`;
+the dispatch and archive runtime are
+`BackupOperationRuntime.cs:91-174` and `BackupArchiveRuntime.cs:52-185`.
+
+Focused authenticated dispatch tests pass `2`, skip `0`, and fail `0`; related
+backup manager/queue/failure tests pass `37`, skip `4`, and fail `0`. Default
+full Net10 passes `2601`, skips `92`, and fails `0` (`2693` total). This slice
+changes tests only; no production behavior, COM identity, SQL schema, service,
+registry, DCOM, IIS, or production state changed.
+
+The static `BackupManager.ExecuteBackupAsync` fallback remains incomplete when
+called without the configured production runtime host; the tested service
+composition bypasses it through the configured operation runtime. Real SQL/Data
+backup acceptance, recursive handle-relative DataBackup traversal, Full-Text
+SQL Server `6000`, registered/out-of-process COM, SEC-18, installer rollback,
+paired C++ performance, SMTP/delivery thresholds, and long-soak evidence remain
+open or environment-blocked. Release remains **RED**.
+
+Next independent slice: harden recursive DataBackup source/target traversal
+with pinned handles, then rerun native restore acceptance.
+
 ## Current bounded slice: handle-relative restore rename (2026-08-22)
 
 Code/test commit `e4dfc879c` updates

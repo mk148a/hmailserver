@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authenticated backup worker path (2026-08-22)
+
+Code/test commit `2d1139665` proves the authenticated production-shaped
+`Application -> BackupManager.StartBackup -> BackupTaskHostedService` path
+reaches `SevenZipBackupArchiveRuntime` and creates a non-empty isolated local
+7-Zip archive. Legacy anchors are
+`InterfaceBackupManager::StartBackup` in
+`hmailserver/source/Server/COM/InterfaceBackupManager.cpp:26-69` and
+`BackupExecuter::StartBackup` in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-217`.
+The .NET composition is in
+`hmailserver/source/Server.Net10/src/HMailServer.Service/Program.cs:41-84`.
+
+Focused authenticated dispatch coverage is `2 passed, 0 skipped, 0 failed`;
+related backup tests are `37 passed, 4 skipped, 0 failed`; default full Net10
+is `2601 passed, 92 skipped, 0 failed` (`2693` total). This is test-only
+evidence and does not establish real SQL/Data acceptance, C++ performance
+parity, or release readiness. Release remains **RED**. The next slice is
+recursive DataBackup source/target traversal with pinned handles.
+
 ## Current restore containment gate (2026-08-22)
 
 Code/test commit `e4dfc879c` pins the restore source and destination-parent

@@ -1,6 +1,35 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, restore rename containment)
+## Current Authoritative Continuation (2026-08-22, authenticated backup worker path)
+
+Code/test commit `2d1139665` adds focused evidence for the authenticated
+production-shaped backup path. The test authenticates `Application`, obtains
+the existing `BackupManager` child, calls `StartBackup`, and verifies that the
+request is consumed by `BackupTaskHostedService` and produces a non-empty local
+7-Zip archive through `SevenZipBackupArchiveRuntime`.
+
+Legacy anchors are `InterfaceBackupManager::StartBackup` in
+`hmailserver/source/Server/COM/InterfaceBackupManager.cpp:26-69`,
+`HM::BackupManager::StartBackup`, and `BackupExecuter::StartBackup` in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-217`.
+The .NET service composition is
+`hmailserver/source/Server.Net10/src/HMailServer.Service/Program.cs:41-84`,
+with dispatch in `BackupOperationRuntime.cs:91-174` and archive creation in
+`BackupArchiveRuntime.cs:52-185`.
+
+Focused authenticated dispatch tests pass `2/2`; related backup manager,
+queue, and failure tests pass `37`, skip `4`, and fail `0`. Default full Net10
+passes `2601`, skips `92`, and fails `0` (`2693` total). No production code or
+machine state changed. Release remains RED because recursive DataBackup
+handle-relative traversal, disposable Full-Text SQL Server `6000`, registered
+COM, SEC-18, installer rollback, paired C++ performance, protocol thresholds,
+and long-soak evidence remain open or environment-blocked.
+
+Next slice: harden recursive DataBackup source/target traversal with pinned
+handles and rerun native restore acceptance. Do not stage pre-existing
+`artifacts/` evidence or dirty `AGENTS.md`.
+
+## Historical Authoritative Continuation (2026-08-22, restore rename containment)
 
 Code/test commit `e4dfc879c` pins the restore source and destination-parent
 directories with native handles before `WindowsBackupRestoreDataDirectoryMutation.MoveDirectory`
@@ -7079,3 +7108,32 @@ ownership, (2) approved disposable DNS/socket/TLS acceptance, and (3)
 registry-isolated or separate-VM C++ listener/benchmark execution. Preserve
 dirty `AGENTS.md`, backup/Smtp WIP, and untracked SEC-18/benchmark/disposable
 artifacts.
+# Current Authoritative Continuation (2026-08-22, authenticated backup worker path)
+
+Code/test commit `2d1139665` adds focused evidence for the authenticated
+production-shaped backup path. The test authenticates `Application`, obtains
+the existing `BackupManager` child, calls `StartBackup`, and verifies that the
+request is consumed by `BackupTaskHostedService` and produces a non-empty local
+7-Zip archive through `SevenZipBackupArchiveRuntime`.
+
+Legacy anchors are `InterfaceBackupManager::StartBackup` in
+`hmailserver/source/Server/COM/InterfaceBackupManager.cpp:26-69`,
+`HM::BackupManager::StartBackup`, and `BackupExecuter::StartBackup` in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-217`.
+The .NET service composition is `hmailserver/source/Server.Net10/src/HMailServer.Service/Program.cs:41-84`,
+with dispatch in `BackupOperationRuntime.cs:91-174` and archive creation in
+`BackupArchiveRuntime.cs:52-185`.
+
+Focused authenticated dispatch tests pass `2/2`; related backup manager,
+queue, and failure tests pass `37`, skip `4`, and fail `0`. Default full Net10
+passes `2601`, skips `92`, and fails `0` (`2693` total). No production code or
+machine state changed. Release remains RED because recursive DataBackup
+handle-relative traversal, disposable Full-Text SQL Server `6000`, registered
+COM, SEC-18, installer rollback, paired C++ performance, protocol thresholds,
+and long-soak evidence remain open or environment-blocked.
+
+Next slice: harden recursive DataBackup source/target traversal with pinned
+handles and rerun native restore acceptance. Do not stage pre-existing
+`artifacts/` evidence or dirty `AGENTS.md`.
+
+## Historical Authoritative Continuation (2026-08-22, restore rename containment)
