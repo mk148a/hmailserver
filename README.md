@@ -51,8 +51,17 @@ The legacy transaction path remains a release blocker: SQL Server rejects
 `DBUpdater::formMain::DoUpgrade` (`hmailserver/source/Tools/DBUpdater/formMain.cs`)
 with `Msg 574`. Therefore the result is
 `PassedWithKnownLegacyTransactionLimitation`, not migration/rollback release
-acceptance. The .NET migration executor and transaction COM methods remain
+acceptance. Code/test commit `4b57928f1` now exposes the authenticated legacy
+`Database.BeginTransaction`, `CommitTransaction`, and `RollbackTransaction`
+controls through a store-backed SQL transaction with direct-activation denial
+preserved. `Database.ExecuteSQLScript` and the .NET migration executor remain
 unimplemented; release stays **RED**.
+
+The transaction slice is covered by 6/6 focused COM tests and 2/2 explicit
+isolated SQL Server transaction tests. The full Net10 Debug suite is
+`2483 passed, 85 skipped, 0 failed` (`2568` total). The SQL fixture created
+only unique disposable databases on local Developer SQL Server and removed
+them in cleanup; no existing hMailServer database or Data directory was used.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 

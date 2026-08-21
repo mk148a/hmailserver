@@ -19,11 +19,14 @@ Evidence is under
 The legacy transaction path is explicitly blocked by SQL Server `Msg 574`:
 `CREATE FULLTEXT CATALOG` cannot run inside the transaction started by
 `DBUpdater::formMain::DoUpgrade` (`hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`).
-The .NET host still reads required version `5708`, does not execute the
-migration, and keeps `Database.ExecuteSQLScript` and transaction COM methods
-unimplemented. The next slice is the isolated .NET migration executor with an
-explicit FTS/non-FTS transaction boundary, checkpoint, failure cleanup, and
-rollback report. Do not target production SQL/Data or installed COM state.
+The .NET host still reads required version `5708` and does not execute the
+migration. Code/test commit `4b57928f1` now implements the authenticated
+store-backed `Database.BeginTransaction`, `CommitTransaction`, and
+`RollbackTransaction` controls, with direct activation denial and the
+installed COM identity preserved. `Database.ExecuteSQLScript` remains
+unimplemented. The next slice is the isolated .NET migration executor with
+an explicit FTS/non-FTS transaction boundary, checkpoint, failure cleanup,
+and rollback report. Do not target production SQL/Data or installed COM state.
 
 SEC-18 remains RED: worker primary-token evidence exists, but effective COM
 caller-token evidence and non-pool denial are absent.

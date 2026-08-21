@@ -20,9 +20,12 @@ The legacy transaction path is not green: `DBUpdater::formMain::DoUpgrade`
 starts one transaction, but SQL Server rejects `CREATE FULLTEXT CATALOG` in
 that transaction with `Msg 574`. This is recorded as
 `PassedWithKnownLegacyTransactionLimitation`; the .NET rewrite still reads
-required version `5708`, does not execute the migration, and leaves
-`Database.ExecuteSQLScript` and transaction COM methods as `E_NOTIMPL`.
-Migration/rollback release acceptance therefore remains open.
+required version `5708` and does not execute the migration. Code/test commit
+`4b57928f1` now implements the authenticated store-backed
+`Database.BeginTransaction`, `CommitTransaction`, and `RollbackTransaction`
+controls while preserving direct activation denial and the installed COM
+shape. `Database.ExecuteSQLScript` and migration/rollback release acceptance
+remain open.
 
 The next bounded slice is the isolated .NET 5708-to-6000 migration executor:
 define the FTS/non-FTS transaction boundary, durable version/checkpoint
