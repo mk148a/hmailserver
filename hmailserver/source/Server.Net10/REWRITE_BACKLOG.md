@@ -1,5 +1,30 @@
 
-## Current bounded slice: MaxDeliveryThreads authorization lease (2026-08-21)
+## Current bounded slice: MaxIMAPConnections authorization lease (2026-08-21)
+
+Code/test commit `b9d781ab5` closes the retained-object authorization lease gap
+for authenticated `IInterfaceSettings.MaxIMAPConnections` (`DispId(53)`).
+Legacy `InterfaceSettings::get/put_MaxIMAPConnections` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:140-168` delegates to
+`IMAPConfiguration::SetMaxIMAPConnections` at
+`hmailserver/source/Server/Common/Application/IMAPConfiguration.cpp:114-123`
+and persists the existing `hm_settings.maximapconnections` row seeded by
+`hmailserver/source/Server/Common/SQL/CreateTablesMSSQL.sql:832`.
+
+Net10 holds the generation-bound authorization lease around
+`UpdateMaxImapConnectionsAsync`, fails closed when the lease is unavailable,
+disposes it on success/failure, and publishes the retained snapshot only after
+a successful update. Focused tests pass `4`, skip `0`, and fail `0`; full Net10
+passes `2583`, skips `90`, and fails `0` (`2673` total). Settings
+IID/vtable/DISPID/class identity, SQL schema, IMAP runtime behavior, and live
+reconfiguration are unchanged.
+
+Next independent slice: audit and close one remaining authenticated Settings
+mutation lease gap, beginning with `MaxAsynchronousThreads` or
+`MaxMessageSize`. The disposable SQL/Data acceptance gate remains blocked by
+the absent approved SQL connection and isolated-create opt-in. Release remains
+**RED**.
+
+## Historical bounded slice: MaxDeliveryThreads authorization lease (2026-08-21)
 
 Code/test commit `0035df483` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.MaxDeliveryThreads` (`DispId(29)`).
