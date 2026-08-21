@@ -1877,7 +1877,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.IMAPSASLPlainEnabled
                 : _administrationSnapshot.ImapSaslPlainEnabled;
         }
-        set => base.IMAPSASLPlainEnabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.IMAPSASLPlainEnabled = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateImapSaslPlainEnabledAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP SASL PLAIN setting update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    ImapSaslPlainEnabled = value
+                };
+            }
+        }
     }
 
     public override bool IMAPSASLInitialResponseEnabled

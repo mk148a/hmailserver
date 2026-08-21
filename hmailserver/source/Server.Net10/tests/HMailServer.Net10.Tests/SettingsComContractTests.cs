@@ -1137,6 +1137,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapSaslPlainEnabledSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapSaslPlainEnabledUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapSaslPlainEnabled: true),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.IMAPSASLPlainEnabled = false;
+
+        Assert.AreEqual(1, store.ImapSaslPlainEnabledUpdateCount);
+        Assert.IsFalse(store.UpdatedImapSaslPlainEnabled);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsFalse(settings.IMAPSASLPlainEnabled);
+
+        store.ImapSaslPlainEnabledUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPSASLPlainEnabled = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ImapSaslPlainEnabledUpdateCount);
+        Assert.IsFalse(settings.IMAPSASLPlainEnabled);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPSASLPlainEnabled = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapSaslPlainEnabledUpdateCount);
+        Assert.IsFalse(settings.IMAPSASLPlainEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5692,6 +5734,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedImapAclEnabled { get; private set; }
 
+        public bool ImapSaslPlainEnabledUpdateResult { get; set; }
+
+        public int ImapSaslPlainEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedImapSaslPlainEnabled { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6291,6 +6339,16 @@ public sealed class SettingsComContractTests
             UpdatedImapAclEnabled = imapAclEnabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ImapAclEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapSaslPlainEnabledAsync(
+            bool imapSaslPlainEnabled,
+            CancellationToken cancellationToken)
+        {
+            ImapSaslPlainEnabledUpdateCount++;
+            UpdatedImapSaslPlainEnabled = imapSaslPlainEnabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapSaslPlainEnabledUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

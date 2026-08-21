@@ -142,6 +142,12 @@ SET settinginteger = @IMAPACLEnabled
 WHERE settingname = N'enableimapacl';
 """;
 
+    public const string UpdateImapSaslPlainEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @IMAPSASLPlainEnabled
+WHERE settingname = N'EnableImapSASLPlain';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -1095,6 +1101,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateImapAclEnabledSql, connection);
         command.Parameters.Add("@IMAPACLEnabled", SqlDbType.Int).Value = imapAclEnabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateImapSaslPlainEnabledAsync(
+        bool imapSaslPlainEnabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateImapSaslPlainEnabledSql, connection);
+        command.Parameters.Add("@IMAPSASLPlainEnabled", SqlDbType.Int).Value = imapSaslPlainEnabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
