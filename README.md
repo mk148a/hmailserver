@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current WebAdmin login POST-only security slice (2026-08-21)
+
+Code/test commit `24769cf1d` hardens
+`hmailserver/source/WebAdmin/background_login.php` by requiring
+`hmailRequirePostCsrfToken()` before reading credentials and using
+`hmailGetPostVar` for username/password. The existing POST form in
+`hm_login.php` remains compatible; authentication, session behavior, and
+`session_password` storage were intentionally not changed in this slice.
+WebAdmin coverage is `91 passed, 1 skipped, 0 failed`; full Net10 is `2536
+passed, 90 skipped, 0 failed` (`2626` total).
+
+The plaintext PHP session-password blocker, SEC-18 caller-token proof,
+disposable SQL/Data restore, installer rollback, paired C++ performance, and
+24-hour service/COM soak remain open. Release remains **RED**.
+
 ## Current WebAdmin POST-only security slice (2026-08-21)
 
 Security review found the IP-home background mutation accepted GET parameters

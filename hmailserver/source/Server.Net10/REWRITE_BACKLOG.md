@@ -1,4 +1,21 @@
 
+## Current bounded slice: WebAdmin login POST-only credential input (2026-08-21)
+
+Code/test commit `24769cf1d` hardens
+`hmailserver/source/WebAdmin/background_login.php` with
+`hmailRequirePostCsrfToken()` before credential reads and
+`hmailGetPostVar("username")`/`hmailGetPostVar("password")`. The existing
+`hm_login.php` form submits POST to `background_login`, and source-contract
+coverage verifies the order and absence of mixed GET reads. WebAdmin tests pass
+`91`, skip `1`, and fail `0`; full Net10 passes `2536`, skips `90`, and fails
+`0`.
+
+This closes transport/method handling only. `$_SESSION['session_password']`
+retention remains a separate SEC-18/session-reauthentication design blocker,
+along with trusted COM caller evidence, disposable SQL/Data restore, installer
+rollback, paired C++ performance, and 24-hour service/COM soak. Release
+remains **RED**.
+
 ## Current bounded slice: WebAdmin IP-home POST-only mutation (2026-08-21)
 
 The security review identified `background_iphome_save.php` as a state-changing

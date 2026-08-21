@@ -1,5 +1,20 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, WebAdmin login POST-only)
+
+Code/test commit `24769cf1d` adds POST-only CSRF validation to
+`background_login.php` before username/password reads and switches both
+inputs to `hmailGetPostVar`. The existing `hm_login.php` form already posts to
+`background_login`; authentication, session behavior, and plaintext
+`session_password` retention remain unchanged. WebAdmin tests pass `91`, skip
+`1`, and fail `0`; full Net10 passes `2536`, skips `90`, and fails `0`
+(`2626` total).
+
+The next release blockers are plaintext PHP session-password removal under the
+SEC-18 design, trusted caller-token/non-pool evidence, disposable SQL/Data
+restore, installer rollback, paired C++ performance, and 24-hour service/COM
+soak. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, WebAdmin IP-home POST-only)
 
 Security review found `background_iphome_save.php` accepted GET mutation
