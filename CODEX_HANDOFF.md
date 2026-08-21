@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, Application Start/Stop authorization)
+
+Code/test commit `adeec5e76` adds the legacy authorization boundary to Net10
+`Application.Start()` and `Stop()`. Legacy
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:54-89` checks
+`GetIsServerAdmin()` and returns `E_ACCESSDENIED` before the legacy
+`StartServers()`/`StopServers()` calls. Net10 now invokes
+`EnsureServerAdministrator()` before its existing `E_NOTIMPL` pending path.
+No lifecycle implementation, service mutation, COM registration, DCOM, IDL,
+or type-library change was made.
+
+Focused Application COM coverage is `17 passed, 0 skipped, 0 failed`; full
+Net10 is `2541 passed, 90 skipped, 0 failed` (`2631` total). Release remains
+RED. The next production-gate slice is disposable `6000` SQL/Data host-start
+success/failure and no-side-effect evidence, blocked until approved disposable
+SQL/isolated-create opt-in exists.
+
 ## Current Authoritative Continuation (2026-08-21, WebAdmin logout POST-only)
 
 Code/test commit `6d9c75c1b` closes the bounded WebAdmin logout method/CSRF

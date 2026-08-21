@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current Application service-control authorization slice (2026-08-21)
+
+Code/test commit `adeec5e76` aligns the unauthenticated HRESULT boundary for
+`Application.Start()` and `Application.Stop()` with legacy
+`InterfaceApplication::Start/Stop` (`hmailserver/source/Server/COM/InterfaceApplication.cpp:54-89`).
+Legacy checks `GetIsServerAdmin()` and returns `E_ACCESSDENIED` before calling
+`Application::StartServers()` or `StopServers()`. Net10 now calls its existing
+`EnsureServerAdministrator()` before the existing pending `E_NOTIMPL` path.
+Authenticated lifecycle behavior remains intentionally unimplemented; no
+service control, reinitialization, COM registration, DCOM, IDL, or type-library
+behavior changed.
+
+`ApplicationComContractTests` passes `17/17`; full Net10 passes `2541`, skips
+`90`, and fails `0` (`2631` total). The release gate remains **RED** because
+registered/out-of-process COM, disposable SQL/Data host-start and rollback,
+paired C++ performance, SEC-18, and 24-hour soak evidence are still absent.
+
 ## Current WebAdmin logout POST-only security slice (2026-08-21)
 
 Code/test commit `6d9c75c1b` hardens the legacy WebAdmin logout boundary. The

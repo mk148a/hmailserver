@@ -1,4 +1,22 @@
 
+## Current bounded slice: Application Start/Stop authorization parity (2026-08-21)
+
+Code/test commit `adeec5e76` aligns unauthenticated Net10
+`Application.Start()`/`Stop()` with legacy
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:54-89`, where
+`GetIsServerAdmin()` is checked before `Application::StartServers()` and
+`StopServers()` and denial returns `E_ACCESSDENIED`. Net10 now calls the
+existing `EnsureServerAdministrator()` before the existing `E_NOTIMPL` pending
+path. Authenticated service lifecycle behavior remains out of scope and
+unimplemented; installed IID/CLSID/ProgID/DISPID/vtable/type-library,
+registration, DCOM, service, SQL, and protocol behavior are unchanged.
+
+`ApplicationComContractTests` passes `17/17`; full Net10 passes `2541`, skips
+`90`, and fails `0`. This closes only the authorization HRESULT gap. Registered
+and out-of-process COM, disposable `6000` host-start/rollback, paired C++
+performance, SEC-18, and 24-hour soak remain release blockers. Release remains
+**RED**.
+
 ## Current bounded slice: WebAdmin logout POST-only CSRF hardening (2026-08-21)
 
 Code/test commit `6d9c75c1b` documents and implements the legacy WebAdmin
