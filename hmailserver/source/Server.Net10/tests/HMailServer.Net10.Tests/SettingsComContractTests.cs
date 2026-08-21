@@ -738,9 +738,6 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.VerifyRemoteSslCertificate = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.AutoBanMinutes = 120).ErrorCode);
     }
 
     [TestMethod]
@@ -3905,6 +3902,44 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AutoBanMinutesSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            AutoBanMinutesUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AutoBanMinutes: 60),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.AutoBanMinutes = 120;
+
+        Assert.AreEqual(1, store.AutoBanMinutesUpdateCount);
+        Assert.AreEqual(120, store.UpdatedAutoBanMinutes);
+        Assert.AreEqual(120, settings.AutoBanMinutes);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+
+        store.AutoBanMinutesUpdateResult = false;
+        Assert.AreEqual(
+            EFail,
+            Assert.ThrowsExactly<COMException>(() => settings.AutoBanMinutes = 180).ErrorCode);
+        Assert.AreEqual(120, settings.AutoBanMinutes);
+
+        isServerAdministrator = false;
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => settings.AutoBanMinutes = 240).ErrorCode);
+        Assert.AreEqual(2, store.AutoBanMinutesUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamSpfSettersPersistAndRefreshRetainedSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6400,6 +6435,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxInvalidLogonAttemptsWithin { get; private set; }
 
+        public bool AutoBanMinutesUpdateResult { get; set; }
+
+        public int AutoBanMinutesUpdateCount { get; private set; }
+
+        public int UpdatedAutoBanMinutes { get; private set; }
+
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
@@ -7217,6 +7258,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxInvalidLogonAttemptsWithin = maxInvalidLogonAttemptsWithin;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxInvalidLogonAttemptsWithinUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAutoBanMinutesAsync(
+            int autoBanMinutes,
+            CancellationToken cancellationToken)
+        {
+            AutoBanMinutesUpdateCount++;
+            UpdatedAutoBanMinutes = autoBanMinutes;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(AutoBanMinutesUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(

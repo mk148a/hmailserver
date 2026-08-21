@@ -3008,7 +3008,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.AutoBanMinutes
                 : _administrationSnapshot.AutoBanMinutes;
         }
-        set => base.AutoBanMinutes = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.AutoBanMinutes = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateAutoBanMinutesAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The automatic ban duration update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    AutoBanMinutes = value
+                };
+            }
+        }
     }
 
     public override void ClearLogonFailureList()
