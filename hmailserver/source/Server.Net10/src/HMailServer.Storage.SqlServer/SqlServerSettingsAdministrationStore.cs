@@ -537,6 +537,12 @@ SET settinginteger = (settinginteger & ~@BackupSettingsMask) | @BackupSettingsVa
 WHERE settingname = N'backupoptions';
 """;
 
+    public const string UpdateBackupDomainsSql = """
+UPDATE hm_settings
+SET settinginteger = (settinginteger & ~@BackupDomainsMask) | @BackupDomainsValue
+WHERE settingname = N'backupoptions';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -1777,6 +1783,18 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var command = new SqlCommand(UpdateBackupSettingsSql, connection);
         command.Parameters.Add("@BackupSettingsMask", SqlDbType.Int).Value = 1;
         command.Parameters.Add("@BackupSettingsValue", SqlDbType.Int).Value = backupSettings ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateBackupDomainsAsync(
+        bool backupDomains,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateBackupDomainsSql, connection);
+        command.Parameters.Add("@BackupDomainsMask", SqlDbType.Int).Value = 2;
+        command.Parameters.Add("@BackupDomainsValue", SqlDbType.Int).Value = backupDomains ? 2 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

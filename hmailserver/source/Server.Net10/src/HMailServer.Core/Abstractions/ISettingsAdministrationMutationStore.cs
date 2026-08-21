@@ -337,4 +337,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateBackupSettingsAsync(
         bool backupSettings,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateBackupDomainsAsync(
+        bool backupDomains,
+        CancellationToken cancellationToken);
 }

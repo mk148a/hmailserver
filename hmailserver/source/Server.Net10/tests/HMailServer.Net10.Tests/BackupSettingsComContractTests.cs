@@ -253,6 +253,72 @@ public sealed class BackupSettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedBackupSettings_BackupDomainsSetterTransitionsBitTwoAndPreservesOtherBits()
+    {
+        var persisted = new List<bool>();
+        var published = new List<int>();
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 13, string.Empty),
+            updateBackupDomains: value =>
+            {
+                persisted.Add(value);
+                return true;
+            },
+            backupDomainsUpdated: published.Add,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        backup.BackupDomains = true;
+        Assert.IsTrue(backup.BackupDomains);
+        Assert.AreEqual(15, published[0]);
+
+        backup.BackupDomains = false;
+        Assert.IsFalse(backup.BackupDomains);
+        CollectionAssert.AreEqual(new[] { true, false }, persisted);
+        CollectionAssert.AreEqual(new[] { 15, 13 }, published);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_BackupDomainsSetterFailureAndDenialDoNotPublishOrStore()
+    {
+        var publishCount = 0;
+        var updateCount = 0;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 15, string.Empty),
+            updateBackupDomains: _ =>
+            {
+                updateCount++;
+                return false;
+            },
+            backupDomainsUpdated: _ => publishCount++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        var failure = Assert.ThrowsExactly<COMException>(() => backup.BackupDomains = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failure.ErrorCode);
+        Assert.AreEqual(1, updateCount);
+        Assert.AreEqual(0, publishCount);
+        Assert.IsTrue(backup.BackupDomains);
+
+        backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 13, string.Empty),
+            updateBackupDomains: _ =>
+            {
+                updateCount++;
+                return true;
+            },
+            isServerAdministrator: static () => false);
+
+        var denied = Assert.ThrowsExactly<COMException>(() => backup.BackupDomains = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, updateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedBackupSettings_LogFilePreservesLegacySeparatorRulesWithoutFileAccess()
     {
         var missingDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
