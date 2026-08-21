@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, UserInterfaceLanguage INI parity)
+
+Code/test commit `2110b400e` completes authenticated
+`Settings.UserInterfaceLanguage` persistence. The resolved initialization-file
+path is carried into the Settings runtime; the setter writes the legacy
+`[Settings] UseLanguage` key and the getter reads that path. Focused COM/INI
+coverage is `188 passed, 0 skipped, 0 failed`; full Net10 Debug with approved
+LocalDB opt-in is `2556 passed, 10 skipped, 0 failed` (`2566` total).
+
+Legacy references are `InterfaceSettings::get/put_UserInterfaceLanguage`
+(`source/Server/COM/InterfaceSettings.cpp:964-992`) and
+`IniFileSettings::Get/SetUserInterfaceLanguage`
+(`source/Server/Common/Application/IniFileSettings.cpp:317-330`). The
+installed Settings IID, CLSID, ProgID, DISPID `42`, direct activation denial,
+and authenticated server-administrator mutation boundary are unchanged. No
+production service, SQL/Data, COM registration, DCOM, IIS, or protocol state
+changed. The next slice is isolated paired SMTP/POP3 enable/disable/timing
+acceptance, still blocked by the missing approved disposable server and C++
+runner. Migration/installer, SEC-18, paired C++ performance, and 24-hour soak
+remain open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, production-hosted SMTP/POP3 acceptance)
 
 Code/test commit `d35b4a467` completes authenticated

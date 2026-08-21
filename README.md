@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
+
+Code/test commit `2110b400e` implements authenticated
+`Settings.UserInterfaceLanguage` persistence parity. The service now passes the
+resolved initialization-file path into the Settings runtime; the setter writes
+`[Settings] UseLanguage` through the Windows profile API, and the getter can
+read the current value from that same file. Focused COM/INI coverage is `188
+passed, 0 skipped, 0 failed`; full Net10 Debug coverage with the approved
+disposable LocalDB opt-in is `2556 passed, 10 skipped, 0 failed` (`2566` total).
+
+Legacy anchors are `InterfaceSettings::get/put_UserInterfaceLanguage`
+(`source/Server/COM/InterfaceSettings.cpp:964-992`),
+`IniFileSettings::Get/SetUserInterfaceLanguage`
+(`source/Server/Common/Application/IniFileSettings.cpp:317-330`), and the
+Settings IID `A4C709A3-98B2-410D-84F4-EDA999BF0CB2`, DISPID `42`, Settings
+CLSID `FDF084A7-82DE-4EBE-8455-E506ACE01D63`, and ProgID
+`hMailServer.Settings.1`. Direct activation remains `E_ACCESSDENIED` and the
+authenticated server-administrator boundary is retained for mutation. No SQL,
+service state, installed COM registration, DCOM, IIS, or protocol behavior was
+changed. Production-hosted SMTP/POP3 timing, migration/installer,
+registered COM/DCOM, SEC-18, paired C++ performance, and 24-hour soak remain
+open. Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, IMAP hierarchy delimiter parity)
 
 Code/test commit `d35b4a467` implements authenticated

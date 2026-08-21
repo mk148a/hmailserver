@@ -1,5 +1,22 @@
 
-## Current next slice (2026-08-21, production-hosted SMTP/POP3 acceptance)
+## Current next slice (2026-08-21, production-hosted SMTP/POP3 acceptance after UserInterfaceLanguage parity)
+
+The authenticated `Settings.UserInterfaceLanguage` INI persistence slice is
+complete in code/test commit `2110b400e`. Legacy `[Settings] UseLanguage`
+read/write behavior is covered with temporary INI readback, and the Settings
+IID/DISPID/direct-activation/authentication boundaries remain unchanged.
+Focused coverage is `188 passed, 0 skipped, 0 failed`; full Net10 Debug with
+approved LocalDB opt-in is `2556 passed, 10 skipped, 0 failed` (`2566` total).
+
+The next smallest production-gate slice is SMTP/POP3 enable/disable and
+latency acceptance against the same isolated SQL/Data copy and loopback ports
+for legacy C++ and .NET 10. It remains environment-blocked: the installed
+hMailServer service is stopped/disabled, no disposable server instance is
+approved, and no paired C++ runner is available. Do not use production service,
+database, Data directory, ports, COM registration, or DCOM permissions.
+Release remains **RED** and no push was performed.
+
+## Historical current slice (2026-08-21, production-hosted SMTP/POP3 acceptance)
 
 The IMAP hierarchy delimiter parity slice is complete in code/test commit
 `d35b4a467`. Focused COM/SQL/integration coverage is `233 passed, 0 skipped, 0

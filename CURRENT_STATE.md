@@ -1,13 +1,13 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T02:48:04.2393985Z` / `2026-08-21T05:48:04.2446434+03:00`
+- UTC/local timestamp: `2026-08-21T03:07:37.7906026Z` / `2026-08-21T06:07:37.8004773+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: documentation commit (this commit) following code/test commit `d35b4a467`
+- Current HEAD: documentation commit (this commit) following code/test commit `2110b400e`
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: IMAP hierarchy delimiter COM/SQL/integration `233 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: `2554 passed, 10 skipped, 0 failed` (`2564` total)
-- Opt-in tests passed/skipped/blocked: hierarchy delimiter and prior LocalDB fixed-row integrations passed; production SMTP/POP3, paired C++, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
+- Latest focused-test result: UserInterfaceLanguage COM/INI `188 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: `2556 passed, 10 skipped, 0 failed` (`2566` total)
+- Opt-in tests passed/skipped/blocked: UserInterfaceLanguage, hierarchy delimiter, and prior LocalDB integrations passed; production SMTP/POP3, paired C++, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
 - Current bounded slice: isolated production-hosted SMTP/POP3 enable/disable and latency acceptance
-- Completed milestones: authenticated Settings persistence through IMAP hierarchy delimiter; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
+- Completed milestones: authenticated Settings persistence through UserInterfaceLanguage and IMAP hierarchy delimiter; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
 - Open production blockers: isolated COM/service backup acceptance, restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF runtime wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains RED
 - Environment-blocked work: hMailServer service is stopped/disabled; MSSQLSERVER is not used because disposability is unproven; no approved disposable server instance or paired C++ runner; registry/DCOM, IIS/SEC-18, AD, live DNS/TLS, and long-soak infrastructure remain unavailable
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
