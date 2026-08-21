@@ -27,13 +27,32 @@ procedure is in RELEASE_GATE_EXECUTION_CHECKLIST.md.
 The current HEAD offline synthetic 100k-message IMAP SEARCH/SORT run passed
 with `9091/9091` expected matches and p50/p95/p99 of
 `8.725/9.426/9.614 ms`. JSON, CSV, and Markdown evidence is in
-`artifacts/benchmarks/offline-net10-current-b89fb81f2/` and records commit
-`0ba5384332a106867e00b489ffdb9ed49e4b61a3`.
+`artifacts/benchmarks/offline-net10-current-b89fb81f2/`; its JSON records the
+benchmark source commit `b89fb81f24a3fc343b7fbe6885e21c2e4976ed2d`.
 
 This is a Net10-only in-memory diagnostic. It does not prove SQL Server FTS,
 live IMAP latency, C++ parity, paired speedup, or soak acceptance. The paired
 performance gate remains **RED** until the same SQL/Data/message fixture and
 workload matrix runs in a registry-isolated C++ environment.
+
+## Current migration acceptance (2026-08-21)
+
+Code/test commit `134b4d6fa` adds the isolated SQL migration acceptance runner
+`build/test-net10-sql-migration.ps1`. Against uniquely named disposable
+databases on the local Developer SQL Server, the real legacy scripts produced
+`hm_dbversion=6000`, all lease/search/delivery indexes and Full-Text objects;
+the injected failure path left the pre-6000 schema at `5708`. Evidence is in
+`artifacts/migration/net10-sql-migration-20260821-final2/`. The hMailServer
+service was stopped and no existing hMailServer database or Data directory was
+used; disposable database objects and files were removed after the run.
+
+The legacy transaction path remains a release blocker: SQL Server rejects
+`CREATE FULLTEXT CATALOG` inside the transaction started by
+`DBUpdater::formMain::DoUpgrade` (`hmailserver/source/Tools/DBUpdater/formMain.cs`)
+with `Msg 574`. Therefore the result is
+`PassedWithKnownLegacyTransactionLimitation`, not migration/rollback release
+acceptance. The .NET migration executor and transaction COM methods remain
+unimplemented; release stays **RED**.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 

@@ -2,10 +2,10 @@
 
 ## Current diagnostic refresh (2026-08-21)
 
-The current HEAD offline synthetic 100k-message SEARCH/SORT benchmark passed
-with `9091/9091` matches and p50/p95/p99 `8.725/9.426/9.614 ms`. Evidence is
-under `artifacts/benchmarks/offline-net10-current-b89fb81f2/` and records
-commit `0ba5384332a106867e00b489ffdb9ed49e4b61a3`.
+The latest offline synthetic 100k-message SEARCH/SORT benchmark passed with
+`9091/9091` matches and p50/p95/p99 `8.725/9.426/9.614 ms`. Evidence is under
+`artifacts/benchmarks/offline-net10-current-b89fb81f2/`; its JSON records the
+benchmark source commit `b89fb81f24a3fc343b7fbe6885e21c2e4976ed2d`.
 
 This does not alter the paired gate: the C++ process has not run in a
 registry-isolated environment, so no ratio, speedup, regression percentage, or

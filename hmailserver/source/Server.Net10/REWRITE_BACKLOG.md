@@ -1,5 +1,5 @@
 
-## Current next independent slice (2026-08-21, disposable 5708-to-6000 migration)
+## Current migration status (2026-08-21, disposable 5708-to-6000 evidence)
 
 Parity review confirms the smallest independent Milestone C slice is the real
 legacy `5708 -> 6000` SQL migration against a uniquely named disposable
@@ -9,13 +9,28 @@ then calls `Application::Reinitialize` (`hmailserver/source/Tools/DBUpdater/form
 `hmailserver/source/Server/COM/InterfaceDatabase.cpp`). The exact SQL is
 `hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql`.
 
-The .NET 10 rewrite currently reads `hm_dbversion` as required version `5708`,
-does not execute the migration, and leaves `Database.ExecuteSQLScript` and
-transaction COM methods as `E_NOTIMPL`. The migration slice is environment-
-blocked until an approved disposable SQL Server/LocalDB target with Full-Text
-support is available. It must verify DDL, indexes, Full-Text objects,
-`hm_dbversion = 6000`, and injected-failure rollback without production SQL,
-Data, service, registry, or COM changes.
+Code/test commit `134b4d6fa` now verifies the real scripts against uniquely
+named disposable SQL Server databases: the non-transactional legacy script
+reaches `hm_dbversion = 6000` with all lease/search/delivery indexes and
+Full-Text objects, and an injected failure leaves the pre-migration schema at
+`5708`. Evidence is
+`artifacts/migration/net10-sql-migration-20260821-final2/`.
+
+The legacy transaction path is not green: `DBUpdater::formMain::DoUpgrade`
+starts one transaction, but SQL Server rejects `CREATE FULLTEXT CATALOG` in
+that transaction with `Msg 574`. This is recorded as
+`PassedWithKnownLegacyTransactionLimitation`; the .NET rewrite still reads
+required version `5708`, does not execute the migration, and leaves
+`Database.ExecuteSQLScript` and transaction COM methods as `E_NOTIMPL`.
+Migration/rollback release acceptance therefore remains open.
+
+The next bounded slice is the isolated .NET 5708-to-6000 migration executor:
+define the FTS/non-FTS transaction boundary, durable version/checkpoint
+semantics, failure cleanup, and rollback reporting without touching production
+SQL, Data, service, registry, or COM state. Legacy anchors remain
+`hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`,
+`hmailserver/source/Server/COM/InterfaceDatabase.cpp:403-424,687-717`, and
+`hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql:1-110`.
 
 SEC-18 remains RED and independently environment-blocked: the isolated IIS
 worker primary-token proof exists, but trusted COM caller-token evidence,

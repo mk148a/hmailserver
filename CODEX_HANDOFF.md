@@ -1,6 +1,6 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, disposable 5708-to-6000 migration)
+## Current Authoritative Continuation (2026-08-21, migration evidence and blocker)
 
 Parity review identified the next independent slice as the disposable legacy
 `5708 -> 6000` SQL migration. Legacy `DBUpdater.formMain::DoUpgrade` executes
@@ -9,11 +9,21 @@ calls `Application.Reinitialize`; source anchors are
 `hmailserver/source/Tools/DBUpdater/formMain.cs` and
 `hmailserver/source/Server/COM/InterfaceDatabase.cpp`.
 
-The .NET host currently reads required version `5708`, does not execute
-`Upgrade5708to6000MSSQL.sql`, and keeps database transaction COM methods
-unimplemented. The slice is blocked until an approved disposable SQL/Full-Text
-target exists. It must verify DDL, Full-Text objects, final version `6000`, and
-failure rollback without production state changes.
+Code/test commit `134b4d6fa` ran the real legacy SQL against uniquely named
+disposable SQL Server databases. The non-transactional script reached
+`hm_dbversion=6000` and created all lease/search/delivery indexes and
+Full-Text objects; injected failure left the pre-migration schema at `5708`.
+Evidence is under
+`artifacts/migration/net10-sql-migration-20260821-final2/`.
+
+The legacy transaction path is explicitly blocked by SQL Server `Msg 574`:
+`CREATE FULLTEXT CATALOG` cannot run inside the transaction started by
+`DBUpdater::formMain::DoUpgrade` (`hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`).
+The .NET host still reads required version `5708`, does not execute the
+migration, and keeps `Database.ExecuteSQLScript` and transaction COM methods
+unimplemented. The next slice is the isolated .NET migration executor with an
+explicit FTS/non-FTS transaction boundary, checkpoint, failure cleanup, and
+rollback report. Do not target production SQL/Data or installed COM state.
 
 SEC-18 remains RED: worker primary-token evidence exists, but effective COM
 caller-token evidence and non-pool denial are absent.

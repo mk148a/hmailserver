@@ -2,10 +2,11 @@
 
 ## Current offline diagnostic (2026-08-21)
 
-The current HEAD `0ba5384332a106867e00b489ffdb9ed49e4b61a3` passed the
-deterministic 100,000-message SEARCH/SORT harness with `9091/9091` matches.
-Measured p50/p95/p99 were `8.725/9.426/9.614 ms`; JSON, CSV, and Markdown
-evidence is under `artifacts/benchmarks/offline-net10-current-b89fb81f2/`.
+The latest deterministic 100,000-message SEARCH/SORT harness passed with
+`9091/9091` matches. Measured p50/p95/p99 were `8.725/9.426/9.614 ms`; JSON,
+CSV, and Markdown evidence is under
+`artifacts/benchmarks/offline-net10-current-b89fb81f2/`. The JSON records
+source commit `b89fb81f24a3fc343b7fbe6885e21c2e4976ed2d`.
 
 This is an in-memory Net10-only diagnostic. It is not SQL Full-Text, live
 IMAP, C++ comparison, speedup evidence, or 24-hour soak acceptance. The paired
