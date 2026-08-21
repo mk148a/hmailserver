@@ -4506,6 +4506,100 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_VerifyRemoteSslCertificateSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            VerifyRemoteSslCertificateUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                VerifyRemoteSslCertificate: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.VerifyRemoteSslCertificate = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.VerifyRemoteSslCertificateUpdateCount);
+        Assert.IsFalse(settings.VerifyRemoteSslCertificate);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_VerifyRemoteSslCertificateSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            VerifyRemoteSslCertificateUpdateResult = true,
+            VerifyRemoteSslCertificateMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                VerifyRemoteSslCertificate: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.VerifyRemoteSslCertificate = true;
+
+        Assert.IsTrue(store.VerifyRemoteSslCertificateLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.IsTrue(settings.VerifyRemoteSslCertificate);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_VerifyRemoteSslCertificateSetterDisposesLeaseAndPreservesSnapshotWhenStoreUpdateFails()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            VerifyRemoteSslCertificateUpdateResult = false,
+            VerifyRemoteSslCertificateMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                VerifyRemoteSslCertificate: false),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.VerifyRemoteSslCertificate = true);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, store.VerifyRemoteSslCertificateUpdateCount);
+        Assert.IsTrue(store.VerifyRemoteSslCertificateLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.IsFalse(settings.VerifyRemoteSslCertificate);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_Ipv6PreferredSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7669,6 +7763,10 @@ public sealed class SettingsComContractTests
 
         public bool VerifyRemoteSslCertificateUpdateResult { get; set; }
 
+        public Func<bool>? VerifyRemoteSslCertificateMutationProbe { get; set; }
+
+        public bool VerifyRemoteSslCertificateLeaseHeldDuringUpdate { get; private set; }
+
         public bool Ipv6PreferredUpdateResult { get; set; }
 
         public int Ipv6PreferredUpdateCount { get; private set; }
@@ -8497,6 +8595,8 @@ public sealed class SettingsComContractTests
             VerifyRemoteSslCertificateUpdateCount++;
             UpdatedVerifyRemoteSslCertificate = verifyRemoteSslCertificate;
             CancellationToken = cancellationToken;
+            VerifyRemoteSslCertificateLeaseHeldDuringUpdate =
+                VerifyRemoteSslCertificateMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(VerifyRemoteSslCertificateUpdateResult);
         }
 
