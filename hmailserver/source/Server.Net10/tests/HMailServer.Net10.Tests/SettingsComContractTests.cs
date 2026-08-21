@@ -969,6 +969,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapSortEnabledSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapSortEnabledUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapSortEnabled: true),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.IMAPSortEnabled = false;
+
+        Assert.AreEqual(1, store.ImapSortEnabledUpdateCount);
+        Assert.IsFalse(store.UpdatedImapSortEnabled);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsFalse(settings.IMAPSortEnabled);
+
+        store.ImapSortEnabledUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPSortEnabled = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ImapSortEnabledUpdateCount);
+        Assert.IsFalse(settings.IMAPSortEnabled);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPSortEnabled = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapSortEnabledUpdateCount);
+        Assert.IsFalse(settings.IMAPSortEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5500,6 +5542,12 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedSmtpDeliveryBindToIp { get; private set; }
 
+        public bool ImapSortEnabledUpdateResult { get; set; }
+
+        public int ImapSortEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedImapSortEnabled { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6059,6 +6107,16 @@ public sealed class SettingsComContractTests
             UpdatedSmtpDeliveryBindToIp = smtpDeliveryBindToIp;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(SmtpDeliveryBindToIpUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapSortEnabledAsync(
+            bool imapSortEnabled,
+            CancellationToken cancellationToken)
+        {
+            ImapSortEnabledUpdateCount++;
+            UpdatedImapSortEnabled = imapSortEnabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapSortEnabledUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

@@ -74,6 +74,10 @@ public interface ISettingsAdministrationMutationStore
         bool serviceImap,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateImapSortEnabledAsync(
+        bool imapSortEnabled,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);

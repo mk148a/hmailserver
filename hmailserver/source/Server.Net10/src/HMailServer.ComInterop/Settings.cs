@@ -1351,7 +1351,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.IMAPSortEnabled
                 : _administrationSnapshot.ImapSortEnabled;
         }
-        set => base.IMAPSortEnabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.IMAPSortEnabled = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateImapSortEnabledAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP SORT setting update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    ImapSortEnabled = value
+                };
+            }
+        }
     }
 
     public override bool IMAPQuotaEnabled

@@ -118,6 +118,12 @@ SET settinginteger = @ServiceIMAP
 WHERE settingname = N'protocolimap';
 """;
 
+    public const string UpdateImapSortEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @IMAPSortEnabled
+WHERE settingname = N'enableimapsort';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -1027,6 +1033,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateServiceImapSql, connection);
         command.Parameters.Add("@ServiceIMAP", SqlDbType.Int).Value = serviceImap ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateImapSortEnabledAsync(
+        bool imapSortEnabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateImapSortEnabledSql, connection);
+        command.Parameters.Add("@IMAPSortEnabled", SqlDbType.Int).Value = imapSortEnabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
