@@ -1,5 +1,6 @@
 using System.Data;
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text.Json;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
@@ -203,6 +204,108 @@ public sealed class SqlServerDatabaseAdministrationStoreIntegrationTests
         finally
         {
             File.Delete(scriptPath);
+            File.Delete(reportPath);
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task UpgradeRunner_RefusesWithoutVerifiedBackupBeforeOpeningDatabase()
+    {
+        var reportPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-upgrade-refused-{Guid.NewGuid():N}.json");
+        var artifactPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-upgrade-unverified-{Guid.NewGuid():N}.bak");
+        var reinitialized = false;
+        var store = CreateStore(
+            "Server=localhost;Database=hmailserver_net10_missing;Integrated Security=True;TrustServerCertificate=True",
+            "hmailserver_net10_missing");
+        var runner = new SqlServerIsolatedUpgradeRunner(
+            new SqlServerDatabaseMigrationExecutor(store),
+            _ =>
+            {
+                reinitialized = true;
+                return ValueTask.CompletedTask;
+            });
+
+        try
+        {
+            var result = await runner.RunAsync(
+                backupCheckpoint: null,
+                scriptPath: "missing-upgrade.sql",
+                reportPath,
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual(SqlServerUpgradeRunStatus.RefusedUnverifiedBackup, result.Status);
+            Assert.IsFalse(reinitialized);
+            Assert.IsTrue(File.Exists(reportPath));
+            using var report = JsonDocument.Parse(await File.ReadAllTextAsync(reportPath).ConfigureAwait(false));
+            Assert.AreEqual("RefusedUnverifiedBackup", report.RootElement.GetProperty("status").GetString());
+
+            await File.WriteAllTextAsync(artifactPath, "unverified artifact").ConfigureAwait(false);
+            var digestMismatch = await runner.RunAsync(
+                new SqlServerVerifiedBackupCheckpoint(
+                    artifactPath,
+                    new string('0', 64),
+                    DateTimeOffset.UtcNow,
+                    "isolated:unverified"),
+                "missing-upgrade.sql",
+                reportPath,
+                CancellationToken.None).ConfigureAwait(false);
+            Assert.AreEqual(SqlServerUpgradeRunStatus.RefusedUnverifiedBackup, digestMismatch.Status);
+            StringAssert.Contains(digestMismatch.Error, "digest");
+        }
+        finally
+        {
+            File.Delete(artifactPath);
+            File.Delete(reportPath);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task UpgradeRunnerRequiresVerifiedBackupAndReinitializesAfterSuccessfulMigration()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_upgrade_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var backupPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-upgrade-{Guid.NewGuid():N}.bak");
+        var reportPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-upgrade-{Guid.NewGuid():N}.json");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateMigrationBaselineAsync(testConnectionString).ConfigureAwait(false);
+            await File.WriteAllTextAsync(backupPath, "disposable verified backup marker").ConfigureAwait(false);
+            var digest = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(backupPath).ConfigureAwait(false)));
+            var reinitialized = false;
+            var runner = new SqlServerIsolatedUpgradeRunner(
+                new SqlServerDatabaseMigrationExecutor(CreateStore(testConnectionString, databaseName)),
+                _ =>
+                {
+                    reinitialized = true;
+                    return ValueTask.CompletedTask;
+                });
+
+            var result = await runner.RunAsync(
+                new SqlServerVerifiedBackupCheckpoint(
+                    backupPath,
+                    digest,
+                    DateTimeOffset.UtcNow,
+                    $"isolated:{databaseName}"),
+                FindRepositoryFile("hmailserver", "source", "DBScripts", "Upgrade5708to6000MSSQL.sql"),
+                reportPath,
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual(SqlServerUpgradeRunStatus.Completed, result.Status, result.Error);
+            Assert.IsTrue(reinitialized);
+            Assert.AreEqual(6000, await ReadVersionAsync(testConnectionString).ConfigureAwait(false));
+            using var report = JsonDocument.Parse(await File.ReadAllTextAsync(reportPath).ConfigureAwait(false));
+            Assert.AreEqual("Completed", report.RootElement.GetProperty("status").GetString());
+        }
+        finally
+        {
+            File.Delete(backupPath);
             File.Delete(reportPath);
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
