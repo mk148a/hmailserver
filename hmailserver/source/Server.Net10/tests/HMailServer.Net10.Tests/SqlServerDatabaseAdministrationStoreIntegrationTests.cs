@@ -3,8 +3,10 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using HMailServer.Security;
+using HMailServer.Service;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HMailServer.Net10.Tests;
 
@@ -127,6 +129,79 @@ public sealed class SqlServerDatabaseAdministrationStoreIntegrationTests
         {
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task HostStart_RefusesLegacy5708DatabaseBeforeReadinessAndLeavesDisposableStateUntouched()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_host_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-host-data-{Guid.NewGuid():N}");
+        var initializationFile = Path.Combine(dataDirectory, "hMailServer.ini");
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAsync(testConnectionString).ConfigureAwait(false);
+            await SetVersionAsync(testConnectionString, 5708).ConfigureAwait(false);
+
+            var composition = Host.Build(
+                [
+                    $"--ConnectionStrings:hMailServer={testConnectionString}",
+                    $"--DataDirectory={dataDirectory}",
+                    $"--InitializationFile={initializationFile}",
+                    "--Imap:Enabled=false",
+                    "--Pop3:Enabled=false",
+                    "--Smtp:Enabled=false",
+                    "--ExternalFetch:Enabled=false",
+                    "--Com:LocalServerEnabled=false"
+                ]);
+
+            using var host = composition.Host;
+            var readiness = host.Services.GetRequiredService<ServerReadinessSignal>();
+            Exception? startException = null;
+            try
+            {
+                await host.StartAsync().ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                startException = exception;
+            }
+
+            var readinessException = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+                () => readiness.WaitAsync(CancellationToken.None));
+            StringAssert.Contains(readinessException.Message, "6000");
+            if (startException is not null)
+            {
+                StringAssert.Contains(startException.ToString(), "6000");
+            }
+
+            Assert.IsFalse(Directory.Exists(dataDirectory));
+            Assert.AreEqual(5708, await ReadVersionAsync(testConnectionString).ConfigureAwait(false));
+
+            try
+            {
+                await host.StopAsync().ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // The failed bootstrap may already have stopped the host.
+            }
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
         }
     }
 
