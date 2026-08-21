@@ -1,39 +1,34 @@
 hMailServer
 ===========
 
-## Current VerifyRemoteSslCertificate authorization-lease slice (2026-08-21)
+## Current raw non-DB-only backup acceptance (2026-08-21)
 
-Code/test commit `314c6e5a0` closes the retained-object authorization lease
-gap for authenticated `IInterfaceSettings.VerifyRemoteSslCertificate`
-(`DispId(93)`). Legacy `InterfaceSettings::get/put_VerifyRemoteSslCertificate`
-at `hmailserver/source/Server/COM/InterfaceSettings.cpp:2223-2258`
-delegates to `Configuration::Get/SetVerifyRemoteSslCertificate` at
-`hmailserver/source/Server/Common/Application/Configuration.cpp:597-607`,
-which persists `PROPERTY_VERIFYREMOTESSLCERTIFICATE` from
-`hmailserver/source/Server/Common/Application/Constants.h:122` in the existing
-`hm_settings.settinginteger` row seeded at
-`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:936`.
+Code/test commit `35cb6f5b7` adds the isolated SQL/Data acceptance test
+`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling`.
+It proves that `BackupOptions = 2 | 4` with
+`BackupMessagesDbOnly = false` publishes the raw `DataBackup` directory beside
+the archive, preserves nested message files, and records `Format="Raw"`,
+`FolderName="DataBackup"`, and mode `6` in the archive metadata.
 
-The installed contract remains unchanged: `IInterfaceSettings` IID
-`{A4C709A3-98B2-410D-84F4-EDA999BF0CB2}`, Settings CLSID
-`{FDF084A7-82DE-4EBE-8455-E506ACE01D63}`, `hMailServer.Settings.1` ProgID,
-and DispID 93 with VARIANT_BOOL marshaling. Net10 now holds the existing
-generation-bound authorization lease across
-`UpdateVerifyRemoteSslCertificateAsync`, fails closed before store access when
-the lease is unavailable, disposes it on success/failure, and publishes the
-retained snapshot only after a successful fixed-row update. SMTP/TLS
-certificate verification behavior and live delivery configuration remain
-unchanged. Focused tests pass `5`, skip `0`, and fail `0`; full Net10 passes
-`2599`, skips `90`, and fails `0` (`2689` total).
+The legacy reference is `hmailserver/source/Server/Common/Application/BackupExecuter.cpp`:
+`BackupExecuter::StartBackup` selects `BODomains|BOMessages`, calls
+`BackupDataDirectory_` for non-DB-only raw staging, and leaves the sibling
+directory after archive publication; `BackupExecuter::BackupDataDirectory_`
+copies nested message files while omitting root files. The disposable evidence
+is recorded in `artifacts/net10-disposable/net10-disposable-localdb.json`.
 
-Release remains **RED**. Disposable SQL/Data restore, SEC-18 cutover,
-registered/out-of-process COM, paired C++ performance, and long-soak evidence
-remain open or environment-blocked.
+Focused raw backup acceptance passes `1/1`; the complete backup/restore
+integration group passes `24/24`. Default full Net10 passes `2599`, skips `91`,
+and fails `0` (`2690` total). The opt-in LocalDB run passes `2674`, skips `12`,
+and fails `4`; the four failures are existing LocalDB Full-Text and
+authenticated COM capability mismatches, not this backup test.
 
-The next independent acceptance slice is the real SQL-backed raw
-`BackupOptions = 2 | 4` test with `BackupMessagesDbOnly = false`, proving the
-external `DataBackup` directory beside the archive. The raw staging
-implementation itself is historical (`50d8cefc3`) and is not being restarted.
+Release remains **RED**. Open gates include disposable host-start and
+installer rollback, SEC-18 cutover, registered/out-of-process COM, paired C++
+performance, SMTP/delivery thresholds, and 24-hour leak evidence. The next
+independent slice is isolated disposable `6000` SQL/Data host-start
+success/failure and no-side-effect evidence, if the host-start prerequisites
+are available.
 
 ## Historical MaxNumberOfMXHosts authorization-lease slice (2026-08-21)
 

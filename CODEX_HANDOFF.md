@@ -1,32 +1,30 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, VerifyRemoteSslCertificate lease)
+## Current Authoritative Continuation (2026-08-21, raw backup acceptance)
 
-Code/test commit `314c6e5a0` closes the retained-object authorization lease
-gap for authenticated `IInterfaceSettings.VerifyRemoteSslCertificate`
-(`DispId(93)`). Legacy `InterfaceSettings::get/put_VerifyRemoteSslCertificate`
-at `hmailserver/source/Server/COM/InterfaceSettings.cpp:2223-2258` delegates
-to `Configuration::Get/SetVerifyRemoteSslCertificate` at
-`hmailserver/source/Server/Common/Application/Configuration.cpp:597-607`,
-using `PROPERTY_VERIFYREMOTESSLCERTIFICATE` from
-`hmailserver/source/Server/Common/Application/Constants.h:122` and persisting
-the existing `hm_settings.settinginteger` row seeded by
-`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:936`.
+Code/test commit `35cb6f5b7` adds the isolated SQL/Data test
+`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling`.
+It proves legacy raw `BackupOptions = 2 | 4` and
+`BackupMessagesDbOnly = false` behavior against `(localdb)\MSSQLLocalDB` and a
+marker-guarded temporary Data root: nested message files appear in the sibling
+`DataBackup` directory, root files are omitted, and archive metadata records
+raw `DataBackup` mode `6`.
 
-Net10 holds the generation-bound authorization lease across the fixed-row
-update, fails closed when the lease is unavailable, disposes it on
-success/failure, and publishes the retained snapshot only after success.
-Focused tests pass `5`, skip `0`, and fail `0`; full Net10 passes `2599`, skips
-`90`, and fails `0` (`2689` total). No COM identity, SQL schema, SMTP/TLS
-certificate verification behavior, live delivery configuration, service,
-registry, DCOM, IIS, or production state changed.
+The C++ reference is
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp`, symbols
+`BackupExecuter::StartBackup` and `BackupExecuter::BackupDataDirectory_`.
+Focused acceptance passes `1/1`; backup/restore integration passes `24/24`;
+default full Net10 passes `2599`, skips `91`, and fails `0` (`2690` total).
+The opt-in LocalDB full run is `2674 passed, 12 skipped, 4 failed`; those four
+are the pre-existing LocalDB Full-Text and authenticated COM capability
+failures. No production service, SQL database, Data directory, COM identity,
+registry, DCOM ACL, IIS site, or firewall state changed.
 
-Next slice: run the real SQL-backed raw `BackupOptions = 2 | 4` acceptance
-with `BackupMessagesDbOnly = false`, proving the external `DataBackup`
-directory beside the archive. Raw non-DB-only staging is already implemented
-in `50d8cefc3` and is not being restarted. Release remains RED; disposable
-SQL/Data, SEC-18, registered COM, paired C++ performance, and long-soak
-evidence remain open or environment-blocked.
+Next slice: isolated disposable `6000` SQL/Data host-start success/failure and
+no-side-effect evidence when host-start prerequisites are available. Release
+remains RED; SEC-18, registered/out-of-process COM, paired C++ performance,
+SMTP/delivery thresholds, installer rollback, and long-soak evidence remain
+open or environment-blocked.
 
 ## Historical Authoritative Continuation (2026-08-21, MaxNumberOfMXHosts lease)
 

@@ -1,31 +1,28 @@
 
-## Current bounded slice: VerifyRemoteSslCertificate authorization lease (2026-08-21)
+## Current bounded slice: raw non-DB-only backup acceptance (2026-08-21)
 
-Code/test commit `314c6e5a0` closes the retained-object authorization lease
-gap for authenticated `IInterfaceSettings.VerifyRemoteSslCertificate`
-(`DispId(93)`). Legacy `InterfaceSettings::get/put_VerifyRemoteSslCertificate`
-at `hmailserver/source/Server/COM/InterfaceSettings.cpp:2223-2258` delegates
-to `Configuration::Get/SetVerifyRemoteSslCertificate` at
-`hmailserver/source/Server/Common/Application/Configuration.cpp:597-607`,
-using `PROPERTY_VERIFYREMOTESSLCERTIFICATE` from
-`hmailserver/source/Server/Common/Application/Constants.h:122` and persisting
-the existing `hm_settings.settinginteger` row seeded by
-`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:936`.
+Code/test commit `35cb6f5b7` adds
+`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling` in
+`hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/BackupRestoreRoundTripIntegrationTests.cs`.
+The test uses the disposable `(localdb)\MSSQLLocalDB` harness and an isolated
+Data root to prove `BackupOptions = 2 | 4` with
+`BackupMessagesDbOnly = false`: nested message files are copied to the sibling
+`DataBackup` directory, root-file omission remains intact, and archive metadata
+publishes raw mode `6` with `FolderName="DataBackup"`.
 
-Net10 holds the generation-bound authorization lease around
-`UpdateVerifyRemoteSslCertificateAsync`, fails closed when the lease is
-unavailable, disposes it on success/failure, and publishes the retained
-snapshot only after a successful update. Focused tests pass `5`, skip `0`, and
-fail `0`; full Net10 passes `2599`, skips `90`, and fails `0` (`2689` total).
-Settings IID/vtable/DISPID/class identity, SQL schema, SMTP/TLS certificate
-verification behavior, and live delivery configuration are unchanged.
+Legacy behavior is anchored to
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp`:
+`BackupExecuter::StartBackup` selects the domain/message branches and invokes
+`BackupDataDirectory_` for raw non-DB-only backups;
+`BackupExecuter::BackupDataDirectory_` copies nested message files, omits root
+files, and the raw path leaves `DataBackup` beside the archive. Focused
+acceptance passes `1/1`; the backup/restore integration group passes `24/24`.
+Default full Net10 passes `2599`, skips `91`, and fails `0` (`2690` total).
 
-Next independent slice: run the real SQL-backed raw `BackupOptions = 2 | 4`
-acceptance with `BackupMessagesDbOnly = false`, proving the external
-`DataBackup` directory beside the archive. Raw non-DB-only staging is already
-implemented and recorded in `50d8cefc3`; it is not being restarted. The
-disposable SQL/Data acceptance gate remains blocked by the absent approved SQL
-connection and isolated-create opt-in. Release remains **RED**.
+Next independent slice: isolated disposable `6000` SQL/Data host-start
+success/failure and no-side-effect evidence, subject to host-start prerequisites.
+The LocalDB FTS migration failures and authenticated COM capability mismatches
+remain environment/capability blockers. Release remains **RED**.
 
 ## Historical bounded slice: MaxNumberOfMXHosts authorization lease (2026-08-21)
 
