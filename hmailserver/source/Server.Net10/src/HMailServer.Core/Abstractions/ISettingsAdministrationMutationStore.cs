@@ -230,6 +230,10 @@ public interface ISettingsAdministrationMutationStore
         string database,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiVirusActionAsync(
+        int action,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

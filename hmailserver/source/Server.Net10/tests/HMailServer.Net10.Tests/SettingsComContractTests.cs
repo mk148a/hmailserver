@@ -185,6 +185,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusActionPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusAction: (int)ComAntivirusAction.DeleteEmail),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.Action = ComAntivirusAction.DeleteAttachments;
+
+        Assert.AreEqual(1, store.AntiVirusActionUpdateCount);
+        Assert.AreEqual((int)ComAntivirusAction.DeleteAttachments, store.UpdatedAntiVirusAction);
+        Assert.AreEqual(ComAntivirusAction.DeleteAttachments, settings.AntiVirus.Action);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusActionFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusAction: (int)ComAntivirusAction.DeleteEmail),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.Action = ComAntivirusAction.DeleteAttachments);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(ComAntivirusAction.DeleteEmail, settings.AntiVirus.Action);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7497,6 +7539,10 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedAntiVirusClamWinDatabase { get; private set; }
 
+        public int AntiVirusActionUpdateCount { get; private set; }
+
+        public int UpdatedAntiVirusAction { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -8866,6 +8912,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusClamWinDatabaseUpdateCount++;
             UpdatedAntiVirusClamWinDatabase = database;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusActionAsync(
+            int action,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusActionUpdateCount++;
+            UpdatedAntiVirusAction = action;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }
