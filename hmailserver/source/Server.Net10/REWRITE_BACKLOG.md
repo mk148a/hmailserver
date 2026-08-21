@@ -1,4 +1,21 @@
 
+## Current bounded slice: authenticated TLS 1.1 flag persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsVersion11Enabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2325-2338`) calls
+`Configuration::SetSslVersionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:632-640`),
+which changes only bit `4` in the existing `hm_settings.SslVersions` integer
+row. Code/test commit `25e105964` adds the authenticated Net10 bitmask
+mutation, unrelated-bit preservation, fail-closed outcome, and
+publish-after-success snapshot behavior. Focused Settings/SQL tests pass
+`246`, fail `0`; full Net10 passes `2525`, skips `90`, fails `0`.
+
+No TLS live reconfiguration, SMTP trust, COM identity, or direct activation
+boundary changed. The next slice remains disposable `6000` SQL/Data host-start
+acceptance when the approved connection and isolated-create opt-in become
+available; release remains RED.
+
 ## Current bounded slice: authenticated TLS 1.0 flag persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsVersion10Enabled`
