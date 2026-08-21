@@ -635,9 +635,6 @@ public sealed class SettingsComContractTests
             Assert.ThrowsExactly<COMException>(() => settings.SMTPConnectionSecurity = ComConnectionSecurity.None).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion13Enabled = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.TlsOptionPreferServerCiphersEnabled = false).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
@@ -1509,6 +1506,47 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             EAccessDenied,
             Assert.ThrowsExactly<COMException>(() => settings.TlsVersion12Enabled = false).ErrorCode);
+        Assert.AreEqual(2, store.SslVersionsUpdateCount);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_TlsVersion13SetterPreservesOtherBitsAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SslVersionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SslVersions: 14),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.TlsVersion13Enabled = true;
+
+        Assert.AreEqual(1, store.SslVersionsUpdateCount);
+        Assert.AreEqual(30, store.UpdatedSslVersions);
+        Assert.IsTrue(settings.TlsVersion13Enabled);
+        Assert.IsTrue(settings.TlsVersion10Enabled);
+        Assert.IsTrue(settings.TlsVersion11Enabled);
+        Assert.IsTrue(settings.TlsVersion12Enabled);
+
+        store.SslVersionsUpdateResult = false;
+        Assert.AreEqual(
+            EFail,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion13Enabled = false).ErrorCode);
+        Assert.AreEqual(14, store.UpdatedSslVersions);
+        Assert.IsTrue(settings.TlsVersion13Enabled);
+
+        isServerAdministrator = false;
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion13Enabled = false).ErrorCode);
         Assert.AreEqual(2, store.SslVersionsUpdateCount);
     }
 

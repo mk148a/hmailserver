@@ -2469,7 +2469,41 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.TlsVersion13Enabled
                 : HasFlag(_administrationSnapshot.SslVersions, TlsVersion13Flag);
         }
-        set => base.TlsVersion13Enabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.TlsVersion13Enabled = value;
+                return;
+            }
+
+            var currentSslVersions = _administrationSnapshot?.SslVersions ?? 0;
+            var updatedSslVersions = value
+                ? currentSslVersions | TlsVersion13Flag
+                : currentSslVersions & ~TlsVersion13Flag;
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateSslVersionsAsync(updatedSslVersions, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The TLS version mask update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SslVersions = updatedSslVersions
+                };
+            }
+        }
     }
 
     public override bool TlsOptionPreferServerCiphersEnabled
