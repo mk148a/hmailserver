@@ -1,4 +1,32 @@
 
+## Current bounded slice: BackupSettings destination persistence (2026-08-21)
+
+Code/test commit `8505d7aef` completes authenticated
+`Settings.Backup.Destination` persistence parity. Legacy
+`InterfaceBackupSettings::get_Destination/put_Destination` is in
+`hmailserver/source/Server/COM/InterfaceBackupSettings.cpp`; the shared
+configuration path is `Configuration::GetBackupDestination` and
+`Configuration::SetBackupDestination` in
+`hmailserver/source/Server/Common/Application/Configuration.cpp`, writing the
+`hm_settings` row named `backupdestination`. The installed child identity and
+property contract remain `IInterfaceBackupSettings` IID
+`2C5559F0-DF3F-43C0-935C-F79D41CF8A5B`, Destination DISPID `1`, CLSID
+`E0213ECF-BAEC-4E20-9813-0F75A97D0B16`, and ProgID
+`hMailServer.BackupSettings.1`.
+
+Net10 uses a parameterized SQL update with the schema width `nvarchar(4000)`
+from `hmailserver/source/DBScripts/CreateTablesMSSQL.sql:299-303`, requires
+the authenticated Administrator lease, and updates the COM snapshot only
+after exactly one row succeeds. Administrator `ucBackup.SaveData` writes the
+destination after the four option setters, preventing a destination-only
+partial save while those setters remain pending. Focused tests pass `261/261`;
+full Net10 passes `2548`, skips `90`, and fails `0` (`2638` total).
+
+Residual scope: the four sibling BackupSettings option setters and complete
+backup creation behavior remain incomplete. The next independent production
+gate is disposable `6000` SQL/Data host-start and no-side-effect evidence;
+approved SQL opt-in is still absent. Release remains **RED**.
+
 ## Current bounded slice: Application Start/Stop authorization parity (2026-08-21)
 
 Code/test commit `adeec5e76` aligns unauthenticated Net10

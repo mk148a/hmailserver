@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, BackupSettings destination)
+
+Code/test commit `8505d7aef` completes the bounded authenticated
+`Settings.Backup.Destination` persistence slice. Legacy
+`InterfaceBackupSettings::get_Destination/put_Destination` is in
+`hmailserver/source/Server/COM/InterfaceBackupSettings.cpp`; it delegates to
+`Configuration::GetBackupDestination` and `SetBackupDestination` in
+`hmailserver/source/Server/Common/Application/Configuration.cpp`, which writes
+`hm_settings.backupdestination`. Net10 preserves the installed
+`IInterfaceBackupSettings` IID `2C5559F0-DF3F-43C0-935C-F79D41CF8A5B`,
+Destination DISPID `1`, CLSID, and ProgID, and publishes the new snapshot only
+after an authenticated parameterized update affects exactly one row.
+
+The SQL parameter is `nvarchar(4000)`, matching
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:299-303`. Administrator
+`ucBackup.SaveData` now writes Destination after its four still-pending option
+setters, so a failed option write does not persist Destination alone. Focused
+tests pass `261/261`; full Net10 passes `2548`, skips `90`, and fails `0`.
+Release remains RED. The next slice is disposable `6000` SQL/Data host-start
+and no-side-effect evidence, blocked by missing approved SQL/isolated-create
+opt-in; the four sibling BackupSettings option setters remain incomplete.
+
 ## Current Authoritative Continuation (2026-08-21, Application Start/Stop authorization)
 
 Code/test commit `adeec5e76` adds the legacy authorization boundary to Net10
