@@ -1,14 +1,14 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, GreyListingWhiteAddress item Delete evidence)
+## Current Authoritative Continuation (2026-08-21, saved GreyListingWhiteAddress Delete parity)
 
-Test commit `a1df950d0` proves the authenticated persisted-item
+Code/test commit `0f2d7eabf` proves the authenticated `Add()` -> `Save()` ->
 `GreyListingWhiteAddress.Delete()` path after
 the SPF, MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM
 verification, greylisting bypass, CheckHostInHelo, and AddHeader pairs.
-Focused COM/SQL/security coverage is `201 passed, 0 skipped, 0 failed`; the disposable SQL
-integration setter/readback and missing-row checks passed; the disposable
-LocalDB/Data full suite is `2507 passed, 10 skipped, 0 failed` (`2517` total).
+Focused COM coverage is `20 passed, 0 skipped, 0 failed`; the disposable SQL
+integration item Add/Save/readback/Delete passed `1/1`; the disposable
+LocalDB/Data full suite is `2509 passed, 10 skipped, 0 failed` (`2519` total).
 Direct activation, failed reauthentication, missing-row failure, retained
 object snapshots, and existing COM identity boundaries remain covered.
 
@@ -18,9 +18,8 @@ Legacy references are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`), and
 `PersistentGreyListingWhiteAddress`
 (`source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
-The next unblocked parity slice is saved-new-item
-`GreyListingWhiteAddress.Delete()` ownership after `Add()` plus `Save()` with
-owning-collection snapshot removal.
+The next bounded slice is production-hosted SMTP enable/disable/timing
+acceptance on an isolated production-like host; it remains environment-gated.
 Triplet cleanup, production-hosted SMTP socket acceptance, migration/installer,
 SEC-18, paired C++ performance, and soak remain separate. Release remains
 `RED`.

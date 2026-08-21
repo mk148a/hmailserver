@@ -1,13 +1,15 @@
 
-## Current next slice (2026-08-21, GreyListingWhiteAddress saved-new-item Delete parity)
+## Current next slice (2026-08-21, SMTP live greylisting acceptance)
 
-Test commit `a1df950d0` proves the existing authenticated persisted-item
+Code/test commit `0f2d7eabf` completes the authenticated `Add()` -> `Save()` ->
 `GreyListingWhiteAddress.Delete()` path after the SPF,
 MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
-greylisting bypass, CheckHostInHelo, InitialDelete, and FinalDelete pairs.
-the disposable whitelist Add/Save/readback/DeleteByDBID round trip. Focused
-item-delete COM coverage is `18 passed, 0 skipped, 0 failed`; full disposable
-LocalDB/Data is `2507 passed, 10 skipped, 0 failed` (`2517` total).
+greylisting bypass, CheckHostInHelo, InitialDelete, and FinalDelete pairs, plus
+the disposable whitelist Add/Save/readback/item Delete round trip. Focused
+item-delete COM coverage is `20 passed, 0 skipped, 0 failed`; the isolated
+LocalDB/Data Add/Save/readback/item Delete integration is `1 passed, 0 skipped,
+0 failed`; full disposable LocalDB/Data is `2509 passed, 10 skipped, 0 failed`
+(`2519` total).
 
 Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`hmailserver/source/Server/COM/InterfaceGreyListingWhiteAddresses.cpp:85-93,162-183`),
@@ -15,9 +17,11 @@ Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`hmailserver/source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`),
 and `PersistentGreyListingWhiteAddress`
 (`hmailserver/source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
-The next bounded slice is saved-new-item `GreyListingWhiteAddress.Delete()`
-ownership after `Add()` plus `Save()` with owning-collection snapshot removal.
-preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
+The next bounded slice is production-hosted SMTP enable/disable/timing
+acceptance for live greylisting on an isolated production-like host. It must
+prove the legacy SMTP socket behavior and runtime timing without changing
+production state.
+Preserve the installed AntiSpam IID/vtable/DISPID/class identity and the
 authenticated Settings boundary. Do not add DKIM signing, DNS verification,
 or live SMTP/POP3 greylisting reconfiguration in that slice. Triplet cleanup,
 production-hosted SMTP socket
