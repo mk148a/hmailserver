@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, BackupSettings compression)
+
+Code/test commit `9da19c922` completes the bounded authenticated
+`IInterfaceBackupSettings.CompressDestinationFiles` setter. Legacy
+`InterfaceBackupSettings::get/put_CompressDestinationFiles` is at
+`hmailserver/source/Server/COM/InterfaceBackupSettings.cpp:189-220` and
+delegates to `Configuration::SetBackupOption` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:450-472` for
+`HM::Backup::BOCompression = 8` from
+`hmailserver/source/Server/Common/Application/Backup.h:14-20`.
+
+Net10 preserves IID `2C5559F0-DF3F-43C0-935C-F79D41CF8A5B`, DISPID `5`,
+`VARIANT_BOOL`, CLSID, ProgID, and vtable order. The SQL store atomically sets
+or clears only bit `8` in the current `hm_settings.backupoptions` row. The
+existing authenticated owning Settings boundary and authorization lease cover
+the write; failed or zero-row writes do not publish snapshots. Parent
+publication merges bit `8` against current parent options for retained-child
+safety.
+
+Focused tests pass `282/282`; full Net10 passes `2569`, skips `90`, and fails
+`0` (`2659` total). Next code slice: raw non-DB-only `BODomains|BOMessages`
+DataBackup staging, leaving the external `DataBackup` directory beside the
+archive. Release remains RED because backup execution, disposable SQL/Data
+host-start and restore, rollback, SEC-18, registered/out-of-process COM,
+paired C++ performance, and long-soak evidence remain open.
+
 ## Current Authoritative Continuation (2026-08-21, BackupSettings messages)
 
 Code/test commit `31728473e` completes the bounded authenticated

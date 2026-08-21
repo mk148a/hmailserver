@@ -1,6 +1,36 @@
 hMailServer
 ===========
 
+## Current BackupSettings compression-flag persistence slice (2026-08-21)
+
+Code/test commit `9da19c922` completes the bounded authenticated
+`IInterfaceBackupSettings.CompressDestinationFiles` setter. Legacy
+`InterfaceBackupSettings::get/put_CompressDestinationFiles` is at
+`hmailserver/source/Server/COM/InterfaceBackupSettings.cpp:189-220`; it uses
+`Configuration::SetBackupOption` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:450-472` and
+`HM::Backup::BOCompression = 8` from
+`hmailserver/source/Server/Common/Application/Backup.h:14-20`.
+
+The installed child contract remains IID
+`2C5559F0-DF3F-43C0-935C-F79D41CF8A5B`, CompressDestinationFiles DISPID `5`,
+`VARIANT_BOOL`, CLSID `E0213ECF-BAEC-4E20-9813-0F75A97D0B16`, ProgID
+`hMailServer.BackupSettings.1`, and the existing vtable shape. Net10 now
+atomically sets or clears only bit `8` in the current
+`hm_settings.backupoptions` row, preserves unrelated bits, enforces the
+authenticated Administrator/lease boundary, and publishes snapshots only
+after success. Parent publication merges bit `8` against current parent
+options so retained child facades cannot overwrite unrelated flags. Focused
+tests pass `282/282`; full Net10 passes `2569`, skips `90`, and fails `0`
+(`2659` total).
+
+The next independent production slice is raw non-DB-only `BODomains|BOMessages`
+DataBackup staging, leaving the external `DataBackup` directory beside the
+archive. The release gate remains **RED**: backup execution matrix,
+disposable SQL/Data host-start and restore, rollback, SEC-18,
+registered/out-of-process COM, paired C++ performance, and long-soak evidence
+remain open.
+
 ## Current BackupSettings message-flag persistence slice (2026-08-21)
 
 Code/test commit `31728473e` completes the bounded authenticated
