@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T08:40:00Z` / `2026-08-21T11:40:00+03:00`
+- UTC/local timestamp: `2026-08-21T08:43:00Z` / `2026-08-21T11:43:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `4b57928f1` (authenticated database transaction controls code/test complete; documentation commit pending)
+- Current HEAD: `6fb3230e1` (authenticated database transaction controls and documentation complete)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
 - Latest focused-test result: Database COM `6/6` passed; isolated SQL Server transaction integration `2/2` passed; unique disposable databases were removed; migration evidence remains `PassedWithKnownLegacyTransactionLimitation` with SQL Server `Msg 574`
 - Latest full Net10 result: `2483 passed, 85 skipped, 0 failed` (`2568` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`
