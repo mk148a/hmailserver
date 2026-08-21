@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authenticated CustomScannerReturnValue mutation gate (2026-08-22)
+
+Code/test commit `3f66a8eb9` implements legacy
+`AntiVirus.CustomScannerReturnValue` mutation. The legacy reference is
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:189-221`; it writes the
+`customviursscannerreturnvalue` setting from
+`hmailserver/source/Server/Common/Application/Constants.h:48`. Net10 uses a
+parameterized fixed-row SQL update, the existing authenticated Settings
+lease, and retained snapshot publication only after a successful one-row
+mutation. Installed COM identity and direct activation boundaries are
+unchanged.
+
+Focused contract/store tests pass `342`, skip `0`, and fail `0`; default full
+Net10 passes `2629`, skips `92`, and fails `0` (`2721` total). No disposable
+SQL integration was available, so release remains **RED**. Next independent
+slice: establish or verify disposable Full-Text SQL Server `6000`, then
+continue the next authenticated AntiVirus/Admin mutation.
+
 ## Current authenticated CustomScannerExecutable mutation gate (2026-08-22)
 
 Code/test commit `f02091d5f` implements legacy
