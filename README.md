@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current backup reparse-chain containment slice (2026-08-21)
+
+Code/test commit `d31f374b6` closes the bounded raw `BODomains|BOMessages`
+backup staging gap for existing source and destination ancestor junctions or
+symlinks. Legacy `BackupExecuter::BackupDataDirectory_` and
+`FileUtilities::CopyDirectory` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196` and
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370` follow linked
+paths. Net10 intentionally keeps the safer existing source-entry rejection
+and now rejects every existing ancestor in
+`SevenZipBackupArchiveRuntime.CreateAsync` before payload serialization or
+archive/staging writes via `EnsureNoExistingAncestorReparsePoints`.
+
+The backup XML/layout, SQL schema, COM identity, mode flags, and production
+wiring are unchanged. Focused `BackupArchiveRuntimeTests` pass `58`, skip `1`
+when Windows junction capability is unavailable, and fail `0`; full Net10
+passes `2571`, skips `90`, and fails `0` (`2661` total). The next independent
+acceptance slice is the real SQL-backed raw `BackupOptions = 2 | 4`,
+`BackupMessagesDbOnly = false` test with external `DataBackup` evidence; it
+remains blocked until the approved disposable SQL/isolated-create opt-in is
+present.
+
+Residual security risk is explicit: path checks do not close concurrent
+replacement races, and partial-archive publication cleanup is a separate
+slice. Release remains **RED**.
+
 ## Current BackupSettings compression-flag persistence slice (2026-08-21)
 
 Code/test commit `9da19c922` completes the bounded authenticated

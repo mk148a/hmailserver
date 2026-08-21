@@ -1,5 +1,29 @@
 
-## Current bounded slice: BackupSettings compression-flag persistence (2026-08-21)
+## Current bounded slice: backup reparse-chain containment (2026-08-21)
+
+Code/test commit `d31f374b6` closes the bounded raw
+`BODomains|BOMessages` staging gap for existing source and destination
+ancestor reparse points. Legacy `BackupExecuter::BackupDataDirectory_` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196` and
+`FileUtilities::CopyDirectory` at
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370` follow linked
+paths. Net10 preserves the safer existing source-entry rejection and now
+rejects each existing ancestor in `SevenZipBackupArchiveRuntime.CreateAsync`
+before payload serialization or archive/staging writes using
+`EnsureNoExistingAncestorReparsePoints`.
+
+No COM, IDL, SQL schema, backup XML/layout, or service wiring contract changed.
+Focused `BackupArchiveRuntimeTests` pass `58`, skip `1` when Windows junction
+capability is unavailable, and fail `0`; full Net10 passes `2571`, skips `90`,
+and fails `0` (`2661` total). The next independent acceptance slice is the
+real SQL-backed raw `BackupOptions = 2 | 4`, `BackupMessagesDbOnly = false`
+test with external `DataBackup` evidence, blocked until approved disposable
+SQL/isolated-create opt-in exists.
+
+Handle-based TOCTOU hardening and partial-archive publication cleanup remain
+separate residual risks. Release remains **RED**.
+
+## Historical bounded slice: BackupSettings compression-flag persistence (2026-08-21)
 
 Code/test commit `9da19c922` completes authenticated
 `IInterfaceBackupSettings.CompressDestinationFiles` setter parity. Legacy

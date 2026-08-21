@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, backup reparse containment)
+
+Code/test commit `d31f374b6` closes the bounded raw
+`BODomains|BOMessages` backup staging gap for existing source and destination
+ancestor reparse points. Legacy `BackupExecuter::BackupDataDirectory_` and
+`FileUtilities::CopyDirectory` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196` and
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370` follow linked
+paths. Net10 deliberately retains its safer source-entry rejection and now
+walks every existing ancestor before payload serialization or archive/staging
+writes through `EnsureNoExistingAncestorReparsePoints` in
+`BackupArchiveRuntime.cs`.
+
+Focused `BackupArchiveRuntimeTests` pass `58`, skip `1` when Windows junction
+capability is unavailable, and fail `0`; full Net10 passes `2571`, skips `90`,
+and fails `0` (`2661` total). Next code slice: the real SQL-backed raw
+`BackupOptions = 2 | 4`, `BackupMessagesDbOnly = false` acceptance test with
+external `DataBackup` evidence, blocked until approved disposable SQL/
+isolated-create opt-in exists.
+
+The patch does not claim race-free handle-relative traversal. Partial archive
+cleanup, disposable SQL/Data host-start and restore/rollback, SEC-18,
+registered/out-of-process COM, paired C++ performance, and long-soak evidence
+remain open. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, BackupSettings compression)
 
 Code/test commit `9da19c922` completes the bounded authenticated
