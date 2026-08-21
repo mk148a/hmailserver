@@ -1918,7 +1918,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.IMAPSASLInitialResponseEnabled
                 : _administrationSnapshot.ImapSaslInitialResponseEnabled;
         }
-        set => base.IMAPSASLInitialResponseEnabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.IMAPSASLInitialResponseEnabled = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateImapSaslInitialResponseEnabledAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP SASL initial-response setting update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    ImapSaslInitialResponseEnabled = value
+                };
+            }
+        }
     }
 
     public override string IMAPPublicFolderName

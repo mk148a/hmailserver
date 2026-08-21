@@ -1179,6 +1179,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapSaslInitialResponseEnabledSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapSaslInitialResponseEnabledUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapSaslInitialResponseEnabled: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.IMAPSASLInitialResponseEnabled = true;
+
+        Assert.AreEqual(1, store.ImapSaslInitialResponseEnabledUpdateCount);
+        Assert.IsTrue(store.UpdatedImapSaslInitialResponseEnabled);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.IMAPSASLInitialResponseEnabled);
+
+        store.ImapSaslInitialResponseEnabledUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPSASLInitialResponseEnabled = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ImapSaslInitialResponseEnabledUpdateCount);
+        Assert.IsTrue(settings.IMAPSASLInitialResponseEnabled);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPSASLInitialResponseEnabled = false);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapSaslInitialResponseEnabledUpdateCount);
+        Assert.IsTrue(settings.IMAPSASLInitialResponseEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5740,6 +5782,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedImapSaslPlainEnabled { get; private set; }
 
+        public bool ImapSaslInitialResponseEnabledUpdateResult { get; set; }
+
+        public int ImapSaslInitialResponseEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedImapSaslInitialResponseEnabled { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6349,6 +6397,16 @@ public sealed class SettingsComContractTests
             UpdatedImapSaslPlainEnabled = imapSaslPlainEnabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ImapSaslPlainEnabledUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapSaslInitialResponseEnabledAsync(
+            bool imapSaslInitialResponseEnabled,
+            CancellationToken cancellationToken)
+        {
+            ImapSaslInitialResponseEnabledUpdateCount++;
+            UpdatedImapSaslInitialResponseEnabled = imapSaslInitialResponseEnabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapSaslInitialResponseEnabledUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

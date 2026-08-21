@@ -94,6 +94,10 @@ public interface ISettingsAdministrationMutationStore
         bool imapSaslPlainEnabled,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateImapSaslInitialResponseEnabledAsync(
+        bool imapSaslInitialResponseEnabled,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);
