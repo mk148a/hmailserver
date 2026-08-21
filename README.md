@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authenticated AntiVirus Action mutation gate (2026-08-22)
+
+Code/test commit `304796fd4` implements legacy `AntiVirus.Action` mutation.
+The legacy reference is `hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:223-276`:
+`hDeleteEmail` maps to integer `0`, `hDeleteAttachments` maps to integer `1`,
+and the setting key is `avaction` from
+`hmailserver/source/Server/Common/Application/Constants.h:28`. Net10 writes
+the existing row through a parameterized SQL store method, requires the
+authenticated Settings lease, and updates the retained snapshot only after a
+successful one-row mutation. Installed COM identity and direct activation
+boundaries are unchanged.
+
+Focused contract/store tests pass `327`, skip `0`, and fail `0`; default full
+Net10 passes `2614`, skips `92`, and fails `0` (`2706` total). No disposable
+SQL integration was available, so release remains **RED**. Next independent
+slice: establish or verify disposable Full-Text SQL Server `6000`, then
+continue the next authenticated AntiVirus/Admin mutation.
+
 ## Current authenticated ClamWin database mutation gate (2026-08-22)
 
 Code/test commit `16ba1c809` implements the legacy authenticated

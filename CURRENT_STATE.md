@@ -1,13 +1,13 @@
 # Current State
 - UTC/local timestamp: `2026-08-21T22:25:15Z` / `2026-08-22T01:25:15+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `16ba1c809` (documentation commit follows)
+- Current HEAD: `304796fd4` (documentation commit follows)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
-- Latest focused-test result: authenticated ClamWin database mutation and SQL-store contracts `324 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default Debug `2611 passed, 92 skipped, 0 failed` (`2703` total)
+- Latest focused-test result: authenticated AntiVirus Action mutation and SQL-store contracts `327 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: default Debug `2614 passed, 92 skipped, 0 failed` (`2706` total)
 - Opt-in tests passed/skipped/blocked: disposable LocalDB `2670 passed, 12 skipped, 10 failed`; six native Data restore failures return Win32 `ERROR_INVALID_PARAMETER (87)`, two Full-Text failures are unsupported by LocalDB, and two authenticated COM capability tests return `E_FAIL` instead of the expected unavailable-capability code
-- Current bounded slice: authenticated Administrator `AntiVirus.ClamWinDBFolder` fixed-row mutation; code/test commit `16ba1c809`
-- Completed milestones: authenticated ClamWinDBFolder, ClamWinExecutable, and ClamWinEnabled mutations with retained-snapshot publication and lease enforcement; handle-relative recursive DataBackup traversal; authenticated production-shaped backup dispatch evidence; handle-relative restore rename containment; prior raw non-DB-only backup and legacy-version host-start refusal slices; detailed history remains in `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` and `CODEX_HANDOFF.md`
+- Current bounded slice: authenticated Administrator `AntiVirus.Action` fixed-row mutation; code/test commit `304796fd4`
+- Completed milestones: authenticated AntiVirus Action, ClamWinDBFolder, ClamWinExecutable, and ClamWinEnabled mutations with retained-snapshot publication and lease enforcement; handle-relative recursive DataBackup traversal; authenticated production-shaped backup dispatch evidence; handle-relative restore rename containment; prior raw non-DB-only backup and legacy-version host-start refusal slices; detailed history remains in `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` and `CODEX_HANDOFF.md`
 - Open production blockers: Full-Text-capable SQL Server `6000` startup and SQL/Data round-trip, native copier review under the target service identity, installer/service/data rollback, registered/out-of-process COM, SEC-18, AD/master-user, DKIM/DMARC/SPF, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
 - Environment-blocked work: LocalDB Full-Text support, target-identity native filesystem review, production-like installer/COM/SEC-18/C++/AD/DNS/soak infrastructure; no production service, database, Data directory, COM registration, DCOM ACL, IIS, or firewall state was changed
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM registration/DCOM, production IIS, dirty `AGENTS.md`, and pre-existing untracked SEC-18/benchmark/migration/disposable artifacts
