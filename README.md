@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, IMAP SASL initial-response persistence parity)
+
+Code/test commit `784d83d59` implements the bounded authenticated
+`Settings.IMAPSASLInitialResponseEnabled` setter path. It updates the existing
+`hm_settings.settinginteger` row whose name is
+`EnableImapSASLInitialResponse`, publishes the new value only after a
+successful one-row store result, preserves the authenticated
+server-administrator boundary and authorization lease, and retains direct
+activation fallback behavior. Focused COM/SQL coverage is `222 passed, 0
+skipped, 0 failed`; disposable LocalDB SQL integration is included; full
+Net10 Debug coverage is `2539 passed, 10 skipped, 0 failed` (`2549` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPSASLInitialResponseEnabled`
+(`source/Server/COM/InterfaceSettings.cpp:2557-2584`) and
+`IMAPConfiguration::Get/SetUseIMAPSASLInitialResponse`
+(`source/Server/IMAP/IMAPConfiguration.cpp:162-170`), with
+`PROPERTY_ENABLEIMAPSASLINTIALRESPONSE` and the existing SQL seed. The
+installed Settings IID/vtable/DISPID `102` shape is unchanged. SASL
+authentication, credentials, capability/runtime reload, and live
+reconfiguration remain out of scope. Migration/installer, registered
+COM/DCOM, SEC-18, paired C++ performance, and 24-hour soak gates remain open.
+Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, IMAP SASL PLAIN persistence parity)
 
 Code/test commit `607d84543` implements the bounded authenticated

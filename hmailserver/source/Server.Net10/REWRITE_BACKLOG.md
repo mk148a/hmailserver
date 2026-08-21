@@ -1,5 +1,32 @@
 
-## Current next slice (2026-08-21, IMAP SASL initial-response persistence after PLAIN parity)
+## Current next slice (2026-08-21, IMAP public-folder name persistence after SASL parity)
+
+Code/test commit `784d83d59` closes the authenticated
+`Settings.IMAPSASLInitialResponseEnabled` persistence gap. The setter updates
+the existing `hm_settings.settinginteger` value for
+`EnableImapSASLInitialResponse` through the configured administration store,
+publishes the snapshot only after a one-row success, and retains direct
+activation and failed-save behavior. Focused COM/SQL coverage is `222 passed,
+0 skipped, 0 failed`; the disposable LocalDB SQL integration passed; full
+Net10 Debug is `2539 passed, 10 skipped, 0 failed` (`2549` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPSASLInitialResponseEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2557-2584`) and
+`IMAPConfiguration::Get/SetUseIMAPSASLInitialResponse`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:162-170`), with
+`PROPERTY_ENABLEIMAPSASLINTIALRESPONSE` and the existing `hm_settings` seed.
+The installed Settings IID/vtable/DISPID `102` shape and authenticated
+server-administrator boundary remain unchanged. This persistence-only slice
+does not change SASL credentials or live capability reconfiguration.
+
+The next bounded slice is authenticated `Settings.IMAPPublicFolderName`
+persistence parity against the existing public-folder-name setting row. Do not
+add live IMAP capability changes, folder ACL mutation, or unrelated Admin
+mutations. Production-hosted SMTP/POP3 timing, migration/installer, SEC-18,
+paired C++ performance, and soak remain separate gates. Release remains
+**RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP SASL initial-response persistence after PLAIN parity)
 
 Code/test commit `607d84543` closes the authenticated
 `Settings.IMAPSASLPlainEnabled` persistence gap. The setter updates the
