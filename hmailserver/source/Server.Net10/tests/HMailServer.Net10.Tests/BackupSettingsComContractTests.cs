@@ -69,10 +69,12 @@ public sealed class BackupSettingsComContractTests
     {
         var destinationError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().Destination);
         var logFileError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().LogFile);
+        var backupSettingsError = Assert.ThrowsExactly<COMException>(() => _ = new BackupSettingsComClass().BackupSettings);
         var settingsError = Assert.ThrowsExactly<COMException>(() => _ = new Settings().Backup);
 
         Assert.AreEqual(EAccessDenied, destinationError.ErrorCode);
         Assert.AreEqual(EAccessDenied, logFileError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, backupSettingsError.ErrorCode);
         Assert.AreEqual(EAccessDenied, settingsError.ErrorCode);
     }
 
@@ -169,6 +171,88 @@ public sealed class BackupSettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedBackupSettings_BackupSettingsSetterTransitionsBitOneAndPreservesOtherBits()
+    {
+        var persisted = new List<bool>();
+        var published = new List<int>();
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 14, string.Empty),
+            updateBackupSettings: value =>
+            {
+                persisted.Add(value);
+                return true;
+            },
+            backupSettingsUpdated: published.Add,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        backup.BackupSettings = true;
+        Assert.IsTrue(backup.BackupSettings);
+        Assert.AreEqual(15, published[0]);
+
+        backup.BackupSettings = false;
+        Assert.IsFalse(backup.BackupSettings);
+        CollectionAssert.AreEqual(new[] { true, false }, persisted);
+        CollectionAssert.AreEqual(new[] { 15, 14 }, published);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_BackupSettingsSetterFailureDoesNotPublishSnapshot()
+    {
+        var publishCount = 0;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 15, string.Empty),
+            updateBackupSettings: static _ => false,
+            backupSettingsUpdated: _ => publishCount++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        var error = Assert.ThrowsExactly<COMException>(() => backup.BackupSettings = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), error.ErrorCode);
+        Assert.AreEqual(0, publishCount);
+        Assert.IsTrue(backup.BackupSettings);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_BackupSettingsSetterDeniesAdministratorOrExpiredLeaseBeforeStore()
+    {
+        var updateCount = 0;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 14, string.Empty),
+            updateBackupSettings: _ =>
+            {
+                updateCount++;
+                return true;
+            },
+            isServerAdministrator: static () => false,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(new TrackingLease()));
+
+        var administratorError = Assert.ThrowsExactly<COMException>(() => backup.BackupSettings = true);
+
+        Assert.AreEqual(EAccessDenied, administratorError.ErrorCode);
+        Assert.AreEqual(0, updateCount);
+
+        backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(@"D:\Backups", 14, string.Empty),
+            updateBackupSettings: _ =>
+            {
+                updateCount++;
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var leaseError = Assert.ThrowsExactly<COMException>(() => backup.BackupSettings = true);
+
+        Assert.AreEqual(EAccessDenied, leaseError.ErrorCode);
+        Assert.AreEqual(0, updateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedBackupSettings_LogFilePreservesLegacySeparatorRulesWithoutFileAccess()
     {
         var missingDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
@@ -257,6 +341,13 @@ public sealed class BackupSettingsComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private sealed class TrackingLease : IDisposable
+    {
+        public void Dispose()
+        {
+        }
     }
 
     private static string ReadAdministratorBackupSource()

@@ -1054,4 +1054,17 @@ public sealed class SqlServerSettingsAdministrationStoreTests
         Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void UpdateBackupSettingsSql_UsesCurrentRowAndParameterizedBitValues()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateBackupSettingsSql;
+
+        Assert.AreEqual(
+            "UPDATE hm_settings\nSET settinginteger = (settinginteger & ~@BackupSettingsMask) | @BackupSettingsValue\nWHERE settingname = N'backupoptions';",
+            sql.Replace("\r\n", "\n", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("SELECT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }

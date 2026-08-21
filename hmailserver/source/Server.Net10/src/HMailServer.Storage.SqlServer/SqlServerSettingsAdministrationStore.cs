@@ -531,6 +531,12 @@ SET settingstring = @BackupDestination
 WHERE settingname = N'backupdestination';
 """;
 
+    public const string UpdateBackupSettingsSql = """
+UPDATE hm_settings
+SET settinginteger = (settinginteger & ~@BackupSettingsMask) | @BackupSettingsValue
+WHERE settingname = N'backupoptions';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -1759,6 +1765,18 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateBackupDestinationSql, connection);
         command.Parameters.Add("@BackupDestination", SqlDbType.NVarChar, 4000).Value = backupDestination;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateBackupSettingsAsync(
+        bool backupSettings,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateBackupSettingsSql, connection);
+        command.Parameters.Add("@BackupSettingsMask", SqlDbType.Int).Value = 1;
+        command.Parameters.Add("@BackupSettingsValue", SqlDbType.Int).Value = backupSettings ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

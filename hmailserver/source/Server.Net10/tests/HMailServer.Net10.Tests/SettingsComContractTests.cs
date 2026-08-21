@@ -5004,6 +5004,72 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_BackupSettingsSetterPersistsTransitionsAndPreservesOtherBits()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            BackupSettingsUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                BackupOptions: 14)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true);
+
+        settings.Backup.BackupSettings = true;
+        Assert.IsTrue(settings.Backup.BackupSettings);
+        Assert.IsTrue(settings.Backup.BackupDomains);
+        Assert.IsTrue(settings.Backup.BackupMessages);
+        Assert.IsTrue(settings.Backup.CompressDestinationFiles);
+
+        settings.Backup.BackupSettings = false;
+        Assert.IsFalse(settings.Backup.BackupSettings);
+        Assert.AreEqual(2, store.BackupSettingsUpdateCount);
+        CollectionAssert.AreEqual(new[] { true, false }, store.UpdatedBackupSettings);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_BackupSettingsSetterFailureAndExpiredLeaseDoNotPublishOrStore()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            BackupSettingsUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                BackupOptions: 14)
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true);
+
+        var failed = Assert.ThrowsExactly<COMException>(() => settings.Backup.BackupSettings = true);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, store.BackupSettingsUpdateCount);
+        Assert.IsFalse(settings.Backup.BackupSettings);
+
+        settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(() => settings.Backup.BackupSettings = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(1, store.BackupSettingsUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamThresholdSettersPersistAndRefreshSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6447,9 +6513,15 @@ public sealed class SettingsComContractTests
 
         public bool BackupDestinationUpdateResult { get; set; }
 
+        public bool BackupSettingsUpdateResult { get; set; }
+
         public int BackupDestinationUpdateCount { get; private set; }
 
+        public int BackupSettingsUpdateCount { get; private set; }
+
         public string UpdatedBackupDestination { get; private set; } = string.Empty;
+
+        public List<bool> UpdatedBackupSettings { get; } = [];
 
         public bool MirrorUpdateResult { get; set; }
 
@@ -7994,6 +8066,16 @@ public sealed class SettingsComContractTests
             UpdatedBackupDestination = backupDestination;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(BackupDestinationUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateBackupSettingsAsync(
+            bool backupSettings,
+            CancellationToken cancellationToken)
+        {
+            BackupSettingsUpdateCount++;
+            UpdatedBackupSettings.Add(backupSettings);
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(BackupSettingsUpdateResult);
         }
 
     }
