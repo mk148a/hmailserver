@@ -1,13 +1,13 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T08:20:01Z` / `2026-08-21T11:20:01+03:00`
+- UTC/local timestamp: `2026-08-21T08:21:30Z` / `2026-08-21T11:21:30+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `134b4d6fa` (latest tested code/test commit; documentation commit follows)
+- Current HEAD: `6f20c1024` (migration code/test and documentation commits complete)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
 - Latest focused-test result: disposable SQL migration evidence passed with status `PassedWithKnownLegacyTransactionLimitation`; full DDL/FTS reached `6000`, injected rollback returned to `5708`, legacy transaction returned SQL Server `Msg 574`
 - Latest full Net10 result: `2482 passed, 84 skipped, 0 failed` (`2566` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`
 - Opt-in tests passed/skipped/blocked: SQL Server disposable migration evidence passed with the documented FTS transaction limitation; LocalDB parser probe is blocked by missing Full-Text; production SMTP/POP3, paired C++, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
 - Current bounded slice: disposable 5708-to-6000 migration evidence completed; .NET migration executor and legacy transaction boundary remain open; paired C++ performance remains RED
-- Completed milestones: authenticated Settings persistence through UserInterfaceLanguage and IMAP hierarchy delimiter; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
+- Completed milestones: authenticated Settings persistence through UserInterfaceLanguage and IMAP hierarchy delimiter; isolated SQL migration evidence in `134b4d6fa`; current-state/backlog update in `6f20c1024`; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
 - Open production blockers: .NET migration executor and SQL Server FTS transaction boundary, installer/service/data rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF runtime wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains RED
 - Environment-blocked work: production-like service/installer rollback, trusted COM caller-token/native-reader evidence, authorized/non-pool denial matrix, broker rollback validation, paired C++ runner, AD, live DNS/TLS, and long-soak infrastructure remain unavailable; the official PHP checksum sidecar is absent and local hash remains disposable-test evidence only
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
