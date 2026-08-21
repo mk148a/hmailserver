@@ -771,6 +771,65 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_DefaultDomainSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            UpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                DefaultDomain: "old.example.test"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.DefaultDomain = "new.example.test");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.UpdateCount);
+        Assert.AreEqual("old.example.test", settings.DefaultDomain);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_DefaultDomainSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            UpdateResult = true,
+            DefaultDomainMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                DefaultDomain: "old.example.test"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.DefaultDomain = "new.example.test";
+
+        Assert.IsTrue(store.DefaultDomainLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.AreEqual("new.example.test", settings.DefaultDomain);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_ServiceSmtpSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7037,6 +7096,10 @@ public sealed class SettingsComContractTests
 
         public bool UpdateResult { get; set; }
 
+        public Func<bool>? DefaultDomainMutationProbe { get; set; }
+
+        public bool DefaultDomainLeaseHeldDuringUpdate { get; private set; }
+
         public bool BackupDestinationUpdateResult { get; set; }
 
         public bool BackupSettingsUpdateResult { get; set; }
@@ -7678,6 +7741,8 @@ public sealed class SettingsComContractTests
             UpdateCount++;
             UpdatedDefaultDomain = defaultDomain;
             CancellationToken = cancellationToken;
+            DefaultDomainLeaseHeldDuringUpdate =
+                DefaultDomainMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(UpdateResult);
         }
 
