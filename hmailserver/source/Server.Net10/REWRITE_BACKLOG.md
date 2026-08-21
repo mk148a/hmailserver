@@ -1,5 +1,32 @@
 
-## Current next slice (2026-08-21, SMTP runtime acceptance after delivery-bind persistence parity)
+## Current next slice (2026-08-21, IMAP quota persistence after IMAP SORT parity)
+
+Code/test commit `73d8e9e13` closes the authenticated
+`Settings.IMAPSortEnabled` persistence gap. The setter updates the existing
+`hm_settings.settinginteger` value for `enableimapsort` through the configured
+administration store, publishes the snapshot only after a one-row success,
+and retains direct activation and failed-save behavior. Focused COM/SQL
+coverage is `212 passed, 0 skipped, 0 failed`; the disposable LocalDB SQL
+integration passed; full Net10 Debug is `2524 passed, 10 skipped, 0 failed`
+(`2534` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPSortEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1368-1394`) and
+`IMAPConfiguration::Get/SetUseIMAPSort`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:102-110`), with
+`PROPERTY_ENABLEIMAPSORT` and the existing `hm_settings` seed. The installed
+Settings IID/vtable/DISPID shape and authenticated server-administrator
+boundary remain unchanged. IMAP capability/search runtime reload is
+deliberately out of scope.
+
+The next bounded slice is authenticated `Settings.IMAPQuotaEnabled`
+persistence parity against the existing `enableimapquota` row. It must not add
+live IMAP capability/runtime reconfiguration or unrelated Admin mutations.
+Production-hosted SMTP/POP3 timing, migration/installer, SEC-18, paired C++
+performance, and soak remain separate gates. Release remains **RED**. No push
+was performed.
+
+## Historical current slice (2026-08-21, SMTP runtime acceptance after delivery-bind persistence parity)
 
 Code/test commit `10339d49a` closes the authenticated
 `Settings.SMTPDeliveryBindToIP` persistence gap. The setter updates the

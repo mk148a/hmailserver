@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, IMAP SORT persistence parity)
+
+Code/test commit `73d8e9e13` implements authenticated
+`Settings.IMAPSortEnabled` persistence through
+`SqlServerSettingsAdministrationStore.UpdateImapSortEnabledAsync`. It updates
+only the existing `enableimapsort` row, requires the existing authenticated
+server-administrator boundary, publishes the snapshot after a successful
+one-row update, and keeps direct activation fallback behavior. Focused COM/SQL
+coverage is `212 passed, 0 skipped, 0 failed`; disposable LocalDB SQL
+integration passed; full Net10 Debug is `2524 passed, 10 skipped, 0 failed`
+(`2534` total).
+
+Legacy references are `InterfaceSettings::get/put_IMAPSortEnabled`
+(`source/Server/COM/InterfaceSettings.cpp:1368-1394`) and
+`IMAPConfiguration::Get/SetUseIMAPSort`
+(`source/Server/IMAP/IMAPConfiguration.cpp:102-110`). No installed COM
+identity, direct activation boundary, SMTP trust behavior, or live IMAP
+capability was changed. The next slice is IMAPQuotaEnabled persistence parity.
+Migration/installer, SEC-18, paired C++ performance, and 24-hour soak remain
+open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, SMTP delivery bind persistence parity)
 
 Code/test commit `10339d49a` implements authenticated

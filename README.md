@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, IMAP SORT persistence parity)
+
+Code/test commit `73d8e9e13` implements the bounded authenticated
+`Settings.IMAPSortEnabled` setter path. It updates the existing
+`hm_settings.settinginteger` row whose name is `enableimapsort`, publishes the
+new value only after a successful one-row store result, preserves the
+authenticated server-administrator boundary, and retains direct activation
+fallback behavior. Focused COM/SQL coverage is `212 passed, 0 skipped, 0
+failed`; disposable LocalDB SQL integration is included; full Net10 Debug
+coverage is `2524 passed, 10 skipped, 0 failed` (`2534` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPSortEnabled`
+(`source/Server/COM/InterfaceSettings.cpp:1368-1394`) and
+`IMAPConfiguration::Get/SetUseIMAPSort`
+(`source/Server/IMAP/IMAPConfiguration.cpp:102-110`), with
+`PROPERTY_ENABLEIMAPSORT` and the existing SQL seed. The installed Settings
+IID/vtable/DISPID shape is unchanged. IMAP capability/search runtime reload
+and live reconfiguration remain out of scope. Migration/installer, registered
+COM/DCOM, SEC-18, paired C++ performance, and 24-hour soak gates remain open.
+Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, SMTP delivery bind persistence parity)
 
 Code/test commit `10339d49a` implements the bounded authenticated
