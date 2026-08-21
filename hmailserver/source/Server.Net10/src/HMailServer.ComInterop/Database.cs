@@ -224,7 +224,33 @@ public sealed class Database : IInterfaceDatabase
 
     public void RollbackTransaction() => CompleteTransaction(commit: false);
 
-    public void ExecuteSQLScript(string filename) => Unavailable();
+    public void ExecuteSQLScript(string filename)
+    {
+        EnsureServerAdministrator();
+        if (_mutationStore is null)
+        {
+            Unavailable();
+            return;
+        }
+
+        var transaction = _transaction
+            ?? throw new COMException("No transaction started.", EFail);
+        try
+        {
+            transaction.ExecuteScriptAsync(filename, CancellationToken.None)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new COMException(exception.Message, EFail);
+        }
+    }
 
     public void SetDefaultDatabase(
         ComDatabaseType serverType,

@@ -81,12 +81,44 @@ public sealed class SqlServerDatabaseAdministrationStoreIntegrationTests
 
             await using (var committed = await store.BeginTransactionAsync(CancellationToken.None).ConfigureAwait(false))
             {
+                var commitScript = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-{Guid.NewGuid():N}.sql");
+                await File.WriteAllTextAsync(commitScript, "CREATE TABLE dbo.hm_net10_transaction_probe (probeid int NOT NULL)").ConfigureAwait(false);
+                try
+                {
+                    await committed.ExecuteScriptAsync(commitScript, CancellationToken.None).ConfigureAwait(false);
+                }
+                finally
+                {
+                    File.Delete(commitScript);
+                }
                 await committed.CommitAsync(CancellationToken.None).ConfigureAwait(false);
             }
 
             await using (var rolledBack = await store.BeginTransactionAsync(CancellationToken.None).ConfigureAwait(false))
             {
+                var rollbackScript = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-{Guid.NewGuid():N}.sql");
+                await File.WriteAllTextAsync(rollbackScript, "CREATE TABLE dbo.hm_net10_transaction_rollback_probe (probeid int NOT NULL)").ConfigureAwait(false);
+                try
+                {
+                    await rolledBack.ExecuteScriptAsync(rollbackScript, CancellationToken.None).ConfigureAwait(false);
+                }
+                finally
+                {
+                    File.Delete(rollbackScript);
+                }
                 await rolledBack.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            }
+
+            await using (var verification = new SqlConnection(testConnectionString))
+            {
+                await verification.OpenAsync().ConfigureAwait(false);
+                await using var command = new SqlCommand(
+                    "SELECT OBJECT_ID('dbo.hm_net10_transaction_probe'), OBJECT_ID('dbo.hm_net10_transaction_rollback_probe')",
+                    verification);
+                await using var reader = await command.ExecuteReaderAsync().ConfigureAwait(false);
+                Assert.IsTrue(await reader.ReadAsync().ConfigureAwait(false));
+                Assert.AreNotEqual(DBNull.Value, reader.GetValue(0));
+                Assert.AreEqual(DBNull.Value, reader.GetValue(1));
             }
         }
         finally

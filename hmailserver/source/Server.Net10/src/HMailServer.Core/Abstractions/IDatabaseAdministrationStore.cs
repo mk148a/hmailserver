@@ -13,6 +13,8 @@ public interface IDatabaseAdministrationMutationStore : IDatabaseAdministrationS
 
 public interface IDatabaseAdministrationTransaction : IAsyncDisposable
 {
+    ValueTask ExecuteScriptAsync(string filename, CancellationToken cancellationToken);
+
     ValueTask CommitAsync(CancellationToken cancellationToken);
 
     ValueTask RollbackAsync(CancellationToken cancellationToken);

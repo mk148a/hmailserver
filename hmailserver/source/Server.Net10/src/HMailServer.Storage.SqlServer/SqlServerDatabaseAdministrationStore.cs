@@ -97,6 +97,41 @@ FROM hm_dbversion;
         private SqlConnection? _connection = connection;
         private SqlTransaction? _transaction = transaction;
 
+        public async ValueTask ExecuteScriptAsync(string filename, CancellationToken cancellationToken)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(filename);
+            var script = await File.ReadAllTextAsync(filename, cancellationToken).ConfigureAwait(false);
+            if (script.Length == 0)
+            {
+                throw new InvalidOperationException($"Unable to read from file {filename}");
+            }
+
+            var commands = script
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Split("\n\n", StringSplitOptions.None)
+                .Select(static command => command.TrimStart('\n', ' ', '\t'))
+                .Where(static command => command.Length > 0)
+                .ToArray();
+            if (commands.Length == 0)
+            {
+                throw new InvalidOperationException($"Found no SQL commands in file : {filename}");
+            }
+
+            var connectionToUse = _connection
+                ?? throw new InvalidOperationException("The SQL transaction is no longer active.");
+            var transactionToUse = _transaction
+                ?? throw new InvalidOperationException("The SQL transaction is no longer active.");
+
+            foreach (var commandText in commands)
+            {
+                await using var command = new SqlCommand(commandText, connectionToUse, transactionToUse)
+                {
+                    CommandTimeout = 60 * 30
+                };
+                await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             var transactionToCommit = _transaction

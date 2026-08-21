@@ -186,6 +186,19 @@ public sealed class DatabaseComContractTests
 
         database.BeginTransaction();
         Assert.IsTrue(store.Transaction.Began);
+        var scriptPath = Path.Combine(Path.GetTempPath(), $"hmailserver-net10-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(scriptPath, "select 1\r\n\r\nselect 2");
+        try
+        {
+            database.ExecuteSQLScript(scriptPath);
+            CollectionAssert.AreEqual(
+                new[] { "select 1", "select 2" },
+                store.Transaction.Scripts.ToArray());
+        }
+        finally
+        {
+            File.Delete(scriptPath);
+        }
         database.CommitTransaction();
         Assert.IsTrue(store.Transaction.Committed);
         Assert.IsTrue(store.Transaction.Disposed);
@@ -287,6 +300,18 @@ public sealed class DatabaseComContractTests
         public bool Committed { get; private set; }
         public bool RolledBack { get; private set; }
         public bool Disposed { get; private set; }
+        public List<string> Scripts { get; } = [];
+
+        public ValueTask ExecuteScriptAsync(string filename, CancellationToken cancellationToken)
+        {
+            Scripts.AddRange(
+                File.ReadAllText(filename)
+                    .Replace("\r\n", "\n", StringComparison.Ordinal)
+                    .Split("\n\n", StringSplitOptions.None)
+                    .Select(static command => command.TrimStart('\n', ' ', '\t'))
+                    .Where(static command => command.Length > 0));
+            return ValueTask.CompletedTask;
+        }
 
         public ValueTask CommitAsync(CancellationToken cancellationToken)
         {
