@@ -100,6 +100,75 @@ public sealed class BackupSettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedBackupSettings_DestinationSetterPersistsAndUpdatesSnapshot()
+    {
+        var updateCount = 0;
+        var persistedDestination = string.Empty;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(
+                Destination: @"D:\Backups",
+                Options: 0,
+                LogDirectory: string.Empty),
+            updateDestination: value =>
+            {
+                updateCount++;
+                persistedDestination = value;
+                return true;
+            });
+
+        backup.Destination = @"E:\Other";
+
+        Assert.AreEqual(1, updateCount);
+        Assert.AreEqual(@"E:\Other", persistedDestination);
+        Assert.AreEqual(@"E:\Other", backup.Destination);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_DestinationSetterFailureRetainsSnapshot()
+    {
+        var updateCount = 0;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(
+                Destination: @"D:\Backups",
+                Options: 0,
+                LogDirectory: string.Empty),
+            updateDestination: _ =>
+            {
+                updateCount++;
+                return false;
+            });
+
+        var error = Assert.ThrowsExactly<COMException>(() => backup.Destination = @"E:\Other");
+
+        Assert.AreEqual(unchecked((int)0x80004005), error.ErrorCode);
+        Assert.AreEqual(1, updateCount);
+        Assert.AreEqual(@"D:\Backups", backup.Destination);
+    }
+
+    [TestMethod]
+    public void AuthorizedBackupSettings_DestinationSetterRetainsAdministratorDenial()
+    {
+        var updateCount = 0;
+        var backup = BackupSettingsComClass.CreateAuthorized(
+            new BackupSettingsAdministrationSnapshot(
+                Destination: @"D:\Backups",
+                Options: 0,
+                LogDirectory: string.Empty),
+            updateDestination: _ =>
+            {
+                updateCount++;
+                return true;
+            },
+            isServerAdministrator: static () => false);
+
+        var error = Assert.ThrowsExactly<COMException>(() => backup.Destination = @"E:\Other");
+
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.AreEqual(0, updateCount);
+        Assert.AreEqual(@"D:\Backups", backup.Destination);
+    }
+
+    [TestMethod]
     public void AuthorizedBackupSettings_LogFilePreservesLegacySeparatorRulesWithoutFileAccess()
     {
         var missingDirectory = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
@@ -148,6 +217,17 @@ public sealed class BackupSettingsComContractTests
         Assert.AreEqual(@"E:\hMailServer\Logs\hmailserver_backup.log", backup.LogFile);
     }
 
+    [TestMethod]
+    public void AdministratorBackupSaveWritesDestinationAfterPendingOptionSetters()
+    {
+        var source = ReadAdministratorBackupSource();
+        var optionsPosition = source.IndexOf("backupSettings.BackupSettings =", StringComparison.Ordinal);
+        var destinationPosition = source.IndexOf("backupSettings.Destination =", StringComparison.Ordinal);
+
+        Assert.IsTrue(optionsPosition >= 0, "The Administrator backup option writes were not found.");
+        Assert.IsTrue(destinationPosition > optionsPosition, "Destination must be written after the option setters.");
+    }
+
     private static void AssertBstrProperty(Type contract, string name, int dispatchId, bool canWrite)
     {
         var property = contract.GetProperty(name);
@@ -177,5 +257,28 @@ public sealed class BackupSettingsComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private static string ReadAdministratorBackupSource()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            var path = Path.Combine(
+                directory.FullName,
+                "hmailserver",
+                "source",
+                "Tools",
+                "Administrator",
+                "Main panes",
+                "ucBackup.cs");
+
+            if (File.Exists(path))
+                return File.ReadAllText(path);
+        }
+
+        Assert.Fail("Could not locate the Administrator backup pane source.");
+        return string.Empty;
     }
 }

@@ -329,4 +329,8 @@ public interface ISettingsAdministrationMutationStore
     ValueTask<bool> UpdateAntiSpamSpamDeleteThresholdAsync(
         int threshold,
         CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateBackupDestinationAsync(
+        string backupDestination,
+        CancellationToken cancellationToken);
 }

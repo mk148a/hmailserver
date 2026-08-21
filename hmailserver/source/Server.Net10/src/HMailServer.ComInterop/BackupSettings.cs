@@ -56,23 +56,61 @@ public interface IInterfaceBackupSettings
 public sealed class BackupSettings : BackupSettingsComAdapter
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int BackupSettingsFlag = 1;
     private const int BackupDomainsFlag = 2;
     private const int BackupMessagesFlag = 4;
     private const int CompressDestinationFilesFlag = 8;
 
-    private readonly BackupSettingsAdministrationSnapshot? _snapshot;
+    private BackupSettingsAdministrationSnapshot? _snapshot;
+    private readonly Func<string, bool>? _updateDestination;
+    private readonly Action<string>? _destinationUpdated;
+    private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public BackupSettings()
     {
     }
 
-    private BackupSettings(BackupSettingsAdministrationSnapshot snapshot)
+    private BackupSettings(
+        BackupSettingsAdministrationSnapshot snapshot,
+        Func<string, bool>? updateDestination,
+        Action<string>? destinationUpdated,
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _snapshot = snapshot;
+        _updateDestination = updateDestination;
+        _destinationUpdated = destinationUpdated;
+        _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
-    public override string Destination { get => Snapshot.Destination; set => base.Destination = value; }
+    public override string Destination
+    {
+        get => Snapshot.Destination;
+        set
+        {
+            var snapshot = Snapshot;
+            if (_updateDestination is null)
+            {
+                base.Destination = value;
+                return;
+            }
+
+            EnsureServerAdministrator();
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_updateDestination(value))
+            {
+                throw new COMException(
+                    "The backup destination update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            _snapshot = snapshot with { Destination = value };
+            _destinationUpdated?.Invoke(value);
+        }
+    }
 
     protected override bool GetBackupSettings() => HasFlag(BackupSettingsFlag);
 
@@ -108,10 +146,20 @@ public sealed class BackupSettings : BackupSettingsComAdapter
         }
     }
 
-    internal static BackupSettings CreateAuthorized(BackupSettingsAdministrationSnapshot snapshot)
+    internal static BackupSettings CreateAuthorized(
+        BackupSettingsAdministrationSnapshot snapshot,
+        Func<string, bool>? updateDestination = null,
+        Action<string>? destinationUpdated = null,
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new BackupSettings(snapshot);
+        return new BackupSettings(
+            snapshot,
+            updateDestination,
+            destinationUpdated,
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 
     private BackupSettingsAdministrationSnapshot Snapshot =>
@@ -120,6 +168,31 @@ public sealed class BackupSettings : BackupSettingsComAdapter
             EAccessDenied);
 
     private bool HasFlag(int flag) => (Snapshot.Options & flag) != 0;
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "Settings access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Settings access requires an authenticated server administrator.",
+                EAccessDenied);
+    }
 }
 
 [ComVisible(false)]

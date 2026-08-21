@@ -68,11 +68,11 @@ namespace hMailServer.Administrator
             hMailServer.Settings settings = APICreator.Application.Settings;
             hMailServer.BackupSettings backupSettings = settings.Backup;
 
-            backupSettings.Destination = textDestination.Text;
             backupSettings.BackupSettings = checkBackupSettings.Checked;
             backupSettings.BackupDomains = checkBackupDomains.Checked;
             backupSettings.BackupMessages = checkBackupMessages.Checked;
             backupSettings.CompressDestinationFiles = checkCompressFiles.Checked;
+            backupSettings.Destination = textDestination.Text;
 
             DirtyChecker.SetClean(this);
 

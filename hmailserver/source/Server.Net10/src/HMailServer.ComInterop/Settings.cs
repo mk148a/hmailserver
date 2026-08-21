@@ -2686,7 +2686,25 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                     new BackupSettingsAdministrationSnapshot(
                         _administrationSnapshot.BackupDestination,
                         _administrationSnapshot.BackupOptions,
-                        _runtimeConfiguration.LoggingDirectory));
+                        _runtimeConfiguration.LoggingDirectory),
+                    updateDestination: _settingsMutationStore is null
+                        ? null
+                        : value => _settingsMutationStore!
+                            .UpdateBackupDestinationAsync(value, CancellationToken.None)
+                            .GetAwaiter()
+                            .GetResult(),
+                    destinationUpdated: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                BackupDestination = value
+                            };
+                        }
+                    },
+                    isServerAdministrator: _isServerAdministrator,
+                    authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
 

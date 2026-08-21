@@ -4953,6 +4953,57 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_BackupDestinationSetterPersistsAndRefreshesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            BackupDestinationUpdateResult = true,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                BackupDestination: @"D:\Backups")
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        settings.Backup.Destination = @"E:\Other";
+
+        Assert.AreEqual(1, store.BackupDestinationUpdateCount);
+        Assert.AreEqual(@"E:\Other", store.UpdatedBackupDestination);
+        Assert.AreEqual(@"E:\Other", settings.Backup.Destination);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_BackupDestinationSetterFailsClosedWithoutSnapshotChange()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            BackupDestinationUpdateResult = false,
+            Snapshot = new SettingsAdministrationSnapshot(
+                HostName: "mail.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                BackupDestination: @"D:\Backups")
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            store.Snapshot,
+            settingsMutationStore: store,
+            isServerAdministrator: () => true);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.Backup.Destination = @"E:\Other");
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, store.BackupDestinationUpdateCount);
+        Assert.AreEqual(@"D:\Backups", settings.Backup.Destination);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamThresholdSettersPersistAndRefreshSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6393,6 +6444,12 @@ public sealed class SettingsComContractTests
             WelcomeImap: string.Empty);
 
         public bool UpdateResult { get; set; }
+
+        public bool BackupDestinationUpdateResult { get; set; }
+
+        public int BackupDestinationUpdateCount { get; private set; }
+
+        public string UpdatedBackupDestination { get; private set; } = string.Empty;
 
         public bool MirrorUpdateResult { get; set; }
 
@@ -7927,6 +7984,16 @@ public sealed class SettingsComContractTests
             UpdatedAntiSpamSpamDeleteThreshold = threshold;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AntiSpamSpamDeleteThresholdUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateBackupDestinationAsync(
+            string backupDestination,
+            CancellationToken cancellationToken)
+        {
+            BackupDestinationUpdateCount++;
+            UpdatedBackupDestination = backupDestination;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(BackupDestinationUpdateResult);
         }
 
     }

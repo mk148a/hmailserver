@@ -525,6 +525,12 @@ SET settinginteger = @SpamDeleteThreshold
 WHERE settingname = N'spamdeletethreshold';
 """;
 
+    public const string UpdateBackupDestinationSql = """
+UPDATE hm_settings
+SET settingstring = @BackupDestination
+WHERE settingname = N'backupdestination';
+""";
+
     public const string GetSettingsSql = """
 SELECT
     COALESCE(MAX(CASE WHEN settingname = N'hostname' THEN settingstring END), N''),
@@ -1742,6 +1748,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiSpamSpamDeleteThresholdSql, connection);
         command.Parameters.Add("@SpamDeleteThreshold", SqlDbType.Int).Value = threshold;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateBackupDestinationAsync(
+        string backupDestination,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateBackupDestinationSql, connection);
+        command.Parameters.Add("@BackupDestination", SqlDbType.NVarChar, 4000).Value = backupDestination;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
