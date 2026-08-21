@@ -1,5 +1,17 @@
 
-## Current next slice (2026-08-21, production-hosted SMTP/POP3 acceptance after UserInterfaceLanguage parity)
+## Current next slice (2026-08-21, SEC-18 IIS Phase 2 on disposable VM)
+
+The approved `HMailServer-SEC18-Disposable` VM now has the exact required IIS
+features enabled and no restart pending. The phase-2 inventory is recorded in
+`artifacts/sec18-staging/staging-inventory-20260821-phase2-iis.json` and
+`SEC18-phase2-iis-inventory-20260821.md`. PHP 8.4.23 archive metadata is
+officially listed, but its archived official source has no checksum sidecar;
+PHP/FastCGI, the loopback site/pool, worker identity, and caller-SID evidence
+remain incomplete pending approval for local-hash verification. Release stays
+**RED**. The exact procedure is in the repository-root
+`RELEASE_GATE_EXECUTION_CHECKLIST.md`.
+
+## Historical current slice (2026-08-21, production-hosted SMTP/POP3 acceptance after UserInterfaceLanguage parity)
 
 The authenticated `Settings.UserInterfaceLanguage` INI persistence slice is
 complete in code/test commit `2110b400e`. Legacy `[Settings] UseLanguage`

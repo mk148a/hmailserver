@@ -1,0 +1,49 @@
+﻿{
+    "schema":  "sec18-staging-phase2-inventory-v1",
+    "collectedUtc":  "2026-08-21T04:29:33.8456973Z",
+    "ComputerName":  "WIN-6TGBDE5C01K",
+    "OS":  {
+               "Caption":  "Microsoft Windows Server 2025 Standard Evaluation",
+               "Version":  "10.0.26100",
+               "BuildNumber":  "26100"
+           },
+    "RequiredFeatures":  [
+                             {
+                                 "FeatureName":  "IIS-WebServerRole",
+                                 "State":  2
+                             },
+                             {
+                                 "FeatureName":  "IIS-WebServer",
+                                 "State":  2
+                             },
+                             {
+                                 "FeatureName":  "IIS-CGI",
+                                 "State":  2
+                             },
+                             {
+                                 "FeatureName":  "IIS-ManagementConsole",
+                                 "State":  2
+                             },
+                             {
+                                 "FeatureName":  "IIS-ManagementScriptingTools",
+                                 "State":  2
+                             }
+                         ],
+    "RestartPending":  false,
+    "Services":  [
+                     {
+                         "Name":  "W3SVC",
+                         "Status":  4,
+                         "StartType":  2
+                     }
+                 ],
+    "PhpExecutables":  [
+
+                       ],
+    "StagingRoots":  [
+
+                     ],
+    "Listening":  [
+
+                  ]
+}

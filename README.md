@@ -1,6 +1,18 @@
 hMailServer
 ===========
 
+## Current release-gate status (2026-08-21, SEC-18 IIS Phase 2)
+
+The approved disposable VM `HMailServer-SEC18-Disposable` is running Windows
+Server 2025. The five required IIS features are enabled with no restart
+pending; evidence is in
+`artifacts/sec18-staging/staging-inventory-20260821-phase2-iis.json` and its
+Markdown report. PHP/FastCGI, the loopback site/pool, worker identity, and
+SEC-18 caller evidence are not complete. PHP 8.4.23 archive metadata is
+officially listed, but no official checksum sidecar exists, so extraction is
+paused pending approval for local-hash verification. Release remains **RED**.
+The exact remaining procedure is in `RELEASE_GATE_EXECUTION_CHECKLIST.md`.
+
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 
 Code/test commit `2110b400e` implements authenticated

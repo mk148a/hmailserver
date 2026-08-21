@@ -1,5 +1,16 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, SEC-18 IIS Phase 2)
+
+The approved `HMailServer-SEC18-Disposable` VM is running Windows Server 2025.
+The five required IIS features are enabled with no restart pending. Evidence
+is in `artifacts/sec18-staging/staging-inventory-20260821-phase2-iis.json`
+and `SEC18-phase2-iis-inventory-20260821.md`. PHP/FastCGI, the loopback
+site/pool, worker identity, and caller-SID evidence remain incomplete. The
+official PHP 8.4.23 archive listing has no checksum sidecar, so extraction is
+paused pending approval for local-hash verification. Release remains `RED`.
+Use `RELEASE_GATE_EXECUTION_CHECKLIST.md` for the remaining steps.
+
 ## Current Authoritative Continuation (2026-08-21, UserInterfaceLanguage INI parity)
 
 Code/test commit `2110b400e` completes authenticated
