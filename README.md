@@ -1,6 +1,20 @@
 hMailServer
 ===========
 
+## Current offline performance evidence (2026-08-21)
+
+The existing Net10 short-soak benchmark ran at current HEAD
+`7ff53732eb6c4c57e6a2b02c0cb76d276e1726e2` with 100,000 synthetic messages,
+seed `5700`, and 20/20 cycles. It completed with `0` errors, p50/p95/p99
+`4.367/9.843/10.936 ms`, private-memory growth `-4,616,192` bytes, handle
+growth `20`, thread growth `0`, and TCP growth `0`; the configured threshold
+passed. JSON/CSV/Markdown are stored in
+`artifacts/benchmarks/offline-net10-short-soak-20260821-7ff53732e/`.
+
+This is offline synthetic Net10 evidence only. It does not establish C++ vs
+.NET speed, live SQL behavior, protocol equivalence, service/COM lifecycle,
+or 24-hour leak freedom. The paired performance gate remains **RED**.
+
 ## Current restore rollback evidence slice (2026-08-21)
 
 Legacy restore orders groups before public-folder ACLs and resolves group

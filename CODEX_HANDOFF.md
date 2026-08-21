@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, offline short-soak evidence)
+
+The existing benchmark ran at HEAD `7ff53732e` with 100,000 synthetic
+messages, seed `5700`, and 20/20 cycles. It completed with `0` errors and
+p50/p95/p99 `4.367/9.843/10.936 ms`; private-memory growth was `-4,616,192`
+bytes, handle growth `20`, thread growth `0`, and TCP growth `0`. Thresholds
+passed. JSON/CSV/Markdown are in
+`artifacts/benchmarks/offline-net10-short-soak-20260821-7ff53732e/`.
+
+This does not prove C++/.NET superiority, live SQL/protocol equivalence,
+service/COM lifecycle, or 24-hour leak freedom. The next slice remains
+disposable `6000` SQL/Data host-start and restore evidence; release remains
+RED.
+
 ## Current Authoritative Continuation (2026-08-21, restore group rollback evidence)
 
 Legacy restore ordering is groups before public-folder ACLs, with generated

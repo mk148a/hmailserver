@@ -1,4 +1,20 @@
 
+## Current bounded slice: offline short-soak evidence (2026-08-21)
+
+The existing `ShortSoakBenchmark.Run` and `ShortSoakArtifactWriter`
+(`hmailserver/source/Server.Net10/benchmarks/HMailServer.Net10.Benchmarks/ShortSoakBenchmark.cs:67-266`)
+ran at HEAD `7ff53732e` with 100,000 synthetic messages, seed `5700`, and
+20/20 cycles. The result is `0` errors, p50/p95/p99 `4.367/9.843/10.936 ms`,
+private-memory growth `-4,616,192` bytes, handle growth `20`, thread growth
+`0`, and TCP growth `0`, with the configured threshold passing. Artifacts are
+under `artifacts/benchmarks/offline-net10-short-soak-20260821-7ff53732e/`.
+
+This is diagnostic offline Net10 evidence, not a C++ comparison or release
+performance pass. Live SQL/protocol load, registry-isolated C++ execution,
+and 24-hour service/COM soak remain open. The next production gate is
+disposable `6000` SQL/Data host-start and restore acceptance; release remains
+**RED**.
+
 ## Current bounded slice: restore group-member rollback evidence (2026-08-21)
 
 Legacy `IMAPConfiguration::XMLLoad` restores groups before public folders
