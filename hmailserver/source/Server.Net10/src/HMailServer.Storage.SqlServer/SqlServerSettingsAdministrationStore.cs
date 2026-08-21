@@ -106,6 +106,12 @@ SET settinginteger = @ServicePOP3
 WHERE settingname = N'protocolpop3';
 """;
 
+    public const string UpdateServiceImapSql = """
+UPDATE hm_settings
+SET settinginteger = @ServiceIMAP
+WHERE settingname = N'protocolimap';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -993,6 +999,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateServicePop3Sql, connection);
         command.Parameters.Add("@ServicePOP3", SqlDbType.Int).Value = servicePop3 ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateServiceImapAsync(
+        bool serviceImap,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateServiceImapSql, connection);
+        command.Parameters.Add("@ServiceIMAP", SqlDbType.Int).Value = serviceImap ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

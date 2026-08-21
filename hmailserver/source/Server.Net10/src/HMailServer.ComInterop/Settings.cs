@@ -1037,7 +1037,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.ServiceIMAP
                 : _administrationSnapshot.ServiceImap;
         }
-        set => base.ServiceIMAP = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.ServiceIMAP = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateServiceImapAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP service setting update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    ServiceImap = value
+                };
+            }
+        }
     }
 
     public override string HostName

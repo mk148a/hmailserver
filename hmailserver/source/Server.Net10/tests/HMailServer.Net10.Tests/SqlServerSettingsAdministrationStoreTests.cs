@@ -206,6 +206,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateServiceImapSql_UpdatesOnlyTheExistingProtocolImapRowWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateServiceImapSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settinginteger = @ServiceIMAP");
+        StringAssert.Contains(sql, "WHERE settingname = N'protocolimap'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateWorkerThreadPrioritySql_UpdatesOnlyTheExistingWorkerPriorityRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateWorkerThreadPrioritySql;
