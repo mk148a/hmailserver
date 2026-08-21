@@ -23,8 +23,10 @@ The .NET host still reads required version `5708` and does not execute the
 migration. Code/test commit `4b57928f1` now implements the authenticated
 store-backed `Database.BeginTransaction`, `CommitTransaction`, and
 `RollbackTransaction` controls, with direct activation denial and the
-installed COM identity preserved. `Database.ExecuteSQLScript` remains
-unimplemented. The next slice is the isolated .NET migration executor with
+installed COM identity preserved. Code/test commit `29d628705` adds
+authenticated `Database.ExecuteSQLScript` execution through the active SQL
+transaction, preserving the legacy blank-line command splitting and command
+timeout behavior. The next slice is the isolated .NET migration executor with
 an explicit FTS/non-FTS transaction boundary, checkpoint, failure cleanup,
 and rollback report. Do not target production SQL/Data or installed COM state.
 

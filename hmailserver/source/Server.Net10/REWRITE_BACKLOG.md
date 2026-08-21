@@ -24,7 +24,10 @@ required version `5708` and does not execute the migration. Code/test commit
 `4b57928f1` now implements the authenticated store-backed
 `Database.BeginTransaction`, `CommitTransaction`, and `RollbackTransaction`
 controls while preserving direct activation denial and the installed COM
-shape. `Database.ExecuteSQLScript` and migration/rollback release acceptance
+shape. Code/test commit `29d628705` now executes authenticated scripts
+through the active configured transaction store with legacy blank-line command
+boundaries and failure propagation. Migration orchestration, the FTS/non-FTS
+transaction boundary, durable checkpointing, and rollback release acceptance
 remain open.
 
 The next bounded slice is the isolated .NET 5708-to-6000 migration executor:

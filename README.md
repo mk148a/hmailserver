@@ -54,11 +54,14 @@ with `Msg 574`. Therefore the result is
 acceptance. Code/test commit `4b57928f1` now exposes the authenticated legacy
 `Database.BeginTransaction`, `CommitTransaction`, and `RollbackTransaction`
 controls through a store-backed SQL transaction with direct-activation denial
-preserved. `Database.ExecuteSQLScript` and the .NET migration executor remain
-unimplemented; release stays **RED**.
+preserved. Code/test commit `29d628705` adds authenticated
+`Database.ExecuteSQLScript` execution through that active transaction, using
+the legacy blank-line command boundaries and 30-minute per-command timeout.
+The .NET migration executor/orchestration remains unimplemented; release stays
+**RED**.
 
-The transaction slice is covered by 6/6 focused COM tests and 2/2 explicit
-isolated SQL Server transaction tests. The full Net10 Debug suite is
+The transaction/script slices are covered by 6/6 focused COM tests and 2/2
+explicit isolated SQL Server transaction tests. The full Net10 Debug suite is
 `2483 passed, 85 skipped, 0 failed` (`2568` total). The SQL fixture created
 only unique disposable databases on local Developer SQL Server and removed
 them in cleanup; no existing hMailServer database or Data directory was used.

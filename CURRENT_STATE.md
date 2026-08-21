@@ -1,13 +1,13 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T08:43:00Z` / `2026-08-21T11:43:00+03:00`
+- UTC/local timestamp: `2026-08-21T09:05:00Z` / `2026-08-21T12:05:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `6fb3230e1` (authenticated database transaction controls and documentation complete)
+- Current HEAD: `29d628705` (authenticated SQL script execution code/test complete; documentation commit pending)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: Database COM `6/6` passed; isolated SQL Server transaction integration `2/2` passed; unique disposable databases were removed; migration evidence remains `PassedWithKnownLegacyTransactionLimitation` with SQL Server `Msg 574`
+- Latest focused-test result: Database COM `6/6` passed; isolated SQL Server transaction/script integration `2/2` passed; unique disposable databases were removed; migration evidence remains `PassedWithKnownLegacyTransactionLimitation` with SQL Server `Msg 574`
 - Latest full Net10 result: `2483 passed, 85 skipped, 0 failed` (`2568` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`
 - Opt-in tests passed/skipped/blocked: isolated SQL transaction `2/2` passed; full run skipped 85 environment-gated tests; production SMTP/POP3, paired C++, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: authenticated store-backed `Database.BeginTransaction`, `CommitTransaction`, and `RollbackTransaction` parity complete; next is the isolated .NET 5708-to-6000 migration executor; paired C++ performance remains RED
-- Completed milestones: authenticated Settings persistence through UserInterfaceLanguage and IMAP hierarchy delimiter; isolated SQL migration evidence in `134b4d6fa`; authenticated database transaction controls in `4b57928f1`; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
+- Current bounded slice: authenticated store-backed `Database.BeginTransaction`, `CommitTransaction`, `RollbackTransaction`, and `ExecuteSQLScript` parity complete; next is the isolated .NET 5708-to-6000 migration executor; paired C++ performance remains RED
+- Completed milestones: authenticated Settings persistence through UserInterfaceLanguage and IMAP hierarchy delimiter; isolated SQL migration evidence in `134b4d6fa`; authenticated database transaction controls in `4b57928f1`; authenticated SQL script execution in `29d628705`; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
 - Open production blockers: .NET migration executor and SQL Server FTS transaction boundary, installer/service/data rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF runtime wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains RED
 - Environment-blocked work: production-like service/installer rollback, trusted COM caller-token/native-reader evidence, authorized/non-pool denial matrix, broker rollback validation, paired C++ runner, AD, live DNS/TLS, and long-soak infrastructure remain unavailable; the official PHP checksum sidecar is absent and local hash remains disposable-test evidence only
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM identity/registration/DCOM ACLs, production IIS, dirty `AGENTS.md`, and existing SEC-18/benchmark evidence artifacts
