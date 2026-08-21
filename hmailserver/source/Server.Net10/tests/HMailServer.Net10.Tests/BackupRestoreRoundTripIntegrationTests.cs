@@ -960,7 +960,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             async fixture =>
             {
                 var executor = fixture.CreateExecutor(
-                    new FailingMetadataTransactionFactory(fixture.TransactionFactory, failSecondMessage: true));
+                    new FailingMetadataTransactionFactory(fixture.TransactionFactory, failSecondMessage: true),
+                    filesystemMutation: new DeterministicFilesystemMutation());
 
                 await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                     () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask()).ConfigureAwait(false);
@@ -987,7 +988,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 var executor = fixture.CreateExecutor(
                     new FailingMetadataTransactionFactory(
                         fixture.TransactionFactory,
-                        throwAfterCommit: true));
+                        throwAfterCommit: true),
+                    filesystemMutation: new DeterministicFilesystemMutation());
 
                 var exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
                     () => executor.ExecuteAsync(fixture.Backup, CancellationToken.None).AsTask())
@@ -1126,6 +1128,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 new SqlServerAliasAdministrationStore(factory),
                 new SqlServerDistributionListAdministrationStore(factory),
                 new SqlServerDistributionListRecipientAdministrationStore(factory),
+                dataDirectoryRuntime: new BackupRestoreDataDirectoryRuntime(
+                    Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                    filesystemMutation: new DeterministicFilesystemMutation()),
                 dataDirectoryBoundaryFactory: () => new BackupRestoreDataDirectoryBoundary(
                     dataDirectory,
                     Path.Combine(root, "restore.rollback")),
@@ -1850,7 +1855,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         internal SqlServerBackupRestoreMetadataTransactionFactory TransactionFactory { get; } = transactionFactory;
 
         internal MetadataBackupRestoreExecutor CreateExecutor(
-            IBackupRestoreMetadataTransactionFactory? transactionFactory = null) =>
+            IBackupRestoreMetadataTransactionFactory? transactionFactory = null,
+            IBackupRestoreDataDirectoryMutation? filesystemMutation = null) =>
             new(
                 sevenZipExecutablePath,
                 dataDirectory,
@@ -1867,6 +1873,11 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 folderRestoreDeletionStore: new SqlServerImapFolderAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 messageRestoreStore: new SqlServerMessageAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
                 messageStore: new SqlServerMessageAdministrationStore(new SqlServerConnectionFactory(ConnectionString)),
+                dataDirectoryRuntime: filesystemMutation is null
+                    ? null
+                    : new BackupRestoreDataDirectoryRuntime(
+                        sevenZipExecutablePath,
+                        filesystemMutation: filesystemMutation),
                 metadataTransactionFactory: transactionFactory ?? TransactionFactory);
 
         internal MetadataBackupRestoreExecutor CreateExecutorWithoutTransactionFactory() =>
@@ -1934,6 +1945,12 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             await using var command = new SqlCommand(sql, connection);
             await command.ExecuteNonQueryAsync().ConfigureAwait(false);
         }
+    }
+
+    private sealed class DeterministicFilesystemMutation : IBackupRestoreDataDirectoryMutation
+    {
+        public void MoveDirectory(string sourcePath, string destinationPath) =>
+            Directory.Move(sourcePath, destinationPath);
     }
 
     private sealed class RecordingBackupEventDispatcher : IBackupEventDispatcher

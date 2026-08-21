@@ -14,6 +14,7 @@ internal interface IBackupRestoreDataDirectoryMutation
 internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestoreDataDirectoryMutation
 {
     private const uint Delete = 0x00010000;
+    private const uint FileAddSubdirectory = 0x00000004;
     private const uint FileShareRead = 0x00000001;
     private const uint FileShareWrite = 0x00000002;
     private const uint OpenExisting = 3;
@@ -49,7 +50,11 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
             fullSourcePath,
             Delete,
             "The restore source directory could not be opened for a bounded move.");
-        var fileName = System.Text.Encoding.Unicode.GetBytes(fullDestinationPath + "\0");
+        using var destinationParentHandle = OpenDirectory(
+            destinationParentPath,
+            FileAddSubdirectory,
+            "The restore destination parent directory could not be opened for a bounded move.");
+        var fileName = System.Text.Encoding.Unicode.GetBytes(destinationName + "\0");
         var fileNameLength = checked(fileName.Length - sizeof(char));
         var fileNameOffset = (IntPtr.Size * 2) + sizeof(uint);
         var informationSize = checked(fileNameOffset + fileName.Length);
@@ -57,7 +62,10 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
         try
         {
             Marshal.Copy(new byte[informationSize], 0, information, informationSize);
-            Marshal.WriteIntPtr(information, IntPtr.Size, IntPtr.Zero);
+            Marshal.WriteIntPtr(
+                information,
+                IntPtr.Size,
+                destinationParentHandle.DangerousGetHandle());
             Marshal.WriteInt32(information, IntPtr.Size * 2, fileNameLength);
             Marshal.Copy(fileName, 0, IntPtr.Add(information, fileNameOffset), fileName.Length);
 

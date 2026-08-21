@@ -680,7 +680,8 @@ public sealed class BackupRestoreExecutionTests
         var copyCount = 0;
         var dataDirectoryRuntime = new BackupRestoreDataDirectoryRuntime(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),
-            (_, _, _) => Interlocked.Increment(ref copyCount));
+            (_, _, _) => Interlocked.Increment(ref copyCount),
+            filesystemMutation: new DeterministicFilesystemMutation());
         var application = CreateAuthenticatedApplication(new RecordingBackupArchiveMetadataReader(6));
         var executor = new MetadataBackupRestoreExecutor(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),
@@ -736,7 +737,8 @@ public sealed class BackupRestoreExecutionTests
         var copyCount = 0;
         var dataDirectoryRuntime = new BackupRestoreDataDirectoryRuntime(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),
-            (_, _, _) => Interlocked.Increment(ref copyCount));
+            (_, _, _) => Interlocked.Increment(ref copyCount),
+            filesystemMutation: new DeterministicFilesystemMutation());
         var sourcePath = Path.Combine(fixture.Root, "DataBackup");
         var executor = new MetadataBackupRestoreExecutor(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),
@@ -781,7 +783,8 @@ public sealed class BackupRestoreExecutionTests
         var copyCount = 0;
         var dataDirectoryRuntime = new BackupRestoreDataDirectoryRuntime(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),
-            (_, _, _) => Interlocked.Increment(ref copyCount));
+            (_, _, _) => Interlocked.Increment(ref copyCount),
+            filesystemMutation: new DeterministicFilesystemMutation());
         var originalTargetPath = fixture.DataDirectory + ".original";
         var executor = new MetadataBackupRestoreExecutor(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),
@@ -840,7 +843,8 @@ public sealed class BackupRestoreExecutionTests
                 File.Copy(
                     Path.Combine(sourcePath, "restored.txt"),
                     Path.Combine(targetPath, "restored.txt"));
-            });
+            },
+            filesystemMutation: new DeterministicFilesystemMutation());
         var application = CreateAuthenticatedApplication(new RecordingBackupArchiveMetadataReader(6));
         var backup = (Backup)application.BackupManager.LoadBackup(fixture.ArchivePath);
         backup.RestoreDomains = true;
@@ -1076,6 +1080,9 @@ public sealed class BackupRestoreExecutionTests
                 FailAliasInsert ? new FailingAliasStore(Aliases) : Aliases,
                 DistributionLists,
                 Recipients,
+                dataDirectoryRuntime: new BackupRestoreDataDirectoryRuntime(
+                    Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+                    filesystemMutation: new DeterministicFilesystemMutation()),
                 metadataTransactionFactory: metadataTransactionFactory,
                 requireSqlTransaction: requireSqlTransaction,
                 folderRestoreStore: PublicFolders,
@@ -1571,6 +1578,12 @@ public sealed class BackupRestoreExecutionTests
             Items.RemoveAll(item => item.Id == snapshot.Id);
             return ValueTask.FromResult(true);
         }
+    }
+
+    private sealed class DeterministicFilesystemMutation : IBackupRestoreDataDirectoryMutation
+    {
+        public void MoveDirectory(string sourcePath, string destinationPath) =>
+            Directory.Move(sourcePath, destinationPath);
     }
 
     private sealed class ArchiveFixture : IDisposable

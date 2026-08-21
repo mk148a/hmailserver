@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using HMailServer.ComInterop;
 
@@ -32,7 +33,8 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             fixture.TargetPath,
             fixture.RollbackPath);
         var runtime = new BackupRestoreDataDirectoryRuntime(
-            Path.Combine(AppContext.BaseDirectory, "7za.exe"));
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            filesystemMutation: CreateDeterministicFilesystemMutation());
 
         await runtime.RestoreAsync(evidence, plan, CancellationToken.None);
 
@@ -67,7 +69,8 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             fixture.TargetPath,
             fixture.RollbackPath);
         var runtime = new BackupRestoreDataDirectoryRuntime(
-            Path.Combine(AppContext.BaseDirectory, "7za.exe"));
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            filesystemMutation: CreateDeterministicFilesystemMutation());
 
         await runtime.RestoreAsync(evidence, plan, CancellationToken.None);
 
@@ -257,7 +260,8 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             fixture.RollbackPath);
         var sawMetadataCommitStarted = false;
         var runtime = new BackupRestoreDataDirectoryRuntime(
-            Path.Combine(AppContext.BaseDirectory, "7za.exe"));
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            filesystemMutation: CreateDeterministicFilesystemMutation());
 
         await runtime.RestoreAsync(
             evidence,
@@ -293,7 +297,8 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             fixture.TargetPath,
             fixture.RollbackPath);
         var runtime = new BackupRestoreDataDirectoryRuntime(
-            Path.Combine(AppContext.BaseDirectory, "7za.exe"));
+            Path.Combine(AppContext.BaseDirectory, "7za.exe"),
+            filesystemMutation: CreateDeterministicFilesystemMutation());
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => runtime.RestoreAsync(
@@ -330,7 +335,8 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
                 {
                     throw new IOException("simulated final journal flush failure");
                 }
-            });
+            },
+            filesystemMutation: CreateDeterministicFilesystemMutation());
 
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
             () => runtime.RestoreAsync(evidence, plan, CancellationToken.None).AsTask());
@@ -366,7 +372,8 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             fixture.RollbackPath);
         var runtime = new BackupRestoreDataDirectoryRuntime(
             Path.Combine(AppContext.BaseDirectory, "7za.exe"),
-            (_, _, _) => throw new IOException("simulated staging failure"));
+            (_, _, _) => throw new IOException("simulated staging failure"),
+            filesystemMutation: CreateDeterministicFilesystemMutation());
 
         await Assert.ThrowsExactlyAsync<IOException>(
             () => runtime.RestoreAsync(evidence, plan, CancellationToken.None).AsTask());
@@ -425,6 +432,34 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
     }
 
     [TestMethod]
+    public void WindowsFilesystemMutation_UsesNativeRelativeRenameOrFailsClosed()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var destination = Path.Combine(fixture.RootPath, "destination");
+        var mutation = new WindowsBackupRestoreDataDirectoryMutation();
+
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.ThrowsExactly<PlatformNotSupportedException>(
+                () => mutation.MoveDirectory(fixture.TargetPath, destination));
+            return;
+        }
+
+        try
+        {
+            mutation.MoveDirectory(fixture.TargetPath, destination);
+
+            Assert.IsFalse(Directory.Exists(fixture.TargetPath));
+            Assert.IsTrue(Directory.Exists(destination));
+        }
+        catch (IOException exception) when (exception.InnerException is Win32Exception { NativeErrorCode: 87 })
+        {
+            Assert.IsTrue(Directory.Exists(fixture.TargetPath));
+            Assert.IsFalse(Directory.Exists(destination));
+        }
+    }
+
+    [TestMethod]
     public async Task RestoreAsync_PreservesJournalWhenRollbackFails()
     {
         using var fixture = new DataDirectoryFixture();
@@ -442,7 +477,8 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             {
                 Directory.Delete(fixture.RollbackPath, recursive: true);
                 throw new IOException("simulated staging failure");
-            });
+            },
+            filesystemMutation: CreateDeterministicFilesystemMutation());
 
         await Assert.ThrowsExactlyAsync<AggregateException>(
             () => runtime.RestoreAsync(evidence, plan, CancellationToken.None).AsTask());
@@ -515,6 +551,9 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             RawDataBackupPath = fixture.SourcePath,
             BackupMessagesDbOnly = false
         };
+
+    private static IBackupRestoreDataDirectoryMutation CreateDeterministicFilesystemMutation() =>
+        new RecordingFilesystemMutation(new List<(string Source, string Destination)>());
 
     private sealed class DataDirectoryFixture : IDisposable
     {
