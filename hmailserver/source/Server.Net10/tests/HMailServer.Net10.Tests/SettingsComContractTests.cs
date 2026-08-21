@@ -635,9 +635,6 @@ public sealed class SettingsComContractTests
             Assert.ThrowsExactly<COMException>(() => settings.SMTPConnectionSecurity = ComConnectionSecurity.None).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion10Enabled = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.TlsVersion11Enabled = true).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
@@ -1400,6 +1397,46 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, denied.ErrorCode);
         Assert.AreEqual(1, writeCount);
         Assert.IsFalse(settings.RewriteEnvelopeFromWhenForwarding);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_TlsVersion10SetterPreservesOtherBitsAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            SslVersionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                SslVersions: 8),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.TlsVersion10Enabled = true;
+
+        Assert.AreEqual(1, store.SslVersionsUpdateCount);
+        Assert.AreEqual(10, store.UpdatedSslVersions);
+        Assert.IsTrue(settings.TlsVersion10Enabled);
+        Assert.IsTrue(settings.TlsVersion12Enabled);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+
+        store.SslVersionsUpdateResult = false;
+        Assert.AreEqual(
+            EFail,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion10Enabled = false).ErrorCode);
+        Assert.AreEqual(8, store.UpdatedSslVersions);
+        Assert.IsTrue(settings.TlsVersion10Enabled);
+
+        isServerAdministrator = false;
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => settings.TlsVersion10Enabled = false).ErrorCode);
+        Assert.AreEqual(2, store.SslVersionsUpdateCount);
     }
 
     [TestMethod]
@@ -6477,6 +6514,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAutoBanMinutes { get; private set; }
 
+        public bool SslVersionsUpdateResult { get; set; }
+
+        public int SslVersionsUpdateCount { get; private set; }
+
+        public int UpdatedSslVersions { get; private set; }
+
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
@@ -7304,6 +7347,16 @@ public sealed class SettingsComContractTests
             UpdatedAutoBanMinutes = autoBanMinutes;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(AutoBanMinutesUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateSslVersionsAsync(
+            int sslVersions,
+            CancellationToken cancellationToken)
+        {
+            SslVersionsUpdateCount++;
+            UpdatedSslVersions = sslVersions;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(SslVersionsUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(

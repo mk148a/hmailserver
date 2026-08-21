@@ -210,6 +210,10 @@ public interface ISettingsAdministrationMutationStore
         int autoBanMinutes,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateSslVersionsAsync(
+        int sslVersions,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

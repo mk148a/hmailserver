@@ -2331,7 +2331,41 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.TlsVersion10Enabled
                 : HasFlag(_administrationSnapshot.SslVersions, TlsVersion10Flag);
         }
-        set => base.TlsVersion10Enabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.TlsVersion10Enabled = value;
+                return;
+            }
+
+            var currentSslVersions = _administrationSnapshot?.SslVersions ?? 0;
+            var updatedSslVersions = value
+                ? currentSslVersions | TlsVersion10Flag
+                : currentSslVersions & ~TlsVersion10Flag;
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateSslVersionsAsync(updatedSslVersions, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The TLS version mask update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SslVersions = updatedSslVersions
+                };
+            }
+        }
     }
 
     public override bool TlsVersion11Enabled

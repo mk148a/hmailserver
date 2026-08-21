@@ -345,6 +345,12 @@ SET settinginteger = @AutoBanMinutes
 WHERE settingname = N'AutoBanMinutes';
 """;
 
+    public const string UpdateSslVersionsSql = """
+UPDATE hm_settings
+SET settinginteger = @SslVersions
+WHERE settingname = N'SslVersions';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1179,6 +1185,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAutoBanMinutesSql, connection);
         command.Parameters.Add("@AutoBanMinutes", SqlDbType.Int).Value = autoBanMinutes;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateSslVersionsAsync(
+        int sslVersions,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateSslVersionsSql, connection);
+        command.Parameters.Add("@SslVersions", SqlDbType.Int).Value = sslVersions;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
