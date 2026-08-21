@@ -1640,8 +1640,10 @@ public sealed class SettingsComContractTests
         Assert.IsFalse(store.CancellationToken.CanBeCanceled);
 
         store.SmtpRelayerPasswordUpdateResult = false;
-        settings.SetSMTPRelayerPassword("failed-password");
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.SetSMTPRelayerPassword("failed-password"));
 
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
         Assert.AreEqual(2, store.SmtpRelayerPasswordUpdateCount);
         isServerAdministrator = false;
         var denied = Assert.ThrowsExactly<COMException>(

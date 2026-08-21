@@ -1175,10 +1175,15 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
 
         using var authorizationLease = AcquireAuthorizationLease();
-        _settingsMutationStore
+        if (!_settingsMutationStore
             .UpdateSmtpRelayerPasswordAsync(newVal, CancellationToken.None)
             .GetAwaiter()
-            .GetResult();
+            .GetResult())
+        {
+            throw new COMException(
+                "The SMTP relayer password update did not affect the existing settings row.",
+                EFail);
+        }
     }
 
     public override int SMTPRelayerPort
