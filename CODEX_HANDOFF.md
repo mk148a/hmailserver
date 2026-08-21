@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, DKIM key-open hardening)
+
+Parity anchors are legacy `DKIMSigner::Sign` and `DKIM::Sign` in
+`hmailserver/source/Server/Common/AntiSpam/DKIM/DKIMSigner.cpp:34-106` and
+`DKIM.cpp:90-155`. Code/test commit `23561f916` opens the final Windows key
+path component with `CreateFileW(FILE_FLAG_OPEN_REPARSE_POINT)`, rejects a
+reparse-point file using handle metadata, and reads only through the accepted
+handle. Focused DKIM runtime tests pass `7`, skip `1`, fail `0`; full Net10
+passes `2507`, skips `89`, fails `0` (`2596` total).
+
+The final-component check is bounded. Parent-directory reparse races and
+hardlink identity remain unresolved, so the release gate is RED. The next
+implementation slice is to prove parent-path final-handle containment inside
+the configured Data directory and reject key hardlinks whose file identity is
+not approved. Preserve existing COM identity, authenticated boundaries, SMTP
+trust behavior, and no live reconfiguration. SQL host-start remains blocked
+until the approved disposable connection and isolated-create opt-in exist.
+
+No production service, SQL/Data directory, COM registration, DCOM ACL, IIS,
+firewall, or push operation was performed.
+
 ## Current Authoritative Continuation (2026-08-21, delivery queue size persistence)
 
 Parity review confirmed legacy size persistence in

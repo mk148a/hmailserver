@@ -1,4 +1,21 @@
 
+# Current bounded slice: DKIM key-open hardening (2026-08-21)
+
+Legacy anchors are `DKIMSigner::Sign` and `DKIM::Sign` in
+`hmailserver/source/Server/Common/AntiSpam/DKIM/DKIMSigner.cpp:34-106` and
+`DKIM.cpp:90-155`. The legacy file reader does not reject Windows reparse
+points. Code/test commit `23561f916` uses `CreateFileW` with
+`FILE_FLAG_OPEN_REPARSE_POINT` and rejects a final reparse-point file from the
+opened handle before parsing the key. Focused coverage is `7 passed, 1
+skipped, 0 failed`; full Net10 is `2507 passed, 89 skipped, 0 failed`.
+
+This closes only the final-component handle check. Parent-directory reparse
+races and hardlink identity remain open security blockers, and the symlink
+regression test is environment-skipped when the host cannot create a
+disposable reparse point. No SMTP trust, COM identity, SQL, or live
+reconfiguration behavior changed. The next slice is parent-path final-handle
+containment and hardlink identity validation; release remains RED.
+
 ## Current delivery queue size persistence status (2026-08-21, code/test `eed5188e9`)
 
 Parity review traced legacy `PersistentMessage::SaveObject`,
