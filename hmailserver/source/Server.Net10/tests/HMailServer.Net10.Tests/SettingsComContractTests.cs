@@ -4110,6 +4110,65 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_RuleLoopLimitSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            RuleLoopLimitUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                RuleLoopLimit: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.RuleLoopLimit = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.RuleLoopLimitUpdateCount);
+        Assert.AreEqual(10, settings.RuleLoopLimit);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_RuleLoopLimitSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            RuleLoopLimitUpdateResult = true,
+            RuleLoopLimitMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                RuleLoopLimit: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.RuleLoopLimit = 25;
+
+        Assert.IsTrue(store.RuleLoopLimitLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.AreEqual(25, settings.RuleLoopLimit);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxImapConnectionsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7300,6 +7359,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedRuleLoopLimit { get; private set; }
 
+        public Func<bool>? RuleLoopLimitMutationProbe { get; set; }
+
+        public bool RuleLoopLimitLeaseHeldDuringUpdate { get; private set; }
+
         public bool MaxNumberOfMXHostsUpdateResult { get; set; }
 
         public int MaxNumberOfMXHostsUpdateCount { get; private set; }
@@ -8064,6 +8127,8 @@ public sealed class SettingsComContractTests
             RuleLoopLimitUpdateCount++;
             UpdatedRuleLoopLimit = ruleLoopLimit;
             CancellationToken = cancellationToken;
+            RuleLoopLimitLeaseHeldDuringUpdate =
+                RuleLoopLimitMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(RuleLoopLimitUpdateResult);
         }
 
