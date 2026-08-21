@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current automatic logon-failure ban persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_AutoBanOnLogonFailure`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1998-2040`) forwards the
+Boolean to `Configuration::SetAutoBanLogonEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:514-524`),
+which writes the existing `hm_settings` row
+`AutoBanOnLogonFailureEnabled` seeded by `CreateTablesMSSQL.sql:908`.
+
+Code/test commit `2317f3eac` adds the authenticated Net10 SQL mutation with
+integer 0/1 encoding, one-row fail-closed behavior, authorization lease, and
+retained snapshot publication only after success. Focused Settings/SQL
+coverage is `236 passed, 0 skipped, 0 failed`; full Net10 is `2514 passed, 90
+skipped, 0 failed` (`2604` total). The installed Settings COM identity,
+direct activation boundary, and SMTP/logon-failure runtime algorithm are
+unchanged; no live reconfiguration was added.
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence, blocked because the approved SQL connection and
+isolated-create opt-in are absent. Release remains **RED**.
+
 ## Current SSL cipher-list persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_SslCipherList`

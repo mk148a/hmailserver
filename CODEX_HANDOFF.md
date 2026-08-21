@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, automatic logon-failure ban persistence)
+
+Legacy `InterfaceSettings::put_AutoBanOnLogonFailure`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1998-2040`) calls
+`Configuration::SetAutoBanLogonEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:514-524`),
+which persists `hm_settings.AutoBanOnLogonFailureEnabled` seeded by
+`CreateTablesMSSQL.sql:908`. Code/test commit `2317f3eac` adds the authenticated
+Net10 mutation, integer 0/1 parameter, one-row fail-closed outcome,
+authorization lease, and publish-after-success snapshot behavior. Focused
+Settings/SQL tests pass `236`, fail `0`; full Net10 passes `2514`, skips `90`,
+fails `0` (`2604` total).
+
+The installed Settings COM identity, direct activation boundary, SMTP trust,
+and logon-failure algorithm are unchanged. No live reconfiguration was added.
+The next slice is disposable `6000` SQL/Data host-start success/failure with
+no listener or worker side effects, blocked until the approved SQL connection
+and isolated-create opt-in exist. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, SSL cipher-list persistence)
 
 Legacy `InterfaceSettings::put_SslCipherList`

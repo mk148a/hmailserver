@@ -1,4 +1,22 @@
 
+## Current bounded slice: authenticated automatic logon-failure ban persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_AutoBanOnLogonFailure`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1998-2040`) calls
+`Configuration::SetAutoBanLogonEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:514-524`),
+which persists the existing `hm_settings` row
+`AutoBanOnLogonFailureEnabled` seeded by `CreateTablesMSSQL.sql:908`.
+Code/test commit `2317f3eac` adds the authenticated Net10 mutation with
+integer 0/1 encoding, one-row fail-closed behavior, authorization lease, and
+publish-after-success retained snapshot behavior. Focused Settings/SQL tests
+pass `236`, fail `0`; full Net10 passes `2514`, skips `90`, fails `0`.
+
+No logon-failure algorithm, SMTP trust, live reconfiguration, COM identity,
+or direct activation boundary changed. The next slice remains disposable
+`6000` SQL/Data host-start acceptance when the approved connection and
+isolated-create opt-in become available; release remains RED.
+
 # Current bounded slice: authenticated SSL cipher-list persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_SslCipherList`
