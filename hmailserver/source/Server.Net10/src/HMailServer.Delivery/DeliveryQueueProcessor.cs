@@ -101,6 +101,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
             var deliveryStart = await RunMessageDeliveryEventAsync(
                 "OnDeliveryStart",
                 message,
+                options.LeaseOwner,
                 cancellationToken).ConfigureAwait(false);
             if (!deliveryStart.Succeeded)
             {
@@ -141,6 +142,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
             var deliverMessage = await RunMessageDeliveryEventAsync(
                 "OnDeliverMessage",
                 message,
+                options.LeaseOwner,
                 cancellationToken).ConfigureAwait(false);
             if (!deliverMessage.Succeeded)
             {
@@ -180,6 +182,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
 
             if (message.CurrentRetryCount == 0 && _dkimSigner is not null && _messageContentStore is not null)
             {
+                long? signedMessageSize = null;
                 try
                 {
                     var messageData = await _messageContentStore
@@ -192,11 +195,9 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
                             .ConfigureAwait(false);
                         if (signedMessageData is not null
                             && !signedMessageData.AsSpan().SequenceEqual(messageData)
-                            && await _messageContentStore
-                                .TrySaveAsync(message, signedMessageData, cancellationToken)
-                                .ConfigureAwait(false))
+                            && await _messageContentStore.TrySaveAsync(message, signedMessageData, cancellationToken).ConfigureAwait(false))
                         {
-                            message = message with { Size = signedMessageData.LongLength };
+                            signedMessageSize = signedMessageData.LongLength;
                         }
                     }
                 }
@@ -207,6 +208,19 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
                 catch (Exception)
                 {
                     // DKIM is opportunistic for delivery; retain the original message on failure.
+                }
+
+                if (signedMessageSize is long persistedSize)
+                {
+                    var updated = await _messageStore
+                        .TryUpdateSizeAsync(message, persistedSize, options.LeaseOwner, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (!updated)
+                    {
+                        throw new InvalidOperationException("The signed delivery message size could not be persisted under the current lease.");
+                    }
+
+                    message = message with { Size = persistedSize };
                 }
             }
 
@@ -261,6 +275,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
                         message,
                         targetBatch.Recipients,
                         failureDescription,
+                        options.LeaseOwner,
                         cancellationToken).ConfigureAwait(false);
                     await RecordStatusAsync(
                         DeliveryQueueStatusEventKind.TargetDeliveryFailedPermanently,
@@ -368,6 +383,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
     private async ValueTask<DeliveryEventOutcome> RunMessageDeliveryEventAsync(
         string eventName,
         DeliveryQueuedMessage message,
+        string leaseOwner,
         CancellationToken cancellationToken)
     {
         if (_deliveryEventScriptExecutor is null)
@@ -411,8 +427,12 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
         var resultData = result.MessageData ?? messageData;
         if (!resultData.AsSpan().SequenceEqual(messageData))
         {
-            var saved = await _messageContentStore.TrySaveAsync(message, resultData, cancellationToken).ConfigureAwait(false);
-            if (!saved)
+            var persisted = await TryPersistMessageContentAndSizeAsync(
+                message,
+                resultData,
+                leaseOwner,
+                cancellationToken).ConfigureAwait(false);
+            if (!persisted)
             {
                 return DeliveryEventOutcome.Failure(message, eventName + " could not save mutated message content.");
             }
@@ -431,6 +451,7 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
         DeliveryQueuedMessage message,
         IReadOnlyList<DeliveryQueueRecipient> failedRecipients,
         string failureDescription,
+        string leaseOwner,
         CancellationToken cancellationToken)
     {
         if (_deliveryEventScriptExecutor is null ||
@@ -475,10 +496,14 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
                 continue;
             }
 
-            var saved = await _messageContentStore.TrySaveAsync(message, resultData, cancellationToken).ConfigureAwait(false);
-            if (!saved)
+            var persisted = await TryPersistMessageContentAndSizeAsync(
+                message,
+                resultData,
+                leaseOwner,
+                cancellationToken).ConfigureAwait(false);
+            if (!persisted)
             {
-                continue;
+                throw new InvalidOperationException("The delivery-failed message mutation could not be persisted under the current lease.");
             }
 
             messageData = resultData;
@@ -486,6 +511,27 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
         }
 
         return message;
+    }
+
+    private async ValueTask<bool> TryPersistMessageContentAndSizeAsync(
+        DeliveryQueuedMessage message,
+        byte[] messageData,
+        string leaseOwner,
+        CancellationToken cancellationToken)
+    {
+        if (_messageContentStore is null)
+        {
+            return false;
+        }
+
+        if (!await _messageContentStore.TrySaveAsync(message, messageData, cancellationToken).ConfigureAwait(false))
+        {
+            return false;
+        }
+
+        return await _messageStore
+            .TryUpdateSizeAsync(message, messageData.LongLength, leaseOwner, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async ValueTask DeferAfterDeliveryEventFailureAsync(

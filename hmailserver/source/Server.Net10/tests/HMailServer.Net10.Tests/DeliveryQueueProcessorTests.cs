@@ -67,7 +67,14 @@ public sealed class DeliveryQueueProcessorTests
         var message = CreateMessage(identity);
         var order = new List<string>();
         var leaseStore = new FakeLeaseStore(identity);
-        var contentStore = new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n");
+        var contentStore = new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n")
+        {
+            Order = order
+        };
+        var messageStore = new FakeMessageStore(message)
+        {
+            Order = order
+        };
         var eventExecutor = new FakeDeliveryEventScriptExecutor(request =>
         {
             order.Add(request.EventName);
@@ -81,10 +88,13 @@ public sealed class DeliveryQueueProcessorTests
             OnResolve = _ => order.Add("Resolve")
         };
         var signer = new RecordingDkimSigner(order);
-        var dispatcher = new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success());
+        var dispatcher = new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success())
+        {
+            Order = order
+        };
         var processor = new DeliveryQueueProcessor(
             leaseStore,
-            new FakeMessageStore(message),
+            messageStore,
             resolver,
             dispatcher,
             new FakeRecipientStore(),
@@ -96,9 +106,13 @@ public sealed class DeliveryQueueProcessorTests
         await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
         Assert.IsTrue(order.IndexOf("OnDeliverMessage") < order.IndexOf("Signer"));
-        Assert.IsTrue(order.IndexOf("Signer") < order.IndexOf("Resolve"));
+        Assert.IsTrue(order.IndexOf("Signer") < order.IndexOf("ContentSave"));
+        Assert.IsTrue(order.IndexOf("ContentSave") < order.IndexOf("SizeUpdate"));
+        Assert.IsTrue(order.IndexOf("SizeUpdate") < order.IndexOf("Resolve"));
+        Assert.IsTrue(order.IndexOf("Resolve") < order.IndexOf("Dispatch"));
         StringAssert.Contains(contentStore.Text, "X-DKIM-Test: signed");
         Assert.AreEqual(contentStore.Text, Encoding.ASCII.GetString(signer.LastBytes!));
+        Assert.AreEqual(contentStore.Bytes.LongLength, messageStore.UpdatedSize);
         Assert.AreEqual(1, dispatcher.Messages.Count);
     }
 
@@ -109,13 +123,14 @@ public sealed class DeliveryQueueProcessorTests
         var message = CreateMessage(identity, currentRetryCount: 1);
         var signer = new RecordingDkimSigner([]);
         var contentStore = new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n");
+        var messageStore = new FakeMessageStore(message);
         var resolver = new FakeTargetResolver(
             new DeliveryTargetBatch(
                 new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
                 message.Recipients));
         var processor = new DeliveryQueueProcessor(
             new FakeLeaseStore(identity),
-            new FakeMessageStore(message),
+            messageStore,
             resolver,
             new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success()),
             new FakeRecipientStore(),
@@ -126,7 +141,139 @@ public sealed class DeliveryQueueProcessorTests
         await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
 
         Assert.AreEqual(0, signer.CallCount);
+        Assert.AreEqual(0, messageStore.UpdateSizeCallCount);
         Assert.AreEqual("From: sender@example.test\r\n\r\nBody\r\n", contentStore.Text);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DefersWhenSignedMessageSizeCannotBePersisted()
+    {
+        var identity = new MessageIdentity(103, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var messageStore = new FakeMessageStore(message) { UpdateSizeResult = false };
+        var resolver = new FakeTargetResolver(
+            new DeliveryTargetBatch(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                message.Recipients));
+        var dispatcher = new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success());
+        var contentStore = new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n");
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            messageStore,
+            resolver,
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            messageContentStore: contentStore,
+            dkimSigner: new RecordingDkimSigner([]));
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(1, messageStore.UpdateSizeCallCount);
+        Assert.AreEqual(identity.MessageId, leaseStore.DeferredMessageId);
+        Assert.AreEqual(TimeSpan.FromMinutes(2), leaseStore.DeferredRetryDelay);
+        Assert.IsNull(leaseStore.CompletedMessageId);
+        Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        Assert.IsEmpty(contentStore.DeletedMessages);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DefersWhenSignedMessageSizePersistenceThrows()
+    {
+        var identity = new MessageIdentity(104, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var messageStore = new FakeMessageStore(message)
+        {
+            UpdateSizeException = new IOException("size update failed")
+        };
+        var resolver = new FakeTargetResolver(
+            new DeliveryTargetBatch(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                message.Recipients));
+        var dispatcher = new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success());
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            messageStore,
+            resolver,
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            messageContentStore: new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n"),
+            dkimSigner: new RecordingDkimSigner([]));
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        Assert.AreEqual(identity.MessageId, leaseStore.DeferredMessageId);
+        Assert.IsNull(leaseStore.CompletedMessageId);
+        Assert.AreEqual(0, dispatcher.Dispatched.Count);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_PropagatesCancellationFromSignedMessageSizePersistence()
+    {
+        var identity = new MessageIdentity(105, 0, 0, 0);
+        var message = CreateMessage(identity);
+        using var cancellation = new CancellationTokenSource();
+        var leaseStore = new FakeLeaseStore(identity);
+        var messageStore = new FakeMessageStore(message) { CancelOnUpdate = cancellation };
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            messageStore,
+            new FakeTargetResolver(
+                new DeliveryTargetBatch(
+                    new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                    message.Recipients)),
+            new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success()),
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            messageContentStore: new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n"),
+            dkimSigner: new RecordingDkimSigner([]));
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => processor.RunBatchAsync(CreateOptions(), cancellation.Token).AsTask());
+
+        Assert.IsNull(leaseStore.DeferredMessageId);
+        Assert.IsNull(leaseStore.CompletedMessageId);
+    }
+
+    [TestMethod]
+    public async Task RunBatchAsync_DefersWhenDeliveryEventSizeCannotBePersisted()
+    {
+        var identity = new MessageIdentity(106, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var messageStore = new FakeMessageStore(message) { UpdateSizeResult = false };
+        var resolver = new FakeTargetResolver(
+            new DeliveryTargetBatch(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                message.Recipients));
+        var dispatcher = new FakeTargetDispatcher(DeliveryTargetDispatchResult.Success());
+        var contentStore = new FakeMessageContentStore("From: sender@example.test\r\n\r\nBody\r\n");
+        var eventExecutor = new FakeDeliveryEventScriptExecutor(request =>
+            request.EventName == "OnDeliverMessage"
+                ? DeliveryEventScriptExecutionResult.Continue(
+                    Encoding.ASCII.GetBytes("From: sender@example.test\r\n\r\nMutated\r\n"))
+                : DeliveryEventScriptExecutionResult.Continue(request.MessageData));
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            messageStore,
+            resolver,
+            dispatcher,
+            new FakeRecipientStore(),
+            new FakeBounceStore(),
+            eventExecutor,
+            contentStore);
+
+        await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(identity.MessageId, leaseStore.DeferredMessageId);
+        Assert.IsNull(leaseStore.CompletedMessageId);
+        Assert.AreEqual(0, dispatcher.Dispatched.Count);
+        Assert.AreEqual(1, messageStore.UpdateSizeCallCount);
     }
 
     [TestMethod]
@@ -699,11 +846,46 @@ public sealed class DeliveryQueueProcessorTests
             _message = message;
         }
 
+        public List<string>? Order { get; init; }
+
+        public bool UpdateSizeResult { get; init; } = true;
+
+        public Exception? UpdateSizeException { get; init; }
+
+        public CancellationTokenSource? CancelOnUpdate { get; init; }
+
+        public int UpdateSizeCallCount { get; private set; }
+
+        public long? UpdatedSize { get; private set; }
+
         public ValueTask<DeliveryQueuedMessage?> TryLoadAsync(
             MessageIdentity identity,
             string leaseOwner,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(_message);
+
+        public ValueTask<bool> TryUpdateSizeAsync(
+            DeliveryQueuedMessage message,
+            long size,
+            string leaseOwner,
+            CancellationToken cancellationToken)
+        {
+            UpdateSizeCallCount++;
+            UpdatedSize = size;
+            Order?.Add("SizeUpdate");
+            if (CancelOnUpdate is not null)
+            {
+                CancelOnUpdate.Cancel();
+                return ValueTask.FromException<bool>(new OperationCanceledException(CancelOnUpdate.Token));
+            }
+
+            if (UpdateSizeException is not null)
+            {
+                return ValueTask.FromException<bool>(UpdateSizeException);
+            }
+
+            return ValueTask.FromResult(UpdateSizeResult);
+        }
     }
 
     private sealed class FakeTargetResolver : IDeliveryTargetResolver
@@ -739,11 +921,14 @@ public sealed class DeliveryQueueProcessorTests
 
         public List<DeliveryQueuedMessage> Messages { get; } = [];
 
+        public List<string>? Order { get; init; }
+
         public ValueTask<DeliveryTargetDispatchResult> DispatchAsync(
             DeliveryQueuedMessage message,
             DeliveryTargetBatch targetBatch,
             CancellationToken cancellationToken)
         {
+            Order?.Add("Dispatch");
             Messages.Add(message);
             Dispatched.Add(targetBatch);
             return ValueTask.FromResult(
@@ -867,6 +1052,8 @@ public sealed class DeliveryQueueProcessorTests
 
         public Exception? DeleteException { get; init; }
 
+        public List<string>? Order { get; init; }
+
         public ValueTask<byte[]?> TryLoadAsync(
             DeliveryQueuedMessage message,
             CancellationToken cancellationToken) =>
@@ -877,6 +1064,7 @@ public sealed class DeliveryQueueProcessorTests
             byte[] messageData,
             CancellationToken cancellationToken)
         {
+            Order?.Add("ContentSave");
             Bytes = messageData;
             return ValueTask.FromResult(true);
         }

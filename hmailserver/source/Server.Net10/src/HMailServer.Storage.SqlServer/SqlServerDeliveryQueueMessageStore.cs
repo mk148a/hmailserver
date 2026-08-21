@@ -6,6 +6,11 @@ namespace HMailServer.Storage.SqlServer;
 
 public sealed class SqlServerDeliveryQueueMessageStore : IDeliveryQueueMessageStore
 {
+    public const string UpdateMessageSizeSql = """
+UPDATE hm_messages SET messagesize=@MessageSize
+WHERE messageid=@MessageId AND messagetype=1 AND messagelocked=1 AND messageleaseowner=@LeaseOwner
+""";
+
     public const string SelectQueuedMessageSql = """
 SELECT TOP (1)
     messageid,
@@ -63,6 +68,42 @@ ORDER BY recipientid ASC;
 
         var recipients = await LoadRecipientsAsync(connection, identity.MessageId, cancellationToken).ConfigureAwait(false);
         return message with { Recipients = recipients };
+    }
+
+    public async ValueTask<bool> TryUpdateSizeAsync(
+        DeliveryQueuedMessage message,
+        long size,
+        string leaseOwner,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(message.Identity.MessageId);
+        ArgumentOutOfRangeException.ThrowIfNegative(size);
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = CreateUpdateSizeCommand(connection, message, size, leaseOwner);
+        var affectedRows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return affectedRows == 1;
+    }
+
+    internal static SqlCommand CreateUpdateSizeCommand(
+        SqlConnection connection,
+        DeliveryQueuedMessage message,
+        long size,
+        string leaseOwner)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(message);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(message.Identity.MessageId);
+        ArgumentOutOfRangeException.ThrowIfNegative(size);
+        ArgumentException.ThrowIfNullOrWhiteSpace(leaseOwner);
+
+        var command = new SqlCommand(UpdateMessageSizeSql, connection);
+        command.Parameters.Add("@MessageSize", SqlDbType.BigInt).Value = size;
+        command.Parameters.Add("@MessageId", SqlDbType.BigInt).Value = message.Identity.MessageId;
+        command.Parameters.Add("@LeaseOwner", SqlDbType.NVarChar, 128).Value = leaseOwner;
+        return command;
     }
 
     private static async ValueTask<DeliveryQueuedMessage?> LoadMessageAsync(
