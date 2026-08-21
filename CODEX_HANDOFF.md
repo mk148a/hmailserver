@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, MaxAsynchronousThreads lease)
+
+Code/test commit `b65e3a8ad` closes the retained-object authorization lease gap
+for authenticated `IInterfaceSettings.MaxAsynchronousThreads` (`DispId(88)`).
+Legacy `InterfaceSettings::get/put_MaxAsynchronousThreads` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1562-1592` delegates to
+`IMAPConfiguration::SetAsynchronousThreads` and persists the existing
+`hm_settings.MaxNumberOfAsynchronousTasks` row seeded by
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:918`.
+
+Net10 holds the existing generation-bound authorization lease across the
+fixed-row update, fails closed when the lease is unavailable, disposes it on
+success/failure, and publishes the retained snapshot only after success.
+Focused tests pass `4`, skip `0`, and fail `0`; full Net10 passes `2585`, skips
+`90`, and fails `0` (`2675` total). No COM identity, SQL schema, asynchronous
+task runtime, live reconfiguration, service, registry, DCOM, IIS, or
+production state changed.
+
+Next slice: audit one remaining authenticated Settings mutation lease gap,
+starting with `MaxMessageSize`. Release remains RED; disposable SQL/Data,
+SEC-18, registered COM, paired C++ performance, and long-soak evidence remain
+open or environment-blocked.
+
 ## Current Authoritative Continuation (2026-08-21, MaxIMAPConnections lease)
 
 Code/test commit `b9d781ab5` closes the retained-object authorization lease gap
