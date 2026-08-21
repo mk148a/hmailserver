@@ -3795,6 +3795,65 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxMessageSizeSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxMessageSizeUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxMessageSize: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxMessageSize = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.MaxMessageSizeUpdateCount);
+        Assert.AreEqual(10, settings.MaxMessageSize);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxMessageSizeSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxMessageSizeUpdateResult = true,
+            MaxMessageSizeMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxMessageSize: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.MaxMessageSize = 25;
+
+        Assert.IsTrue(store.MaxMessageSizeLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.AreEqual(25, settings.MaxMessageSize);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_MaxDeliveryThreadsSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7211,6 +7270,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxMessageSize { get; private set; }
 
+        public Func<bool>? MaxMessageSizeMutationProbe { get; set; }
+
+        public bool MaxMessageSizeLeaseHeldDuringUpdate { get; private set; }
+
         public bool MaxDeliveryThreadsUpdateResult { get; set; }
 
         public Func<bool>? MaxDeliveryThreadsMutationProbe { get; set; }
@@ -7966,6 +8029,8 @@ public sealed class SettingsComContractTests
             MaxMessageSizeUpdateCount++;
             UpdatedMaxMessageSize = maxMessageSize;
             CancellationToken = cancellationToken;
+            MaxMessageSizeLeaseHeldDuringUpdate =
+                MaxMessageSizeMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(MaxMessageSizeUpdateResult);
         }
 
