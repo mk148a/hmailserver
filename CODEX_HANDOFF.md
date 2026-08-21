@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, TLS 1.0 flag persistence)
+
+Legacy `InterfaceSettings::put_TlsVersion10Enabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2292-2305`) calls
+`Configuration::SetSslVersionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:632-640`),
+which reads and rewrites only flag `2` in `hm_settings.SslVersions`, seeded by
+`CreateTablesMSSQL.sql:940`. Code/test commit `039bfb9fc` adds the authenticated
+Net10 parameterized read-modify-write, unrelated-bit preservation, fail-closed
+outcome, and publish-after-success snapshot behavior. Focused Settings/SQL
+tests pass `245`, fail `0`; full Net10 passes `2524`, skips `90`, fails `0`
+(`2614` total).
+
+No TLS live reconfiguration, SMTP trust, COM identity, or direct activation
+boundary changed. The next slice is disposable `6000` SQL/Data host-start
+success/failure with no listener or worker side effects, blocked until the
+approved SQL connection and isolated-create opt-in exist. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, RewriteEnvelopeFromWhenForwarding)
 
 Legacy `InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding`

@@ -1,4 +1,22 @@
 
+## Current bounded slice: authenticated TLS 1.0 flag persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsVersion10Enabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2292-2305`) calls
+`Configuration::SetSslVersionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:632-640`),
+which performs a read-modify-write of the existing `hm_settings.SslVersions`
+integer row, seeded by `CreateTablesMSSQL.sql:940`. Code/test commit
+`039bfb9fc` adds the authenticated Net10 mask update, preserves unrelated bits,
+fails closed on a failed row update, and publishes the retained snapshot only
+after success. Focused Settings/SQL tests pass `245`, fail `0`; full Net10
+passes `2524`, skips `90`, fails `0`.
+
+No TLS live reconfiguration, SMTP trust, COM identity, or direct activation
+boundary changed. The next slice remains disposable `6000` SQL/Data host-start
+acceptance when the approved connection and isolated-create opt-in become
+available; release remains RED.
+
 ## Current bounded slice: authenticated RewriteEnvelopeFromWhenForwarding INI persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding`

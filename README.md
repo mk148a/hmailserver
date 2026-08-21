@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current TLS 1.0 flag persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_TlsVersion10Enabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2292-2305`) calls
+`Configuration::SetSslVersionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:632-640`),
+which reads the current `SslVersions` bitmask, changes only flag `2`, and writes
+the existing `hm_settings` row seeded by `CreateTablesMSSQL.sql:940`.
+
+Code/test commit `039bfb9fc` adds the authenticated Net10 parameterized mask
+update, preserves all other bits, fails closed on a non-singular row outcome,
+and publishes the retained snapshot only after success. Focused Settings/SQL
+coverage is `245 passed, 0 skipped, 0 failed`; full Net10 is `2524 passed, 90
+skipped, 0 failed` (`2614` total). No TLS live reconfiguration, SMTP trust,
+COM identity, or direct activation boundary changed.
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence, blocked because the approved SQL connection and
+isolated-create opt-in are absent. Release remains **RED**.
+
 ## Current RewriteEnvelopeFromWhenForwarding persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding`
