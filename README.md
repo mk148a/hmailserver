@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, IMAP hierarchy delimiter parity)
+
+Code/test commit `d35b4a467` implements authenticated
+`Settings.IMAPHierarchyDelimiter` persistence parity. The SQL store performs
+the legacy folder and rule-action conflict checks, rewrites existing rule
+action paths transactionally, updates the existing `IMAPHierarchyDelimiter`
+setting row, and publishes the snapshot only after commit. Same-value writes
+remain no-ops and failed writes leave both the setting and rule actions
+unchanged. Focused COM/SQL/integration coverage is `233 passed, 0 skipped, 0
+failed`; full Net10 Debug coverage is `2554 passed, 10 skipped, 0 failed`
+(`2564` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPHierarchyDelimiter`
+(`source/Server/COM/InterfaceSettings.cpp:2155-2185`),
+`IMAPConfiguration::SetHierarchyDelimiter`
+(`source/Server/IMAP/IMAPConfiguration.cpp:174-195`),
+`PersistentIMAPFolder::GetExistsFolderContainingCharacter`
+(`source/Server/Common/Persistence/PersistentIMAPFolder.cpp:178-188`), and
+`PersistentRuleAction::UpdateHierarchyDelimiter`
+(`source/Server/Common/Persistence/PersistentRuleAction.cpp:141-167`). The
+installed Settings IID/vtable/DISPID `87` shape and authenticated
+server-administrator boundary are unchanged. The .NET rule processor loads
+rules per processing call, so no new cache-clear API was required; live IMAP
+listener reconfiguration remains out of scope. Production-hosted SMTP/POP3
+timing, migration/installer, registered COM/DCOM, SEC-18, paired C++
+performance, and 24-hour soak gates remain open. Release remains **RED**; no
+push was performed.
+
 ## Current authoritative parity status (2026-08-21, HostName persistence parity)
 
 Code/test commit `11c95f606` implements authenticated `Settings.HostName`

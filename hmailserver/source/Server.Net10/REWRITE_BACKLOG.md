@@ -1,5 +1,30 @@
 
-## Current next slice (2026-08-21, IMAP hierarchy delimiter parity after HostName persistence)
+## Current next slice (2026-08-21, production-hosted SMTP/POP3 acceptance)
+
+The IMAP hierarchy delimiter parity slice is complete in code/test commit
+`d35b4a467`. Focused COM/SQL/integration coverage is `233 passed, 0 skipped, 0
+failed`; full Net10 Debug is `2554 passed, 10 skipped, 0 failed` (`2564` total).
+The implementation matches the legacy folder/rule-action conflict checks,
+transactional rule-action rewrite, setting persistence, same-value no-op, and
+failure rollback. The installed Settings IID/vtable/DISPID `87` shape and
+authenticated server-administrator boundary are unchanged.
+
+The next smallest production-gate slice is SMTP/POP3 enable/disable and
+latency acceptance against an isolated server instance using the same SQL/Data
+copy and loopback ports for the legacy C++ and .NET 10 implementations. This
+cannot be claimed from the current host: the installed hMailServer service is
+stopped/disabled, no disposable server instance is approved, and a paired C++
+runner is not available. Do not use the production service, database, Data
+directory, ports, COM registration, or DCOM permissions. Release remains
+**RED** and no push was performed.
+
+## Historical current slice (2026-08-21, IMAP hierarchy delimiter parity after HostName persistence)
+
+Code/test commit `11c95f606` closed the authenticated `Settings.HostName`
+persistence gap. The next candidate in that historical entry was the bounded
+IMAP hierarchy delimiter slice, now completed by `d35b4a467`.
+
+## Historical current slice (2026-08-21, IMAP hierarchy delimiter parity after HostName persistence)
 
 Code/test commit `11c95f606` closes the authenticated `Settings.HostName`
 persistence gap. The setter updates the existing `hm_settings.settingstring`

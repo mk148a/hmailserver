@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, production-hosted SMTP/POP3 acceptance)
+
+Code/test commit `d35b4a467` completes authenticated
+`Settings.IMAPHierarchyDelimiter` parity. It verifies legacy folder and
+rule-action delimiter conflicts, rewrites rule-action paths and the existing
+setting row in one SQL transaction, preserves same-value no-op behavior, and
+publishes the new snapshot only after commit. Focused COM/SQL/integration
+coverage is `233 passed, 0 skipped, 0 failed`; full Net10 Debug is `2554
+passed, 10 skipped, 0 failed` (`2564` total).
+
+Legacy references are `InterfaceSettings::get/put_IMAPHierarchyDelimiter`
+(`source/Server/COM/InterfaceSettings.cpp:2155-2185`),
+`IMAPConfiguration::SetHierarchyDelimiter`
+(`source/Server/IMAP/IMAPConfiguration.cpp:174-195`),
+`PersistentIMAPFolder::GetExistsFolderContainingCharacter`
+(`source/Server/Common/Persistence/PersistentIMAPFolder.cpp:178-188`), and
+`PersistentRuleAction::UpdateHierarchyDelimiter`
+(`source/Server/Common/Persistence/PersistentRuleAction.cpp:141-167`). No
+installed COM identity, direct activation boundary, SMTP/IMAP live listener,
+or DCOM state changed. The .NET rule processor does not retain a rule cache,
+so legacy cache clearing has no direct .NET operation. The next slice is
+isolated production-hosted SMTP/POP3 enable/disable and timing acceptance, but
+the current host has no approved disposable server instance or paired C++
+runner. Migration/installer, SEC-18, paired C++ performance, and 24-hour soak
+remain open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, HostName persistence parity)
 
 Code/test commit `11c95f606` implements authenticated `Settings.HostName`
