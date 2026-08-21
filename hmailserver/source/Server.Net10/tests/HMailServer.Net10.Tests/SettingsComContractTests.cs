@@ -1307,6 +1307,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_HostNameSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            HostNameUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: "old.example.test",
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        const string newHostName = "mail.example.test";
+        settings.HostName = newHostName;
+
+        Assert.AreEqual(1, store.HostNameUpdateCount);
+        Assert.AreEqual(newHostName, store.UpdatedHostName);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual(newHostName, settings.HostName);
+
+        store.HostNameUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.HostName = "failed.example.test");
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.HostNameUpdateCount);
+        Assert.AreEqual(newHostName, settings.HostName);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.HostName = "denied.example.test");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.HostNameUpdateCount);
+        Assert.AreEqual(newHostName, settings.HostName);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5888,6 +5930,12 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedImapMasterUser { get; private set; }
 
+        public bool HostNameUpdateResult { get; set; }
+
+        public int HostNameUpdateCount { get; private set; }
+
+        public string? UpdatedHostName { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6527,6 +6575,16 @@ public sealed class SettingsComContractTests
             UpdatedImapMasterUser = imapMasterUser;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ImapMasterUserUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateHostNameAsync(
+            string hostName,
+            CancellationToken cancellationToken)
+        {
+            HostNameUpdateCount++;
+            UpdatedHostName = hostName;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(HostNameUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

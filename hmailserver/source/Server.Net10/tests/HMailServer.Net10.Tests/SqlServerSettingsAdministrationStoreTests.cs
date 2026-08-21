@@ -336,6 +336,19 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateHostNameSql_UpdatesOnlyTheExistingSettingWithAParameter()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateHostNameSql;
+
+        StringAssert.Contains(sql, "UPDATE hm_settings");
+        StringAssert.Contains(sql, "SET settingstring = @HostName");
+        StringAssert.Contains(sql, "WHERE settingname = N'hostname'");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateWorkerThreadPrioritySql_UpdatesOnlyTheExistingWorkerPriorityRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateWorkerThreadPrioritySql;

@@ -106,6 +106,10 @@ public interface ISettingsAdministrationMutationStore
         string imapMasterUser,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateHostNameAsync(
+        string hostName,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);
