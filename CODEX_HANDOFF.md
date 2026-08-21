@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, ServiceSMTP persistence parity)
+
+Code/test commit `43d4b9abf` implements authenticated `Settings.ServiceSMTP`
+persistence through `SqlServerSettingsAdministrationStore.UpdateServiceSmtpAsync`.
+It updates only the existing `protocolsmtp` row, requires the existing
+authenticated server-administrator boundary, publishes the snapshot after a
+successful one-row update, and keeps direct activation fallback behavior.
+Focused COM coverage is `150 passed, 0 skipped, 0 failed`; SQL unit coverage
+is `53 passed, 0 skipped, 0 failed`; disposable LocalDB SQL integration is
+`1 passed, 0 skipped, 0 failed`; full Net10 Debug is `2512 passed, 10 skipped,
+0 failed` (`2522` total).
+
+Legacy references are `InterfaceSettings::get/put_ServiceSMTP`
+(`source/Server/COM/InterfaceSettings.cpp:781-819`) and
+`Configuration::GetUseSMTP/SetUseSMTP`
+(`source/Server/Common/Application/Configuration.cpp:175-184`). No installed
+COM identity, direct activation boundary, SMTP trust behavior, or live listener
+was changed. Live SMTP enable/disable/timing acceptance is the next slice.
+Migration/installer, registered COM/DCOM, SEC-18, paired C++ performance, and
+24-hour soak remain open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, domain quota setter/save parity)
 
 Code/test commit `8a5bcb5ad` adds focused COM and disposable SQL coverage for

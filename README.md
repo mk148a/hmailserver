@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, ServiceSMTP persistence parity)
+
+Code/test commit `43d4b9abf` implements the bounded authenticated
+`Settings.ServiceSMTP` setter path. It updates the existing
+`hm_settings.settinginteger` row whose name is `protocolsmtp`, publishes the
+new value only after a successful store result, preserves the authenticated
+server-administrator boundary, and retains direct activation fallback behavior.
+Focused COM coverage is `150 passed, 0 skipped, 0 failed`; SQL store unit
+coverage is `53 passed, 0 skipped, 0 failed`; disposable LocalDB SQL
+integration is `1 passed, 0 skipped, 0 failed`; full Net10 Debug coverage is
+`2512 passed, 10 skipped, 0 failed` (`2522` total).
+
+Legacy anchors are `InterfaceSettings::get/put_ServiceSMTP`
+(`source/Server/COM/InterfaceSettings.cpp:781-819`) and
+`Configuration::GetUseSMTP/SetUseSMTP`
+(`source/Server/Common/Application/Configuration.cpp:175-184`). The .NET
+slice preserves the installed Settings IID/vtable/DISPID shape and writes
+only the existing settings row through
+`SqlServerSettingsAdministrationStore.UpdateServiceSmtpAsync`. Live SMTP
+listener reconfiguration and socket timing acceptance are intentionally not
+part of this persistence slice and remain the next production-hosted gate.
+Migration/installer, registered COM/DCOM, SEC-18, paired C++ performance, and
+24-hour soak gates remain open. Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, domain quota setter/save parity)
 
 Code/test commit `8a5bcb5ad` adds focused evidence for the legacy-compatible

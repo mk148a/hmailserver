@@ -1,5 +1,33 @@
 
-## Current next slice (2026-08-21, SMTP live greylisting acceptance after domain quota evidence)
+## Current next slice (2026-08-21, SMTP runtime acceptance after ServiceSMTP persistence parity)
+
+Code/test commit `43d4b9abf` closes the authenticated `Settings.ServiceSMTP`
+persistence gap. `Settings.ServiceSMTP` now updates the existing
+`hm_settings.settinginteger` value for `protocolsmtp` through the configured
+administration store, publishes the snapshot only after a one-row success, and
+retains direct activation and failed-save behavior. Focused COM coverage is
+`150 passed, 0 skipped, 0 failed`; SQL store unit coverage is `53 passed, 0
+skipped, 0 failed`; disposable LocalDB SQL integration is `1 passed, 0
+skipped, 0 failed`; full Net10 Debug coverage is `2512 passed, 10 skipped, 0
+failed` (`2522` total).
+
+Legacy anchors are `InterfaceSettings::get/put_ServiceSMTP`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:781-819`) and
+`Configuration::GetUseSMTP/SetUseSMTP`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:175-184`).
+The installed Settings IID/vtable/DISPID shape and authenticated
+server-administrator boundary remain unchanged. Live listener reconfiguration
+is deliberately out of scope.
+
+The next bounded slice is production-hosted SMTP enable/disable/timing
+acceptance on an isolated production-like host. It must prove socket behavior
+against the persisted setting without changing production state. Do not add
+DKIM signing, DNS verification, SMTP/POP3 greylisting reconfiguration, or
+unrelated Admin mutations. Migration/installer remains environment-gated:
+`Get-VM` is unavailable under the current access context and MSSQLSERVER is not
+approved as disposable. Release remains **RED**. No push was performed.
+
+## Historical current slice (2026-08-21, SMTP live greylisting acceptance after domain quota evidence)
 
 Code/test commit `8a5bcb5ad` adds focused COM and disposable SQL evidence for the
 authenticated domain `MaxSize` and `MaxAccountSize` setter/save paths and retains the completed
