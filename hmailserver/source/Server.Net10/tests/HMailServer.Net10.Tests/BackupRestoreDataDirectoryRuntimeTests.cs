@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Diagnostics;
 using HMailServer.ComInterop;
 
@@ -448,7 +447,7 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
     }
 
     [TestMethod]
-    public void WindowsFilesystemMutation_UsesNativeRelativeRenameOrFailsClosed()
+    public void WindowsFilesystemMutation_UsesNativeRelativeRename()
     {
         using var fixture = new DataDirectoryFixture();
         var destination = Path.Combine(fixture.RootPath, "destination");
@@ -461,18 +460,10 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
             return;
         }
 
-        try
-        {
-            mutation.MoveDirectory(fixture.TargetPath, destination);
+        mutation.MoveDirectory(fixture.TargetPath, destination);
 
-            Assert.IsFalse(Directory.Exists(fixture.TargetPath));
-            Assert.IsTrue(Directory.Exists(destination));
-        }
-        catch (IOException exception) when (exception.InnerException is Win32Exception { NativeErrorCode: 87 })
-        {
-            Assert.IsTrue(Directory.Exists(fixture.TargetPath));
-            Assert.IsFalse(Directory.Exists(destination));
-        }
+        Assert.IsFalse(Directory.Exists(fixture.TargetPath));
+        Assert.IsTrue(Directory.Exists(destination));
     }
 
     [TestMethod]

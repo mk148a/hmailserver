@@ -15,11 +15,15 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
 {
     private const uint Delete = 0x00010000;
     private const uint FileAddSubdirectory = 0x00000004;
+    private const uint FileReadAttributes = 0x00000080;
+    private const uint Synchronize = 0x00100000;
     private const uint FileShareRead = 0x00000001;
     private const uint FileShareWrite = 0x00000002;
+    private const uint FileShareDelete = 0x00000004;
     private const uint OpenExisting = 3;
     private const uint FileFlagBackupSemantics = 0x02000000;
-    private const int FileRenameInfo = 3;
+    private const int FileRenameInformation = 10;
+    private const int StatusSuccess = 0;
 
     public void MoveDirectory(string sourcePath, string destinationPath)
     {
@@ -54,9 +58,11 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
             destinationParentPath,
             FileAddSubdirectory,
             "The restore destination parent directory could not be opened for a bounded move.");
-        var fileName = System.Text.Encoding.Unicode.GetBytes(destinationName + "\0");
-        var fileNameLength = checked(fileName.Length - sizeof(char));
-        var fileNameOffset = (IntPtr.Size * 2) + sizeof(uint);
+        var fileName = System.Text.Encoding.Unicode.GetBytes(destinationName);
+        var fileNameLength = fileName.Length;
+        const int rootDirectoryOffset = 8;
+        var fileNameLengthOffset = rootDirectoryOffset + IntPtr.Size;
+        var fileNameOffset = fileNameLengthOffset + sizeof(uint);
         var informationSize = checked(fileNameOffset + fileName.Length);
         var information = Marshal.AllocHGlobal(informationSize);
         try
@@ -64,19 +70,22 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
             Marshal.Copy(new byte[informationSize], 0, information, informationSize);
             Marshal.WriteIntPtr(
                 information,
-                IntPtr.Size,
+                rootDirectoryOffset,
                 destinationParentHandle.DangerousGetHandle());
-            Marshal.WriteInt32(information, IntPtr.Size * 2, fileNameLength);
+            Marshal.WriteInt32(information, fileNameLengthOffset, fileNameLength);
             Marshal.Copy(fileName, 0, IntPtr.Add(information, fileNameOffset), fileName.Length);
 
-            if (!SetFileInformationByHandle(
+            var status = NtSetInformationFile(
                     sourceHandle,
-                    FileRenameInfo,
+                    out _,
                     information,
-                    checked((uint)informationSize)))
+                    checked((uint)informationSize),
+                    FileRenameInformation);
+            if (status != StatusSuccess)
             {
-                throw CreateWindowsIoException(
-                    "The restore directory could not be moved with a bounded Windows rename.");
+                throw CreateNtStatusIoException(
+                    "The restore directory could not be moved with a bounded Windows rename.",
+                    status);
             }
         }
         finally
@@ -92,8 +101,8 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
     {
         var handle = CreateFileW(
             path,
-            desiredAccess,
-            FileShareRead | FileShareWrite,
+            desiredAccess | FileReadAttributes | Synchronize,
+            FileShareRead | FileShareWrite | FileShareDelete,
             IntPtr.Zero,
             OpenExisting,
             FileFlagBackupSemantics,
@@ -110,6 +119,9 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
     private static IOException CreateWindowsIoException(string message) =>
         new(message, new Win32Exception(Marshal.GetLastWin32Error()));
 
+    private static IOException CreateNtStatusIoException(string message, int status) =>
+        new(message, new Win32Exception(unchecked((int)RtlNtStatusToDosError(status))));
+
     [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern SafeFileHandle CreateFileW(
@@ -121,12 +133,23 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
         uint flagsAndAttributes,
         IntPtr templateFile);
 
-    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    [DllImport("ntdll.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool SetFileInformationByHandle(
+    private static extern int NtSetInformationFile(
         SafeFileHandle fileHandle,
-        int fileInformationClass,
+        out IoStatusBlock ioStatusBlock,
         IntPtr fileInformation,
-        uint bufferSize);
+        uint bufferSize,
+        int fileInformationClass);
+
+    [DllImport("ntdll.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern uint RtlNtStatusToDosError(int status);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct IoStatusBlock
+    {
+        public IntPtr Status;
+        public IntPtr Information;
+    }
 }
