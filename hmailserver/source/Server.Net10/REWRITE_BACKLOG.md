@@ -1,5 +1,33 @@
 
-## Current bounded slice: MaxNumberOfMXHosts authorization lease (2026-08-21)
+## Current bounded slice: VerifyRemoteSslCertificate authorization lease (2026-08-21)
+
+Code/test commit `314c6e5a0` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.VerifyRemoteSslCertificate`
+(`DispId(93)`). Legacy `InterfaceSettings::get/put_VerifyRemoteSslCertificate`
+at `hmailserver/source/Server/COM/InterfaceSettings.cpp:2223-2258` delegates
+to `Configuration::Get/SetVerifyRemoteSslCertificate` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:597-607`,
+using `PROPERTY_VERIFYREMOTESSLCERTIFICATE` from
+`hmailserver/source/Server/Common/Application/Constants.h:122` and persisting
+the existing `hm_settings.settinginteger` row seeded by
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:936`.
+
+Net10 holds the generation-bound authorization lease around
+`UpdateVerifyRemoteSslCertificateAsync`, fails closed when the lease is
+unavailable, disposes it on success/failure, and publishes the retained
+snapshot only after a successful update. Focused tests pass `5`, skip `0`, and
+fail `0`; full Net10 passes `2599`, skips `90`, and fails `0` (`2689` total).
+Settings IID/vtable/DISPID/class identity, SQL schema, SMTP/TLS certificate
+verification behavior, and live delivery configuration are unchanged.
+
+Next independent slice: run the real SQL-backed raw `BackupOptions = 2 | 4`
+acceptance with `BackupMessagesDbOnly = false`, proving the external
+`DataBackup` directory beside the archive. Raw non-DB-only staging is already
+implemented and recorded in `50d8cefc3`; it is not being restarted. The
+disposable SQL/Data acceptance gate remains blocked by the absent approved SQL
+connection and isolated-create opt-in. Release remains **RED**.
+
+## Historical bounded slice: MaxNumberOfMXHosts authorization lease (2026-08-21)
 
 Code/test commit `4cf6bbde4` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.MaxNumberOfMXHosts` (`DispId(90)`).

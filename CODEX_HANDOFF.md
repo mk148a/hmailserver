@@ -1,6 +1,34 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, MaxNumberOfMXHosts lease)
+## Current Authoritative Continuation (2026-08-21, VerifyRemoteSslCertificate lease)
+
+Code/test commit `314c6e5a0` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.VerifyRemoteSslCertificate`
+(`DispId(93)`). Legacy `InterfaceSettings::get/put_VerifyRemoteSslCertificate`
+at `hmailserver/source/Server/COM/InterfaceSettings.cpp:2223-2258` delegates
+to `Configuration::Get/SetVerifyRemoteSslCertificate` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:597-607`,
+using `PROPERTY_VERIFYREMOTESSLCERTIFICATE` from
+`hmailserver/source/Server/Common/Application/Constants.h:122` and persisting
+the existing `hm_settings.settinginteger` row seeded by
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:936`.
+
+Net10 holds the generation-bound authorization lease across the fixed-row
+update, fails closed when the lease is unavailable, disposes it on
+success/failure, and publishes the retained snapshot only after success.
+Focused tests pass `5`, skip `0`, and fail `0`; full Net10 passes `2599`, skips
+`90`, and fails `0` (`2689` total). No COM identity, SQL schema, SMTP/TLS
+certificate verification behavior, live delivery configuration, service,
+registry, DCOM, IIS, or production state changed.
+
+Next slice: run the real SQL-backed raw `BackupOptions = 2 | 4` acceptance
+with `BackupMessagesDbOnly = false`, proving the external `DataBackup`
+directory beside the archive. Raw non-DB-only staging is already implemented
+in `50d8cefc3` and is not being restarted. Release remains RED; disposable
+SQL/Data, SEC-18, registered COM, paired C++ performance, and long-soak
+evidence remain open or environment-blocked.
+
+## Historical Authoritative Continuation (2026-08-21, MaxNumberOfMXHosts lease)
 
 Code/test commit `4cf6bbde4` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.MaxNumberOfMXHosts` (`DispId(90)`).
