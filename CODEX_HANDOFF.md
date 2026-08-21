@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, IMAP ACL persistence parity)
+
+Code/test commit `a824f4d92` implements authenticated
+`Settings.IMAPACLEnabled` persistence through
+`SqlServerSettingsAdministrationStore.UpdateImapAclEnabledAsync`. It updates
+only the existing `enableimapacl` row, requires the existing authenticated
+server-administrator boundary and authorization lease, publishes the snapshot
+after a successful one-row update, and keeps direct activation fallback
+behavior. Focused COM/SQL coverage is `218 passed, 0 skipped, 0 failed`;
+disposable LocalDB SQL integration passed; full Net10 Debug is `2533 passed,
+10 skipped, 0 failed` (`2543` total).
+
+Legacy references are `InterfaceSettings::get/put_IMAPACLEnabled`
+(`source/Server/COM/InterfaceSettings.cpp:1463-1490`) and
+`IMAPConfiguration::Get/SetUseIMAPACL`
+(`source/Server/IMAP/IMAPConfiguration.cpp:90-98`). No installed COM
+identity, direct activation boundary, SMTP trust behavior, ACL rights
+enforcement, or live IMAP capability was changed. The next slice is
+IMAPSASLPlainEnabled persistence with a security review. Migration/installer,
+SEC-18, paired C++ performance, and 24-hour soak remain open; release is
+`RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, IMAP IDLE persistence parity)
 
 Code/test commit `e27385413` implements authenticated

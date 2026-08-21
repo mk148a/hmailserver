@@ -1,5 +1,31 @@
 
-## Current next slice (2026-08-21, IMAP ACL persistence security slice after IMAP IDLE parity)
+## Current next slice (2026-08-21, IMAP SASL PLAIN persistence after IMAP ACL parity)
+
+Code/test commit `a824f4d92` closes the authenticated
+`Settings.IMAPACLEnabled` persistence gap. The setter updates the existing
+`hm_settings.settinginteger` value for `enableimapacl` through the configured
+administration store, publishes the snapshot only after a one-row success, and
+retains direct activation and failed-save behavior. Focused COM/SQL coverage
+is `218 passed, 0 skipped, 0 failed`; the disposable LocalDB SQL integration
+passed; full Net10 Debug is `2533 passed, 10 skipped, 0 failed` (`2543` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPACLEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1463-1490`) and
+`IMAPConfiguration::Get/SetUseIMAPACL`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:90-98`), with
+`PROPERTY_ENABLEIMAPACL` and the existing `hm_settings` seed. The installed
+Settings IID/vtable/DISPID `75` shape and authenticated server-administrator
+boundary remain unchanged. This persistence-only slice does not change ACL
+rights enforcement or live capability reconfiguration.
+
+The next bounded slice is authenticated `Settings.IMAPSASLPlainEnabled`
+persistence parity against `enableimapsaslplain`, with security review of the
+authentication/runtime boundary. Do not add live IMAP capability changes,
+credential behavior, or unrelated Admin mutations. Production-hosted
+SMTP/POP3 timing, migration/installer, SEC-18, paired C++ performance, and
+soak remain separate gates. Release remains **RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP ACL persistence security slice after IMAP IDLE parity)
 
 Code/test commit `e27385413` closes the authenticated
 `Settings.IMAPIdleEnabled` persistence gap. The setter updates the existing
