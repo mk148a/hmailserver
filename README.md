@@ -6,23 +6,24 @@ hMailServer
 Legacy `DKIMSigner::Sign` and `DKIM::Sign` use the configured private-key path
 through `hmailserver/source/Server/Common/AntiSpam/DKIM/DKIMSigner.cpp:34-106`
 and `DKIM.cpp:90-155`; the legacy `FileUtilities::ReadCompleteTextFile` path
-does not provide reparse containment. Code/test commit `23561f916` now opens
+does not provide reparse containment. Code/test commit `c9299d253` now opens
 the Windows final path component with `CreateFileW` and
 `FILE_FLAG_OPEN_REPARSE_POINT`, rejects a reparse-point file from the opened
-handle, and then reads through that handle. Non-Windows retains the existing
-FileStream path.
+handle, checks the handle's final path against the configured Data directory,
+rejects `NumberOfLinks != 1`, and then reads through that handle. Non-Windows
+retains the existing FileStream path.
 
-Focused DKIM runtime coverage is `7 passed, 1 skipped, 0 failed`; the full
-Net10 Debug suite is `2507 passed, 89 skipped, 0 failed` (`2596` total). The
-symlink test is skipped on hosts that cannot create a disposable reparse point.
+Focused DKIM runtime coverage is `8 passed, 2 skipped, 0 failed`; the full
+Net10 Debug suite is `2508 passed, 90 skipped, 0 failed` (`2598` total). The
+symlink tests are skipped on hosts that cannot create disposable reparse points.
 No COM identity, SQL schema, SMTP trust, service, IIS, or firewall behavior
 changed.
 
-This is bounded hardening, not release acceptance. Parent-directory reparse
-races and hardlink identity outside the approved Data directory remain open
-security risks; paired C++/Net10 SMTP evidence and live SQL acceptance are
-also absent. Release remains **RED**. The next code slice is parent-path
-final-handle containment and hardlink identity validation.
+This is bounded hardening, not release acceptance. The implementation now
+fails closed on final-path escapes and hardlinks, but this host has no live
+symlink regression evidence. Paired C++/Net10 SMTP evidence and live SQL
+acceptance are also absent. Release remains **RED**. The next slice is
+disposable `6000` SQL/Data host-start evidence when the approved opt-in exists.
 
 ## Current outbound DKIM slice (2026-08-21)
 

@@ -4,17 +4,18 @@
 Legacy anchors are `DKIMSigner::Sign` and `DKIM::Sign` in
 `hmailserver/source/Server/Common/AntiSpam/DKIM/DKIMSigner.cpp:34-106` and
 `DKIM.cpp:90-155`. The legacy file reader does not reject Windows reparse
-points. Code/test commit `23561f916` uses `CreateFileW` with
-`FILE_FLAG_OPEN_REPARSE_POINT` and rejects a final reparse-point file from the
-opened handle before parsing the key. Focused coverage is `7 passed, 1
-skipped, 0 failed`; full Net10 is `2507 passed, 89 skipped, 0 failed`.
+points. Code/test commit `c9299d253` uses `CreateFileW` with
+`FILE_FLAG_OPEN_REPARSE_POINT`, verifies the opened handle's final path under
+the configured Data directory, and rejects `NumberOfLinks != 1` before parsing
+the key. Focused coverage is `8 passed, 2 skipped, 0 failed`; full Net10 is
+`2508 passed, 90 skipped, 0 failed`.
 
-This closes only the final-component handle check. Parent-directory reparse
-races and hardlink identity remain open security blockers, and the symlink
-regression test is environment-skipped when the host cannot create a
-disposable reparse point. No SMTP trust, COM identity, SQL, or live
-reconfiguration behavior changed. The next slice is parent-path final-handle
-containment and hardlink identity validation; release remains RED.
+This closes the bounded final-handle containment and hardlink rejection path.
+Both symlink regression tests are environment-skipped because this host cannot
+create disposable reparse points, so live reparse evidence remains a release
+gate. No SMTP trust, COM identity, SQL, or live reconfiguration behavior
+changed. The next slice is isolated disposable `6000` SQL/Data host-start
+acceptance when its opt-in becomes available; release remains RED.
 
 ## Current delivery queue size persistence status (2026-08-21, code/test `eed5188e9`)
 
