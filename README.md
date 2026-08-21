@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, ServiceIMAP persistence parity)
+
+Code/test commit `5ba1ceb68` implements the bounded authenticated
+`Settings.ServiceIMAP` setter path. It updates the existing
+`hm_settings.settinginteger` row whose name is `protocolimap`, publishes the
+new value only after a successful one-row store result, preserves the
+authenticated server-administrator boundary, and retains direct activation
+fallback behavior. Focused COM/SQL coverage is `208 passed, 0 skipped, 0
+failed`; disposable LocalDB SQL integration is included; full Net10 Debug
+coverage is `2518 passed, 10 skipped, 0 failed` (`2528` total).
+
+Legacy anchors are `InterfaceSettings::get/put_ServiceIMAP`
+(`source/Server/COM/InterfaceSettings.cpp:862-890`) and
+`Configuration::GetUseIMAP/SetUseIMAP`
+(`source/Server/Common/Application/Configuration.cpp:200-208`). The .NET
+slice preserves the installed Settings IID/vtable/DISPID shape and writes
+only the existing settings row through
+`SqlServerSettingsAdministrationStore.UpdateServiceImapAsync`. Live IMAP
+listener reconfiguration and socket timing acceptance are intentionally out
+of scope. Migration/installer, registered COM/DCOM, SEC-18, paired C++
+performance, and 24-hour soak gates remain open. Release remains **RED**; no
+push was performed.
+
 ## Current authoritative parity status (2026-08-21, ServicePOP3 persistence parity)
 
 Code/test commit `2698fd964` implements the bounded authenticated

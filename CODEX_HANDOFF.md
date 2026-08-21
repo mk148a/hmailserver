@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, ServiceIMAP persistence parity)
+
+Code/test commit `5ba1ceb68` implements authenticated `Settings.ServiceIMAP`
+persistence through `SqlServerSettingsAdministrationStore.UpdateServiceImapAsync`.
+It updates only the existing `protocolimap` row, requires the existing
+authenticated server-administrator boundary, publishes the snapshot after a
+successful one-row update, and keeps direct activation fallback behavior.
+Focused COM/SQL coverage is `208 passed, 0 skipped, 0 failed`; disposable
+LocalDB SQL integration passed; full Net10 Debug is `2518 passed, 10 skipped,
+0 failed` (`2528` total).
+
+Legacy references are `InterfaceSettings::get/put_ServiceIMAP`
+(`source/Server/COM/InterfaceSettings.cpp:862-890`) and
+`Configuration::GetUseIMAP/SetUseIMAP`
+(`source/Server/Common/Application/Configuration.cpp:200-208`). No installed
+COM identity, direct activation boundary, SMTP trust behavior, or live IMAP
+listener was changed. The next slice is production-hosted SMTP
+enable/disable/timing acceptance. Migration/installer, SEC-18, paired C++
+performance, and 24-hour soak remain open; release is `RED`; no push was
+performed.
+
 ## Current Authoritative Continuation (2026-08-21, ServicePOP3 persistence parity)
 
 Code/test commit `2698fd964` implements authenticated `Settings.ServicePOP3`

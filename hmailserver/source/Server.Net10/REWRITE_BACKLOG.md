@@ -1,5 +1,31 @@
 
-## Current next slice (2026-08-21, IMAP service persistence after ServicePOP3 parity)
+## Current next slice (2026-08-21, SMTP runtime acceptance after ServiceIMAP parity)
+
+Code/test commit `5ba1ceb68` closes the authenticated `Settings.ServiceIMAP`
+persistence gap. The setter updates the existing `hm_settings.settinginteger`
+value for `protocolimap` through the configured administration store, publishes
+the snapshot only after a one-row success, and retains direct activation and
+failed-save behavior. Focused COM/SQL coverage is `208 passed, 0 skipped, 0
+failed`; the disposable LocalDB SQL integration passed; full Net10 Debug is
+`2518 passed, 10 skipped, 0 failed` (`2528` total).
+
+Legacy anchors are `InterfaceSettings::get/put_ServiceIMAP`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:862-890`) and
+`Configuration::GetUseIMAP/SetUseIMAP`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:200-208`).
+The installed Settings IID/vtable/DISPID shape and authenticated
+server-administrator boundary remain unchanged. Live IMAP listener
+reconfiguration is deliberately out of scope.
+
+The next bounded slice is production-hosted SMTP enable/disable/timing
+acceptance against the persisted protocol settings on an isolated
+production-like host. It must prove socket behavior without changing
+production state. Do not add live IMAP/POP3 listener reconfiguration, DKIM,
+DNS verification, or unrelated Admin mutations. Migration/installer, SEC-18,
+paired C++ performance, and soak remain separate gates. Release remains
+**RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP service persistence after ServicePOP3 parity)
 
 Code/test commit `2698fd964` closes the authenticated `Settings.ServicePOP3`
 persistence gap. The setter updates the existing `hm_settings.settinginteger`
