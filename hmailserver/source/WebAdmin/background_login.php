@@ -2,8 +2,10 @@
 if (!defined('IN_WEBADMIN'))
    exit();
 
-$username	= hmailGetVar("username","");
-$password	= hmailGetVar("password","");
+hmailRequirePostCsrfToken();
+
+$username	= hmailGetPostVar("username","");
+$password	= hmailGetPostVar("password","");
 
 
 if (Login($username, $password))
