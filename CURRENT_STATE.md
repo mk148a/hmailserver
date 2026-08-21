@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T22:25:15Z` / `2026-08-22T01:25:15+03:00`
+- UTC/local timestamp: `2026-08-21T23:01:42Z` / `2026-08-22T02:01:42+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `fa8b413bc`
+- Current HEAD: `21a0064ae`
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: authenticated ClamAV port mutation and SQL-store contracts `357 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default Debug `2644 passed, 92 skipped, 0 failed` (`2736` total)
@@ -11,4 +11,4 @@
 - Open production blockers: Full-Text-capable SQL Server `6000` startup and SQL/Data round-trip, native copier review under the target service identity, installer/service/data rollback, registered/out-of-process COM, SEC-18, AD/master-user, DKIM/DMARC/SPF, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
 - Environment-blocked work: LocalDB Full-Text support, target-identity native filesystem review, production-like installer/COM/SEC-18/C++/AD/DNS/soak infrastructure; no production service, database, Data directory, COM registration, DCOM ACL, IIS, or firewall state was changed
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM registration/DCOM, production IIS, dirty `AGENTS.md`, and pre-existing untracked SEC-18/benchmark/migration/disposable artifacts
-- Next three independent slices: Full-Text-capable disposable SQL Server `6000` startup or exact blocker record; next authenticated AntiVirus Admin mutation; isolated registered COM/SEC-18 caller evidence
+- Next three independent slices: Full-Text-capable disposable SQL Server `6000` startup or exact blocker record; isolated registered COM/SEC-18 caller evidence; installer/service/data rollback acceptance
