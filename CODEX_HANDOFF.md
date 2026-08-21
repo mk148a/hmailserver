@@ -15,7 +15,8 @@ and authorized/non-pool denial evidence. Worker primary-token proof does not
 establish the effective COM caller SID. The collector remains Incomplete because
 the guest has no existing hMailServer Application registration or service and
 no COM caller request was issued. UTC timestamp normalization is complete in
-8d43f9a18; direct worker-token collection is in e2c9387ff.
+8d43f9a18; direct worker-token collection and claim hardening are in
+301a88580.
 Do not register the broker, change the existing Application COM identity or
 DCOM ACLs, or change PHP authentication/session behavior. Release remains RED;
 use RELEASE_GATE_EXECUTION_CHECKLIST.md for the remaining steps.

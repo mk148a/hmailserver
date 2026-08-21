@@ -56,7 +56,10 @@
   account/SID. The redacted report is
   `worker-token-evidence-public-20260821.json`; the raw SID is retained only
   in the local `worker-token-evidence-20260821.json` evidence.
-- Worker token collector code/test commit: `e2c9387ff`.
+- Worker token collector code/test commits: `e2c9387ff` (initial capture) and
+  `301a88580` (claim and output-path hardening).
+- Redacted worker evidence SHA-256:
+  `42C6CD7D8829135406614B72CD3E253517724E9BE2ACC4075CCDEFD09B81752E`.
 - The collector found exactly one site mapped to the dedicated pool.
 
 The guest did not expose a non-loopback IPv4 address during the bounded
@@ -90,3 +93,7 @@ security/reality GREEN reviews.
   disposable script, and worker-token collector tests all passed. Full Net10
   Debug passed `2482`, skipped `84`, failed `0` (`2566` total); TRX:
   `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`.
+- The worker collector reports only the observed process-token SID, PID,
+  process start time, executable, and hash. Token type/impersonation and
+  production-state claims are intentionally omitted unless independently
+  measured.

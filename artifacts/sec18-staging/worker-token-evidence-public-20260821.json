@@ -11,8 +11,6 @@
   "WorkerReportedUserName": "IIS APPPOOL\\HMailWebAdminBrokerPool",
   "WorkerTokenSid": "<local-only>",
   "WorkerTokenSource": "OpenProcessToken primary process token handle",
-  "WorkerTokenType": "Primary",
-  "WorkerTokenImpersonationLevel": "None",
   "TokenSidMatchesPoolSid": true,
   "CapturedUtc": "2026-08-21T06:48:05.5645368Z",
   "ProductionPathsTouched": [],

@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-21T06:51:18Z` / `2026-08-21T09:51:18+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `e2c9387ff` (code/test commit; documentation commit will contain this state file)
+- Current HEAD: `301a88580` (code/test commit; documentation commit will contain this state file)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
 - Latest focused-test result: SEC18 worker-token collector, collector, registry-binary, and denial-attestation tests passed; SEC18 Hyper-V script test passed
 - Latest full Net10 result: `2482 passed, 84 skipped, 0 failed` (`2566` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`

@@ -17,7 +17,7 @@ and reality reviews are GREEN. The collector remains Incomplete because the
 disposable guest has no existing hMailServer Application registration or
 service, and no COM caller request was issued. UTC timestamp normalization for
 collector/attestation evidence is complete in code/test commit 8d43f9a18;
-direct worker-token collection is in code/test commit e2c9387ff. Release
+direct worker-token collection is in code/test commit 301a88580. Release
 remains RED. The exact procedure is in the repository-root
 RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
