@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current authenticated ClamAV host mutation gate (2026-08-22)
+
+Code/test commit `d9db97814` implements legacy `AntiVirus.ClamAVHost`
+mutation from `hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:484-508`.
+The existing SQL snapshot uses the fixed `ClamAVHost` setting row. Net10 uses
+a parameterized string update, the existing authenticated Settings lease, and
+retained snapshot publication only after a successful one-row mutation.
+Installed COM identity and direct activation boundaries are unchanged.
+
+Focused contract/store tests pass `354`, skip `0`, and fail `0`; default full
+Net10 passes `2641`, skips `92`, and fails `0` (`2733` total). No disposable
+SQL integration was available, so release remains **RED**. Next independent
+slice: establish or verify disposable Full-Text SQL Server `6000`, then
+complete `ClamAVPort` parity.
+
 ## Current authenticated ClamAV enabled mutation gate (2026-08-22)
 
 Code/test commit `f1e9ecd81` implements legacy `AntiVirus.ClamAVEnabled`
