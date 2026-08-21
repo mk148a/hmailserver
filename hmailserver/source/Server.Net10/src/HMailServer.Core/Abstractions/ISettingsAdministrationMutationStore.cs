@@ -82,6 +82,10 @@ public interface ISettingsAdministrationMutationStore
         bool imapQuotaEnabled,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateImapIdleEnabledAsync(
+        bool imapIdleEnabled,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);

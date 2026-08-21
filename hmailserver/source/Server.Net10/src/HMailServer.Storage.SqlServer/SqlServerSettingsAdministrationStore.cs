@@ -130,6 +130,12 @@ SET settinginteger = @IMAPQuotaEnabled
 WHERE settingname = N'enableimapquota';
 """;
 
+    public const string UpdateImapIdleEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @IMAPIdleEnabled
+WHERE settingname = N'enableimapidle';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -1061,6 +1067,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateImapQuotaEnabledSql, connection);
         command.Parameters.Add("@IMAPQuotaEnabled", SqlDbType.Int).Value = imapQuotaEnabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateImapIdleEnabledAsync(
+        bool imapIdleEnabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateImapIdleEnabledSql, connection);
+        command.Parameters.Add("@IMAPIdleEnabled", SqlDbType.Int).Value = imapIdleEnabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
