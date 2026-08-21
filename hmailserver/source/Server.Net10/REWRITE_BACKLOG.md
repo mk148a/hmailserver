@@ -1,5 +1,33 @@
 
-## Current next slice (2026-08-21, IMAP hierarchy delimiter parity after master-user persistence)
+## Current next slice (2026-08-21, IMAP hierarchy delimiter parity after SMTP relayer password failure containment)
+
+Code/test commit `9c4438f9d` closes the authenticated
+`Settings.SetSMTPRelayerPassword` failure-containment gap. The existing
+parameterized SQL update and legacy Blowfish encryption path remain unchanged;
+the COM setter now returns `E_FAIL` when the configured store does not affect
+the existing row, preserving the authenticated server-administrator boundary,
+authorization lease, direct activation denial, and no-plaintext behavior.
+Focused COM/SQL coverage is `225 passed, 0 skipped, 0 failed`; full Net10 Debug
+is `2545 passed, 10 skipped, 0 failed` (`2555` total).
+
+Legacy anchors are `InterfaceSettings::SetSMTPRelayerPassword`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:998-1012`) and
+`SMTPConfiguration::SetSMTPRelayerPassword`
+(`hmailserver/source/Server/SMTP/SMTPConfiguration.cpp:273-276`). The older
+`E_NOTIMPL` backlog claim is stale; the bounded fix only contained the store
+failure result and did not change credential encryption or runtime relayer
+behavior.
+
+The next candidate is authenticated `Settings.IMAPHierarchyDelimiter`, but it
+is not a fixed-row update: legacy `IMAPConfiguration::SetHierarchyDelimiter`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:174-195`) rejects
+folder/rule-action delimiter conflicts, updates rule actions, persists the row,
+and clears rule caches. Implement it only with isolated folder/rule-action
+coverage and rollback semantics. Production-hosted SMTP/POP3 timing,
+migration/installer, SEC-18, paired C++ performance, and soak remain separate
+gates. Release remains **RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP hierarchy delimiter parity after master-user persistence)
 
 Code/test commit `b06119510` closes the authenticated
 `Settings.IMAPMasterUser` persistence gap. The setter updates the existing

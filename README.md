@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, SMTP relayer password failure containment)
+
+Code/test commit `9c4438f9d` closes the authenticated
+`Settings.SetSMTPRelayerPassword` failure-containment gap. The existing
+parameterized SQL update and `LegacyBlowfishPasswordCipher` encryption path
+remain unchanged; the COM setter now returns `E_FAIL` when the configured
+store does not affect the existing row, while preserving the authenticated
+server-administrator boundary, authorization lease, direct activation denial,
+and no-plaintext behavior. Focused COM/SQL coverage is `225 passed, 0
+skipped, 0 failed`; full Net10 Debug coverage remains `2545 passed, 10
+skipped, 0 failed` (`2555` total).
+
+Legacy anchors are `InterfaceSettings::SetSMTPRelayerPassword`
+(`source/Server/COM/InterfaceSettings.cpp:998-1012`) and
+`SMTPConfiguration::SetSMTPRelayerPassword`
+(`source/Server/SMTP/SMTPConfiguration.cpp:273-276`). The older backlog claim
+that this method is `E_NOTIMPL` is stale: the persistence path already existed
+and this slice corrected only its contained failure result. Migration/installer,
+registered COM/DCOM, SEC-18, paired C++ performance, and 24-hour soak gates
+remain open. Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, IMAP master-user persistence parity)
 
 Code/test commit `b06119510` implements authenticated

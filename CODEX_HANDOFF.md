@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, SMTP relayer password failure containment)
+
+Code/test commit `9c4438f9d` fixes authenticated
+`Settings.SetSMTPRelayerPassword` so a false result from the configured
+administration store becomes `E_FAIL` instead of being reported as success.
+The existing parameterized SQL update, legacy Blowfish encryption, server-admin
+check, authorization lease, and direct activation denial remain unchanged.
+Focused COM/SQL coverage is `225 passed, 0 skipped, 0 failed`; full Net10 Debug
+is `2545 passed, 10 skipped, 0 failed` (`2555` total).
+
+Legacy references are `InterfaceSettings::SetSMTPRelayerPassword`
+(`source/Server/COM/InterfaceSettings.cpp:998-1012`) and
+`SMTPConfiguration::SetSMTPRelayerPassword`
+(`source/Server/SMTP/SMTPConfiguration.cpp:273-276`). The stale `E_NOTIMPL`
+claim is corrected in the backlog; this slice did not change credential
+format, SMTP relayer runtime, COM identity, or DCOM state. The next candidate
+is the gated IMAPHierarchyDelimiter folder/rule-action parity slice.
+Migration/installer, SEC-18, paired C++ performance, and 24-hour soak remain
+open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, IMAP master-user persistence parity)
 
 Code/test commit `b06119510` implements authenticated
