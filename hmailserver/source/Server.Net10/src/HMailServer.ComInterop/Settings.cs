@@ -2967,7 +2967,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.MaxInvalidLogonAttemptsWithin
                 : _administrationSnapshot.MaxInvalidLogonAttemptsWithin;
         }
-        set => base.MaxInvalidLogonAttemptsWithin = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.MaxInvalidLogonAttemptsWithin = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateMaxInvalidLogonAttemptsWithinAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The maximum invalid logon-attempts window update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    MaxInvalidLogonAttemptsWithin = value
+                };
+            }
+        }
     }
 
     public override int AutoBanMinutes

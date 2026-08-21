@@ -333,6 +333,12 @@ SET settinginteger = @MaxInvalidLogonAttempts
 WHERE settingname = N'MaxInvalidLogonAttempts';
 """;
 
+    public const string UpdateMaxInvalidLogonAttemptsWithinSql = """
+UPDATE hm_settings
+SET settinginteger = @MaxInvalidLogonAttemptsWithin
+WHERE settingname = N'LogonAttemptsWithinMinutes';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1145,6 +1151,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMaxInvalidLogonAttemptsSql, connection);
         command.Parameters.Add("@MaxInvalidLogonAttempts", SqlDbType.Int).Value = maxInvalidLogonAttempts;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateMaxInvalidLogonAttemptsWithinAsync(
+        int maxInvalidLogonAttemptsWithin,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateMaxInvalidLogonAttemptsWithinSql, connection);
+        command.Parameters.Add("@MaxInvalidLogonAttemptsWithin", SqlDbType.Int).Value = maxInvalidLogonAttemptsWithin;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

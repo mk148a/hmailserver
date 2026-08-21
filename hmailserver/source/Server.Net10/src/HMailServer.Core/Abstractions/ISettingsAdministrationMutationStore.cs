@@ -202,6 +202,10 @@ public interface ISettingsAdministrationMutationStore
         int maxInvalidLogonAttempts,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateMaxInvalidLogonAttemptsWithinAsync(
+        int maxInvalidLogonAttemptsWithin,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

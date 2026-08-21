@@ -740,9 +740,6 @@ public sealed class SettingsComContractTests
             Assert.ThrowsExactly<COMException>(() => settings.VerifyRemoteSslCertificate = false).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.MaxInvalidLogonAttemptsWithin = 45).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.AutoBanMinutes = 120).ErrorCode);
     }
 
@@ -3870,6 +3867,44 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxInvalidLogonAttemptsWithinSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxInvalidLogonAttemptsWithinUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxInvalidLogonAttemptsWithin: 30),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.MaxInvalidLogonAttemptsWithin = 45;
+
+        Assert.AreEqual(1, store.MaxInvalidLogonAttemptsWithinUpdateCount);
+        Assert.AreEqual(45, store.UpdatedMaxInvalidLogonAttemptsWithin);
+        Assert.AreEqual(45, settings.MaxInvalidLogonAttemptsWithin);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+
+        store.MaxInvalidLogonAttemptsWithinUpdateResult = false;
+        Assert.AreEqual(
+            EFail,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxInvalidLogonAttemptsWithin = 60).ErrorCode);
+        Assert.AreEqual(45, settings.MaxInvalidLogonAttemptsWithin);
+
+        isServerAdministrator = false;
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => settings.MaxInvalidLogonAttemptsWithin = 75).ErrorCode);
+        Assert.AreEqual(2, store.MaxInvalidLogonAttemptsWithinUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamSpfSettersPersistAndRefreshRetainedSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6359,6 +6394,12 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxInvalidLogonAttempts { get; private set; }
 
+        public bool MaxInvalidLogonAttemptsWithinUpdateResult { get; set; }
+
+        public int MaxInvalidLogonAttemptsWithinUpdateCount { get; private set; }
+
+        public int UpdatedMaxInvalidLogonAttemptsWithin { get; private set; }
+
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
@@ -7166,6 +7207,16 @@ public sealed class SettingsComContractTests
             UpdatedMaxInvalidLogonAttempts = maxInvalidLogonAttempts;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(MaxInvalidLogonAttemptsUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateMaxInvalidLogonAttemptsWithinAsync(
+            int maxInvalidLogonAttemptsWithin,
+            CancellationToken cancellationToken)
+        {
+            MaxInvalidLogonAttemptsWithinUpdateCount++;
+            UpdatedMaxInvalidLogonAttemptsWithin = maxInvalidLogonAttemptsWithin;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(MaxInvalidLogonAttemptsWithinUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(
