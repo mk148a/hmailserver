@@ -1,14 +1,14 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T21:53:22Z` / `2026-08-22T00:53:22+03:00`
+- UTC/local timestamp: `2026-08-21T22:02:45Z` / `2026-08-22T01:02:45+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `2d1139665`
+- Current HEAD: `5d332cdaa`
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
-- Latest focused-test result: authenticated backup dispatch `2 passed, 0 skipped, 0 failed`; related backup manager/queue/failure tests `37 passed, 4 skipped, 0 failed`
-- Latest full Net10 result: default Debug `2601 passed, 92 skipped, 0 failed` (`2693` total)
+- Latest focused-test result: recursive backup/restore traversal `78 passed, 1 skipped, 0 failed`
+- Latest full Net10 result: default Debug `2602 passed, 92 skipped, 0 failed` (`2694` total)
 - Opt-in tests passed/skipped/blocked: disposable LocalDB `2670 passed, 12 skipped, 10 failed`; six native Data restore failures return Win32 `ERROR_INVALID_PARAMETER (87)`, two Full-Text failures are unsupported by LocalDB, and two authenticated COM capability tests return `E_FAIL` instead of the expected unavailable-capability code
-- Current bounded slice: authenticated `Application -> BackupManager.StartBackup -> BackupTaskHostedService -> SevenZipBackupArchiveRuntime` archive-path evidence; code/test commit `2d1139665`
-- Completed milestones: authenticated production-shaped backup dispatch evidence; handle-relative restore rename containment; prior raw non-DB-only backup and legacy-version host-start refusal slices; detailed history remains in `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` and `CODEX_HANDOFF.md`
-- Open production blockers: recursive DataBackup handle hardening, Full-Text-capable SQL Server `6000` startup, installer/service/data rollback, registered/out-of-process COM, SEC-18, AD/master-user, DKIM/DMARC/SPF, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
-- Environment-blocked work: LocalDB Full-Text support, production-like installer/COM/SEC-18/C++/AD/DNS/soak infrastructure; no production service, database, Data directory, COM registration, DCOM ACL, IIS, or firewall state was changed
+- Current bounded slice: handle-relative recursive DataBackup source/target traversal; code/test commit `4a71e82e1`
+- Completed milestones: handle-relative recursive DataBackup traversal; authenticated production-shaped backup dispatch evidence; handle-relative restore rename containment; prior raw non-DB-only backup and legacy-version host-start refusal slices; detailed history remains in `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` and `CODEX_HANDOFF.md`
+- Open production blockers: Full-Text-capable SQL Server `6000` startup and SQL/Data round-trip, native copier review under the target service identity, installer/service/data rollback, registered/out-of-process COM, SEC-18, AD/master-user, DKIM/DMARC/SPF, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
+- Environment-blocked work: LocalDB Full-Text support, target-identity native filesystem review, production-like installer/COM/SEC-18/C++/AD/DNS/soak infrastructure; no production service, database, Data directory, COM registration, DCOM ACL, IIS, or firewall state was changed
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM registration/DCOM, production IIS, dirty `AGENTS.md`, and pre-existing untracked SEC-18/benchmark/migration/disposable artifacts
-- Next three independent slices: recursive DataBackup handle-relative traversal; Full-Text-capable disposable SQL Server `6000` startup; isolated registered COM/SEC-18 caller evidence
+- Next three independent slices: Full-Text-capable disposable SQL Server `6000` startup; isolated registered COM/SEC-18 caller evidence; installer/service/data rollback acceptance

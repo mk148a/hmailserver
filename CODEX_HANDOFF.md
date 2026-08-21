@@ -1,6 +1,39 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, authenticated backup worker path)
+## Current Authoritative Continuation (2026-08-22, recursive DataBackup traversal)
+
+Code/test commit `4a71e82e1` replaces path-based recursive DataBackup copying
+with `WindowsHandleRelativeDirectoryCopier`. The source and destination roots
+are pinned as directory handles; child names are enumerated with
+`NtQueryDirectoryFile`, child entries are opened/created relative to those
+handles with `NtCreateFile`, and file bytes are copied through the open file
+handles. Reparse points are rejected from the handle metadata before descent
+or copy.
+
+Legacy anchors are `BackupExecuter::BackupDataDirectory_` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196-209`,
+`FileUtilities::CopyDirectory` at
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`, and
+`FileUtilities::DeleteFilesInDirectory` at `:432-440`. Net10 integration is
+`BackupArchiveRuntime.StageDataDirectory`,
+`BackupRestoreDataDirectoryRuntime.RestoreAsync`, and the new
+`WindowsHandleRelativeDirectoryCopier.cs`.
+
+Focused traversal tests pass `78`, skip `1`, and fail `0`; default full Net10
+passes `2602`, skips `92`, and fails `0` (`2694` total). The one focused skip
+is the existing symlink/reparse integration case without the required runner
+privilege. No production machine state changed. Release remains RED because
+Full-Text SQL Server `6000`, disposable SQL/Data round-trip, registered COM,
+SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
+long-soak evidence remain open or environment-blocked.
+
+Residual risk: native NT API behavior and ACL/error mapping still require
+independent security review under the target service identity and isolated
+SQL/Data acceptance. Next slice: establish or verify the Full-Text-capable
+disposable SQL Server `6000` gate once, then continue registered COM/SEC-18
+and installer rollback evidence.
+
+## Historical Authoritative Continuation (2026-08-22, authenticated backup worker path)
 
 Code/test commit `2d1139665` adds focused evidence for the authenticated
 production-shaped backup path. The test authenticates `Application`, obtains

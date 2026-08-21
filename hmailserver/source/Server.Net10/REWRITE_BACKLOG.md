@@ -1,4 +1,41 @@
 
+## Current bounded slice: handle-relative recursive DataBackup traversal (2026-08-22)
+
+Code/test commit `4a71e82e1` replaces the path-based recursive DataBackup
+staging/copy operations with `WindowsHandleRelativeDirectoryCopier`. Source
+and destination roots are opened with reparse-point rejection; child names are
+enumerated with `NtQueryDirectoryFile`, opened or created relative to pinned
+parent directory handles with `NtCreateFile`, and file contents are copied from
+the opened handles. The copier is used by
+`BackupRestoreDataDirectoryRuntime.RestoreAsync` and
+`SevenZipBackupArchiveRuntime.StageDataDirectory`.
+
+Legacy behavior is anchored to
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196-209`,
+which calls `FileUtilities::CopyDirectory` and then
+`DeleteFilesInDirectory`, and to
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`, where the
+legacy recursion is path-based. The bounded Net10 implementation is
+`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/WindowsHandleRelativeDirectoryCopier.cs`;
+restore integration is in `BackupRestoreDataDirectoryRuntime.cs:101-105` and
+backup staging integration is in `BackupArchiveRuntime.cs:271`.
+
+Focused backup/restore traversal coverage passes `78`, skips `1`, and fails
+`0`; default full Net10 passes `2602`, skips `92`, and fails `0` (`2694` total).
+The one focused skip is the existing reparse-point integration case whose
+symlink prerequisite is unavailable in the current test runner. No COM
+identity, SQL schema, service, registry, DCOM, IIS, firewall, production
+database, or production Data directory changed.
+
+Residual risk: the implementation uses the Windows native NT file APIs and
+still needs disposable SQL/Data restore acceptance on a supported SQL Server
+and a security review of native error/ACL behavior under the target service
+identity. Release remains **RED**.
+
+Next independent slice: establish the Full-Text-capable disposable SQL Server
+`6000` acceptance environment, or record the exact environment blocker once;
+then continue isolated registered COM/SEC-18 evidence and installer rollback.
+
 ## Current bounded slice: authenticated backup worker archive path (2026-08-22)
 
 Code/test commit `2d1139665` adds focused evidence that the authenticated

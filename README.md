@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current recursive DataBackup containment gate (2026-08-22)
+
+Code/test commit `4a71e82e1` replaces path-based recursive DataBackup copying
+with handle-relative Windows traversal. `WindowsHandleRelativeDirectoryCopier`
+pins source and destination directories, enumerates child names through
+`NtQueryDirectoryFile`, opens/creates entries relative to parent handles with
+`NtCreateFile`, rejects reparse points, and copies file bytes from open handles.
+It is used by backup staging and restore DataDirectory replacement.
+
+Legacy anchors are `BackupExecuter::BackupDataDirectory_` and
+`FileUtilities::CopyDirectory` in the legacy C++ tree; the .NET integration is
+in `BackupArchiveRuntime.StageDataDirectory` and
+`BackupRestoreDataDirectoryRuntime.RestoreAsync`.
+
+Focused traversal tests are `78 passed, 1 skipped, 0 failed`; default full
+Net10 is `2602 passed, 92 skipped, 0 failed` (`2694` total). The remaining
+focused skip is the existing symlink prerequisite. This does not prove SQL/Data
+round-trip, C++ performance parity, or release readiness. Release remains
+**RED**. Next independent slices are Full-Text-capable disposable SQL Server
+`6000`, isolated registered COM/SEC-18 evidence, and installer rollback.
+
 ## Current authenticated backup worker path (2026-08-22)
 
 Code/test commit `2d1139665` proves the authenticated production-shaped
