@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, IMAP IDLE persistence parity)
+
+Code/test commit `e27385413` implements the bounded authenticated
+`Settings.IMAPIdleEnabled` setter path. It updates the existing
+`hm_settings.settinginteger` row whose name is `enableimapidle`, publishes the
+new value only after a successful one-row store result, preserves the
+authenticated server-administrator boundary, and retains direct activation
+fallback behavior. Focused COM/SQL coverage is `216 passed, 0 skipped, 0
+failed`; disposable LocalDB SQL integration is included; full Net10 Debug
+coverage is `2530 passed, 10 skipped, 0 failed` (`2540` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPIdleEnabled`
+(`source/Server/COM/InterfaceSettings.cpp:1432-1458`) and
+`IMAPConfiguration::Get/SetUseIMAPIdle`
+(`source/Server/IMAP/IMAPConfiguration.cpp:78-86`), with
+`PROPERTY_ENABLEIMAPIDLE` and the existing SQL seed. The installed Settings
+IID/vtable/DISPID shape is unchanged. IMAP IDLE capability/runtime reload and
+live reconfiguration remain out of scope. Migration/installer, registered
+COM/DCOM, SEC-18, paired C++ performance, and 24-hour soak gates remain open.
+Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, IMAP QUOTA persistence parity)
 
 Code/test commit `36c8ffa86` implements the bounded authenticated

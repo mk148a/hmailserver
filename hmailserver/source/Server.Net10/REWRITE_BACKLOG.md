@@ -1,5 +1,31 @@
 
-## Current next slice (2026-08-21, IMAP IDLE persistence after IMAP QUOTA parity)
+## Current next slice (2026-08-21, IMAP ACL persistence security slice after IMAP IDLE parity)
+
+Code/test commit `e27385413` closes the authenticated
+`Settings.IMAPIdleEnabled` persistence gap. The setter updates the existing
+`hm_settings.settinginteger` value for `enableimapidle` through the configured
+administration store, publishes the snapshot only after a one-row success, and
+retains direct activation and failed-save behavior. Focused COM/SQL coverage
+is `216 passed, 0 skipped, 0 failed`; the disposable LocalDB SQL integration
+passed; full Net10 Debug is `2530 passed, 10 skipped, 0 failed` (`2540` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPIdleEnabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1432-1458`) and
+`IMAPConfiguration::Get/SetUseIMAPIdle`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:78-86`), with
+`PROPERTY_ENABLEIMAPIDLE` and the existing `hm_settings` seed. The installed
+Settings IID/vtable/DISPID shape and authenticated server-administrator
+boundary remain unchanged. IMAP IDLE capability/runtime reload is deliberately
+out of scope.
+
+The next bounded slice is authenticated `Settings.IMAPACLEnabled` persistence
+parity against `enableimapacl`, but it requires a security review of the ACL
+runtime and authorization consequences before implementation. Do not add live
+ACL capability reconfiguration or unrelated Admin mutations. Production-hosted
+SMTP/POP3 timing, migration/installer, SEC-18, paired C++ performance, and
+soak remain separate gates. Release remains **RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP IDLE persistence after IMAP QUOTA parity)
 
 Code/test commit `36c8ffa86` closes the authenticated
 `Settings.IMAPQuotaEnabled` persistence gap. The setter updates the existing
