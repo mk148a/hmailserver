@@ -1,34 +1,36 @@
 hMailServer
 ===========
 
-## Current disposable host-start gate (2026-08-21)
+## Current restore containment gate (2026-08-22)
 
-Code/test commit `fae8fcb83` adds
-`HostStart_RefusesLegacy5708DatabaseBeforeReadinessAndLeavesDisposableStateUntouched`.
-Against a disposable LocalDB database and temporary Data root, the test proves
-that a legacy-version `5708` database is rejected before readiness, the
-readiness signal carries the required `6000` error, the database version is
-unchanged, and the Data root is not created.
+Code/test commit `e4dfc879c` pins the restore source and destination-parent
+directories with native Windows handles before `SetFileInformationByHandle`
+and issues only a relative destination name. There is no absolute-path fallback;
+if the relative native rename is unsupported, the mutation fails closed.
 
-Legacy behavior is in
-`hmailserver/source/Server/Common/Application/Application.cpp`,
-`Application::OnDatabaseConnected` (around lines 180-211): the server rejects
-any database version below or above `Configuration::GetRequiredDBVersion()`.
-Net10 applies the corresponding `6000` gate in
-`hmailserver/source/Server.Net10/src/HMailServer.Service/DatabaseVersionStartupGuard.cs`
-and `ServerBootstrapper.cs`. The raw backup slice remains covered by
-`BackupManager_StartBackupRawNonDbOnlyMode2And4PublishesDataBackupSibling` in
-the backup integration tests.
+Legacy behavior is anchored to
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp`:
+`BackupExecuter::BackupDataDirectory_` (196-203) and
+`BackupExecuter::RestoreDataDirectory_` (339-380), which call the path-based
+`FileUtilities::CopyDirectory` at
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`.
+Net10’s bounded implementation is
+`WindowsBackupRestoreDataDirectoryMutation.MoveDirectory` and
+`BackupRestoreDataDirectoryRuntime.RestoreAsync`; journal checks remain in
+`BackupRestoreRecoveryJournal`.
 
-Startup/guard focused tests pass `6/6`; default full Net10 passes `2599`, skips
-`92`, and fails `0` (`2691` total). The opt-in LocalDB run passes `2675`, skips
-`12`, and fails `4`; the four failures remain LocalDB Full-Text and
-authenticated COM capability mismatches.
+Focused restore/containment/identity/execution coverage is `58 passed, 0
+skipped, 0 failed`; default full Net10 is `2600 passed, 92 skipped, 0 failed`
+(`2692` total). The disposable LocalDB opt-in remains RED: the native relative
+rename returns Win32 `ERROR_INVALID_PARAMETER (87)` on this Windows 11 host,
+so real Data restore acceptance is blocked; Full-Text and authenticated COM
+capability mismatches remain separate blockers.
 
-Release remains **RED**. The next independent gate is a Full-Text-capable
-disposable SQL Server `6000` startup success test. Installer rollback,
-SEC-18, registered/out-of-process COM, paired C++ performance, SMTP/delivery
-thresholds, and 24-hour leak evidence remain open or environment-blocked.
+Release remains **RED**. Next independent slices are handle-relative recursive
+DataBackup traversal, Full-Text-capable disposable SQL Server `6000` startup,
+and the isolated registered-COM/SEC-18 evidence gate. Installer rollback,
+paired C++ performance, SMTP/delivery thresholds, and 24-hour leak evidence
+remain open or environment-blocked.
 
 ## Historical MaxNumberOfMXHosts authorization-lease slice (2026-08-21)
 

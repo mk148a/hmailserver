@@ -1,29 +1,31 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-21, host-start refusal)
+## Current Authoritative Continuation (2026-08-22, restore rename containment)
 
-Code/test commit `fae8fcb83` adds
-`HostStart_RefusesLegacy5708DatabaseBeforeReadinessAndLeavesDisposableStateUntouched`.
-The test uses the disposable `(localdb)\MSSQLLocalDB` target with a temporary
-Data root and proves that a legacy `5708` database is refused before Net10
-readiness, the readiness error names required version `6000`, the SQL version
-remains `5708`, and no Data root is created.
+Code/test commit `e4dfc879c` pins the restore source and destination-parent
+directories with native handles before `WindowsBackupRestoreDataDirectoryMutation.MoveDirectory`
+issues a relative `FILE_RENAME_INFO` request. Absolute-path fallback is removed,
+so unsupported native relative rename fails closed. The legacy reference is
+`BackupExecuter::BackupDataDirectory_` and `BackupExecuter::RestoreDataDirectory_`
+in `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:196-203,339-380`,
+which call path-based `FileUtilities::CopyDirectory` in
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`.
 
-The C++ reference is
-`hmailserver/source/Server/Common/Application/Application.cpp`,
-`Application::OnDatabaseConnected` around lines 180-211. Net10’s corresponding
-symbols are `DatabaseVersionStartupGuard.EnsureCompatibleAsync` and
-`ServerBootstrapper.ExecuteAsync`. Startup/guard focused tests pass `6/6`;
-default full Net10 passes `2599`, skips `92`, and fails `0` (`2691` total).
-The opt-in LocalDB full run is `2675 passed, 12 skipped, 4 failed`; the four
-failures remain the known LocalDB Full-Text and authenticated COM capability
-failures. No production service, SQL database, Data directory, COM identity,
-registry, DCOM ACL, IIS site, or firewall state changed.
+Focused restore/containment/identity/execution tests pass `58/58`; default full
+Net10 passes `2600`, skips `92`, and fails `0` (`2692` total). The approved
+LocalDB opt-in has `10` remaining failures: six real Data restore acceptance
+cases hit Win32 `ERROR_INVALID_PARAMETER (87)` for handle-relative rename on
+this Windows 11 host, plus two Full-Text and two authenticated COM capability
+failures. The two transaction-failure-path tests now pass `2/2` with a
+deterministic mutation double. No production service, SQL database, Data
+directory, COM identity, registry, DCOM ACL, IIS site, or firewall state
+changed.
 
-Next slice: Full-Text-capable disposable SQL Server `6000` startup success and
-no-side-effect evidence. Release remains RED; SEC-18, registered/out-of-process
-COM, paired C++ performance, SMTP/delivery thresholds, installer rollback, and
-long-soak evidence remain open or environment-blocked.
+Next slice: harden recursive DataBackup source/target traversal with pinned
+handles and rerun native restore acceptance. Full-Text-capable disposable SQL
+Server `6000` startup, registered/out-of-process COM, SEC-18, installer
+rollback, paired C++ performance, SMTP/delivery thresholds, and long-soak
+evidence remain open or environment-blocked. Release remains RED.
 
 ## Historical Authoritative Continuation (2026-08-21, MaxNumberOfMXHosts lease)
 
