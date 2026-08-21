@@ -119,7 +119,7 @@ public sealed class SqlServerDomainAdministrationStoreIntegrationTests
                     MaxNumberOfAccountsEnabled: false,
                     MaxNumberOfAliasesEnabled: false,
                     MaxNumberOfDistributionListsEnabled: true,
-                    MaxAccountSize: 0,
+                    MaxAccountSize: 512,
                     SignatureEnabled: false,
                     SignatureMethod: 1,
                     SignaturePlainText: string.Empty,
@@ -141,6 +141,7 @@ public sealed class SqlServerDomainAdministrationStoreIntegrationTests
             Assert.AreEqual("renamed.example", afterUpdate.Name);
             Assert.IsFalse(afterUpdate.Active);
             Assert.AreEqual(8192, afterUpdate.MaxSize);
+            Assert.AreEqual(512, afterUpdate.MaxAccountSize);
             Assert.IsFalse(afterUpdate.AntiSpamEnableGreylisting);
             Assert.IsTrue(afterUpdate.MaxNumberOfDistributionListsEnabled);
             Assert.IsFalse(afterUpdate.DkimSignEnabled);

@@ -396,6 +396,7 @@ public sealed class DomainsComContractTests
         existing.Active = false;
         existing.MaxMessageSize = 4096;
         existing.MaxSize = 8192;
+        existing.MaxAccountSize = 512;
         existing.PlusAddressingEnabled = true;
         existing.AntiSpamEnableGreylisting = false;
 
@@ -409,6 +410,7 @@ public sealed class DomainsComContractTests
         Assert.IsFalse(persisted.Active);
         Assert.AreEqual(4096, persisted.MaxMessageSize);
         Assert.AreEqual(8192, persisted.MaxSize);
+        Assert.AreEqual(512, persisted.MaxAccountSize);
         Assert.IsTrue(persisted.PlusAddressingEnabled);
         Assert.IsFalse(persisted.AntiSpamEnableGreylisting);
         Assert.AreEqual("renamed.example", domains[0].Name);
@@ -428,12 +430,14 @@ public sealed class DomainsComContractTests
         var existing = domains[0];
         existing.Name = "changed.example";
         existing.MaxSize = 8192;
+        existing.MaxAccountSize = 512;
 
         var saveFailure = Assert.ThrowsExactly<COMException>(existing.Save);
 
         Assert.AreEqual(unchecked((int)0x80004005), saveFailure.ErrorCode);
         Assert.AreEqual("alpha.example", domains[0].Name);
         Assert.AreEqual(0, domains[0].MaxSize);
+        Assert.AreEqual(0, domains[0].MaxAccountSize);
 
         existing.Name = "other.example";
         failUpdate = false;
@@ -441,6 +445,7 @@ public sealed class DomainsComContractTests
 
         Assert.AreEqual("other.example", domains[0].Name);
         Assert.AreEqual(8192, domains[0].MaxSize);
+        Assert.AreEqual(512, domains[0].MaxAccountSize);
     }
 
     [TestMethod]
