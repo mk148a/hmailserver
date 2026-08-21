@@ -1,7 +1,30 @@
 hMailServer
 ===========
 
-## Current RuleLoopLimit authorization-lease slice (2026-08-21)
+## Current DefaultDomain authorization-lease slice (2026-08-21)
+
+Code/test commit `a2905f81f` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.DefaultDomain` (`DispId(50)`).
+Legacy `InterfaceSettings::get/put_DefaultDomain` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1272-1305` delegates to
+`Configuration::SetDefaultDomain` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:415-424`,
+persisting the existing `hm_settings.defaultdomain` row seeded at
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:820`.
+
+Net10 now holds the existing generation-bound authorization lease across
+`UpdateDefaultDomainAsync`, fails closed before store access when the lease is
+unavailable, disposes it on success/failure, and publishes the new retained
+snapshot only after a successful fixed-row update. The installed Settings
+IID/vtable/DISPID/class identity, SQL schema, default-domain runtime, and live
+reconfiguration remain unchanged. Focused tests pass `4`, skip `0`, and fail
+`0`; full Net10 passes `2591`, skips `90`, and fails `0` (`2681` total).
+
+Release remains **RED**. Disposable SQL/Data restore, SEC-18 cutover,
+registered/out-of-process COM, paired C++ performance, and long-soak evidence
+remain open or environment-blocked.
+
+## Historical RuleLoopLimit authorization-lease slice (2026-08-21)
 
 Code/test commit `52687fe48` closes the retained-object authorization lease
 gap for authenticated `IInterfaceSettings.RuleLoopLimit` (`DispId(48)`).

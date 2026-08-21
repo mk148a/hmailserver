@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, DefaultDomain lease)
+
+Code/test commit `a2905f81f` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.DefaultDomain` (`DispId(50)`).
+Legacy `InterfaceSettings::get/put_DefaultDomain` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1272-1305` delegates to
+`Configuration::SetDefaultDomain` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:415-424`
+and persists the existing `hm_settings.defaultdomain` row seeded by
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:820`.
+
+Net10 holds the existing generation-bound authorization lease across the
+fixed-row update, fails closed when the lease is unavailable, disposes it on
+success/failure, and publishes the retained snapshot only after success.
+Focused tests pass `4`, skip `0`, and fail `0`; full Net10 passes `2591`, skips
+`90`, and fails `0` (`2681` total). No COM identity, SQL schema,
+default-domain runtime, live reconfiguration, service, registry, DCOM, IIS,
+or production state changed.
+
+Next slice: audit the next remaining authenticated Settings/Admin mutation
+lease gap, prioritizing `AddDeliveredToHeader` or `MaxNumberOfMXHosts`.
+Release remains RED; disposable SQL/Data, SEC-18, registered COM, paired C++
+performance, and long-soak evidence remain open or environment-blocked.
+
 ## Current Authoritative Continuation (2026-08-21, RuleLoopLimit lease)
 
 Code/test commit `52687fe48` closes the retained-object authorization lease
