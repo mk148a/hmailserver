@@ -258,6 +258,10 @@ public interface ISettingsAdministrationMutationStore
         int maximumMessageSize,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiVirusAttachmentBlockingAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

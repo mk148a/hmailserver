@@ -479,6 +479,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusAttachmentBlockingPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusEnableAttachmentBlocking: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.EnableAttachmentBlocking = false;
+
+        Assert.AreEqual(1, store.AntiVirusAttachmentBlockingUpdateCount);
+        Assert.IsFalse(store.UpdatedAntiVirusAttachmentBlocking);
+        Assert.IsFalse(settings.AntiVirus.EnableAttachmentBlocking);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusAttachmentBlockingFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusEnableAttachmentBlocking: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.EnableAttachmentBlocking = false);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.IsTrue(settings.AntiVirus.EnableAttachmentBlocking);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7819,6 +7861,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiVirusMaximumMessageSize { get; private set; }
 
+        public int AntiVirusAttachmentBlockingUpdateCount { get; private set; }
+
+        public bool UpdatedAntiVirusAttachmentBlocking { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -9258,6 +9304,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusMaximumMessageSizeUpdateCount++;
             UpdatedAntiVirusMaximumMessageSize = maximumMessageSize;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusAttachmentBlockingAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusAttachmentBlockingUpdateCount++;
+            UpdatedAntiVirusAttachmentBlocking = enabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

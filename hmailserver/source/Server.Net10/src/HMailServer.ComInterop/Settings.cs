@@ -2908,6 +2908,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                                 AntiVirusMaximumMessageSize = value
                             };
                         }
+                    },
+                    publishAttachmentBlocking: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                AntiVirusEnableAttachmentBlocking = value
+                            };
+                        }
                     });
         }
     }
