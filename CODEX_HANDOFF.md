@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, IMAP public-folder name persistence parity)
+
+Code/test commit `93ff19d16` implements authenticated
+`Settings.IMAPPublicFolderName` persistence through
+`SqlServerSettingsAdministrationStore.UpdateImapPublicFolderNameAsync`. It
+updates only the existing `imappublicfoldername` row, requires the existing
+authenticated server-administrator boundary and authorization lease, publishes
+the snapshot after a successful one-row update, and keeps direct activation
+fallback behavior. Focused COM/SQL coverage is `224 passed, 0 skipped, 0
+failed`; disposable LocalDB SQL integration passed; full Net10 Debug is `2542
+passed, 10 skipped, 0 failed` (`2552` total).
+
+Legacy references are `InterfaceSettings::get/put_IMAPPublicFolderName`
+(`source/Server/COM/InterfaceSettings.cpp:1304-1332`) and
+`IMAPConfiguration::Get/SetIMAPPublicFolderName`
+(`source/Server/IMAP/IMAPConfiguration.cpp:126-134`). No installed COM
+identity, direct activation boundary, SMTP trust behavior, IMAP ACL behavior,
+or authentication was changed. The next slice is IMAPHierarchyDelimiter
+persistence parity. Migration/installer, SEC-18, paired C++ performance, and
+24-hour soak remain open; release is `RED`; no push was performed.
+
 ## Current Authoritative Continuation (2026-08-21, IMAP SASL initial-response persistence parity)
 
 Code/test commit `784d83d59` implements authenticated

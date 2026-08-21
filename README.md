@@ -1,6 +1,31 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, IMAP public-folder name persistence parity)
+
+Code/test commit `93ff19d16` implements authenticated
+`Settings.IMAPPublicFolderName` persistence through
+`SqlServerSettingsAdministrationStore.UpdateImapPublicFolderNameAsync`. It
+updates only the existing `hm_settings.settingstring` row named
+`imappublicfoldername`, publishes the new snapshot value only after a
+successful one-row update, preserves the authenticated server-administrator
+boundary and authorization lease, and retains direct activation fallback.
+Focused COM/SQL coverage is `224 passed, 0 skipped, 0 failed`; disposable
+LocalDB SQL integration is included; full Net10 Debug coverage is `2542
+passed, 10 skipped, 0 failed` (`2552` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPPublicFolderName`
+(`source/Server/COM/InterfaceSettings.cpp:1304-1332`) and
+`IMAPConfiguration::Get/SetIMAPPublicFolderName`
+(`source/Server/IMAP/IMAPConfiguration.cpp:126-134`), with
+`PROPERTY_IMAPPUBLICFOLDERNAME` and the existing SQL seed at
+`source/DBScripts/CreateTablesMSSQL.sql:878`. The installed Settings
+IID/vtable/DISPID `74` shape is unchanged. IMAP live reconfiguration, ACL
+mutation, authentication, and unrelated Admin settings remain out of scope.
+Migration/installer, registered COM/DCOM, SEC-18, paired C++ performance, and
+24-hour soak gates remain open. Release remains **RED**; no push was
+performed.
+
 ## Current authoritative parity status (2026-08-21, IMAP SASL initial-response persistence parity)
 
 Code/test commit `784d83d59` implements the bounded authenticated

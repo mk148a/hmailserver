@@ -1,5 +1,33 @@
 
-## Current next slice (2026-08-21, IMAP public-folder name persistence after SASL parity)
+## Current next slice (2026-08-21, IMAP hierarchy delimiter persistence after public-folder name parity)
+
+Code/test commit `93ff19d16` closes the authenticated
+`Settings.IMAPPublicFolderName` persistence gap. The setter updates the
+existing `hm_settings.settingstring` value for `imappublicfoldername` through
+the configured administration store, publishes the snapshot only after a
+one-row success, and retains direct activation and failed-save behavior.
+Focused COM/SQL coverage is `224 passed, 0 skipped, 0 failed`; the disposable
+LocalDB SQL integration passed; full Net10 Debug is `2542 passed, 10 skipped,
+0 failed` (`2552` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPPublicFolderName`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1304-1332`) and
+`IMAPConfiguration::Get/SetIMAPPublicFolderName`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:126-134`), with
+`PROPERTY_IMAPPUBLICFOLDERNAME` and the existing `hm_settings` seed at
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:878`. The installed
+Settings IID/vtable/DISPID `74` shape and authenticated server-administrator
+boundary remain unchanged. This persistence-only slice does not change IMAP
+live reconfiguration, ACL behavior, or authentication.
+
+The next bounded slice is authenticated `Settings.IMAPHierarchyDelimiter`
+persistence parity against the existing hierarchy-delimiter setting row. Do
+not add live IMAP reconfiguration, folder mutation, or unrelated Admin
+mutations. Production-hosted SMTP/POP3 timing, migration/installer, SEC-18,
+paired C++ performance, and soak remain separate gates. Release remains
+**RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP public-folder name persistence after SASL parity)
 
 Code/test commit `784d83d59` closes the authenticated
 `Settings.IMAPSASLInitialResponseEnabled` persistence gap. The setter updates
