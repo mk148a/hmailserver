@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authenticated attachment-blocking mutation gate (2026-08-22)
+
+Code/test commit `b2c2314e5` implements legacy
+`AntiVirus.EnableAttachmentBlocking` mutation. The legacy reference is
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:400-424`; it writes the
+`enableattachmentblocking` setting from
+`hmailserver/source/Server/Common/Application/Constants.h:88`. Net10 uses a
+parameterized fixed-row SQL update, the existing authenticated Settings
+lease, and retained snapshot publication only after a successful one-row
+mutation. Installed COM identity and direct activation boundaries are
+unchanged.
+
+Focused contract/store tests pass `348`, skip `0`, and fail `0`; default full
+Net10 passes `2635`, skips `92`, and fails `0` (`2727` total). No disposable
+SQL integration was available, so release remains **RED**. Next independent
+slice: establish or verify disposable Full-Text SQL Server `6000`, then
+continue the remaining ClamAV Admin mutations.
+
 ## Current authenticated AntiVirus MaximumMessageSize mutation gate (2026-08-22)
 
 Code/test commit `04403e1b7` implements legacy
