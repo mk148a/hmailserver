@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Service;
@@ -143,6 +144,99 @@ public sealed class BackupManagerMode7DispatchTests
         }
     }
 
+    [TestMethod]
+    public async Task AuthenticatedApplication_StartBackup_ReachesHostedArchiveRuntime()
+    {
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        if (!File.Exists(sevenZipPath))
+        {
+            Assert.Inconclusive($"The authenticated backup smoke test requires {sevenZipPath}.");
+        }
+
+        var destination = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-authenticated-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(destination);
+        BackupTaskHostedService? service = null;
+        using var queue = new RecordingBackupTaskQueue();
+
+        try
+        {
+            var backupCompleted = new TaskCompletionSource<string>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            var evidence = new BackupStartPlanEvidence(
+                Destination: destination,
+                BackupOptions: 1,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true);
+            var archiveRuntime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                static () => new DateTime(2026, 8, 22, 4, 5, 6),
+                payloadProvider: static (_, _) => ValueTask.FromResult(
+                    new BackupArchiveXmlPayload(
+                        Settings: new SettingsAdministrationSnapshot(
+                            "mail.example.test",
+                            "smtp",
+                            "pop3",
+                            "imap"),
+                        Domains: Array.Empty<DomainAdministrationSnapshot>())));
+            var operationRuntime = new BackupOperationRuntime(
+                queue,
+                startPlanEvidence: _ => ValueTask.FromResult(evidence),
+                executeBackupAsync: async (startEvidence, cancellationToken) =>
+                {
+                    try
+                    {
+                        await archiveRuntime.CreateAsync(startEvidence, cancellationToken);
+                        backupCompleted.TrySetResult(
+                            Path.Combine(destination, "HMBackup 2026-08-22 040506.7z"));
+                    }
+                    catch (Exception exception)
+                    {
+                        backupCompleted.TrySetException(exception);
+                        throw;
+                    }
+                });
+            BackupManagerRuntimeHost.Configure(operationRuntime);
+
+            var readiness = new ServerReadinessSignal();
+            readiness.SetBootstrapComplete();
+            service = new BackupTaskHostedService(
+                queue,
+                NullLogger<BackupTaskHostedService>.Instance,
+                readiness);
+            await service.StartAsync(CancellationToken.None);
+
+            var application = new Application(
+                new RecordingAdministratorAuthenticationProvider("secret"),
+                new SevenZipBackupArchiveMetadataReader(sevenZipPath));
+            Assert.ThrowsExactly<COMException>(() => _ = application.BackupManager);
+            Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+            Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+            application.BackupManager.StartBackup();
+            var archivePath = await backupCompleted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            Assert.IsTrue(new FileInfo(archivePath).Length > 0);
+        }
+        finally
+        {
+            if (service is not null)
+            {
+                await service.StopAsync(CancellationToken.None);
+            }
+
+            BackupManagerRuntimeHost.ResetForTests();
+            if (Directory.Exists(destination))
+            {
+                Directory.Delete(destination, recursive: true);
+            }
+        }
+    }
+
     private sealed class CompletionObservingOperationRuntime : IBackupOperationRuntime
     {
         private readonly IBackupOperationRuntime _inner;
@@ -217,4 +311,12 @@ public sealed class BackupManagerMode7DispatchTests
         string ArchivePath,
         int RestoreOptions,
         bool ArchiveExistsAtExecution);
+
+    private sealed class RecordingAdministratorAuthenticationProvider(string password)
+        : IServerAdministratorAuthenticationProvider
+    {
+        public bool Authenticate(string username, string attemptedPassword) =>
+            username.Equals("Administrator", StringComparison.OrdinalIgnoreCase)
+            && attemptedPassword == password;
+    }
 }
