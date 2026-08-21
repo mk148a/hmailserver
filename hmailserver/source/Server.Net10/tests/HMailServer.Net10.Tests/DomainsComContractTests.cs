@@ -396,6 +396,7 @@ public sealed class DomainsComContractTests
         existing.Active = false;
         existing.MaxMessageSize = 4096;
         existing.PlusAddressingEnabled = true;
+        existing.AntiSpamEnableGreylisting = false;
 
         existing.Save();
 
@@ -407,6 +408,7 @@ public sealed class DomainsComContractTests
         Assert.IsFalse(persisted.Active);
         Assert.AreEqual(4096, persisted.MaxMessageSize);
         Assert.IsTrue(persisted.PlusAddressingEnabled);
+        Assert.IsFalse(persisted.AntiSpamEnableGreylisting);
         Assert.AreEqual("renamed.example", domains[0].Name);
         Assert.AreEqual("renamed.example", domains.get_ItemByName("RENAMED.EXAMPLE").Name);
     }
