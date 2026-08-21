@@ -1,4 +1,38 @@
 
+## Current bounded slice: native Data restore rename (2026-08-22)
+
+Code/test commit `1cdd7b98d` fixes the six disposable LocalDB/Data restore
+failures that returned Win32 `ERROR_INVALID_PARAMETER (87)`. The failure was
+in `WindowsBackupRestoreDataDirectoryMutation.MoveDirectory`: the Win32
+`SetFileInformationByHandle(FileRenameInfo)` path rejected the relative rename
+rooted at the pinned destination-parent handle on this Windows 11 host.
+Net10 now uses `NtSetInformationFile(FileRenameInformation)`, translates the
+native status through `RtlNtStatusToDosError`, opens both directories with
+delete/share semantics, and lays out `FILE_RENAME_INFORMATION` offsets for
+both x64 and x86. No absolute fallback was added.
+
+Legacy anchors are
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:339-380`
+(`BackupExecuter::RestoreDataDirectory_`) and
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`
+(`FileUtilities::CopyDirectory`). Focused restore/containment/execution tests
+pass `50`, skip `0`, and fail `0`; the isolated LocalDB/Data round-trip passes
+`25`, skips `0`, and fails `0`; default full Net10 passes `2644`, skips `92`,
+and fails `0` (`2736` total).
+
+No production SQL/Data, service, registry, COM, DCOM, IIS, or firewall state
+changed. The Full-Text SQL/Data gate remains blocked because LocalDB lacks
+Full-Text and the two artifact-named MSSQLSERVER databases reject the current
+Windows identity with `Login failed for user 'NOUTML-KANDIL\\Kandil'`.
+Registered/out-of-process COM and SEC-18 caller evidence, installer rollback,
+paired C++ performance, protocol/load thresholds, and long-soak acceptance
+remain open. Release remains **RED**.
+
+Next independent slices: complete the approved Full-Text-capable SQL/Data
+round-trip when the connection is available; otherwise continue isolated
+registered COM/SEC-18 caller evidence, then installer/service/data rollback
+acceptance and paired C++/.NET performance.
+
 ## Current bounded slice: authenticated AntiVirus.ClamAVPort mutation (2026-08-22)
 
 Code/test commit `8f173c0ff` closes the final remaining setter in the current

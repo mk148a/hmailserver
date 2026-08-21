@@ -1,6 +1,35 @@
 hMailServer
 ===========
 
+## Current native Data restore rename gate (2026-08-22)
+
+Code/test commit `1cdd7b98d` fixes the bounded Windows Data-directory rename
+used by `WindowsBackupRestoreDataDirectoryMutation.MoveDirectory`. The prior
+`SetFileInformationByHandle(FileRenameInfo)` call returned Win32
+`ERROR_INVALID_PARAMETER (87)` for a relative destination rooted at an open
+directory handle on this Windows 11 host. Net10 now uses the native
+`NtSetInformationFile(FileRenameInformation)` contract with the correctly
+laid-out `FILE_RENAME_INFORMATION` buffer, pinned source/destination-parent
+handles, and no absolute-path fallback. The buffer offsets are valid for both
+x64 and x86 pointer sizes.
+
+Legacy behavior is anchored to
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:339-380`
+(`BackupExecuter::RestoreDataDirectory_`) and
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`
+(`FileUtilities::CopyDirectory`). The Net10 implementation remains contained
+to the restore filesystem mutation; SQL, service, COM, Data-directory
+selection, and recovery-journal boundaries are unchanged.
+
+Focused restore/containment/execution coverage passes `50`, skips `0`, and
+fails `0`. The disposable LocalDB backup/restore round-trip passes `25`,
+skips `0`, and fails `0`; it uses only the isolated LocalDB instance and a
+temporary Data root. Default full Net10 passes `2644`, skips `92`, and fails
+`0` (`2736` total). Release remains **RED** because LocalDB has no Full-Text,
+the artifact-named MSSQLSERVER databases cannot be opened by the current
+Windows identity, and registered COM/SEC-18, installer rollback, paired C++
+performance, protocol thresholds, and long-soak evidence remain open.
+
 ## Current authenticated ClamAV port mutation gate (2026-08-22)
 
 Code/test commit `8f173c0ff` implements legacy `AntiVirus.ClamAVPort`

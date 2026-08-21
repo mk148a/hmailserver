@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-22, native Data restore rename)
+
+Code/test commit `1cdd7b98d` fixes the bounded Windows restore rename in
+`hmailserver/source/Server.Net10/src/HMailServer.ComInterop/WindowsBackupRestoreDataDirectoryMutation.cs`.
+The legacy reference is `BackupExecuter::RestoreDataDirectory_` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:339-380`,
+with recursive file semantics in `FileUtilities::CopyDirectory` at
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`.
+The previous `SetFileInformationByHandle(FileRenameInfo)` call returned
+Win32 `ERROR_INVALID_PARAMETER (87)` for a relative destination rooted at an
+open parent handle. Net10 now uses `NtSetInformationFile` with native status
+translation, pinned source/destination-parent handles, delete/share access,
+and architecture-correct x64/x86 buffer offsets. There is no absolute-path
+fallback.
+
+Focused restore/containment/execution tests pass `50/50`; isolated LocalDB
+backup/restore round-trip tests pass `25/25`; default full Net10 passes
+`2644/2644` with `92` opt-in skips. No production state changed. Release is
+still RED: LocalDB lacks Full-Text, the artifact-named MSSQLSERVER databases
+reject the current identity, and registered COM/SEC-18, installer rollback,
+paired C++ performance, protocol thresholds, and long-soak evidence remain
+open. Next: use an approved Full-Text SQL/Data environment when available,
+then continue isolated registered COM/SEC-18 and installer gates.
+
 ## Current Authoritative Continuation (2026-08-22, ClamAV port mutation)
 
 Code/test commit `8f173c0ff` closes the legacy authenticated

@@ -1,13 +1,13 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T23:01:42Z` / `2026-08-22T02:01:42+03:00`
+- UTC/local timestamp: `2026-08-21T23:13:55Z` / `2026-08-22T02:13:55+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `211ec64e7`
+- Current HEAD: `1cdd7b98d`
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
-- Latest focused-test result: authenticated ClamAV port mutation and SQL-store contracts `357 passed, 0 skipped, 0 failed`
+- Latest focused-test result: native restore/containment/execution `50 passed, 0 skipped, 0 failed`; isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default Debug `2644 passed, 92 skipped, 0 failed` (`2736` total)
-- Opt-in tests passed/skipped/blocked: disposable LocalDB `2670 passed, 12 skipped, 10 failed`; six native Data restore failures return Win32 `ERROR_INVALID_PARAMETER (87)`, two Full-Text failures are unsupported by LocalDB, and two authenticated COM capability tests return `E_FAIL` instead of the expected unavailable-capability code
-- Current bounded slice: authenticated Administrator `AntiVirus.ClamAVPort` fixed-row mutation; code/test commit `8f173c0ff`
-- Completed milestones: authenticated AntiVirus ClamAVPort, ClamAVHost, ClamAVEnabled, EnableAttachmentBlocking, MaximumMessageSize, CustomScannerReturnValue, CustomScannerExecutable, CustomScannerEnabled, NotifySender, NotifyReceiver, Action, ClamWinDBFolder, ClamWinExecutable, and ClamWinEnabled mutations with retained-snapshot publication and lease enforcement; handle-relative recursive DataBackup traversal; authenticated production-shaped backup dispatch evidence; handle-relative restore rename containment; prior raw non-DB-only backup and legacy-version host-start refusal slices; detailed history remains in `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` and `CODEX_HANDOFF.md`
+- Opt-in tests passed/skipped/blocked: isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`; the broader disposable run remains environment-blocked by LocalDB Full-Text support and two authenticated COM capability expectations
+- Current bounded slice: native handle-relative Data restore rename; code/test commit `1cdd7b98d`
+- Completed milestones: native Data restore rename; authenticated AntiVirus ClamAVPort, ClamAVHost, ClamAVEnabled, EnableAttachmentBlocking, MaximumMessageSize, CustomScannerReturnValue, CustomScannerExecutable, CustomScannerEnabled, NotifySender, NotifyReceiver, Action, ClamWinDBFolder, ClamWinExecutable, and ClamWinEnabled mutations with retained-snapshot publication and lease enforcement; handle-relative recursive DataBackup traversal; authenticated production-shaped backup dispatch evidence; prior raw non-DB-only backup and legacy-version host-start refusal slices; detailed history remains in `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` and `CODEX_HANDOFF.md`
 - Open production blockers: Full-Text-capable SQL Server `6000` startup and SQL/Data round-trip, native copier review under the target service identity, installer/service/data rollback, registered/out-of-process COM, SEC-18, AD/master-user, DKIM/DMARC/SPF, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak
 - Environment-blocked work: LocalDB Full-Text support; the artifact-named MSSQLSERVER disposable databases cannot be opened by the current Windows identity (`Login failed for user 'NOUTML-KANDIL\\Kandil'`); target-identity native filesystem review; production-like installer/COM/SEC-18/C++/AD/DNS/soak infrastructure; no production service, database, Data directory, COM registration, DCOM ACL, IIS, or firewall state was changed
 - Protected/do-not-touch areas: production service/SQL/Data, installed Application COM registration/DCOM, production IIS, dirty `AGENTS.md`, and pre-existing untracked SEC-18/benchmark/migration/disposable artifacts
