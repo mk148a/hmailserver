@@ -843,6 +843,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ServicePop3SetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ServicePop3UpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ServicePop3: true),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.ServicePOP3 = false;
+
+        Assert.AreEqual(1, store.ServicePop3UpdateCount);
+        Assert.IsFalse(store.UpdatedServicePop3);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsFalse(settings.ServicePOP3);
+
+        store.ServicePop3UpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.ServicePOP3 = true);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.ServicePop3UpdateCount);
+        Assert.IsFalse(settings.ServicePOP3);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.ServicePOP3 = true);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ServicePop3UpdateCount);
+        Assert.IsFalse(settings.ServicePOP3);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5356,6 +5398,12 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedServiceSmtp { get; private set; }
 
+        public bool ServicePop3UpdateResult { get; set; }
+
+        public int ServicePop3UpdateCount { get; private set; }
+
+        public bool UpdatedServicePop3 { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -5885,6 +5933,16 @@ public sealed class SettingsComContractTests
             UpdatedServiceSmtp = serviceSmtp;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(ServiceSmtpUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateServicePop3Async(
+            bool servicePop3,
+            CancellationToken cancellationToken)
+        {
+            ServicePop3UpdateCount++;
+            UpdatedServicePop3 = servicePop3;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ServicePop3UpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

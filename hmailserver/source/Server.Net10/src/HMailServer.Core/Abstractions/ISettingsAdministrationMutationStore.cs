@@ -62,6 +62,10 @@ public interface ISettingsAdministrationMutationStore
         bool serviceSmtp,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateServicePop3Async(
+        bool servicePop3,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);
