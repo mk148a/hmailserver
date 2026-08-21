@@ -289,6 +289,48 @@ public sealed class GreyListingWhiteAddressesComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedGreyListingWhiteAddress_DeleteRemovesOnlyTheSelectedOwnerSnapshot()
+    {
+        var deleted = new List<long>();
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[]
+            {
+                Snapshot(10, "192.0.2.%", "First"),
+                Snapshot(20, "203.0.113.5", "Second")
+            },
+            delete: id =>
+            {
+                deleted.Add(id);
+                return true;
+            },
+            isServerAdministrator: static () => true);
+        var retained = addresses[0];
+
+        retained.Delete();
+
+        Assert.AreEqual(1, deleted.Count);
+        Assert.AreEqual(10L, deleted[0]);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(20, addresses[0].ID);
+    }
+
+    [TestMethod]
+    public void GreyListingWhiteAddress_DeleteFailureRetainsOwnerSnapshot()
+    {
+        IInterfaceGreyListingWhiteAddresses addresses = GreyListingWhiteAddresses.CreateAuthorized(
+            new[] { Snapshot(10, "192.0.2.%", "First") },
+            delete: static _ => false,
+            isServerAdministrator: static () => true);
+        var retained = addresses[0];
+
+        var error = Assert.ThrowsExactly<COMException>(retained.Delete);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(1, addresses.Count);
+        Assert.AreEqual(10, addresses[0].ID);
+    }
+
+    [TestMethod]
     public void RetainedGreyListingWhiteAddress_DeleteRechecksLiveAdministrator()
     {
         var isAdministrator = true;
