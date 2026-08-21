@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, IMAP master-user persistence parity)
+
+Code/test commit `b06119510` implements authenticated
+`Settings.IMAPMasterUser` persistence through
+`SqlServerSettingsAdministrationStore.UpdateImapMasterUserAsync`. It updates
+only the existing `ImapMasterUser` row, requires the existing authenticated
+server-administrator boundary and authorization lease, publishes the snapshot
+after a successful one-row update, and keeps direct activation fallback.
+Focused COM/SQL coverage is `226 passed, 0 skipped, 0 failed`; disposable
+LocalDB SQL integration passed; full Net10 Debug is `2545 passed, 10 skipped,
+0 failed` (`2555` total).
+
+Legacy references are `InterfaceSettings::get/put_IMAPMasterUser`
+(`source/Server/COM/InterfaceSettings.cpp:2490-2523`) and
+`IMAPConfiguration::Get/SetIMAPMasterUser`
+(`source/Server/IMAP/IMAPConfiguration.cpp:138-147`). No installed COM
+identity, direct activation boundary, SMTP trust behavior, or runtime
+master-user authentication was changed. The next candidate is the gated
+IMAPHierarchyDelimiter parity slice, which needs legacy folder/rule-action
+conflict and rollback coverage. Migration/installer, SEC-18, paired C++
+performance, and 24-hour soak remain open; release is `RED`; no push was
+performed.
+
 ## Current Authoritative Continuation (2026-08-21, IMAP public-folder name persistence parity)
 
 Code/test commit `93ff19d16` implements authenticated

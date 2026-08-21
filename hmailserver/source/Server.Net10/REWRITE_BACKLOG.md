@@ -1,5 +1,34 @@
 
-## Current next slice (2026-08-21, IMAP hierarchy delimiter persistence after public-folder name parity)
+## Current next slice (2026-08-21, IMAP hierarchy delimiter parity after master-user persistence)
+
+Code/test commit `b06119510` closes the authenticated
+`Settings.IMAPMasterUser` persistence gap. The setter updates the existing
+`hm_settings.settingstring` value for `ImapMasterUser` through the configured
+administration store, publishes the snapshot only after a one-row success, and
+retains direct activation and failed-save behavior. Focused COM/SQL coverage
+is `226 passed, 0 skipped, 0 failed`; the disposable LocalDB SQL integration
+passed; full Net10 Debug is `2545 passed, 10 skipped, 0 failed` (`2555` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPMasterUser`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2490-2523`) and
+`IMAPConfiguration::Get/SetIMAPMasterUser`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:138-147`), with the
+existing `ImapMasterUser` seed at
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:942`. The installed
+Settings IID/vtable/DISPID `100` shape and authenticated server-administrator
+boundary remain unchanged. This persistence-only slice does not change IMAP
+master-user runtime authentication.
+
+The next candidate is authenticated `Settings.IMAPHierarchyDelimiter`, but it
+is not a fixed-row update: legacy `IMAPConfiguration::SetHierarchyDelimiter`
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:174-195`) rejects
+folder/rule-action delimiter conflicts, updates rule actions, persists the row,
+and clears rule caches. Implement it only with isolated folder/rule-action
+coverage and rollback semantics. Production-hosted SMTP/POP3 timing,
+migration/installer, SEC-18, paired C++ performance, and soak remain separate
+gates. Release remains **RED**. No push was performed.
+
+## Historical current slice (2026-08-21, IMAP hierarchy delimiter persistence after public-folder name parity)
 
 Code/test commit `93ff19d16` closes the authenticated
 `Settings.IMAPPublicFolderName` persistence gap. The setter updates the

@@ -1,6 +1,30 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, IMAP master-user persistence parity)
+
+Code/test commit `b06119510` implements authenticated
+`Settings.IMAPMasterUser` persistence through
+`SqlServerSettingsAdministrationStore.UpdateImapMasterUserAsync`. It updates
+only the existing `hm_settings.settingstring` row named `ImapMasterUser`,
+publishes the new snapshot value only after a successful one-row update,
+preserves the authenticated server-administrator boundary and authorization
+lease, and retains direct activation fallback. Focused COM/SQL coverage is
+`226 passed, 0 skipped, 0 failed`; disposable LocalDB SQL integration is
+included; full Net10 Debug coverage is `2545 passed, 10 skipped, 0 failed`
+(`2555` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPMasterUser`
+(`source/Server/COM/InterfaceSettings.cpp:2490-2523`) and
+`IMAPConfiguration::Get/SetIMAPMasterUser`
+(`source/Server/IMAP/IMAPConfiguration.cpp:138-147`), with the existing
+`ImapMasterUser` SQL seed at `source/DBScripts/CreateTablesMSSQL.sql:942`.
+The installed Settings IID/vtable/DISPID `100` shape is unchanged. IMAP
+master-user runtime authentication behavior, live reconfiguration, and
+unrelated Admin settings remain out of scope. Migration/installer, registered
+COM/DCOM, SEC-18, paired C++ performance, and 24-hour soak gates remain open.
+Release remains **RED**; no push was performed.
+
 ## Current authoritative parity status (2026-08-21, IMAP public-folder name persistence parity)
 
 Code/test commit `93ff19d16` implements authenticated
