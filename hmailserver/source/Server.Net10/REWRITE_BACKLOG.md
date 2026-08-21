@@ -1,4 +1,26 @@
 
+## Current bounded slice: restore group-member rollback evidence (2026-08-21)
+
+Legacy `IMAPConfiguration::XMLLoad` restores groups before public folders
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:225-248`),
+`Group::XMLLoadSubItems` inserts members after generated group identity
+(`hmailserver/source/Server/Common/BO/Group.cpp:55-80`), and
+`ACLPermission::XMLLoad` resolves group holders by the restored group name and
+ID (`hmailserver/source/Server/Common/BO/ACLPermission.cpp:218-266`). Net10
+already implements this transaction-scoped order in
+`BackupRestoreExecution.cs:618-830` and
+`BackupRestoreMetadataWriter.cs:291-397`. Test-only commit `ba2e1f190` adds
+an injected group-member failure test proving rollback/disposal before commit
+and no published group/member/ACL state. Focused restore execution coverage
+is `36 passed, 24 skipped, 0 failed`; full Net10 is `2534 passed, 90 skipped,
+0 failed`.
+
+The older backlog claims that transaction-scoped group/member restore is
+unimplemented are historical/superseded. Remaining risk is live SQL rollback
+and preexisting orphan-member semantics, both intentionally unmodified. The
+next production gate is disposable `6000` SQL/Data host-start and restore
+acceptance; release remains **RED**.
+
 ## Current bounded slice: authenticated TLS ChaCha option persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsOptionPrioritizeChaChaEnabled`

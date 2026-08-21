@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current restore rollback evidence slice (2026-08-21)
+
+Legacy restore orders groups before public-folder ACLs and resolves group
+holders against newly inserted group IDs (`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:225-248`,
+`hmailserver/source/Server/Common/BO/Group.cpp:55-80`,
+`hmailserver/source/Server/Common/BO/ACLPermission.cpp:218-266`). Net10
+already uses transaction-scoped group/member/folder stores and generated-ID
+holder resolution. Test-only commit `ba2e1f190` injects a group-member insert
+failure during the executor path and verifies disposal/rollback before commit
+with no published group/member/ACL state. Restore execution focus is `36
+passed, 24 skipped, 0 failed`; full Net10 is `2534 passed, 90 skipped, 0
+failed` (`2624` total). No production restore code, SQL schema, COM identity,
+or legacy `hm_group_members` cleanup semantics changed.
+
+The live SQL rollback integration remains environment-gated; the next
+production gate is disposable `6000` SQL/Data host-start and restore evidence.
+Release remains **RED**.
+
 ## Current TLS ChaCha option persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_TlsOptionPrioritizeChaChaEnabled`

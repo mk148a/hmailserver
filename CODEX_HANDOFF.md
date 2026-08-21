@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, restore group rollback evidence)
+
+Legacy restore ordering is groups before public-folder ACLs, with generated
+group IDs used for group-member and ACL holder resolution
+(`hmailserver/source/Server/IMAP/IMAPConfiguration.cpp:225-248`,
+`hmailserver/source/Server/Common/BO/Group.cpp:55-80`,
+`hmailserver/source/Server/Common/BO/ACLPermission.cpp:218-266`). Net10’s
+transaction-scoped path was already present. Test-only commit `ba2e1f190`
+injects group-member insertion failure in the executor and proves transaction
+disposal/rollback before commit, with no published group/member/ACL state.
+Focused restore execution tests pass `36`, skip `24`, and fail `0`; full Net10
+passes `2534`, skips `90`, and fails `0` (`2624` total).
+
+No production restore behavior, SQL schema, COM identity, or legacy orphan
+member cleanup changed. Live SQL rollback and disposable SQL/Data restore
+remain environment-gated. The next slice is disposable `6000` SQL/Data
+host-start and restore evidence; release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, TLS ChaCha option persistence)
 
 Legacy `InterfaceSettings::put_TlsOptionPrioritizeChaChaEnabled`
