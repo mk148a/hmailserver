@@ -1,5 +1,25 @@
 
-## Current bounded slice: FetchAccount password getter parity (2026-08-21)
+## Current bounded slice: MaxDeliveryThreads authorization lease (2026-08-21)
+
+Code/test commit `0035df483` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.MaxDeliveryThreads` (`DispId(29)`).
+Legacy `InterfaceSettings::put_MaxDeliveryThreads` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:537` persists the
+existing `hm_settings.maxdelivertythreads` row through
+`SMTPConfiguration::SetMaxDeliveryThreads`.
+
+Net10 acquires and holds the existing generation-bound authorization lease
+around `UpdateMaxDeliveryThreadsAsync`, fails closed before store access when
+the lease is unavailable, disposes it on success/failure, and retains the old
+snapshot after a failed update. Focused tests pass `4`, skip `0`, and fail `0`;
+full Net10 passes `2581`, skips `90`, and fails `0` (`2671` total). Settings
+IID/vtable/DISPID/class identity, SQL schema, SMTP runtime behavior, and live
+reconfiguration are unchanged.
+
+Next gate remains approved disposable SQL/Data acceptance. Release remains
+**RED**.
+
+## Historical bounded slice: FetchAccount password getter parity (2026-08-21)
 
 Code/test commit `5b91bbe90` completes the bounded retained
 `IInterfaceFetchAccount.Password` getter path. Legacy

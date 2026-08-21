@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, MaxDeliveryThreads lease)
+
+Code/test commit `0035df483` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.MaxDeliveryThreads` (`DispId(29)`).
+Legacy `InterfaceSettings::put_MaxDeliveryThreads` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:537` persists the
+existing `hm_settings.maxdelivertythreads` row through
+`SMTPConfiguration::SetMaxDeliveryThreads`.
+
+Net10 holds the existing generation-bound authorization lease during the
+parameterized fixed-row update, fails closed on a missing lease, disposes the
+lease on success/failure, and publishes the retained snapshot only after
+success. Focused tests are `4 passed, 0 skipped, 0 failed`; full Net10 is
+`2581 passed, 90 skipped, 0 failed` (`2671` total). No COM identity, SQL
+schema, SMTP runtime, live reconfiguration, service, registry, DCOM, IIS, or
+production state changed. Release remains RED.
+
+Next gate: approved disposable SQL/Data acceptance, still unavailable in this
+process.
+
 ## Current Authoritative Continuation (2026-08-21, FetchAccount password getter)
 
 Code/test commit `5b91bbe90` completes retained

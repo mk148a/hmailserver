@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current MaxDeliveryThreads authorization-lease slice (2026-08-21)
+
+Code/test commit `0035df483` closes the retained-object authorization lease
+gap for authenticated `IInterfaceSettings.MaxDeliveryThreads` (`DispId(29)`).
+Legacy `InterfaceSettings::put_MaxDeliveryThreads` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:537` persists the
+existing `hm_settings` row named `maxdelivertythreads` through
+`SMTPConfiguration::SetMaxDeliveryThreads`; no new schema row is created.
+
+Net10 now acquires and holds the existing generation-bound authorization lease
+around `UpdateMaxDeliveryThreadsAsync`, fails closed with `E_ACCESSDENIED` when
+the lease is unavailable, disposes it on success and failure, and publishes
+the retained snapshot only after a successful fixed-row update. The installed
+Settings IID/vtable/DISPID/class identity, SQL schema, SMTP runtime behavior,
+and live reconfiguration remain unchanged. Focused tests pass `4`, skip `0`,
+and fail `0`; full Net10 passes `2581`, skips `90`, and fails `0` (`2671`
+total).
+
+Release remains **RED**. Disposable SQL/Data restore, SEC-18 cutover,
+registered/out-of-process COM, paired C++ performance, and long-soak evidence
+remain open or environment-blocked.
+
 ## Current FetchAccount password getter slice (2026-08-21)
 
 Code/test commit `5b91bbe90` completes the bounded retained
