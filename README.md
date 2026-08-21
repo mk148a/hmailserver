@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current authoritative parity status (2026-08-21, IMAP SASL PLAIN persistence parity)
+
+Code/test commit `607d84543` implements the bounded authenticated
+`Settings.IMAPSASLPlainEnabled` setter path. It updates the existing
+`hm_settings.settinginteger` row whose name is `EnableImapSASLPlain`, publishes
+the new value only after a successful one-row store result, preserves the
+authenticated server-administrator boundary and authorization lease, and
+retains direct activation fallback behavior. Focused COM/SQL coverage is
+`220 passed, 0 skipped, 0 failed`; disposable LocalDB SQL integration is
+included; full Net10 Debug coverage is `2536 passed, 10 skipped, 0 failed`
+(`2546` total).
+
+Legacy anchors are `InterfaceSettings::get/put_IMAPSASLPlainEnabled`
+(`source/Server/COM/InterfaceSettings.cpp:2529-2553`) and
+`IMAPConfiguration::Get/SetUseIMAPSASLPlain`
+(`source/Server/IMAP/IMAPConfiguration.cpp:150-158`), with
+`PROPERTY_ENABLEIMAPSASLPLAIN` and the existing SQL seed. The installed
+Settings IID/vtable/DISPID `101` shape is unchanged. SASL authentication,
+credential handling, capability/runtime reload, and live reconfiguration
+remain out of scope. Migration/installer, registered COM/DCOM, SEC-18, paired
+C++ performance, and 24-hour soak gates remain open. Release remains **RED**;
+no push was performed.
+
 ## Current authoritative parity status (2026-08-21, IMAP ACL persistence parity)
 
 Code/test commit `a824f4d92` implements the bounded authenticated
