@@ -1,4 +1,20 @@
 
+## Current bounded slice: WebAdmin IP-home POST-only mutation (2026-08-21)
+
+The security review identified `background_iphome_save.php` as a state-changing
+background endpoint that accepted GET inputs through `hmailGetVar`. Code/test
+commit `342ebdba1` now requires `hmailRequirePostCsrfToken()` after the
+existing server-admin check and reads all three mutation inputs with
+`hmailGetPostVar`. `WebAdminIpHomePostOnlySourceTests` proves guard ordering,
+POST-only reads, preserved COM calls, and redirects. WebAdmin source-contract
+coverage is `90 passed, 1 skipped, 0 failed`; full Net10 is `2535 passed, 90
+skipped, 0 failed`.
+
+This is a bounded CSRF/method hardening fix, not SEC-18 completion. Plaintext
+PHP session password retention, remaining WebAdmin mutation audit, trusted
+COM caller-token/non-pool denial evidence, and all SQL/Data/COM/soak release
+gates remain open. Release remains **RED**.
+
 ## Current bounded slice: offline short-soak evidence (2026-08-21)
 
 The existing `ShortSoakBenchmark.Run` and `ShortSoakArtifactWriter`

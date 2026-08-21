@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current WebAdmin POST-only security slice (2026-08-21)
+
+Security review found the IP-home background mutation accepted GET parameters
+through `hmailGetVar`. Code/test commit `342ebdba1` updates
+`hmailserver/source/WebAdmin/background_iphome_save.php` to call
+`hmailRequirePostCsrfToken()` after the existing server-admin guard and read
+`iphomeid`, `iphomeaddress`, and `action` only through `hmailGetPostVar`.
+The source-contract test passes, all WebAdmin tests pass `90` with `1`
+environment-gated skip, and full Net10 passes `2535`, skips `90`, and fails
+`0` (`2625` total).
+
+This closes only the bounded IP-home GET mutation path. Plaintext
+`$_SESSION['session_password']` retention in
+`hmailserver/source/WebAdmin/background_login.php:42`,
+`initialize.php:42`, and `background_account_save.php:65` remains open, as do
+SEC-18 caller-token proof, SQL/Data restore, paired C++ performance, and
+24-hour service/COM soak gates. Release remains **RED**.
+
 ## Current offline performance evidence (2026-08-21)
 
 The existing Net10 short-soak benchmark ran at current HEAD

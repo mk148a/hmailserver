@@ -1,5 +1,20 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, WebAdmin IP-home POST-only)
+
+Security review found `background_iphome_save.php` accepted GET mutation
+parameters through `hmailGetVar`. Code/test commit `342ebdba1` adds
+`hmailRequirePostCsrfToken()` after the server-admin guard and converts
+`iphomeid`, `iphomeaddress`, and `action` to `hmailGetPostVar`. The focused
+source-contract test passes; WebAdmin tests pass `90`, skip `1`, and fail `0`.
+Full Net10 passes `2535`, skips `90`, and fails `0` (`2625` total).
+
+The remaining password-session issue is unchanged:
+`background_login.php:42`, `initialize.php:42`, and
+`background_account_save.php:65` still retain plaintext
+`$_SESSION['session_password']`. SEC-18 caller-token evidence, real SQL/Data
+restore, paired C++ performance, and 24-hour service/COM soak remain RED.
+
 ## Current Authoritative Continuation (2026-08-21, offline short-soak evidence)
 
 The existing benchmark ran at HEAD `7ff53732e` with 100,000 synthetic
