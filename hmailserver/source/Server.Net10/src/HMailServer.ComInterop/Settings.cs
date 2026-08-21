@@ -2423,7 +2423,41 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.TlsVersion12Enabled
                 : HasFlag(_administrationSnapshot.SslVersions, TlsVersion12Flag);
         }
-        set => base.TlsVersion12Enabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.TlsVersion12Enabled = value;
+                return;
+            }
+
+            var currentSslVersions = _administrationSnapshot?.SslVersions ?? 0;
+            var updatedSslVersions = value
+                ? currentSslVersions | TlsVersion12Flag
+                : currentSslVersions & ~TlsVersion12Flag;
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateSslVersionsAsync(updatedSslVersions, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The TLS version mask update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    SslVersions = updatedSslVersions
+                };
+            }
+        }
     }
 
     public override bool TlsVersion13Enabled
