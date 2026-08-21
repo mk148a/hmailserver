@@ -1,8 +1,8 @@
 
-## Current next slice (2026-08-21, SMTP live greylisting acceptance after domain setter evidence)
+## Current next slice (2026-08-21, SMTP live greylisting acceptance after domain MaxSize evidence)
 
-Code/test commit `76f9d0074` adds focused COM evidence for the authenticated
-domain `AntiSpamEnableGreylisting` setter/save path and retains the completed
+Code/test commit `5dce4f02b` adds focused COM and disposable SQL evidence for the
+authenticated domain `MaxSize` setter/save path and retains the completed
 `Add()` -> `Save()` ->
 `GreyListingWhiteAddress.Delete()` path after the SPF,
 MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
@@ -13,6 +13,11 @@ SQL store integration is `3 passed, 0 skipped, 0 failed`; full disposable
 LocalDB/Data is `2509 passed, 10 skipped, 0 failed`
 (`2519` total).
 
+Legacy anchors for the completed domain slice are `InterfaceDomain::get/put_MaxSize`
+(`hmailserver/source/Server/COM/InterfaceDomain.cpp:518-554`) and
+`Domain::GetMaxSizeMB/SetMaxSizeMB` (`hmailserver/source/Server/Common/BO/Domain.cpp`).
+The COM test proves staged setter/save publication and failure retention; the
+SQL integration proves `domainmaxsize` update/readback in the disposable store.
 Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`hmailserver/source/Server/COM/InterfaceGreyListingWhiteAddresses.cpp:85-93,162-183`),
 `InterfaceGreyListingWhiteAddress::Save/Delete`
