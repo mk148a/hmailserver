@@ -262,6 +262,10 @@ public interface ISettingsAdministrationMutationStore
         bool enabled,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiVirusClamAvEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);

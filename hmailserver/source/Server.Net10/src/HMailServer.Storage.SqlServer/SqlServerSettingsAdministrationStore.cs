@@ -423,6 +423,12 @@ SET settinginteger = @AntiVirusAttachmentBlocking
 WHERE settingname = N'enableattachmentblocking';
 """;
 
+    public const string UpdateAntiVirusClamAvEnabledSql = """
+UPDATE hm_settings
+SET settinginteger = @AntiVirusClamAvEnabled
+WHERE settingname = N'ClamAVEnabled';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1430,6 +1436,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateAntiVirusAttachmentBlockingSql, connection);
         command.Parameters.Add("@AntiVirusAttachmentBlocking", SqlDbType.Int).Value = enabled ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateAntiVirusClamAvEnabledAsync(
+        bool enabled,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateAntiVirusClamAvEnabledSql, connection);
+        command.Parameters.Add("@AntiVirusClamAvEnabled", SqlDbType.Int).Value = enabled ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

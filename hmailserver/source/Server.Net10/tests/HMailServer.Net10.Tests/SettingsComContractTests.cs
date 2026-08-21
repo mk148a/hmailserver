@@ -521,6 +521,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamAvEnabledPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamAvEnabled: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.ClamAVEnabled = false;
+
+        Assert.AreEqual(1, store.AntiVirusClamAvEnabledUpdateCount);
+        Assert.IsFalse(store.UpdatedAntiVirusClamAvEnabled);
+        Assert.IsFalse(settings.AntiVirus.ClamAVEnabled);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusClamAvEnabledFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusClamAvEnabled: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.ClamAVEnabled = false);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.IsTrue(settings.AntiVirus.ClamAVEnabled);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7865,6 +7907,10 @@ public sealed class SettingsComContractTests
 
         public bool UpdatedAntiVirusAttachmentBlocking { get; private set; }
 
+        public int AntiVirusClamAvEnabledUpdateCount { get; private set; }
+
+        public bool UpdatedAntiVirusClamAvEnabled { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -9314,6 +9360,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusAttachmentBlockingUpdateCount++;
             UpdatedAntiVirusAttachmentBlocking = enabled;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusClamAvEnabledAsync(
+            bool enabled,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusClamAvEnabledUpdateCount++;
+            UpdatedAntiVirusClamAvEnabled = enabled;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }

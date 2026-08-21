@@ -2918,6 +2918,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                                 AntiVirusEnableAttachmentBlocking = value
                             };
                         }
+                    },
+                    publishClamAvEnabled: value =>
+                    {
+                        if (_administrationSnapshot is not null)
+                        {
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                AntiVirusClamAvEnabled = value
+                            };
+                        }
                     });
         }
     }
