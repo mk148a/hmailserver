@@ -1,6 +1,27 @@
 hMailServer
 ===========
 
+## Current maximum invalid logon-attempts persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_MaxInvalidLogonAttempts`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2050-2061`) calls
+`Configuration::SetMaxInvalidLogonAttempts`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:526-535`),
+which writes the existing `hm_settings` integer row
+`MaxInvalidLogonAttempts`.
+
+Code/test commit `5c95d7da6` adds the authenticated Net10 SQL mutation with a
+parameterized integer update, one-row fail-closed behavior, authorization
+lease, and retained snapshot publication only after success. Focused
+Settings/SQL coverage is `238 passed, 0 skipped, 0 failed`; full Net10 is
+`2516 passed, 90 skipped, 0 failed` (`2606` total). The installed Settings COM
+identity, direct activation boundary, SMTP/logon-failure runtime algorithm,
+and live reconfiguration behavior are unchanged.
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence, blocked because the approved SQL connection and
+isolated-create opt-in are absent. Release remains **RED**.
+
 ## Current automatic logon-failure ban persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_AutoBanOnLogonFailure`

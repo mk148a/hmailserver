@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, maximum invalid logon attempts)
+
+Legacy `InterfaceSettings::put_MaxInvalidLogonAttempts`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2050-2061`) calls
+`Configuration::SetMaxInvalidLogonAttempts`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:526-535`),
+which persists `hm_settings.settingname = 'MaxInvalidLogonAttempts'`.
+Code/test commit `5c95d7da6` adds the authenticated Net10 mutation,
+parameterized integer encoding, one-row fail-closed outcome, authorization
+lease, and publish-after-success snapshot behavior. Focused Settings/SQL tests
+pass `238`, fail `0`; full Net10 passes `2516`, skips `90`, fails `0` (`2606`
+total).
+
+No logon-failure algorithm, SMTP trust, live reconfiguration, COM identity,
+or direct activation boundary changed. The next slice is disposable `6000`
+SQL/Data host-start success/failure with no listener or worker side effects,
+blocked until the approved SQL connection and isolated-create opt-in exist.
+Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, automatic logon-failure ban persistence)
 
 Legacy `InterfaceSettings::put_AutoBanOnLogonFailure`

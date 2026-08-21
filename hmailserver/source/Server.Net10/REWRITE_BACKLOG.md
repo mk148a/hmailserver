@@ -1,4 +1,21 @@
 
+## Current bounded slice: authenticated maximum invalid logon-attempts persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_MaxInvalidLogonAttempts`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2050-2061`) calls
+`Configuration::SetMaxInvalidLogonAttempts`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:526-535`),
+which persists the existing `hm_settings` row `MaxInvalidLogonAttempts`.
+Code/test commit `5c95d7da6` adds the authenticated Net10 parameterized integer
+mutation, one-row failure containment, authorization lease, and
+publish-after-success snapshot behavior. Focused Settings/SQL tests pass
+`238`, fail `0`; full Net10 passes `2516`, skips `90`, fails `0`.
+
+No logon-failure algorithm, SMTP trust, live reconfiguration, COM identity, or
+direct activation boundary changed. The next slice remains disposable `6000`
+SQL/Data host-start acceptance when the approved connection and isolated-create
+opt-in become available; release remains RED.
+
 ## Current bounded slice: authenticated automatic logon-failure ban persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_AutoBanOnLogonFailure`
