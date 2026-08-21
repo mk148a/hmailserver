@@ -227,7 +227,7 @@ public sealed class DkimSignerRuntime : IDkimSigner
     {
         try
         {
-            await using var stream = OpenPrivateKeyStream(path);
+            await using var stream = OpenPrivateKeyStream(path, _dataDirectory);
             if (stream is null)
             {
                 return null;
@@ -483,7 +483,7 @@ public sealed class DkimSignerRuntime : IDkimSigner
     private static bool HasReparsePoint(string path) =>
         (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0;
 
-    private static FileStream? OpenPrivateKeyStream(string path)
+    private static FileStream? OpenPrivateKeyStream(string path, string approvedDataDirectory)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -511,13 +511,60 @@ public sealed class DkimSignerRuntime : IDkimSigner
 
         var handle = new SafeFileHandle(rawHandle, ownsHandle: true);
         if (!GetFileInformationByHandle(handle, out var information)
-            || (information.FileAttributes & (uint)FileAttributes.ReparsePoint) != 0)
+            || (information.FileAttributes & (uint)FileAttributes.ReparsePoint) != 0
+            || information.NumberOfLinks != 1
+            || !TryGetFinalPathByHandle(handle, out var finalPath)
+            || !IsContainedFinalPath(approvedDataDirectory, finalPath))
         {
             handle.Dispose();
             return null;
         }
 
         return new FileStream(handle, FileAccess.Read, bufferSize: 4096, isAsync: false);
+    }
+
+    private static bool IsContainedFinalPath(string approvedDataDirectory, string finalPath)
+    {
+        var root = NormalizeFinalPath(approvedDataDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidate = NormalizeFinalPath(finalPath);
+        return candidate.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+            || candidate.StartsWith(root + Path.AltDirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeFinalPath(string path)
+    {
+        if (path.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+        {
+            return @"\" + path[7..];
+        }
+
+        return path.StartsWith(@"\\?\", StringComparison.Ordinal)
+            ? path[4..]
+            : Path.GetFullPath(path);
+    }
+
+    private static bool TryGetFinalPathByHandle(SafeFileHandle handle, out string path)
+    {
+        for (var capacity = 260; capacity <= 32768; capacity *= 2)
+        {
+            var buffer = new StringBuilder(capacity);
+            var length = GetFinalPathNameByHandle(handle, buffer, (uint)buffer.Capacity, 0);
+            if (length == 0)
+            {
+                path = string.Empty;
+                return false;
+            }
+
+            if (length < buffer.Capacity)
+            {
+                path = buffer.ToString();
+                return true;
+            }
+        }
+
+        path = string.Empty;
+        return false;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -539,6 +586,13 @@ public sealed class DkimSignerRuntime : IDkimSigner
     private static extern bool GetFileInformationByHandle(
         SafeFileHandle file,
         out ByHandleFileInformation fileInformation);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetFinalPathNameByHandleW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(
+        SafeFileHandle file,
+        StringBuilder filePath,
+        uint filePathLength,
+        uint flags);
 
     [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern IntPtr CreateFile(

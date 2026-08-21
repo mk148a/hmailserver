@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
@@ -110,11 +111,49 @@ public sealed class DkimSignerRuntimeTests
             Assert.Inconclusive("The test host does not allow creating a disposable key reparse point: " + exception.Message);
         }
 
-        var openMethod = typeof(DkimSignerRuntime).GetMethod(
-            "OpenPrivateKeyStream",
-            BindingFlags.Static | BindingFlags.NonPublic);
+        var openMethod = typeof(DkimSignerRuntime).GetMethod("OpenPrivateKeyStream", BindingFlags.Static | BindingFlags.NonPublic);
         Assert.IsNotNull(openMethod);
-        using var opened = (FileStream?)openMethod.Invoke(null, [fixture.ConfiguredKeyPath]);
+        using var opened = (FileStream?)openMethod.Invoke(null, [fixture.ConfiguredKeyPath, fixture.DataDirectory]);
+        Assert.IsNull(opened);
+        Assert.IsNull(await fixture.Signer.SignAsync(fixture.Message, fixture.MessageBytes, CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task SignAsync_RejectsParentReparsePointOutsideDataDirectory()
+    {
+        using var fixture = new SignerFixture();
+        try
+        {
+            fixture.ReplaceKeysDirectoryWithExternalReparsePoint();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            Assert.Inconclusive("The test host does not allow creating a disposable parent reparse point: " + exception.Message);
+        }
+
+        var openMethod = typeof(DkimSignerRuntime).GetMethod("OpenPrivateKeyStream", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(openMethod);
+        using var opened = (FileStream?)openMethod.Invoke(null, [fixture.ConfiguredKeyPath, fixture.DataDirectory]);
+        Assert.IsNull(opened);
+        Assert.IsNull(await fixture.Signer.SignAsync(fixture.Message, fixture.MessageBytes, CancellationToken.None));
+    }
+
+    [TestMethod]
+    public async Task SignAsync_RejectsHardLinkedPrivateKey()
+    {
+        using var fixture = new SignerFixture();
+        try
+        {
+            fixture.ReplaceKeyWithHardLink();
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            Assert.Inconclusive("The test host does not allow creating a disposable hardlink: " + exception.Message);
+        }
+
+        var openMethod = typeof(DkimSignerRuntime).GetMethod("OpenPrivateKeyStream", BindingFlags.Static | BindingFlags.NonPublic);
+        Assert.IsNotNull(openMethod);
+        using var opened = (FileStream?)openMethod.Invoke(null, [fixture.ConfiguredKeyPath, fixture.DataDirectory]);
         Assert.IsNull(opened);
         Assert.IsNull(await fixture.Signer.SignAsync(fixture.Message, fixture.MessageBytes, CancellationToken.None));
     }
@@ -135,6 +174,7 @@ public sealed class DkimSignerRuntimeTests
     private sealed class SignerFixture : IDisposable
     {
         private readonly string _root;
+        private string? _externalRoot;
         private readonly RSA _rsa;
 
         public SignerFixture(
@@ -191,6 +231,7 @@ public sealed class DkimSignerRuntimeTests
         public DeliveryQueuedMessage Message { get; }
         public byte[] MessageBytes { get; }
         public string PublicKeyBase64 { get; }
+        public string DataDirectory => _root;
         public string ConfiguredKeyPath => Path.Combine(_root, "keys", "example.pem");
 
         public void ReplaceKeyWithFinalReparsePoint()
@@ -201,12 +242,36 @@ public sealed class DkimSignerRuntimeTests
             File.CreateSymbolicLink(keyPath, targetPath);
         }
 
+        public void ReplaceKeysDirectoryWithExternalReparsePoint()
+        {
+            _externalRoot = Path.Combine(Path.GetTempPath(), "hmailserver-dkim-external-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(_externalRoot);
+            File.Move(ConfiguredKeyPath, Path.Combine(_externalRoot, "example.pem"));
+            Directory.Delete(Path.Combine(_root, "keys"));
+            Directory.CreateSymbolicLink(Path.Combine(_root, "keys"), _externalRoot);
+        }
+
+        public void ReplaceKeyWithHardLink()
+        {
+            var keyPath = ConfiguredKeyPath;
+            var targetPath = Path.Combine(_root, "real.pem");
+            File.Move(keyPath, targetPath);
+            if (!CreateHardLink(keyPath, targetPath, IntPtr.Zero))
+            {
+                throw new IOException("CreateHardLink failed with Win32 error " + Marshal.GetLastWin32Error());
+            }
+        }
+
         public void Dispose()
         {
             _rsa.Dispose();
             try
             {
                 Directory.Delete(_root, recursive: true);
+                if (_externalRoot is not null)
+                {
+                    Directory.Delete(_externalRoot, recursive: true);
+                }
             }
             catch (IOException)
             {
@@ -215,6 +280,9 @@ public sealed class DkimSignerRuntimeTests
             {
             }
         }
+
+        [DllImport("kernel32.dll", EntryPoint = "CreateHardLinkW", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool CreateHardLink(string fileName, string existingFileName, IntPtr securityAttributes);
     }
 
     private sealed class FixedDomainStore(DomainAdministrationSnapshot domain) : IDomainAdministrationStore
