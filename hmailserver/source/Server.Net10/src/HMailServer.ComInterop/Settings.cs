@@ -2815,7 +2815,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.IPv6PreferredEnabled
                 : _administrationSnapshot.Ipv6PreferredEnabled;
         }
-        set => base.IPv6PreferredEnabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.IPv6PreferredEnabled = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateIpv6PreferredAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IPv6 preference update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    Ipv6PreferredEnabled = value
+                };
+            }
+        }
     }
 
     public override bool AutoBanOnLogonFailure

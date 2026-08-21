@@ -309,6 +309,12 @@ SET settinginteger = @VerifyRemoteSslCertificate
 WHERE settingname = N'VerifyRemoteSslCertificate';
 """;
 
+    public const string UpdateIpv6PreferredSql = """
+UPDATE hm_settings
+SET settinginteger = @IPv6Preferred
+WHERE settingname = N'IPv6Preferred';
+""";
+
     public const string UpdateAntiSpamUseSpfSql = """
 UPDATE hm_settings
 SET settinginteger = @UseSPF
@@ -1077,6 +1083,17 @@ WHERE settingname <> N'smtprelayerpassword'
         await using var command = new SqlCommand(UpdateVerifyRemoteSslCertificateSql, connection);
         command.Parameters.Add("@VerifyRemoteSslCertificate", SqlDbType.Int).Value =
             verifyRemoteSslCertificate ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateIpv6PreferredAsync(
+        bool ipv6Preferred,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateIpv6PreferredSql, connection);
+        command.Parameters.Add("@IPv6Preferred", SqlDbType.Int).Value = ipv6Preferred ? 1 : 0;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }

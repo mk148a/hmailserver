@@ -743,9 +743,6 @@ public sealed class SettingsComContractTests
             Assert.ThrowsExactly<COMException>(() => settings.SslCipherList = "DEFAULT").ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.IPv6PreferredEnabled = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.AutoBanOnLogonFailure = false).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
@@ -3718,6 +3715,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_Ipv6PreferredSetterPersistsBeforePublishingAndRechecksAdministrator()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            Ipv6PreferredUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                Ipv6PreferredEnabled: false),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.IPv6PreferredEnabled = true;
+
+        Assert.AreEqual(1, store.Ipv6PreferredUpdateCount);
+        Assert.IsTrue(store.UpdatedIpv6Preferred);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.IsTrue(settings.IPv6PreferredEnabled);
+
+        store.Ipv6PreferredUpdateResult = false;
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.IPv6PreferredEnabled = false);
+
+        Assert.AreEqual(unchecked((int)0x80004005), failed.ErrorCode);
+        Assert.AreEqual(2, store.Ipv6PreferredUpdateCount);
+        Assert.IsTrue(settings.IPv6PreferredEnabled);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IPv6PreferredEnabled = false);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.Ipv6PreferredUpdateCount);
+        Assert.IsTrue(settings.IPv6PreferredEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiSpamSpfSettersPersistAndRefreshRetainedSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore
@@ -6183,6 +6222,12 @@ public sealed class SettingsComContractTests
 
         public bool VerifyRemoteSslCertificateUpdateResult { get; set; }
 
+        public bool Ipv6PreferredUpdateResult { get; set; }
+
+        public int Ipv6PreferredUpdateCount { get; private set; }
+
+        public bool UpdatedIpv6Preferred { get; private set; }
+
         public int VerifyRemoteSslCertificateUpdateCount { get; private set; }
 
         public bool UpdatedVerifyRemoteSslCertificate { get; private set; }
@@ -6950,6 +6995,16 @@ public sealed class SettingsComContractTests
             UpdatedVerifyRemoteSslCertificate = verifyRemoteSslCertificate;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(VerifyRemoteSslCertificateUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateIpv6PreferredAsync(
+            bool ipv6Preferred,
+            CancellationToken cancellationToken)
+        {
+            Ipv6PreferredUpdateCount++;
+            UpdatedIpv6Preferred = ipv6Preferred;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(Ipv6PreferredUpdateResult);
         }
 
         public ValueTask<bool> UpdateAntiSpamUseSpfAsync(

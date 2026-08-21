@@ -186,6 +186,10 @@ public interface ISettingsAdministrationMutationStore
         bool verifyRemoteSslCertificate,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateIpv6PreferredAsync(
+        bool ipv6Preferred,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);
