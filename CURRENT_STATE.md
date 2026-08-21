@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-21T12:12:38Z` / `2026-08-21T15:12:38+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: branch tip verified locally with `git rev-parse HEAD` (bounded authenticated automatic-ban duration persistence and status documentation pending; local and unpushed)
+- Current HEAD: branch tip verified locally with `git rev-parse HEAD` (bounded authenticated automatic-ban duration persistence and status documentation complete; local and unpushed)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
 - Latest focused-test result: Settings/SQL store filters `242 passed, 0 skipped, 0 failed`; DKIM runtime filter `8 passed, 2 skipped, 0 failed`; delivery queue plus SQL store filter `22/22` passed; SQL Server integration class `1 passed, 5 skipped` because disposable SQL opt-in was absent
 - Latest full Net10 result: `2520 passed, 90 skipped, 0 failed` (`2610` total), direct Debug run with `UseSharedCompilation=false`
