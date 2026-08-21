@@ -252,6 +252,18 @@ public static class DeliveryQueueAdministrationRuntimeHost
             Volatile.Read(ref _clearCoordinator),
             authorizationGuard);
 
+    internal static bool TrySignal()
+    {
+        var wakeSignal = Volatile.Read(ref _wakeSignal);
+        if (wakeSignal is null)
+        {
+            return false;
+        }
+
+        wakeSignal.Signal();
+        return true;
+    }
+
     internal static void ResetForTests()
     {
         Volatile.Write(ref _store, null);

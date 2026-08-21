@@ -12,6 +12,7 @@ public sealed class Application : IInterfaceApplication
 {
     private const int CoENotInitialized = unchecked((int)0x800401F0);
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IServerAdministratorAuthenticationProvider? _authenticationProvider;
@@ -220,7 +221,25 @@ public sealed class Application : IInterfaceApplication
         NotImplemented();
     }
 
-    public void SubmitEMail() => NotImplemented();
+    public void SubmitEMail()
+    {
+        bool signalConfigured;
+        try
+        {
+            signalConfigured = DeliveryQueueAdministrationRuntimeHost.TrySignal();
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "It was not possible to submit pending email.",
+                EFail);
+        }
+
+        if (!signalConfigured)
+        {
+            NotImplemented();
+        }
+    }
 
     public void Connect() => NotImplemented();
 

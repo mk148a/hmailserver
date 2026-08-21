@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Delivery;
 using HMailServer.Protocols.Pop3;
 
 namespace HMailServer.Net10.Tests;
@@ -12,6 +13,12 @@ public sealed class ApplicationComContractTests
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
     private const int ENotImplemented = unchecked((int)0x80004001);
+
+    [TestInitialize]
+    public void ResetRuntimeHost()
+    {
+        DeliveryQueueAdministrationRuntimeHost.ResetForTests();
+    }
 
     [TestMethod]
     public void ApplicationInterface_PreservesLegacyIidDispatchIdsAndVtableOrder()
@@ -42,6 +49,7 @@ public sealed class ApplicationComContractTests
 
         Assert.AreEqual(3, contract.GetProperty(nameof(IInterfaceApplication.Settings))?.GetCustomAttribute<DispIdAttribute>()?.Value);
         Assert.AreEqual(17, contract.GetMethod(nameof(IInterfaceApplication.Authenticate))?.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(8, contract.GetMethod(nameof(IInterfaceApplication.SubmitEMail))?.GetCustomAttribute<DispIdAttribute>()?.Value);
     }
 
     [TestMethod]
@@ -317,7 +325,55 @@ public sealed class ApplicationComContractTests
         AssertOperationPending(application.Stop);
         AssertOperationPending(application.Connect);
         AssertOperationPending(application.Reinitialize);
-        AssertOperationPending(application.SubmitEMail);
+    }
+
+    [TestMethod]
+    public void Application_SubmitEMailWakesDeliveryWithoutAuthenticationOrDataCallbacks()
+    {
+        var store = new CallbackGuardDeliveryQueueAdministrationStore();
+        var wakeSignal = new RecordingDeliveryQueueWakeSignal();
+        DeliveryQueueAdministrationRuntimeHost.Configure(store, wakeSignal);
+
+        new Application().SubmitEMail();
+
+        Assert.AreEqual(1, wakeSignal.SignalCount);
+        Assert.AreEqual(0, store.CallbackCount);
+    }
+
+    [TestMethod]
+    public async Task Application_SubmitEMailRepeatedCallsUseCoalescingWakeSignal()
+    {
+        using var wakeSignal = new DeliveryQueueWakeSignal();
+        var store = new CallbackGuardDeliveryQueueAdministrationStore();
+        DeliveryQueueAdministrationRuntimeHost.Configure(store, wakeSignal);
+        var application = new Application();
+
+        application.SubmitEMail();
+        application.SubmitEMail();
+
+        Assert.IsTrue(await wakeSignal.WaitAsync(TimeSpan.FromSeconds(1), CancellationToken.None));
+        Assert.IsFalse(await wakeSignal.WaitAsync(TimeSpan.FromMilliseconds(25), CancellationToken.None));
+        Assert.AreEqual(0, store.CallbackCount);
+    }
+
+    [TestMethod]
+    public void Application_SubmitEMailRemainsNotImplementedWhenWakeSignalIsUnconfigured()
+    {
+        var error = Assert.ThrowsExactly<COMException>(() => new Application().SubmitEMail());
+
+        Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    [TestMethod]
+    public void Application_SubmitEMailMapsWakeSignalFailureToEFailWithoutDataCallbacks()
+    {
+        var store = new CallbackGuardDeliveryQueueAdministrationStore();
+        DeliveryQueueAdministrationRuntimeHost.Configure(store, new DisposedDeliveryQueueWakeSignal());
+
+        var error = Assert.ThrowsExactly<COMException>(() => new Application().SubmitEMail());
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.AreEqual(0, store.CallbackCount);
     }
 
     [TestMethod]
@@ -603,5 +659,49 @@ public sealed class ApplicationComContractTests
         : IApplicationRuntimeStore
     {
         public ApplicationRuntimeSnapshot GetSnapshot() => snapshot;
+    }
+
+    private sealed class CallbackGuardDeliveryQueueAdministrationStore : IDeliveryQueueAdministrationStore
+    {
+        public int CallbackCount { get; private set; }
+
+        public ValueTask<bool> ResetDeliveryTimeAsync(long messageId, CancellationToken cancellationToken)
+        {
+            CallbackCount++;
+            throw new InvalidOperationException("Unexpected delivery queue data callback.");
+        }
+
+        public ValueTask<bool> RemoveAsync(long messageId, CancellationToken cancellationToken)
+        {
+            CallbackCount++;
+            throw new InvalidOperationException("Unexpected delivery queue data callback.");
+        }
+
+        public ValueTask<int> ClearBatchAsync(
+            int batchSize,
+            DateTime clearStartedUtc,
+            CancellationToken cancellationToken)
+        {
+            CallbackCount++;
+            throw new InvalidOperationException("Unexpected delivery queue data callback.");
+        }
+    }
+
+    private sealed class RecordingDeliveryQueueWakeSignal : IDeliveryQueueWakeSignal
+    {
+        public int SignalCount { get; private set; }
+
+        public void Signal() => SignalCount++;
+
+        public ValueTask<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class DisposedDeliveryQueueWakeSignal : IDeliveryQueueWakeSignal
+    {
+        public void Signal() => throw new ObjectDisposedException(nameof(DisposedDeliveryQueueWakeSignal));
+
+        public ValueTask<bool> WaitAsync(TimeSpan timeout, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }
