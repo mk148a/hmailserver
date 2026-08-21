@@ -110,6 +110,10 @@ public interface ISettingsAdministrationMutationStore
         string hostName,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateImapHierarchyDelimiterAsync(
+        string imapHierarchyDelimiter,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateWorkerThreadPriorityAsync(
         int workerThreadPriority,
         CancellationToken cancellationToken);

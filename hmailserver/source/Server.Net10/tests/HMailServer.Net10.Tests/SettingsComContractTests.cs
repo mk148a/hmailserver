@@ -1349,6 +1349,47 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ImapHierarchyDelimiterSetterPersistsBeforePublishingAndRetainsRejectedState()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            ImapHierarchyDelimiterUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                ImapHierarchyDelimiter: "."),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store);
+
+        settings.IMAPHierarchyDelimiter = "/";
+
+        Assert.AreEqual(1, store.ImapHierarchyDelimiterUpdateCount);
+        Assert.AreEqual("/", store.UpdatedImapHierarchyDelimiter);
+        Assert.IsFalse(store.CancellationToken.CanBeCanceled);
+        Assert.AreEqual("/", settings.IMAPHierarchyDelimiter);
+
+        store.ImapHierarchyDelimiterUpdateResult = false;
+        var rejected = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPHierarchyDelimiter = "-");
+
+        Assert.AreEqual(unchecked((int)0x80004005), rejected.ErrorCode);
+        Assert.AreEqual(2, store.ImapHierarchyDelimiterUpdateCount);
+        Assert.AreEqual("/", settings.IMAPHierarchyDelimiter);
+
+        isServerAdministrator = false;
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.IMAPHierarchyDelimiter = "-");
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(2, store.ImapHierarchyDelimiterUpdateCount);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_SmtpRelayerSetterPersistsBstrBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -5936,6 +5977,12 @@ public sealed class SettingsComContractTests
 
         public string? UpdatedHostName { get; private set; }
 
+        public bool ImapHierarchyDelimiterUpdateResult { get; set; }
+
+        public int ImapHierarchyDelimiterUpdateCount { get; private set; }
+
+        public string? UpdatedImapHierarchyDelimiter { get; private set; }
+
         public bool WorkerThreadPriorityUpdateResult { get; set; }
 
         public bool GateWorkerThreadPriorityMutation { get; set; }
@@ -6585,6 +6632,16 @@ public sealed class SettingsComContractTests
             UpdatedHostName = hostName;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(HostNameUpdateResult);
+        }
+
+        public ValueTask<bool> UpdateImapHierarchyDelimiterAsync(
+            string imapHierarchyDelimiter,
+            CancellationToken cancellationToken)
+        {
+            ImapHierarchyDelimiterUpdateCount++;
+            UpdatedImapHierarchyDelimiter = imapHierarchyDelimiter;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(ImapHierarchyDelimiterUpdateResult);
         }
 
         public ValueTask<bool> UpdateWorkerThreadPriorityAsync(

@@ -172,6 +172,35 @@ SET settingstring = @HostName
 WHERE settingname = N'hostname';
 """;
 
+    public const string GetImapHierarchyDelimiterForUpdateSql = """
+SELECT TOP (1) settingstring
+FROM hm_settings WITH (UPDLOCK, HOLDLOCK)
+WHERE settingname = N'IMAPHierarchyDelimiter';
+""";
+
+    public const string HasImapFolderContainingDelimiterSql = """
+SELECT TOP (1) 1
+FROM hm_imapfolders
+WHERE CHARINDEX(@NewDelimiter, foldername) > 0;
+""";
+
+    public const string HasRuleActionContainingDelimiterSql = """
+SELECT TOP (1) 1
+FROM hm_rule_actions
+WHERE CHARINDEX(@NewDelimiter, actionimapfolder) > 0;
+""";
+
+    public const string ReplaceRuleActionHierarchyDelimiterSql = """
+UPDATE hm_rule_actions
+SET actionimapfolder = REPLACE(actionimapfolder, @OldDelimiter, @NewDelimiter);
+""";
+
+    public const string UpdateImapHierarchyDelimiterSql = """
+UPDATE hm_settings
+SET settingstring = @NewDelimiter
+WHERE settingname = N'IMAPHierarchyDelimiter';
+""";
+
     public const string UpdateWorkerThreadPrioritySql = """
 UPDATE hm_settings
 SET settinginteger = @WorkerThreadPriority
@@ -1183,6 +1212,94 @@ WHERE settingname <> N'smtprelayerpassword'
         command.Parameters.Add("@HostName", SqlDbType.NVarChar, 4000).Value = hostName;
 
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateImapHierarchyDelimiterAsync(
+        string imapHierarchyDelimiter,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqlTransaction)await connection
+            .BeginTransactionAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        try
+        {
+            await using var currentCommand = new SqlCommand(
+                GetImapHierarchyDelimiterForUpdateSql,
+                connection,
+                transaction);
+            var currentValue = Convert.ToString(
+                await currentCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
+            if (currentValue is null)
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                return false;
+            }
+
+            if (string.Equals(currentValue, imapHierarchyDelimiter, StringComparison.Ordinal))
+            {
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return true;
+            }
+
+            if (await ContainsDelimiterAsync(
+                    connection,
+                    transaction,
+                    HasImapFolderContainingDelimiterSql,
+                    imapHierarchyDelimiter,
+                    cancellationToken).ConfigureAwait(false)
+                || await ContainsDelimiterAsync(
+                    connection,
+                    transaction,
+                    HasRuleActionContainingDelimiterSql,
+                    imapHierarchyDelimiter,
+                    cancellationToken).ConfigureAwait(false))
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                return false;
+            }
+
+            await using var replaceCommand = new SqlCommand(
+                ReplaceRuleActionHierarchyDelimiterSql,
+                connection,
+                transaction);
+            replaceCommand.Parameters.Add("@OldDelimiter", SqlDbType.NVarChar, 255).Value = currentValue;
+            replaceCommand.Parameters.Add("@NewDelimiter", SqlDbType.NVarChar, 255).Value = imapHierarchyDelimiter;
+            await replaceCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+            await using var updateCommand = new SqlCommand(
+                UpdateImapHierarchyDelimiterSql,
+                connection,
+                transaction);
+            updateCommand.Parameters.Add("@NewDelimiter", SqlDbType.NVarChar, 255).Value = imapHierarchyDelimiter;
+            var affectedRows = await updateCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            if (affectedRows != 1)
+            {
+                await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+                return false;
+            }
+
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private static async ValueTask<bool> ContainsDelimiterAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        string sql,
+        string delimiter,
+        CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(sql, connection, transaction);
+        command.Parameters.Add("@NewDelimiter", SqlDbType.NVarChar, 255).Value = delimiter;
+        return await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is not null;
     }
 
     public async ValueTask<bool> UpdateAntiSpamUseSpfAsync(

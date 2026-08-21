@@ -2034,7 +2034,36 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.IMAPHierarchyDelimiter
                 : _administrationSnapshot.ImapHierarchyDelimiter;
         }
-        set => base.IMAPHierarchyDelimiter = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.IMAPHierarchyDelimiter = value;
+                return;
+            }
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateImapHierarchyDelimiterAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The IMAP hierarchy delimiter update was rejected by the existing folder or rule-action data.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    ImapHierarchyDelimiter = value
+                };
+            }
+        }
     }
 
     public override bool AllowIncorrectLineEndings

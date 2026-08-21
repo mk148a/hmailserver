@@ -349,6 +349,28 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void ImapHierarchyDelimiterSql_UsesExistingRowsAndParameterizedCrossTableChecks()
+    {
+        StringAssert.Contains(
+            SqlServerSettingsAdministrationStore.GetImapHierarchyDelimiterForUpdateSql,
+            "UPDLOCK");
+        StringAssert.Contains(
+            SqlServerSettingsAdministrationStore.HasImapFolderContainingDelimiterSql,
+            "CHARINDEX(@NewDelimiter, foldername)");
+        StringAssert.Contains(
+            SqlServerSettingsAdministrationStore.HasRuleActionContainingDelimiterSql,
+            "CHARINDEX(@NewDelimiter, actionimapfolder)");
+        StringAssert.Contains(
+            SqlServerSettingsAdministrationStore.ReplaceRuleActionHierarchyDelimiterSql,
+            "REPLACE(actionimapfolder, @OldDelimiter, @NewDelimiter)");
+        StringAssert.Contains(
+            SqlServerSettingsAdministrationStore.UpdateImapHierarchyDelimiterSql,
+            "WHERE settingname = N'IMAPHierarchyDelimiter'");
+        Assert.IsFalse(
+            SqlServerSettingsAdministrationStore.ReplaceRuleActionHierarchyDelimiterSql.Contains("' +", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateWorkerThreadPrioritySql_UpdatesOnlyTheExistingWorkerPriorityRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateWorkerThreadPrioritySql;
