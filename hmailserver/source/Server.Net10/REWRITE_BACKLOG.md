@@ -1,5 +1,22 @@
 
-# Current bounded slice: authenticated IPv6 preference persistence (2026-08-21)
+# Current bounded slice: authenticated SSL cipher-list persistence (2026-08-21)
+
+Legacy `InterfaceSettings::put_SslCipherList`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2276-2288`) calls
+`Configuration::SetSslCipherList`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:610-620`),
+which writes the raw value to the existing `hm_settings` row `SslCipherList`.
+Code/test commit `daec569bd` adds the authenticated Net10 mutation with
+one-row failure containment, authorization lease, and publish-after-success
+snapshot behavior. Focused Settings/SQL coverage is `234 passed, 0 skipped, 0
+failed`; full Net10 is `2512 passed, 90 skipped, 0 failed`.
+
+No TLS live reconfiguration, SMTP trust, schema, or COM identity change was
+added. The next slice is disposable `6000` SQL/Data host-start acceptance when
+the approved connection and isolated-create opt-in become available; release
+remains RED.
+
+## Current bounded slice: authenticated IPv6 preference persistence (2026-08-21)
 
 Legacy `InterfaceSettings::put_IPv6PreferredEnabled`
 (`hmailserver/source/Server/COM/InterfaceSettings.cpp:2607-2618`) calls

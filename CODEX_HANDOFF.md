@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, SSL cipher-list persistence)
+
+Legacy `InterfaceSettings::put_SslCipherList`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2276-2288`) calls
+`Configuration::SetSslCipherList`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:610-620`),
+which persists the raw value in `hm_settings.SslCipherList`. Code/test commit
+`daec569bd` adds the authenticated Net10 SQL mutation, one-row fail-closed
+outcome, authorization lease, and snapshot update only after success. Focused
+Settings/SQL tests pass `234`, fail `0`; full Net10 passes `2512`, skips `90`,
+fails `0` (`2602` total).
+
+No TLS live reconfiguration, SMTP trust, schema, or installed COM identity was
+changed. The next slice is isolated disposable `6000` SQL/Data host-start
+success/failure with no listener/worker side effects, blocked until the
+approved SQL connection and isolated-create opt-in exist. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, IPv6 preference persistence)
 
 Legacy `InterfaceSettings::put_IPv6PreferredEnabled`

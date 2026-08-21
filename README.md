@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current SSL cipher-list persistence slice (2026-08-21)
+
+Legacy `InterfaceSettings::put_SslCipherList`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2276-2288`) forwards the
+raw BSTR to `Configuration::SetSslCipherList`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:610-620`),
+which writes the existing `hm_settings` string row `SslCipherList` without a
+validation layer.
+
+Code/test commit `daec569bd` adds the matching authenticated Net10 mutation
+store update, one-row fail-closed behavior, authorization lease, and retained
+snapshot publication only after success. The installed Settings COM identity
+is unchanged. No TLS live reconfiguration or SMTP trust change was added.
+Focused Settings/SQL coverage is `234 passed, 0 skipped, 0 failed`; full Net10
+is `2512 passed, 90 skipped, 0 failed` (`2602` total).
+
+The next production gate remains disposable `6000` SQL/Data host-start success
+and failure evidence, blocked because the approved SQL connection and
+isolated-create opt-in are absent. Release remains **RED**.
+
 ## Current IPv6 preference persistence slice (2026-08-21)
 
 Legacy `InterfaceSettings::put_IPv6PreferredEnabled`
