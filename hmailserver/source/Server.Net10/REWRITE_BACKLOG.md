@@ -7299,3 +7299,26 @@ Next slice: run disposable live SQL ACL insertion for valid user/group/anyone
 rows, non-public-folder rejection, commit, and mid-batch rollback. Do not wire
 holder resolution or production restore execution in that slice. Release
 remains **RED**.
+## Current bounded slice: authenticated AntiVirus.ClamWinEnabled mutation (2026-08-22)
+
+Code/test commit `e43f27997` closes one legacy Administrator mutation gap.
+`InterfaceAntiVirus::put_ClamWinEnabled` in
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:23-44` returns access
+denied before mutation for unauthenticated callers, writes the legacy fixed
+`avclamwinenable` setting, and returns `S_OK` on success. Net10 preserves the
+existing Settings authentication boundary and COM identity, performs a
+parameterized one-row update through `ISettingsAdministrationMutationStore`,
+and updates the retained Settings snapshot only after persistence succeeds.
+
+Coverage is in `SettingsComContractTests.cs` and
+`SqlServerSettingsAdministrationStoreTests.cs`: `318 passed, 0 skipped, 0
+failed` focused and `2605 passed, 92 skipped, 0 failed` full Debug (`2697`
+total). No live SQL acceptance was run because no approved disposable
+Full-Text-capable SQL Server is available. Release remains RED.
+
+Next independent slices, in order: establish or record the exact blocker for
+Full-Text-capable disposable SQL Server `6000`; implement the next smallest
+authenticated AntiVirus Admin mutation; then continue isolated registered
+COM/SEC-18 caller evidence. Do not broaden this slice to SMTP trust, live
+reconfiguration, other Admin collections, production registration, or
+production SQL/Data.

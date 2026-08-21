@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authenticated AntiVirus mutation gate (2026-08-22)
+
+Code/test commit `e43f27997` implements the legacy authenticated
+`AntiVirus.ClamWinEnabled` setter. The legacy reference is
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:23-44`, using the
+`avclamwinenable` row named by
+`hmailserver/source/Server/Common/Application/Constants.h:22`. Net10 persists
+the fixed row through `SqlServerSettingsAdministrationStore`, requires the
+existing authenticated Settings lease, and publishes only after a successful
+single-row update. COM identity, direct activation denial, SMTP trust, and
+live reconfiguration are unchanged.
+
+Focused contract/store tests pass `318`, skip `0`, and fail `0`; default full
+Net10 passes `2605`, skips `92`, and fails `0` (`2697` total). No disposable
+SQL integration was available, so release remains **RED**. Remaining gates
+include Full-Text SQL/Data round-trip, installer rollback, registered COM and
+SEC-18 evidence, AD/master-user, DKIM/DMARC/SPF, paired C++ performance, and
+long-soak acceptance. Next slice: establish or verify disposable Full-Text
+SQL Server `6000`, then continue the smallest authenticated Admin mutation.
+
 ## Current recursive DataBackup containment gate (2026-08-22)
 
 Code/test commit `4a71e82e1` replaces path-based recursive DataBackup copying
