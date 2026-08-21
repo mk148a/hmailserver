@@ -1,14 +1,16 @@
 
-## Current next slice (2026-08-21, SMTP live greylisting acceptance)
+## Current next slice (2026-08-21, SMTP live greylisting acceptance after domain setter evidence)
 
-Code/test commit `0f2d7eabf` completes the authenticated `Add()` -> `Save()` ->
+Code/test commit `76f9d0074` adds focused COM evidence for the authenticated
+domain `AntiSpamEnableGreylisting` setter/save path and retains the completed
+`Add()` -> `Save()` ->
 `GreyListingWhiteAddress.Delete()` path after the SPF,
 MX checks, SpamAssassin, scanner endpoint, maximum-size, DKIM verification,
 greylisting bypass, CheckHostInHelo, InitialDelete, and FinalDelete pairs, plus
 the disposable whitelist Add/Save/readback/item Delete round trip. Focused
-item-delete COM coverage is `20 passed, 0 skipped, 0 failed`; the isolated
-LocalDB/Data Add/Save/readback/item Delete integration is `1 passed, 0 skipped,
-0 failed`; full disposable LocalDB/Data is `2509 passed, 10 skipped, 0 failed`
+domain COM coverage is `17 passed, 0 skipped, 0 failed`; related isolated domain
+SQL store integration is `3 passed, 0 skipped, 0 failed`; full disposable
+LocalDB/Data is `2509 passed, 10 skipped, 0 failed`
 (`2519` total).
 
 Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
@@ -17,6 +19,9 @@ Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`hmailserver/source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`),
 and `PersistentGreyListingWhiteAddress`
 (`hmailserver/source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
+Domain anchors are `InterfaceDomain::get/put_AntiSpamEnableGreylisting`
+(`hmailserver/source/Server/COM/InterfaceDomain.cpp:634-671`) and
+`Domain::Get/SetASUseGreyListing` (`hmailserver/source/Server/Common/BO/Domain.cpp:207-217`).
 The next bounded slice is production-hosted SMTP enable/disable/timing
 acceptance for live greylisting on an isolated production-like host. It must
 prove the legacy SMTP socket behavior and runtime timing without changing

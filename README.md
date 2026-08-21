@@ -1,17 +1,19 @@
 hMailServer
 ===========
 
-## Current authoritative parity status (2026-08-21, saved GreyListingWhiteAddress Delete parity)
+## Current authoritative parity status (2026-08-21, domain greylisting setter/save parity)
 
-Code/test commit `0f2d7eabf` proves the legacy-compatible authenticated
+Code/test commit `76f9d0074` adds focused evidence for the legacy-compatible
+authenticated domain `AntiSpamEnableGreylisting` setter/save path, while
+retaining the authenticated
 `GreyListingWhiteAddress.Delete()` mutation for an item created by `Add()`,
 saved, and then deleted through the
 existing authenticated Settings mutation boundary, after the SPF, MX checks,
 SpamAssassin, scanner endpoint, maximum-size, DKIM verification, greylisting
 bypass, CheckHostInHelo, CheckPTR, GreyListingEnabled, AddHeader, PrependSubject,
 and threshold pairs, plus the disposable whitelist Add/Save/readback/item Delete
-round trip. Focused COM coverage is `20 passed, 0 skipped, 0 failed`; the
-isolated LocalDB/Data integration is `1 passed, 0 skipped, 0 failed`; full
+round trip. Focused domain COM coverage is `17 passed, 0 skipped, 0 failed`;
+related isolated SQL store coverage is `3 passed, 0 skipped, 0 failed`; full
 disposable Net10 is `2509 passed, 10 skipped, 0 failed` (`2519` total). The
 FinalDelete code/test slice remains in `1528f075b`.
 
@@ -21,6 +23,11 @@ Legacy anchors are `InterfaceGreyListingWhiteAddresses::Add/DeleteByDBID`
 (`source/Server/COM/InterfaceGreyListingWhiteAddress.cpp:9-138`), and
 `PersistentGreyListingWhiteAddress`
 (`source/Server/Common/Persistence/PersistentGreyListingWhiteAddress.cpp:26-104`).
+Domain anchors are `InterfaceDomain::get/put_AntiSpamEnableGreylisting`
+(`source/Server/COM/InterfaceDomain.cpp:634-671`) and
+`Domain::Get/SetASUseGreyListing` (`source/Server/Common/BO/Domain.cpp:207-217`).
+The domain facade stages this flag and publishes it only after its existing
+`SaveDomain`/`UpdateDomainAsync` path succeeds.
 The saved-new-item `Delete()` callback now uses the owning collection's
 authenticated SQL delete path and removes only the successfully deleted item
 from that collection snapshot. The next production slice is SMTP
