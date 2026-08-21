@@ -7605,3 +7605,25 @@ Full-Text-capable disposable SQL Server `6000`; implement authenticated
 `ClamAVPort` mutation; then continue isolated registered COM/SEC-18 caller
 evidence. Do not broaden this slice to SMTP trust, live reconfiguration,
 other Admin collections, production registration, or production SQL/Data.
+## Current bounded slice: authenticated AntiVirus.ClamAVPort mutation (2026-08-22)
+
+Code/test commit `8f173c0ff` closes the final remaining setter in the current
+Net10 AntiVirus COM surface. `InterfaceAntiVirus::put_ClamAVPort` in
+`hmailserver/source/Server/COM/InterfaceAntiVirus.cpp:519-533` returns access
+denied before mutation for unauthenticated callers, writes the legacy fixed
+`ClamAVPort` setting, and returns `S_OK` on success. Net10 preserves the
+existing Settings authentication boundary and COM identity, performs a
+parameterized one-row update through `ISettingsAdministrationMutationStore`,
+and updates the retained Settings snapshot only after persistence succeeds.
+
+Coverage is in `SettingsComContractTests.cs` and
+`SqlServerSettingsAdministrationStoreTests.cs`: `357 passed, 0 skipped, 0
+failed` focused and `2644 passed, 92 skipped, 0 failed` full Debug (`2736`
+total). No live SQL acceptance was run because no approved disposable
+Full-Text-capable SQL Server is available. Release remains RED.
+
+Next independent slices, in order: establish or record the exact blocker for
+Full-Text-capable disposable SQL Server `6000`; complete isolated registered
+COM/SEC-18 caller evidence; then installer/service/data rollback acceptance.
+Do not broaden this slice to SMTP trust, live reconfiguration, other Admin
+collections, production registration, or production SQL/Data.
