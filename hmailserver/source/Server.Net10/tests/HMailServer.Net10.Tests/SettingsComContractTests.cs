@@ -4370,6 +4370,100 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_MaxNumberOfMXHostsSetterUnavailableAuthorizationLeaseFailsBeforeMutation()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxNumberOfMXHostsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfMxHosts: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ =>
+                ValueTask.FromResult<IDisposable?>(null));
+
+        var denied = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxNumberOfMXHosts = 25);
+
+        Assert.AreEqual(EAccessDenied, denied.ErrorCode);
+        Assert.AreEqual(0, store.MaxNumberOfMXHostsUpdateCount);
+        Assert.AreEqual(10, settings.MaxNumberOfMXHosts);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxNumberOfMXHostsSetterHoldsAuthorizationLeaseDuringStoreUpdate()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxNumberOfMXHostsUpdateResult = true,
+            MaxNumberOfMXHostsMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfMxHosts: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.MaxNumberOfMXHosts = 25;
+
+        Assert.IsTrue(store.MaxNumberOfMXHostsLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.AreEqual(25, settings.MaxNumberOfMXHosts);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_MaxNumberOfMXHostsSetterDisposesLeaseAndPreservesSnapshotWhenStoreUpdateFails()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            MaxNumberOfMXHostsUpdateResult = false,
+            MaxNumberOfMXHostsMutationProbe = () =>
+                activeLease is not null && !activeLease.Disposed
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                MaxNumberOfMxHosts: 10),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.MaxNumberOfMXHosts = 25);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, store.MaxNumberOfMXHostsUpdateCount);
+        Assert.IsTrue(store.MaxNumberOfMXHostsLeaseHeldDuringUpdate);
+        Assert.IsTrue(activeLease!.Disposed);
+        Assert.AreEqual(10, settings.MaxNumberOfMXHosts);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_VerifyRemoteSslCertificateSetterPersistsBeforePublishingAndRechecksAdministrator()
     {
         var isServerAdministrator = true;
@@ -7491,6 +7585,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedMaxNumberOfMXHosts { get; private set; }
 
+        public Func<bool>? MaxNumberOfMXHostsMutationProbe { get; set; }
+
+        public bool MaxNumberOfMXHostsLeaseHeldDuringUpdate { get; private set; }
+
         public bool MaxSmtpRecipientsInBatchUpdateResult { get; set; }
 
         public bool GateMaxSmtpRecipientsInBatchMutation { get; set; }
@@ -8267,6 +8365,8 @@ public sealed class SettingsComContractTests
             MaxNumberOfMXHostsUpdateCount++;
             UpdatedMaxNumberOfMXHosts = maxNumberOfMXHosts;
             CancellationToken = cancellationToken;
+            MaxNumberOfMXHostsLeaseHeldDuringUpdate =
+                MaxNumberOfMXHostsMutationProbe?.Invoke() ?? false;
             return ValueTask.FromResult(MaxNumberOfMXHostsUpdateResult);
         }
 

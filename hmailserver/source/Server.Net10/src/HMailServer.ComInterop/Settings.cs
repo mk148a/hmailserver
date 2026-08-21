@@ -2213,6 +2213,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 return;
             }
 
+            using var authorizationLease = AcquireAuthorizationLease();
             if (!_settingsMutationStore
                 .UpdateMaxNumberOfMXHostsAsync(value, CancellationToken.None)
                 .GetAwaiter()
