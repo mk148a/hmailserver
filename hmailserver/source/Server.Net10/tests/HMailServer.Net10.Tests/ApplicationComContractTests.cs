@@ -321,6 +321,18 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
+    public void Application_ServiceControlOperationsRequireAdministratorBeforePendingPath()
+    {
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+
+        var startDenied = Assert.ThrowsExactly<COMException>(application.Start);
+        var stopDenied = Assert.ThrowsExactly<COMException>(application.Stop);
+
+        Assert.AreEqual(EAccessDenied, startDenied.ErrorCode);
+        Assert.AreEqual(EAccessDenied, stopDenied.ErrorCode);
+    }
+
+    [TestMethod]
     public void Application_ReinitializeRequiresAuthenticatedAdministrator()
     {
         var application = Application.CreateForRuntime(

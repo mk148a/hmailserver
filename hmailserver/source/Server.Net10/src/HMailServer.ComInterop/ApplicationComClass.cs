@@ -208,9 +208,17 @@ public sealed class Application : IInterfaceApplication
 
     public string VersionArchitecture => ApplicationRuntimeHost.Snapshot.VersionArchitecture;
 
-    public void Start() => NotImplemented();
+    public void Start()
+    {
+        EnsureServerAdministrator();
+        NotImplemented();
+    }
 
-    public void Stop() => NotImplemented();
+    public void Stop()
+    {
+        EnsureServerAdministrator();
+        NotImplemented();
+    }
 
     public void SubmitEMail() => NotImplemented();
 
