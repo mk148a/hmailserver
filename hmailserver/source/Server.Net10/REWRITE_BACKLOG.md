@@ -1,4 +1,27 @@
 
+## Current bounded slice: Domain.SynchronizeDirectory compatibility (2026-08-22)
+
+Code/test commit `8c264991d` closes the obsolete compatibility-call gap for
+`IInterfaceDomain.SynchronizeDirectory` (`DISPID 13`). Legacy
+`InterfaceDomain::SynchronizeDirectory` at
+`hmailserver/source/Server/COM/InterfaceDomain.cpp:365-378` verifies the
+domain object and returns `S_OK` without performing directory synchronization
+or other mutation. Net10 now makes the adapter method overridable and the
+authorized `Domain` implementation calls `EnsureAuthorized()` then returns
+normally without store, SQL, filesystem, network, or snapshot work.
+
+The installed IID/vtable/DISPID/ProgID and direct activation boundary remain
+unchanged. Focused `DomainsComContractTests` pass `19`, skip `0`, and fail `0`;
+the full Debug Net10 suite passes `2646`, skips `92`, and fails `0` (`2738`
+total). Tests cover idempotence, no persistence callbacks, direct
+`E_ACCESSDENIED`, and retained-object authentication revocation.
+
+No production SQL/Data, service, registry, COM registration, DCOM, IIS, or
+firewall state changed. Release remains **RED**. Next independent gates are
+the approved Full-Text-capable SQL/Data round-trip when the connection is
+available, isolated registered COM/SEC-18 caller evidence when the disposable
+guest is visible, and installer/service/data rollback acceptance.
+
 ## Current bounded slice: native Data restore rename (2026-08-22)
 
 Code/test commit `1cdd7b98d` fixes the six disposable LocalDB/Data restore

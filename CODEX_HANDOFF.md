@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-22, Domain compatibility)
+
+Code/test commit `8c264991d` implements the legacy
+`InterfaceDomain::SynchronizeDirectory` no-op at
+`hmailserver/source/Server/COM/InterfaceDomain.cpp:365-378`. Net10’s
+`Domain.SynchronizeDirectory` first enforces the existing authenticated
+domain boundary and then returns `S_OK` without SQL, Data, filesystem, network,
+or snapshot mutation. IID `3F50C3AF-67C0-4628-91D6-E2EAC7786830`, DISPID 13,
+ProgID, vtable order, and direct activation denial are unchanged.
+
+Focused domain tests pass `19/19`; full Debug Net10 passes `2646`, skips `92`,
+and fails `0`. Release is still **RED**: Full-Text SQL/Data acceptance,
+registered COM/SEC-18 caller evidence, installer rollback, paired C++/.NET
+performance, protocol/load thresholds, and long-soak evidence remain open or
+environment-blocked. No production state changed.
+
+Next: use an approved Full-Text SQL/Data environment if available; otherwise
+continue the next isolated registered COM/SEC-18 evidence step only when the
+disposable guest is visible, then installer/service/data rollback acceptance.
+
 ## Current Authoritative Continuation (2026-08-22, native Data restore rename)
 
 Code/test commit `1cdd7b98d` fixes the bounded Windows restore rename in

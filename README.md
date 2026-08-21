@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current Domain compatibility gate (2026-08-22)
+
+Code/test commit `8c264991d` restores the legacy
+`IInterfaceDomain::SynchronizeDirectory` compatibility call. Legacy
+`InterfaceDomain::SynchronizeDirectory` in
+`hmailserver/source/Server/COM/InterfaceDomain.cpp:365-378` verifies the
+domain object and returns `S_OK` without synchronizing files or changing state.
+Net10 now preserves IID `3F50C3AF-67C0-4628-91D6-E2EAC7786830`, DISPID `13`,
+ProgID `hMailServer.Domain.1`, and direct-activation denial, while an
+authenticated retained domain performs the same no-op.
+
+Focused `DomainsComContractTests` pass `19/19`; the full Debug Net10 suite
+passes `2646`, skips `92`, and fails `0` (`2738` total). Tests prove
+idempotence, no persistence callback, direct `E_ACCESSDENIED`, and retained
+authentication revocation. No SQL, Data, service, registry, COM registration,
+DCOM, IIS, or firewall state changed. Release remains **RED** because the
+Full-Text SQL/Data gate, registered COM/SEC-18 evidence, installer rollback,
+paired C++ performance, protocol/load thresholds, and long-soak acceptance
+remain open.
+
 ## Current native Data restore rename gate (2026-08-22)
 
 Code/test commit `1cdd7b98d` fixes the bounded Windows Data-directory rename
