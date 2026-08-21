@@ -137,6 +137,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
     private readonly Action<string>? _publishClamWinExecutable;
     private readonly Action<string>? _publishClamWinDatabase;
     private readonly Action<int>? _publishAction;
+    private readonly Action<bool>? _publishNotifyReceiver;
 
     public AntiVirus()
     {
@@ -153,7 +154,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<bool>? publishClamWinEnabled,
         Action<string>? publishClamWinExecutable,
         Action<string>? publishClamWinDatabase,
-        Action<int>? publishAction)
+        Action<int>? publishAction,
+        Action<bool>? publishNotifyReceiver)
     {
         _snapshot = snapshot;
         _clamAvScannerTestRuntime = clamAvScannerTestRuntime;
@@ -166,6 +168,7 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         _publishClamWinExecutable = publishClamWinExecutable;
         _publishClamWinDatabase = publishClamWinDatabase;
         _publishAction = publishAction;
+        _publishNotifyReceiver = publishNotifyReceiver;
     }
 
     public bool ClamWinEnabled
@@ -337,7 +340,45 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         }
     }
 
-    public bool NotifyReceiver { get => Snapshot.NotifyReceiver; set => Unavailable(); }
+    public bool NotifyReceiver
+    {
+        get => Snapshot.NotifyReceiver;
+        set
+        {
+            _ = Snapshot;
+            if (_settingsMutationStore is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            using var authorizationLease = _authorizationLeaseFactory is null
+                ? null
+                : _authorizationLeaseFactory(CancellationToken.None)
+                    .GetAwaiter()
+                    .GetResult()
+                    ?? throw new COMException(
+                        "Anti-virus settings access requires an authenticated server administrator.",
+                        EAccessDenied);
+
+            if (!_settingsMutationStore
+                .UpdateAntiVirusNotifyReceiverAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The anti-virus receiver notification update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_snapshot is not null)
+            {
+                _snapshot = _snapshot with { NotifyReceiver = value };
+            }
+
+            _publishNotifyReceiver?.Invoke(value);
+        }
+    }
 
     public bool NotifySender { get => Snapshot.NotifySender; set => Unavailable(); }
 
@@ -461,7 +502,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         Action<bool>? publishClamWinEnabled = null,
         Action<string>? publishClamWinExecutable = null,
         Action<string>? publishClamWinDatabase = null,
-        Action<int>? publishAction = null)
+        Action<int>? publishAction = null,
+        Action<bool>? publishNotifyReceiver = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         return new AntiVirus(
@@ -475,7 +517,8 @@ public sealed class AntiVirus : IInterfaceAntiVirus
             publishClamWinEnabled,
             publishClamWinExecutable,
             publishClamWinDatabase,
-            publishAction);
+            publishAction,
+            publishNotifyReceiver);
     }
 
     private AntiVirusAdministrationSnapshot Snapshot

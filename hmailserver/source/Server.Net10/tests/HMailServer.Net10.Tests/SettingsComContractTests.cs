@@ -227,6 +227,48 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_AntiVirusNotifyReceiverPersistsAndPublishesSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusNotifyReceiver: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.AntiVirus.NotifyReceiver = false;
+
+        Assert.AreEqual(1, store.AntiVirusNotifyReceiverUpdateCount);
+        Assert.IsFalse(store.UpdatedAntiVirusNotifyReceiver);
+        Assert.IsFalse(settings.AntiVirus.NotifyReceiver);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_AntiVirusNotifyReceiverFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                AntiVirusNotifyReceiver: true),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(
+            () => settings.AntiVirus.NotifyReceiver = false);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.IsTrue(settings.AntiVirus.NotifyReceiver);
+    }
+
+    [TestMethod]
     public void BooleanProperties_PreserveLegacyDispidsAndVariantBoolMarshaling()
     {
         var expected = new[]
@@ -7543,6 +7585,10 @@ public sealed class SettingsComContractTests
 
         public int UpdatedAntiVirusAction { get; private set; }
 
+        public int AntiVirusNotifyReceiverUpdateCount { get; private set; }
+
+        public bool UpdatedAntiVirusNotifyReceiver { get; private set; }
+
         public Func<bool>? AntiVirusClamWinEnabledMutationProbe { get; set; }
 
         public bool AntiVirusClamWinEnabledLeaseHeldDuringUpdate { get; private set; }
@@ -8922,6 +8968,16 @@ public sealed class SettingsComContractTests
         {
             AntiVirusActionUpdateCount++;
             UpdatedAntiVirusAction = action;
+            CancellationToken = cancellationToken;
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateAntiVirusNotifyReceiverAsync(
+            bool notifyReceiver,
+            CancellationToken cancellationToken)
+        {
+            AntiVirusNotifyReceiverUpdateCount++;
+            UpdatedAntiVirusNotifyReceiver = notifyReceiver;
             CancellationToken = cancellationToken;
             return ValueTask.FromResult(UpdateResult);
         }
