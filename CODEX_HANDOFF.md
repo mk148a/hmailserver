@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, invalid logon-attempt window)
+
+Legacy `InterfaceSettings::put_MaxInvalidLogonAttemptsWithin`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2084-2095`) calls
+`Configuration::SetMaxLogonAttemptsWithin`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:538-547`),
+which persists `hm_settings.settingname = 'LogonAttemptsWithinMinutes'`, seeded
+by `CreateTablesMSSQL.sql:912`. Code/test commit `cab54911a` adds the
+authenticated Net10 mutation, parameterized integer encoding, one-row
+fail-closed outcome, authorization lease, and publish-after-success snapshot
+behavior. Focused Settings/SQL tests pass `240`, fail `0`.
+
+The full suite reached `2516 passed, 90 skipped, 2 failed` (`2608` total). The
+two failures are unrelated ClamWin/custom scanner tests where host endpoint
+protection denied access to temporary `.eml` files. No logon-failure algorithm,
+SMTP trust, live reconfiguration, COM identity, or direct activation boundary
+changed. The next slice is disposable `6000` SQL/Data host-start acceptance,
+blocked until the approved SQL connection and isolated-create opt-in exist.
+Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, maximum invalid logon attempts)
 
 Legacy `InterfaceSettings::put_MaxInvalidLogonAttempts`
