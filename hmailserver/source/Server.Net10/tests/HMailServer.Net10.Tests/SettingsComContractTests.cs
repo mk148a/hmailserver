@@ -1620,6 +1620,100 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_TlsOptionPrioritizeChaChaSetterPreservesOtherBitsForBothTransitions()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TlsOptionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TlsOptions: 2),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.TlsOptionPrioritizeChaChaEnabled = true;
+
+        Assert.AreEqual(1, store.TlsOptionsUpdateCount);
+        Assert.AreEqual(6, store.UpdatedTlsOptions);
+        Assert.IsTrue(settings.TlsOptionPrioritizeChaChaEnabled);
+        Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+
+        settings.TlsOptionPrioritizeChaChaEnabled = false;
+
+        Assert.AreEqual(2, store.TlsOptionsUpdateCount);
+        Assert.AreEqual(2, store.UpdatedTlsOptions);
+        Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
+        Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_TlsOptionPrioritizeChaChaSetterRetainsFailedSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TlsOptionsUpdateResult = false
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TlsOptions: 2),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var failed = Assert.ThrowsExactly<COMException>(
+            () => settings.TlsOptionPrioritizeChaChaEnabled = true);
+
+        Assert.AreEqual(EFail, failed.ErrorCode);
+        Assert.AreEqual(1, store.TlsOptionsUpdateCount);
+        Assert.AreEqual(6, store.UpdatedTlsOptions);
+        Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
+        Assert.IsTrue(settings.TlsOptionPreferServerCiphersEnabled);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_TlsOptionPrioritizeChaChaSetterDeniesUnavailableLeaseAndNonAdministratorBeforeMutation()
+    {
+        var isServerAdministrator = true;
+        var store = new FakeSettingsAdministrationMutationStore
+        {
+            TlsOptionsUpdateResult = true
+        };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                TlsOptions: 2),
+            isServerAdministrator: () => isServerAdministrator,
+            settingsMutationStore: store,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        var unavailableLease = Assert.ThrowsExactly<COMException>(
+            () => settings.TlsOptionPrioritizeChaChaEnabled = true);
+
+        Assert.AreEqual(EAccessDenied, unavailableLease.ErrorCode);
+        Assert.AreEqual(0, store.TlsOptionsUpdateCount);
+        Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
+
+        isServerAdministrator = false;
+        var nonAdministrator = Assert.ThrowsExactly<COMException>(
+            () => settings.TlsOptionPrioritizeChaChaEnabled = true);
+
+        Assert.AreEqual(EAccessDenied, nonAdministrator.ErrorCode);
+        Assert.AreEqual(0, store.TlsOptionsUpdateCount);
+        Assert.IsFalse(settings.TlsOptionPrioritizeChaChaEnabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_ImapHierarchyDelimiterSetterPersistsBeforePublishingAndRetainsRejectedState()
     {
         var isServerAdministrator = true;

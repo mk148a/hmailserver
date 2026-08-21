@@ -2561,7 +2561,41 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 ? base.TlsOptionPrioritizeChaChaEnabled
                 : HasFlag(_administrationSnapshot.TlsOptions, TlsOptionPrioritizeChaChaFlag);
         }
-        set => base.TlsOptionPrioritizeChaChaEnabled = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+
+            if (_settingsMutationStore is null)
+            {
+                base.TlsOptionPrioritizeChaChaEnabled = value;
+                return;
+            }
+
+            var currentTlsOptions = _administrationSnapshot?.TlsOptions ?? 0;
+            var updatedTlsOptions = value
+                ? currentTlsOptions | TlsOptionPrioritizeChaChaFlag
+                : currentTlsOptions & ~TlsOptionPrioritizeChaChaFlag;
+
+            using var authorizationLease = AcquireAuthorizationLease();
+            if (!_settingsMutationStore
+                .UpdateTlsOptionsAsync(updatedTlsOptions, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult())
+            {
+                throw new COMException(
+                    "The TLS options update did not affect the existing settings row.",
+                    EFail);
+            }
+
+            if (_administrationSnapshot is not null)
+            {
+                _administrationSnapshot = _administrationSnapshot with
+                {
+                    TlsOptions = updatedTlsOptions
+                };
+            }
+        }
     }
 
     public override string IMAPMasterUser
