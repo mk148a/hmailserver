@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-21, TLS 1.3 flag persistence)
+
+Legacy `InterfaceSettings::put_TlsVersion13Enabled`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:2393-2406`) calls
+`Configuration::SetSslVersionEnabled`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:632-640`),
+which reads and rewrites only flag `16` in `hm_settings.SslVersions`. Code/test
+commit `0f974cdd9` adds the authenticated Net10 bit-16 mutation, unrelated-bit
+preservation, fail-closed outcome, and publish-after-success snapshot behavior.
+Focused Settings/SQL tests pass `248`, fail `0`; full Net10 passes `2527`,
+skips `90`, fails `0` (`2617` total).
+
+No TLS live reconfiguration, SMTP trust, COM identity, or direct activation
+boundary changed. The next slice is disposable `6000` SQL/Data host-start
+success/failure with no listener or worker side effects, blocked until the
+approved SQL connection and isolated-create opt-in exist. Release remains RED.
+
 ## Current Authoritative Continuation (2026-08-21, TLS 1.2 flag persistence)
 
 Legacy `InterfaceSettings::put_TlsVersion12Enabled`
