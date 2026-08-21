@@ -45,6 +45,28 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function ConvertTo-UtcTimestampString {
+    param(
+        [AllowNull()]
+        [object]$Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if ($Value -is [DateTimeOffset]) {
+        return $Value.ToUniversalTime().ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    if ($Value -is [DateTime]) {
+        $utcValue = $Value.ToUniversalTime()
+        return ([DateTimeOffset]$utcValue).ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    return [string]$Value
+}
+
 function Read-JsonFile {
     param([string]$Path)
 
@@ -399,11 +421,11 @@ $collectorCallerAgeSeconds = $null
 try {
     if ((Has-Property $collector 'CollectedUtc') -and (Has-Property $collector.CallerTokenEvidence 'ObservedUtc')) {
         $collectorCollectedUtc = [DateTimeOffset]::Parse(
-            [string]$collector.CollectedUtc,
+            (ConvertTo-UtcTimestampString -Value $collector.CollectedUtc),
             [Globalization.CultureInfo]::InvariantCulture,
             [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal).ToUniversalTime()
         $callerObservedUtc = [DateTimeOffset]::Parse(
-            [string]$collector.CallerTokenEvidence.ObservedUtc,
+            (ConvertTo-UtcTimestampString -Value $collector.CallerTokenEvidence.ObservedUtc),
             [Globalization.CultureInfo]::InvariantCulture,
             [Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal).ToUniversalTime()
         $collectorCallerAgeSeconds = ($collectorCollectedUtc - $callerObservedUtc).TotalSeconds

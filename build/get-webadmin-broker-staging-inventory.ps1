@@ -21,6 +21,28 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function ConvertTo-UtcTimestampString {
+    param(
+        [AllowNull()]
+        [object]$Value
+    )
+
+    if ($null -eq $Value) {
+        return $null
+    }
+
+    if ($Value -is [DateTimeOffset]) {
+        return $Value.ToUniversalTime().ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    if ($Value -is [DateTime]) {
+        $utcValue = $Value.ToUniversalTime()
+        return ([DateTimeOffset]$utcValue).ToString('o', [Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    return [string]$Value
+}
+
 function Convert-SecurityDescriptorToEvidence {
     param(
         [object]$Value
@@ -372,7 +394,7 @@ function Get-CallerTokenEvidence {
     try {
         $evidence = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
         $probeVersion = [string]$evidence.probeVersion
-        $observedUtc = [string]$evidence.observedUtc
+        $observedUtc = ConvertTo-UtcTimestampString -Value $evidence.observedUtc
         $transport = [string]$evidence.transport
         $callerSid = [string]$evidence.callerSid
         $correlationId = [string]$evidence.correlationId
