@@ -238,6 +238,10 @@ public interface ISettingsAdministrationMutationStore
         bool notifyReceiver,
         CancellationToken cancellationToken);
 
+    ValueTask<bool> UpdateAntiVirusNotifySenderAsync(
+        bool notifySender,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateAntiSpamUseSpfAsync(
         bool useSpf,
         CancellationToken cancellationToken);
