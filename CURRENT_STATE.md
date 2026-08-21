@@ -1,12 +1,12 @@
 # Current State
-- UTC/local timestamp: `2026-08-21T05:48:00Z` / `2026-08-21T08:48:00+03:00`
+- UTC/local timestamp: `2026-08-21T06:41:00Z` / `2026-08-21T09:41:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `46b93cd15` (documentation commit containing this state file; self-reference is intentionally described)
+- Current HEAD: `8d43f9a18` (code/test commit; documentation commit will contain this state file)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`; continuation commits are local and unpushed
-- Latest focused-test result: UserInterfaceLanguage COM/INI `188 passed, 0 skipped, 0 failed`; SEC18 Hyper-V script test passed; collector synthetic timestamp test is environment-failing
-- Latest full Net10 result: `2556 passed, 10 skipped, 0 failed` (`2566` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-staging-20260821.trx`
+- Latest focused-test result: SEC18 collector, registry-binary, and denial-attestation tests passed; SEC18 Hyper-V script test passed
+- Latest full Net10 result: `2556 passed, 10 skipped, 0 failed` (`2566` total), TRX `artifacts/net10-disposable/test-results/full-net10-sec18-utc-parser-20260821.trx`
 - Opt-in tests passed/skipped/blocked: UserInterfaceLanguage, hierarchy delimiter, and prior LocalDB integrations passed; production SMTP/POP3, paired C++, registry/DCOM, installer, AD/DC, SEC-18, live load, and 24-hour soak remain blocked or unproven
-- Current bounded slice: SEC-18 disposable IIS pre-registration evidence; PHP/FastCGI, loopback site/pool, worker SID, and Hyper-V boundary are recorded
+- Current bounded slice: SEC-18 trusted caller-token/native-reader and authorized/non-pool denial evidence
 - Completed milestones: authenticated Settings persistence through UserInterfaceLanguage and IMAP hierarchy delimiter; prior backup foundations, restore foundations, COM/Admin, protocol, queue, FTS, external-fetch, ACL, and LocalDB parity slices remain recorded in history
 - Open production blockers: isolated COM/service backup acceptance, restore/migration/rollback drill, registered/out-of-process COM, SEC-18 cutover, AD/master-user evidence, DKIM/DMARC/SPF runtime wiring, paired C++ performance, SMTP/delivery thresholds, and 24-hour leak soak; release remains RED
 - Environment-blocked work: trusted caller-token/native-reader evidence, authorized/non-pool denial matrix, broker rollback validation, paired C++ runner, migration/rollback, AD, live DNS/TLS, and long-soak infrastructure remain unavailable; the official PHP checksum sidecar is absent and local hash remains disposable-test evidence only

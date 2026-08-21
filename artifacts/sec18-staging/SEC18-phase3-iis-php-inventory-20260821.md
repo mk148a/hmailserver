@@ -82,9 +82,6 @@ security/reality GREEN reviews.
 - Hyper-V disposable script tests: passed.
 - Full Net10 Debug suite: 2556 passed, 10 skipped, 0 failed; TRX:
   artifacts/net10-disposable/test-results/full-net10-sec18-staging-20260821.trx
-- The existing collector unit test
-  build/test-webadmin-broker-staging-inventory.ps1 currently fails its
-  synthetic fresh-timestamp assertion because PowerShell JSON deserialization
-  reinterprets the UTC offset as local time on this host
-  (ObservedAgeSeconds approximately -10794). No production code was changed
-  to mask that test-harness defect.
+- Collector inventory, registry-binary evidence, denial attestation, and
+  Hyper-V disposable script tests all passed after the UTC timestamp parser
+  fix in code/test commit 8d43f9a18.

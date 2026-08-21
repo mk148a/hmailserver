@@ -13,6 +13,8 @@ sec18-phase3-evidence-20260821.json.
 The next slice is an independently trusted caller-token/native-reader probe
 and authorized/non-pool denial evidence. The collector is Incomplete because
 the guest has no existing hMailServer Application registration or service.
+UTC timestamp normalization for collector and attestation evidence is complete
+in code/test commit 8d43f9a18.
 Do not register the broker, change the existing Application COM identity or
 DCOM ACLs, or change PHP authentication/session behavior. Release remains RED;
 use RELEASE_GATE_EXECUTION_CHECKLIST.md for the remaining steps.

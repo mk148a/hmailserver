@@ -13,8 +13,9 @@ WebAdminSessionBroker, change the existing Application AppID/COM identity,
 alter DCOM ACLs, or change PHP authentication/session behavior until security
 and reality reviews are GREEN. The collector is correctly Incomplete because
 the disposable guest has no existing hMailServer Application registration or
-service. Release remains RED. The exact procedure is in the repository-root
-RELEASE_GATE_EXECUTION_CHECKLIST.md.
+service. UTC timestamp normalization for collector/attestation evidence is
+complete in code/test commit 8d43f9a18. Release remains RED. The exact
+procedure is in the repository-root RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
 ## Historical current slice (2026-08-21, production-hosted SMTP/POP3 acceptance after UserInterfaceLanguage parity)
 

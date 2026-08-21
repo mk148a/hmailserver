@@ -15,8 +15,9 @@ The pre-registration gate remains RED: no trusted caller-token/native-reader
 evidence exists, the legacy hMailServer service is intentionally absent from
 the guest, and no broker COM registration or DCOM ACL change was made. The
 official PHP archive has no checksum sidecar; the locally verified hash is
-disposable-test integrity evidence only. Release remains RED. The exact
-remaining procedure is in RELEASE_GATE_EXECUTION_CHECKLIST.md.
+disposable-test integrity evidence only. SEC-18 collector and attestation
+timestamps now canonicalize UTC in code/test commit 8d43f9a18. Release remains
+RED. The exact remaining procedure is in RELEASE_GATE_EXECUTION_CHECKLIST.md.
 
 ## Current authoritative parity status (2026-08-21, UserInterfaceLanguage INI parity)
 
