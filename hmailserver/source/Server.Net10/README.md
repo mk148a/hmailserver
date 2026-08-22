@@ -1,19 +1,21 @@
-## Current authoritative parity status (2026-08-22, private backup snapshot ACL)
+## Current authoritative parity status (2026-08-22, private backup snapshot reparse containment)
 
-Code/test commit `468aef10a` hardens only the private GUID-scoped snapshot
-root created by `BackupArchiveBinding.TryCreate`. The root now disables ACL
-inheritance and grants full control to the executing identity and `SYSTEM`,
-so archive and raw `DataBackup` snapshots are not left with broad `%TEMP%`
-permissions. Legacy backup behavior is anchored at
+Code/test commit `8d6bb37f` rejects existing reparse points at the private
+snapshot root and GUID child before ACL application or archive/raw `DataBackup`
+copy. The root still disables ACL inheritance and grants full control only to
+the executing identity and `SYSTEM`. Legacy backup behavior is anchored at
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
 and `BackupManager.cpp:101-132`; legacy-visible destination paths and COM
 identity are unchanged.
 
-Focused `BackupArchiveIdentityTests` pass `6/6`; the full Debug Net10 suite is
-`2652 passed, 92 skipped, 0 failed` (`2744` total). Release remains **RED**:
+Focused `BackupArchiveIdentityTests` pass `6`, skip `2` because the host does
+not permit disposable symlink creation, and fail `0`; the full Debug Net10
+suite is `2652 passed, 94 skipped, 0 failed` (`2746` total). Release remains **RED**:
 Full-Text SQL/Data round-trip, registered COM and SEC-18 caller evidence,
 installer/service/data rollback, paired C++/.NET performance, protocol
 thresholds, and long-soak acceptance remain open or environment-blocked.
+Pre-existing reparse redirection is covered; handle-based TOCTOU protection
+and target-identity native filesystem review remain open.
 Older sections below are historical.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
