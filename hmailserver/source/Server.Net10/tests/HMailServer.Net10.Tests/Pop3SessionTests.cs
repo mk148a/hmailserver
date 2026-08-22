@@ -49,6 +49,21 @@ public sealed class Pop3SessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_RejectsUserAndPassAfterAuthenticationWithLegacyStateError()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\nPASS secret\r\nUSER other@example.test\r\nPASS other\r\nQUIT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            new FakePop3MailboxStore(Array.Empty<StoredMessage>()));
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        Assert.AreEqual(2, output.Split("-ERR Invalid command in current state.\r\n", StringSplitOptions.None).Length - 1);
+    }
+
+    [TestMethod]
     public async Task RunAsync_UsesLegacyLineTooLongResponse()
     {
         await using var stream = new DuplexMemoryStream(new string('A', 501) + "\r\n");

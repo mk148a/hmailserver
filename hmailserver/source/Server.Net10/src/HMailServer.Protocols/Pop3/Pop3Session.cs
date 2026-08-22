@@ -217,7 +217,7 @@ public sealed class Pop3Session
     {
         if (state.IsAuthenticated)
         {
-            await WriteErrAsync(stream, "Already authenticated", cancellationToken).ConfigureAwait(false);
+            await WriteErrAsync(stream, "Invalid command in current state.", cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -234,7 +234,7 @@ public sealed class Pop3Session
     {
         if (state.IsAuthenticated)
         {
-            await WriteErrAsync(stream, "Already authenticated", cancellationToken).ConfigureAwait(false);
+            await WriteErrAsync(stream, "Invalid command in current state.", cancellationToken).ConfigureAwait(false);
             return false;
         }
 
