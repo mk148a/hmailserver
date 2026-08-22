@@ -222,12 +222,6 @@ public sealed class Pop3Session
         }
 
         var username = arguments.Trim();
-        if (username.Length == 0)
-        {
-            await WriteErrAsync(stream, "Syntax: USER username", cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
         state.PendingUsername = username;
         await WriteOkAsync(stream, "Send your password", cancellationToken).ConfigureAwait(false);
     }
