@@ -518,7 +518,9 @@ public static class Host
             defaultValue: false),
         MaximumIncorrectCommands = ReadInt(
             builder.Configuration["Smtp:MaximumIncorrectCommands"] ?? builder.Configuration["HMAILSERVER_SMTP_MAXIMUM_INCORRECT_COMMANDS"],
-            defaultValue: 100)
+            defaultValue: 100),
+        CrashSimulationModeProvider = SettingsAdministrationRuntimeHost.GetCrashSimulationMode,
+        CrashSimulationModeExecutor = SmtpSession.ExecuteCrashSimulation
     };
     var smtpTlsCertificate = LoadCertificate(
         builder.Configuration["Smtp:TlsCertificatePath"] ?? builder.Configuration["HMAILSERVER_SMTP_TLS_CERTIFICATE_PATH"],

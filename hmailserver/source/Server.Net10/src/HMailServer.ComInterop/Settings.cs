@@ -3943,6 +3943,12 @@ public static class SettingsAdministrationRuntimeHost
 
     public static string GetSmtpGreeting() => Volatile.Read(ref _smtpGreeting);
 
+    public static int GetCrashSimulationMode()
+    {
+        var configuration = Volatile.Read(ref _configuration);
+        return CrashSimulationModeRuntime.Read(configuration?.Settings.CrashSimulationMode ?? 0);
+    }
+
     internal static void PublishSmtpGreeting(string welcomeSmtp) =>
         Volatile.Write(ref _smtpGreeting, welcomeSmtp ?? string.Empty);
 

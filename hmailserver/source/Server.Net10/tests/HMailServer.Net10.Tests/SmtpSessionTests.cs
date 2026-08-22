@@ -38,6 +38,32 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_ExecutesLegacyHelpCrashSimulationConsumer()
+    {
+        await using var stream = new DuplexMemoryStream("HELP\r\n");
+        var session = new SmtpSession(new SmtpSessionOptions
+        {
+            CrashSimulationModeProvider = static () => 2,
+            CrashSimulationModeExecutor = SmtpSession.ExecuteCrashSimulation
+        });
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => session.RunAsync(stream, CancellationToken.None).AsTask());
+
+        Assert.IsFalse(stream.GetOutputText().Contains("211 DATA", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void ExecuteCrashSimulation_PreservesLegacyModeBranchesAsManagedFailures()
+    {
+        Assert.ThrowsExactly<InvalidOperationException>(() => SmtpSession.ExecuteCrashSimulation(1));
+        Assert.ThrowsExactly<InvalidOperationException>(() => SmtpSession.ExecuteCrashSimulation(2));
+        Assert.ThrowsExactly<AccessViolationException>(() => SmtpSession.ExecuteCrashSimulation(3));
+        Assert.ThrowsExactly<IOException>(() => SmtpSession.ExecuteCrashSimulation(4));
+        SmtpSession.ExecuteCrashSimulation(0);
+    }
+
+    [TestMethod]
     public async Task RunAsync_UsesLegacySettingsBackedGreetingFormatting(
         )
     {

@@ -260,6 +260,12 @@ public sealed class SmtpSession
                 return SmtpDispatchResult.Continue;
 
             case "HELP":
+                var crashSimulationMode = _options.CrashSimulationModeProvider?.Invoke() ?? 0;
+                if (crashSimulationMode > 0)
+                {
+                    _options.CrashSimulationModeExecutor?.Invoke(crashSimulationMode);
+                }
+
                 await WriteAsync(
                     stream,
                     "211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY\r\n",
@@ -1020,6 +1026,22 @@ public sealed class SmtpSession
 
     private bool IsAuthenticationAllowed(SessionState state) =>
         state.IsSecureConnection || !_options.RequireTlsForAuthentication;
+
+    public static void ExecuteCrashSimulation(int simulationMode)
+    {
+        switch (simulationMode)
+        {
+            case 0:
+                return;
+            case 1:
+            case 2:
+                throw new InvalidOperationException("Crash simulation test.");
+            case 3:
+                throw new AccessViolationException("Crash simulation access violation.");
+            case 4:
+                throw new IOException("Crash simulation disconnected connection.");
+        }
+    }
 
     private static bool TryParsePlainCredentials(
         string encodedCredentials,

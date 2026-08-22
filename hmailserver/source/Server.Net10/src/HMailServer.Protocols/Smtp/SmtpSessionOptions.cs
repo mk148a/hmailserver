@@ -19,4 +19,8 @@ public sealed record SmtpSessionOptions
     public bool DisconnectInvalidClients { get; init; }
 
     public int MaximumIncorrectCommands { get; init; } = 100;
+
+    public Func<int>? CrashSimulationModeProvider { get; init; }
+
+    public Action<int>? CrashSimulationModeExecutor { get; init; }
 }
