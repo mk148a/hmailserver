@@ -1,7 +1,25 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, client-password runner secret transport)
+## Current parity gate (2026-08-22, SMTP HELP command parity)
+
+Code/test commit `52567a795` adds the legacy SMTP `HELP` command to the .NET
+session dispatcher. Legacy `SMTPConnection::GetCommandType_` at
+`source/Server/SMTP/SMTPConnection.cpp:198-201` recognizes `HELP`, the command
+is dispatched before transaction-state handling at `:352-360`, and
+`ProtocolHELP_` emits the exact `211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET
+SAML TURN VRFY` response at `:1734-1752`. Net10 now returns that response and
+keeps the session open. Focused SMTP tests pass `33`, and full Debug Net10
+passes `2683`, skips `94`, and fails `0` (`2777` total).
+
+The separate legacy HELP crash-simulation consumer remains open and is not
+changed by this slice. The release gate remains **RED**: Full-Text SQL/Data,
+installed COM, migration/restore, SEC-18, installer rollback, paired C++
+performance, protocol thresholds, and soak gates remain open. The next
+independent slice is approved Full-Text SQL/Data round-trip acceptance. The
+previous password-transport entry below is historical.
+
+## Historical parity gate (2026-08-22, client-password runner secret transport)
 
 Code/test commit `c86bb6f94` removes the plaintext client password from the
 temporary `runner.vbs`/`runner.js` files. Legacy `Events.cpp:67-90` builds the

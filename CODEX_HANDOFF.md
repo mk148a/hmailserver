@@ -1,6 +1,23 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, client-password runner secret transport)
+## Current Authoritative Continuation (2026-08-22, SMTP HELP command parity)
+
+Code/test commit `52567a795` adds legacy SMTP `HELP` behavior. The C++ source
+recognizes `HELP` at `hmailserver/source/Server/SMTP/SMTPConnection.cpp:198-201`,
+dispatches it before transaction-state handling at `:352-360`, and
+`ProtocolHELP_` emits the exact `211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET
+SAML TURN VRFY` response at `:1734-1752`. Net10 `SmtpSession` now returns the
+same response and keeps the connection active. Focused SMTP tests are `33
+passed, 0 skipped, 0 failed`; full Debug Net10 is `2683 passed, 94 skipped,
+0 failed` (`2777` total). No COM identity, SQL/Data, service, registration,
+DCOM, IIS, firewall, or pre-existing artifact changed. The separate legacy
+HELP crash-simulation consumer remains open. Release remains RED for
+Full-Text SQL/Data, installed COM, migration/restore, SEC-18, installer/
+service/Data rollback, paired C++ performance, protocol thresholds, and
+24-hour soak. Next: approved Full-Text SQL/Data round-trip acceptance. Older
+entries are historical.
+
+## Historical Authoritative Continuation (2026-08-22, client-password runner secret transport)
 
 Code/test commit `c86bb6f94` removes the client password from temporary WSH
 runner files. Legacy `hmailserver/source/Server/Common/Scripting/Events.cpp:67-90`

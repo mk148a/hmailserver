@@ -1,6 +1,20 @@
 
 
-## Current authoritative next slice (2026-08-22, client-password runner secret transport complete)
+## Current authoritative next slice (2026-08-22, SMTP HELP command parity complete)
+
+Code/test commit `52567a795` closes the bounded SMTP `HELP` dispatch gap.
+Legacy `source/Server/SMTP/SMTPConnection.cpp:198-201` recognizes the command,
+`:352-360` dispatches it before transaction handling, and `:1734-1752`
+returns the exact `211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY`
+line. Net10 `SmtpSession` now returns that response and continues the session;
+focused SMTP tests pass `33`, and full Debug Net10 passes `2683`, skips `94`,
+and fails `0` (`2777` total). The separate crash-simulation consumer in the
+legacy HELP path remains open. Release remains RED for Full-Text SQL/Data,
+installed COM, migration/restore, SEC-18, installer rollback, paired C++
+performance, protocol thresholds, and soak. Next slice: approved Full-Text
+SQL/Data round-trip acceptance. Older sections are historical.
+
+## Historical authoritative next slice (2026-08-22, client-password runner secret transport complete)
 
 Code/test commit `c86bb6f94` closes the bounded plaintext runner-file gap for
 `OnClientValidatePassword`. Legacy `source/Server/Common/Scripting/Events.cpp:67-90`
