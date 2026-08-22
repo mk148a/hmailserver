@@ -2,7 +2,8 @@
 
 ## Current Authoritative Continuation (2026-08-22, Settings.Scripting construction lease)
 
-Code/test commit `964972f55` prevents a retained .NET `Settings` object from
+Code/test commit `7ab59e849` adds a deterministic real-authority lease test and
+prevents a retained .NET `Settings` object from
 creating a new `Scripting` child after administrator revocation and holds the
 generation-bound authorization lease through construction. Legacy
 `InterfaceSettings::get_Scripting` checks the administrator at
@@ -13,12 +14,12 @@ retained child continues to work. Net10 now applies
 `EnsureServerAdministrator()` before `Scripting.CreateAuthorized`, acquires the
 construction lease, and leaves the child ungated to preserve that behavior.
 
-Focused `ScriptingComContractTests` are `9 passed, 0 skipped, 0 failed`; full
-Debug Net10 is `2676 passed, 94 skipped, 0 failed` (`2770` total). No COM
+Focused `ScriptingComContractTests` are `10 passed, 0 skipped, 0 failed`; full
+Debug Net10 is `2677 passed, 94 skipped, 0 failed` (`2771` total). No COM
 identity, SQL mutation, runtime enablement, SMTP trust, production service,
 database, Data directory, COM registration, DCOM ACL, IIS, firewall, or
 pre-existing untracked artifact changed. Residual risks include the
-immutable snapshot freshness, missing live
+immutable snapshot freshness, retained-child runtime reauthentication, missing live
 Scripting setter/runtime gate, plaintext runner files, installed COM proof,
 Full-Text SQL/Data, SEC-18, installer/service/Data rollback, paired C++
 performance, protocol thresholds, and 24-hour soak. Next: approved Full-Text

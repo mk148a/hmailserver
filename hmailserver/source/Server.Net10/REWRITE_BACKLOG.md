@@ -2,7 +2,8 @@
 
 ## Current authoritative next slice (2026-08-22, Settings.Scripting construction lease complete)
 
-Code/test commit `964972f55` closes the bounded authorization gap where a
+Code/test commit `7ab59e849` adds deterministic real-authority proof and closes
+the bounded authorization gap where a
 retained authenticated .NET `Settings` object could mint a new `Scripting`
 child after administrator reauthentication was revoked. Legacy
 `InterfaceSettings::get_Scripting` performs the live administrator check at
@@ -15,8 +16,8 @@ generation-bound authorization lease through construction, and preserves the
 existing retained child behavior.
 
 `ScriptingComContractTests` covers the denial, retained-child compatibility,
-and construction lease: `9 passed, 0 skipped, 0 failed`; full Debug Net10 is `2676 passed, 94 skipped,
-0 failed` (`2770` total). This slice changes no COM identity, SQL mutation,
+and construction lease: `10 passed, 0 skipped, 0 failed`; full Debug Net10 is `2677 passed, 94 skipped,
+0 failed` (`2771` total). This slice changes no COM identity, SQL mutation,
 runtime script enablement, SMTP trust, or installed state. Release remains
 **RED**: Scripting runtime enablement and plaintext runner-file handling,
 installed COM, migration/restore, SEC-18, performance, protocol, and soak
