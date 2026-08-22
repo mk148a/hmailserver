@@ -82,7 +82,7 @@ atomic snapshot/quiescence, destination ancestor/same-name replacement TOCTOU,
 Full-Text SQL/Data, registered COM/SEC-18, installer rollback, paired
 C++/.NET performance, protocol thresholds, and soak.
 
-## Current authoritative parity status (2026-08-22, handle-relative destination creation)
+## Historical authoritative parity status (2026-08-22, handle-relative destination creation)
 
 Code/test commit `28d046d3d` makes `WindowsHandleRelativeDirectoryCopier`
 create missing nested destination ancestors root-to-leaf using pinned relative
@@ -100,6 +100,23 @@ snapshot/quiescence, same-name replacement and remaining binding-ancestor
 TOCTOU, target-identity filesystem review, Full-Text SQL/Data, registered
 COM/SEC-18, installer rollback, paired performance, protocol thresholds, and
 24-hour soak remain open or environment-blocked.
+
+## Current authoritative parity status (2026-08-22, Settings.CrashSimulationMode)
+
+Code/test commit `5f2a8b011` implements the legacy process-local
+`Settings.CrashSimulationMode` setter. Legacy
+`InterfaceSettings::get/put_CrashSimulationMode`
+(`source/Server/COM/InterfaceSettings.cpp:1594-1623`) reads and writes
+`Configuration::crash_simulation_mode_` without SQL/Data persistence. Net10
+uses a shared thread-safe holder, retains live administrator revalidation and
+authorization leases, and preserves Settings IID/vtable/DISPID `99` and
+default `0`. Focused `SettingsComContractTests` pass `255/255`; full Debug
+Net10 passes `2665`, skips `94`, and fails `0` (`2759` total).
+
+SMTP crash execution, service reload, SQL/Data, COM registration, and
+production state remain unchanged. Release remains **RED** for the separate
+SMTP crash path, Full-Text SQL/Data, registered COM/SEC-18, installer rollback,
+filesystem TOCTOU, paired performance, protocol thresholds, and soak gates.
 
 Older sections below are historical.
 

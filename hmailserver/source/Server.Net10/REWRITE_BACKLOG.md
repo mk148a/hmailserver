@@ -89,7 +89,7 @@ same-name replacement TOCTOU, target-identity filesystem review, Full-Text
 SQL/Data, registered COM/SEC-18, installer rollback, paired performance,
 protocol thresholds, and 24-hour soak.
 
-## Current bounded slice: handle-relative nested destination creation (2026-08-22)
+## Historical bounded slice: handle-relative nested destination creation (2026-08-22)
 
 Code/test commit `28d046d3d` changes
 `WindowsHandleRelativeDirectoryCopier.OpenOrCreateDirectoryPath` to walk
@@ -108,6 +108,25 @@ SMTP, or production-state change. Remaining work includes atomic snapshot/
 quiescence, same-name replacement and binding-ancestor TOCTOU, target-identity
 review, Full-Text SQL/Data, registered COM/SEC-18, installer rollback, paired
 performance, protocol thresholds, and 24-hour soak.
+
+## Current bounded slice: Settings.CrashSimulationMode process-local parity (2026-08-22)
+
+Code/test commit `5f2a8b011` closes the authenticated
+`Settings.CrashSimulationMode` setter gap. Legacy
+`InterfaceSettings::get/put_CrashSimulationMode`
+(`source/Server/COM/InterfaceSettings.cpp:1594-1623`) reads/writes the
+process-local `Configuration::crash_simulation_mode_`; it does not persist to
+SQL/Data. Net10 uses a shared thread-safe holder and preserves the existing
+Settings IID/vtable/DISPID `99`, direct activation denial, live administrator
+revalidation, lease behavior, and default `0`.
+
+Focused `SettingsComContractTests` pass `255`, skip `0`, fail `0`; full Debug
+Net10 passes `2665`, skips `94`, fails `0` (`2759` total). No SMTP crash
+execution, service reload, COM registration, SQL, Data, or production state
+changed. The separate SMTP crash consumer, Full-Text SQL/Data, registered
+COM/SEC-18, installer rollback, atomic filesystem snapshot/TOCTOU, paired
+performance, protocol thresholds, and 24-hour soak remain open. The previous
+destination-creation entry is historical.
 
 ## Historical bounded slice: Application.Connect error reporting parity (2026-08-22)
 

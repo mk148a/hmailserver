@@ -1,7 +1,25 @@
 hMailServer
 ===========
 
-## Current backup snapshot security gate (2026-08-22, handle-relative destination creation)
+## Current parity gate (2026-08-22, Settings.CrashSimulationMode)
+
+Code/test commit `5f2a8b011` implements the legacy process-local
+`Settings.CrashSimulationMode` setter. Legacy
+`InterfaceSettings::get/put_CrashSimulationMode` at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1594-1623` reads and
+writes `Configuration::crash_simulation_mode_` without SQL/Data persistence.
+Net10 now uses a shared thread-safe process-local holder, preserves the
+authenticated Settings boundary, live admin revalidation, authorization lease,
+IID/vtable/DISPID `99`, and default `0`. No SMTP crash execution, reload,
+service, COM registration, or production state was added.
+
+Focused `SettingsComContractTests` pass `255`, skip `0`, fail `0`; full Debug
+Net10 passes `2665`, skips `94`, and fails `0` (`2759` total). Release remains
+**RED**: SMTP crash execution is separate, and Full-Text SQL/Data,
+registered COM/SEC-18, installer rollback, filesystem TOCTOU, paired
+performance, protocol thresholds, and 24-hour soak remain open.
+
+## Historical backup snapshot security gate (2026-08-22, handle-relative destination creation)
 
 Code/test commit `28d046d3d` extends `WindowsHandleRelativeDirectoryCopier`
 with a root-to-leaf pinned-handle walk for missing nested destination

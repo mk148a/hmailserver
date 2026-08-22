@@ -95,7 +95,7 @@ Next: native ancestor/same-name filesystem binding only after privileged
 disposable tests are available; otherwise use the approved Full-Text SQL/Data
 environment, then registered COM/SEC-18 and installer/service rollback.
 
-## Current Authoritative Continuation (2026-08-22, handle-relative nested destination creation)
+## Historical Authoritative Continuation (2026-08-22, handle-relative nested destination creation)
 
 Code/test commit `28d046d3d` makes
 `WindowsHandleRelativeDirectoryCopier.OpenOrCreateDirectoryPath` create
@@ -115,6 +115,28 @@ thresholds, and 24-hour soak remain open.
 Next: obtain privileged disposable filesystem/service-identity evidence for
 the remaining native races; otherwise use the approved Full-Text SQL/Data
 environment, then registered COM/SEC-18 and installer/service rollback.
+
+## Current Authoritative Continuation (2026-08-22, Settings.CrashSimulationMode process-local parity)
+
+Code/test commit `5f2a8b011` implements the legacy process-local
+`Settings.CrashSimulationMode` setter. Legacy references are
+`InterfaceSettings::get/put_CrashSimulationMode`
+(`hmailserver/source/Server/COM/InterfaceSettings.cpp:1594-1623`) and
+`Configuration::Get/SetCrashSimulationMode`
+(`hmailserver/source/Server/Common/Application/Configuration.cpp:673-683`).
+Net10 uses a shared thread-safe holder, live administrator revalidation, and
+authorization leases while preserving Settings IID/vtable/DISPID `99`.
+
+Focused Settings tests pass `255/255`; full Debug Net10 passes `2665`, skips
+`94`, and fails `0` (`2759` total). No SQL/Data persistence, SMTP crash
+execution, reload, COM registration, DCOM, IIS, firewall, or production state
+changed. Release remains **RED**; the separate SMTP crash consumer, Full-Text
+SQL/Data, registered COM/SEC-18, installer rollback, filesystem TOCTOU, paired
+performance, protocol thresholds, and 24-hour soak remain open.
+
+Next: retain this process-local parity as complete, then use approved
+environment evidence for Full-Text SQL/Data or registered COM/SEC-18; do not
+claim SMTP crash behavior from this setter alone.
 
 ## Historical Authoritative Continuation (2026-08-22, Application.Connect)
 
