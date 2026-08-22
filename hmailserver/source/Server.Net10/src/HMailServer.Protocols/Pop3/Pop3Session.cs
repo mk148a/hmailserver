@@ -522,7 +522,7 @@ public sealed class Pop3Session
             }
         }
 
-        await WriteOkAsync(stream, "hMailServer POP3 server signing off", cancellationToken).ConfigureAwait(false);
+        await WriteAsync(stream, "+OK POP3 server saying goodbye...\r\n", cancellationToken).ConfigureAwait(false);
     }
 
     private static async ValueTask<bool> RequireAuthenticatedAsync(

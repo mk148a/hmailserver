@@ -58,7 +58,7 @@ public sealed class Pop3TcpListenerTests
         await WriteLineAsync(writer, "STAT", cts.Token);
         Assert.AreEqual("+OK 1 22", await ReadLineAsync(reader, cts.Token));
         await WriteLineAsync(writer, "QUIT", cts.Token);
-        Assert.AreEqual("+OK hMailServer POP3 server signing off", await ReadLineAsync(reader, cts.Token));
+        Assert.AreEqual("+OK POP3 server saying goodbye...", await ReadLineAsync(reader, cts.Token));
 
         await StopListenerAsync(runTask, cts);
     }
@@ -97,7 +97,7 @@ public sealed class Pop3TcpListenerTests
             Assert.AreEqual("secret", boundary.LastRequest.Password);
 
             await WriteLineAsync(writer, "QUIT", cts.Token);
-            Assert.AreEqual("+OK hMailServer POP3 server signing off", await ReadLineAsync(reader, cts.Token));
+            Assert.AreEqual("+OK POP3 server saying goodbye...", await ReadLineAsync(reader, cts.Token));
         }
         finally
         {
@@ -172,7 +172,7 @@ public sealed class Pop3TcpListenerTests
 
         Assert.AreEqual("+OK hMailServer .NET 10 POP3 ready", await ReadLineAsync(reader, cts.Token));
         await WriteLineAsync(writer, "QUIT", cts.Token);
-        Assert.AreEqual("+OK hMailServer POP3 server signing off", await ReadLineAsync(reader, cts.Token));
+        Assert.AreEqual("+OK POP3 server saying goodbye...", await ReadLineAsync(reader, cts.Token));
 
         await StopListenerAsync(runTask, cts);
     }
