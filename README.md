@@ -1,23 +1,23 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, atomic administrator-password INI persistence)
+## Current parity gate (2026-08-22, authenticated SMTP ETRN)
 
-Code/test commit `d00214ec3` hardens the existing
-`Settings.SetAdministratorPassword` persistence. Legacy
-`IniFileSettings::SetAdministratorPassword` at
-`source/Server/Common/Application/IniFileSettings.cpp:352-366` hashes the
-password and writes only `[Security] AdministratorPassword` through
-`WritePrivateProfileString`; Net10 now writes a same-directory `.ini`
-snapshot, flushes the profile API, flushes the file, and atomically replaces
-the target. Focused initialization/settings tests pass `18`, and full Debug
-Net10 passes `2687`, skips `94`, and fails `0` (`2781` total).
+Code/test commit `b213c5a2a` implements the legacy SMTP `ETRN` path. Legacy
+`SMTPConnection::ProtocolETRN_` at
+`source/Server/SMTP/SMTPConnection.cpp:2001-2120` requires authentication,
+rejects a missing domain, accepts only an exact configured route, and resets
+route-owned queued messages to normal delivery with `messagenexttrytime` at
+the legacy epoch. Net10 now exposes the same behavior through the configured
+route store. Focused SMTP tests pass `39`, and full Debug Net10 passes `2691`,
+skips `94`, and fails `0` (`2785` total).
 
 The release gate remains **RED** because power-loss injection/durability,
 native crash semantics, Full-Text SQL/Data, installed COM, migration/restore,
 SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
 soak gates remain open. The next independent slice is approved Full-Text
-SQL/Data round-trip acceptance. The previous HELP entry below is historical.
+SQL/Data round-trip acceptance. The previous INI persistence entry below is
+historical.
 
 ## Historical parity gate (2026-08-22, client-password runner secret transport)
 

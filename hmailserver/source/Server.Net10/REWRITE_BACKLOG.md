@@ -1,18 +1,18 @@
 
 
-## Current authoritative next slice (2026-08-22, atomic administrator-password INI persistence)
+## Current authoritative next slice (2026-08-22, authenticated SMTP ETRN complete)
 
-Code/test commit `d00214ec3` hardens the existing administrator-password
-setter. Legacy `source/Server/Common/Application/IniFileSettings.cpp:352-366`
-hashes the password and calls `WritePrivateProfileString` for only the
-`[Security] AdministratorPassword` value. Net10 now writes a same-directory
-`.ini` snapshot, flushes the profile API and file, then atomically replaces the
-target and cleans the sibling on success or failure. Focused initialization/
-settings tests pass `18`; full Debug Net10 passes `2687`, skips `94`, and fails
-`0` (`2781` total). Power-loss injection and post-reboot durability are not
-proven, so that release risk remains open. Release remains RED for Full-Text
-SQL/Data, installed COM, migration/restore, SEC-18, installer rollback,
-paired C++ performance, protocol thresholds, and soak. Next slice: approved
+Code/test commit `b213c5a2a` closes the legacy SMTP `ETRN` gap. Legacy
+`source/Server/SMTP/SMTPConnection.cpp:2001-2120` requires an authenticated
+session, returns the missing-domain syntax response, requires an exact route
+name, and updates `hm_messages` rows with `messagetype = 3` and the route ID
+back to `messagetype = 1`, `messageaccountid = 0`, and the 1901 epoch. Net10
+adds `IRouteAdministrationStore.QueueMessagesForRouteAsync`, the SQL update,
+and an injected SMTP route/queue boundary. Focused SMTP tests pass `39`; full
+Debug Net10 passes `2691`, skips `94`, and fails `0` (`2785` total). Release
+remains RED for power-loss INI durability, native crash semantics, Full-Text
+SQL/Data, installed COM, migration/restore, SEC-18, installer rollback, paired
+C++ performance, protocol thresholds, and soak. Next slice: approved
 Full-Text SQL/Data round-trip acceptance. Older sections are historical.
 
 ## Historical authoritative next slice (2026-08-22, client-password runner secret transport complete)
