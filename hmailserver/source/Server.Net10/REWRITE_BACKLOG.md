@@ -1,12 +1,12 @@
 
 
-## Current authoritative next slice (2026-08-22, legacy POP3 HELP complete)
+## Current authoritative next slice (2026-08-22, legacy POP3 line length complete)
 
-Code/test commit `3292cefb2` closes the legacy POP3 `HELP` gap. Legacy
-`source/Server/POP3/POP3Connection.cpp:292-294` returns
-`+OK Normal POP3 commands allowed` without authentication; Net10 now does the
-same. Focused POP3 tests pass `12`; full Debug Net10 passes `2692`, skips `94`,
-and fails `0` (`2786` total). Release remains RED for power-loss INI
+Code/test commit `4150e62aa` closes the legacy POP3 overlong-line response
+gap. Legacy `source/Server/POP3/POP3Connection.cpp:263-266` rejects lines
+over 500 bytes with `-ERR Line too long.`; Net10 now does the same. Focused
+POP3 tests pass `13`; full Debug Net10 passes `2693`, skips `94`, and fails
+`0` (`2787` total). Release remains RED for power-loss INI
 durability, native crash semantics, Full-Text SQL/Data, installed COM,
 migration/restore, SEC-18, installer rollback, paired C++ performance,
 protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data

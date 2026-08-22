@@ -1,20 +1,20 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, legacy POP3 HELP)
+## Current parity gate (2026-08-22, legacy POP3 line length)
 
-Code/test commit `3292cefb2` closes the legacy POP3 `HELP` response gap.
-Legacy `POP3Connection::InternalParseData` at
-`source/Server/POP3/POP3Connection.cpp:292-294` returns
-`+OK Normal POP3 commands allowed` before authentication; Net10 now returns
-the same response and keeps the session open. Focused POP3 tests pass `12`,
-and full Debug Net10 passes `2692`, skips `94`, and fails `0` (`2786` total).
+Code/test commit `4150e62aa` closes the legacy POP3 overlong-line response
+gap. Legacy `POP3Connection::InternalParseData` at
+`source/Server/POP3/POP3Connection.cpp:263-266` rejects lines over 500 bytes
+with `-ERR Line too long.`; Net10 now uses the same default bound and response.
+Focused POP3 tests pass `13`, and full Debug Net10 passes `2693`, skips `94`,
+and fails `0` (`2787` total).
 
 The release gate remains **RED** because power-loss injection/durability,
 native crash semantics, Full-Text SQL/Data, installed COM, migration/restore,
 SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
 soak gates remain open. The next independent slice is approved Full-Text
-SQL/Data round-trip acceptance. The previous ETRN entry below is
+SQL/Data round-trip acceptance. The previous POP3 HELP entry below is
 historical.
 
 ## Historical parity gate (2026-08-22, client-password runner secret transport)

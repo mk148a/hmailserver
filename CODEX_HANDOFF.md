@@ -1,13 +1,13 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, legacy POP3 HELP)
+## Current Authoritative Continuation (2026-08-22, legacy POP3 line length)
 
-Code/test commit `3292cefb2` closes the legacy POP3 `HELP` gap. Legacy
-`hmailserver/source/Server/POP3/POP3Connection.cpp:292-294` returns
-`+OK Normal POP3 commands allowed` before authentication; Net10 now returns
-the same response and keeps the connection open. Focused POP3 tests are
-`12 passed, 0 skipped, 0 failed`; full Debug Net10 is `2692 passed, 94 skipped,
-0 failed` (`2786` total). No COM identity, SMTP trust, SQL/Data, production
+Code/test commit `4150e62aa` closes the legacy POP3 overlong-line response
+gap. Legacy `hmailserver/source/Server/POP3/POP3Connection.cpp:263-266`
+rejects lines over 500 bytes with `-ERR Line too long.`; Net10 now does the
+same. Focused POP3 tests are `13 passed, 0 skipped, 0 failed`; full Debug
+Net10 is `2693 passed, 94 skipped, 0 failed` (`2787` total). No COM identity,
+SMTP trust, SQL/Data, production
 service, database, Data directory, registration, DCOM ACL, IIS, firewall, or
 pre-existing artifact changed. Release remains RED for power-loss INI
 durability, native crash semantics, Full-Text SQL/Data, installed COM,
