@@ -54,6 +54,118 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_EtrnRequiresAuthenticationBeforeParsingDomain()
+    {
+        await using var stream = new DuplexMemoryStream("ETRN example.test\r\n");
+        var session = new SmtpSession();
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "530 Authentication required\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_EtrnAuthenticatedWithoutDomainPreservesLegacySyntaxResponse()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nETRN\r\n");
+        var session = new SmtpSession(
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "500 Syntax Error: No domain parameter included\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_EtrnQueuesMessagesForExactAuthenticatedRoute()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var stream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nETRN Example.Test\r\n");
+        var queuedRouteId = 0;
+        var session = new SmtpSession(
+            new SmtpSessionOptions
+            {
+                EtrnRouteProvider = static _ => ValueTask.FromResult<IReadOnlyList<RouteAdministrationSnapshot>>(
+                [
+                    new RouteAdministrationSnapshot(
+                        42,
+                        "example.test",
+                        string.Empty,
+                        "mx.example.test",
+                        25,
+                        3,
+                        10,
+                        false,
+                        false,
+                        string.Empty,
+                        false,
+                        false,
+                        0)
+                ]),
+                EtrnQueueProvider = (routeId, _) =>
+                {
+                    queuedRouteId = routeId;
+                    return ValueTask.FromResult(true);
+                }
+            },
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        Assert.AreEqual(42, queuedRouteId);
+        StringAssert.Contains(stream.GetOutputText(), "250 OK, message queuing started for example.test\r\n");
+    }
+
+    [TestMethod]
+    public async Task RunAsync_EtrnRejectsUnsupportedRouteAndReportsQueueFailure()
+    {
+        var authToken = EncodeAuthPlain("user@example.test", "secret");
+        await using var unsupportedStream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nETRN missing.test\r\n");
+        var unsupportedSession = new SmtpSession(
+            new SmtpSessionOptions
+            {
+                EtrnRouteProvider = static _ => ValueTask.FromResult<IReadOnlyList<RouteAdministrationSnapshot>>([])
+            },
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await unsupportedSession.RunAsync(unsupportedStream, CancellationToken.None);
+        StringAssert.Contains(unsupportedStream.GetOutputText(), "501 ETRN not supported for missing.test\r\n");
+
+        await using var failedStream = new DuplexMemoryStream(
+            $"EHLO client.example\r\nAUTH PLAIN {authToken}\r\nETRN example.test\r\n");
+        var failedSession = new SmtpSession(
+            new SmtpSessionOptions
+            {
+                EtrnRouteProvider = static _ => ValueTask.FromResult<IReadOnlyList<RouteAdministrationSnapshot>>(
+                [
+                    new RouteAdministrationSnapshot(
+                        42,
+                        "example.test",
+                        string.Empty,
+                        "mx.example.test",
+                        25,
+                        3,
+                        10,
+                        false,
+                        false,
+                        string.Empty,
+                        false,
+                        false,
+                        0)
+                ]),
+                EtrnQueueProvider = static (_, _) => ValueTask.FromResult(false)
+            },
+            accountAuthenticator: new FakeAccountAuthenticator());
+
+        await failedSession.RunAsync(failedStream, CancellationToken.None);
+        StringAssert.Contains(failedStream.GetOutputText(), "458 Unable to queue messages for example.test\r\n");
+    }
+
+    [TestMethod]
     public void ExecuteCrashSimulation_PreservesLegacyModeBranchesAsManagedFailures()
     {
         Assert.ThrowsExactly<InvalidOperationException>(() => SmtpSession.ExecuteCrashSimulation(1));

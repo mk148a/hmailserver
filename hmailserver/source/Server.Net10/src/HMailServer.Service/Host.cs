@@ -624,7 +624,17 @@ public static class Host
     builder.Services.AddSingleton(externalFetchPop3ClientOptions);
     builder.Services.AddSingleton(clamAvOptions);
     builder.Services.AddSingleton(imapSessionOptions);
-    builder.Services.AddSingleton(smtpSessionOptions);
+    builder.Services.AddSingleton(serviceProvider => smtpSessionOptions with
+    {
+        EtrnRouteProvider = cancellationToken =>
+            serviceProvider
+                .GetRequiredService<IRouteAdministrationStore>()
+                .GetRoutesAsync(cancellationToken),
+        EtrnQueueProvider = (routeId, cancellationToken) =>
+            serviceProvider
+                .GetRequiredService<IRouteAdministrationStore>()
+                .QueueMessagesForRouteAsync(routeId, cancellationToken)
+    });
     builder.Services.AddSingleton(new Pop3SessionOptions());
     builder.Services.AddSingleton(mailboxOptions);
     builder.Services.AddSingleton(idleOptions);

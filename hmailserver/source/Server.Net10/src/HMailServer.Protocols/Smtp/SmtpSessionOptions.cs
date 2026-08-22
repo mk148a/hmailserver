@@ -1,3 +1,5 @@
+using HMailServer.Core.Abstractions;
+
 namespace HMailServer.Protocols.Smtp;
 
 public sealed record SmtpSessionOptions
@@ -23,4 +25,8 @@ public sealed record SmtpSessionOptions
     public Func<int>? CrashSimulationModeProvider { get; init; }
 
     public Action<int>? CrashSimulationModeExecutor { get; init; }
+
+    public Func<CancellationToken, ValueTask<IReadOnlyList<RouteAdministrationSnapshot>>>? EtrnRouteProvider { get; init; }
+
+    public Func<int, CancellationToken, ValueTask<bool>>? EtrnQueueProvider { get; init; }
 }

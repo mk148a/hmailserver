@@ -289,6 +289,10 @@ public sealed class SmtpSession
                     arguments,
                     cancellationToken).ConfigureAwait(false);
 
+            case "ETRN":
+                await HandleEtrnAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
+                return SmtpDispatchResult.Continue;
+
             case "MAIL":
                 await HandleMailAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
                 return SmtpDispatchResult.Continue;
@@ -331,6 +335,78 @@ public sealed class SmtpSession
             NormalizeSmtpEventFailureResponse(result.FailureResponse) + "\r\n",
             cancellationToken).ConfigureAwait(false);
         return false;
+    }
+
+    private async ValueTask HandleEtrnAsync(
+        Stream stream,
+        SessionState state,
+        string arguments,
+        CancellationToken cancellationToken)
+    {
+        if (state.AuthenticatedAccount is null)
+        {
+            await WriteAsync(stream, "530 Authentication required\r\n", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var domain = arguments
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            await WriteAsync(
+                stream,
+                "500 Syntax Error: No domain parameter included\r\n",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var normalizedDomain = domain.ToLowerInvariant();
+        IReadOnlyList<RouteAdministrationSnapshot> routes;
+        try
+        {
+            routes = _options.EtrnRouteProvider is null
+                ? Array.Empty<RouteAdministrationSnapshot>()
+                : await _options.EtrnRouteProvider(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            await WriteAsync(
+                stream,
+                $"458 Error getting info for {normalizedDomain}\r\n",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var route = routes.FirstOrDefault(candidate =>
+            string.Equals(candidate.DomainName, normalizedDomain, StringComparison.OrdinalIgnoreCase));
+        if (route is null)
+        {
+            await WriteAsync(
+                stream,
+                $"501 ETRN not supported for {normalizedDomain}\r\n",
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            var queued = _options.EtrnQueueProvider is not null
+                && await _options.EtrnQueueProvider(route.Id, cancellationToken).ConfigureAwait(false);
+            await WriteAsync(
+                stream,
+                queued
+                    ? $"250 OK, message queuing started for {normalizedDomain}\r\n"
+                    : $"458 Unable to queue messages for {normalizedDomain}\r\n",
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            await WriteAsync(
+                stream,
+                $"458 Unable to queue messages for {normalizedDomain}\r\n",
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private async ValueTask WriteSmtpResponseAsync(

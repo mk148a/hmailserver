@@ -59,6 +59,15 @@ public sealed class SqlServerRouteAdministrationStore : IRouteAdministrationStor
         DELETE FROM hm_routes
         WHERE routeid = @ID;
         """;
+
+    public const string QueueMessagesForRouteSql = """
+        UPDATE hm_messages
+        SET messageaccountid = 0,
+            messagetype = 1,
+            messagenexttrytime = @NextTryTime
+        WHERE messagetype = 3
+          AND messageaccountid = @RouteID;
+        """;
     private readonly SqlServerConnectionFactory _connectionFactory;
 
     public SqlServerRouteAdministrationStore(SqlServerConnectionFactory connectionFactory)
@@ -164,6 +173,18 @@ public sealed class SqlServerRouteAdministrationStore : IRouteAdministrationStor
         deleteCommand.Parameters.Add("@ID", SqlDbType.Int).Value = routeId;
         var affected = await deleteCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
         return affected == 1;
+    }
+
+    public async ValueTask<bool> QueueMessagesForRouteAsync(
+        int routeId,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(QueueMessagesForRouteSql, connection);
+        command.Parameters.Add("@RouteID", SqlDbType.Int).Value = routeId;
+        command.Parameters.Add("@NextTryTime", SqlDbType.DateTime).Value = new DateTime(1901, 1, 1);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return true;
     }
     private static bool ReadLegacyBoolean(SqlDataReader reader, int ordinal) =>
         Convert.ToInt32(reader.GetValue(ordinal), CultureInfo.InvariantCulture) != 0;

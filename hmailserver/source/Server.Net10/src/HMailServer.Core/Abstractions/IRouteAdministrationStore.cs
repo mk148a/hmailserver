@@ -19,4 +19,9 @@ public interface IRouteAdministrationStore
         int routeId,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Route deletion is not available in this store.");
+
+    ValueTask<bool> QueueMessagesForRouteAsync(
+        int routeId,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Route message queuing is not available in this store.");
 }
