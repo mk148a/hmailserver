@@ -64,6 +64,22 @@ public sealed class Pop3SessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_PassesEmptyPasswordToLegacyAuthenticationBoundary()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "USER user@example.test\r\nPASS\r\nQUIT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            new FakePop3MailboxStore(Array.Empty<StoredMessage>()));
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "-ERR Invalid user name or password.\r\n");
+        Assert.IsFalse(output.Contains("Syntax: PASS password", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task RunAsync_UsesLegacyLineTooLongResponse()
     {
         await using var stream = new DuplexMemoryStream(new string('A', 501) + "\r\n");

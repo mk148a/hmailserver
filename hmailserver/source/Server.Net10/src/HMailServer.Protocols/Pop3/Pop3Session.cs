@@ -244,12 +244,6 @@ public sealed class Pop3Session
             return false;
         }
 
-        if (arguments.Length == 0)
-        {
-            await WriteErrAsync(stream, "Syntax: PASS password", cancellationToken).ConfigureAwait(false);
-            return false;
-        }
-
         var clientAuthentication = await _clientAwareAuthenticationService
             .AuthenticateAsync(
                 new ClientAuthenticationRequest(
