@@ -40,7 +40,7 @@ installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and long-soak acceptance remain open or
 environment-blocked. No COM identity or production state changed.
 
-## Current authoritative parity status (2026-08-22, handle-relative raw DataBackup identity)
+## Historical authoritative parity status (2026-08-22, handle-relative raw DataBackup identity)
 
 Code/test commit `b26836360` moves raw non-DB-only `DataBackup` identity
 hashing and matching from path-based enumeration to
@@ -61,6 +61,26 @@ destination ancestor TOCTOU, Full-Text SQL/Data, registered COM/SEC-18,
 installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and long-soak acceptance remain open or
 environment-blocked. No COM identity or production state changed.
+
+## Current authoritative parity status (2026-08-22, owned snapshot collision cleanup)
+
+Code/test commit `b37cb2e86` stages private backup snapshots in an
+invocation-specific directory and atomically claims the requested final name
+with `Directory.Move`. A pre-existing same-name snapshot is rejected before
+ACL or copy work, and only owned staging/final directories are cleaned after
+failure or disposal. `BackupArchiveIdentityTests` covers collision
+preservation, second-binding preservation, owned failure cleanup, and owned
+disposal, alongside the existing handle-relative digest tests.
+
+Legacy backup anchors remain `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:195-217`) and
+`FileUtilities::CopyDirectory` (`source/Server/Common/Util/FileUtilities.cpp:370-402`).
+No COM identity, SQL schema, archive layout, service, or production state
+changed. Focused tests pass `11`, skip `2`, fail `0`; full Debug Net10 passes
+`2657`, skips `94`, and fails `0` (`2751` total). Release remains **RED** for
+atomic snapshot/quiescence, destination ancestor/same-name replacement TOCTOU,
+Full-Text SQL/Data, registered COM/SEC-18, installer rollback, paired
+C++/.NET performance, protocol thresholds, and soak.
 
 Older sections below are historical.
 

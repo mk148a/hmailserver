@@ -51,7 +51,7 @@ SEC-18, installer/service/data rollback, remaining COM/Admin parity, paired
 C++/.NET performance, protocol thresholds, and 24-hour soak. The previous
 root-ACL entry is historical.
 
-## Current bounded slice: handle-relative raw DataBackup identity hashing (2026-08-22)
+## Historical bounded slice: handle-relative raw DataBackup identity hashing (2026-08-22)
 
 Code/test commit `b26836360` replaces path-based raw `DataBackup` tree hashing
 in `BackupDataDirectoryIdentity` with
@@ -69,6 +69,25 @@ are unchanged. It reduces path-based identity races but does not provide an
 atomic filesystem snapshot. Same-name replacement, destination ancestor
 TOCTOU, target-identity native review, and privilege-dependent reparse tests
 remain open, followed by the environment-blocked Full-Text SQL/Data gate.
+
+## Current bounded slice: owned backup snapshot collision cleanup (2026-08-22)
+
+Code/test commit `b37cb2e86` prevents `BackupArchiveBinding.TryCreate` from
+adopting or recursively deleting a pre-existing same-name snapshot directory.
+It stages in an invocation-specific directory, claims the final name with an
+atomic same-parent `Directory.Move`, and tracks ownership for failure and
+`Dispose` cleanup. Focused `BackupArchiveIdentityTests` pass `11`, skip `2`,
+fail `0`; full Debug Net10 passes `2657`, skips `94`, fails `0` (`2751` total).
+
+Legacy references are `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:195-217`) and
+`FileUtilities::CopyDirectory` (`source/Server/Common/Util/FileUtilities.cpp:370-402`).
+This security hardening is internal to private snapshot binding; COM identity,
+SQL schema, archive layout, service, SMTP, and production state are unchanged.
+Remaining gates are atomic snapshot/quiescence, destination ancestor and
+same-name replacement TOCTOU, target-identity filesystem review, Full-Text
+SQL/Data, registered COM/SEC-18, installer rollback, paired performance,
+protocol thresholds, and 24-hour soak.
 
 ## Historical bounded slice: Application.Connect error reporting parity (2026-08-22)
 
