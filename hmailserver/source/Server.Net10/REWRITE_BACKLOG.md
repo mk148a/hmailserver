@@ -1,4 +1,28 @@
 
+
+## Current authoritative next slice (2026-08-22, SetAdministratorPassword complete)
+
+Code/test commit `3d8cc17a9` closes the bounded legacy
+`Settings.SetAdministratorPassword` / `IInterfaceSettings` DISPID `76` gap.
+The C++ reference is `source/Server/COM/InterfaceSettings.cpp:1014-1031`
+calling `IniFileSettings::SetAdministratorPassword` at
+`source/Server/Common/Application/IniFileSettings.cpp:358-367`; it generates
+salted SHA-256, writes the INI security value, and performs no SQL, Data,
+SMTP, service, or reload mutation. Net10 now preserves the installed COM
+identity and direct activation boundary, reports failed INI writes before
+live verifier publication, and covers hash compatibility, old/new password
+transition, failure containment, retained-object authorization, direct
+activation denial, and DISPID reflection.
+
+Focused setter plus Settings tests are `262 passed, 0 skipped, 0 failed`;
+full Debug Net10 is `2672 passed, 94 skipped, 0 failed`. This item is closed.
+The next independent slices remain, in order: approved Full-Text SQL/Data
+round-trip; isolated registered COM/SEC-18 caller evidence; installer,
+service, and Data rollback acceptance. Release remains **RED** because
+installed COM, crash/power-loss INI atomicity, migration/restore, SEC-18,
+performance, protocol, and soak gates are not proven. Older sections are
+historical records.
+
 ## Historical bounded slice: private backup snapshot root ACL containment (2026-08-22)
 
 Code/test commit `59a461a11` rejects existing reparse points at the private

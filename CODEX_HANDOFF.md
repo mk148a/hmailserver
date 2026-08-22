@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-22, SetAdministratorPassword parity)
+
+Code/test commit `3d8cc17a9` closes the bounded legacy
+`Settings.SetAdministratorPassword` / DISPID `76` slice. The exact C++
+references are `hmailserver/source/Server/COM/InterfaceSettings.cpp:1014-1031`
+and `hmailserver/source/Server/Common/Application/IniFileSettings.cpp:358-367`:
+salted SHA-256 is generated, `[Security] AdministratorPassword` is written to
+the configured INI, and no SQL/Data/SMTP/service/reload behavior occurs.
+Net10 keeps the installed interface identity and direct activation denial,
+uses the existing authenticated Settings authorization lease, returns failure
+before live verifier publication when the INI write fails, and updates the
+thread-safe verifier for subsequent authentication attempts. Focused setter
+plus Settings tests are `262 passed, 0 skipped, 0 failed`; full Debug Net10 is
+`2672 passed, 94 skipped, 0 failed` (`2766` total).
+
+No production service, database, Data directory, COM registration, DCOM ACL,
+IIS, firewall, or pre-existing untracked artifact was changed. Residual risks
+are installed/out-of-process COM proof, crash/power-loss INI atomicity,
+Full-Text SQL/Data, SEC-18, installer/service/Data rollback, paired C++
+performance, protocol thresholds, and 24-hour soak. Next: approved Full-Text
+SQL/Data round-trip; isolated registered COM/SEC-18 evidence; installer,
+service, and Data rollback acceptance. Older entries are historical.
+
 ## Historical Authoritative Continuation (2026-08-22, private backup snapshot root ACL containment)
 
 Code/test commit `59a461a11` rejects existing reparse points at the GUID-scoped
@@ -116,7 +139,7 @@ Next: obtain privileged disposable filesystem/service-identity evidence for
 the remaining native races; otherwise use the approved Full-Text SQL/Data
 environment, then registered COM/SEC-18 and installer/service rollback.
 
-## Current Authoritative Continuation (2026-08-22, Settings.CrashSimulationMode process-local parity)
+## Historical Authoritative Continuation (2026-08-22, Settings.CrashSimulationMode process-local parity)
 
 Code/test commit `5f2a8b011` implements the legacy process-local
 `Settings.CrashSimulationMode` setter. Legacy references are

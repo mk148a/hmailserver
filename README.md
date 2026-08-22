@@ -1,7 +1,30 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, Settings.CrashSimulationMode)
+## Current parity gate (2026-08-22, Settings.SetAdministratorPassword)
+
+Code/test commit `3d8cc17a9` implements the bounded legacy
+`Settings.SetAdministratorPassword` slice. Legacy behavior is anchored at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1014-1031` and
+`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:358-367`:
+the authenticated setter generates salted SHA-256, writes
+`[Security] AdministratorPassword` in the configured INI, and does not touch
+SQL, Data, SMTP, service state, or reload behavior.
+
+Net10 preserves the installed Settings IID/vtable/DISPID `76`, keeps direct
+`Settings` activation denied, stages the hash without retaining or logging the
+plaintext, reports INI write failure before publishing the new live verifier,
+and publishes the verifier snapshot to subsequent authentication attempts.
+Focused setter plus Settings tests pass `262`, skip `0`, fail `0`; full Debug
+Net10 passes `2672`, skips `94`, and fails `0` (`2766` total).
+
+Release remains **RED**: installed/out-of-process COM proof, crash/power-loss
+INI replacement atomicity, Full-Text SQL/Data, SEC-18, installer rollback,
+paired C++ performance, protocol thresholds, and 24-hour soak remain open.
+
+The previous CrashSimulationMode entry below is historical.
+
+## Historical parity gate (2026-08-22, Settings.CrashSimulationMode)
 
 Code/test commit `5f2a8b011` implements the legacy process-local
 `Settings.CrashSimulationMode` setter. Legacy

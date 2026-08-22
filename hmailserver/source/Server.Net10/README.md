@@ -1,3 +1,21 @@
+## Current authoritative parity status (2026-08-22, SetAdministratorPassword)
+
+Code/test commit `3d8cc17a9` implements legacy `IInterfaceSettings` DISPID
+`76`, anchored at `source/Server/COM/InterfaceSettings.cpp:1014-1031` and
+`source/Server/Common/Application/IniFileSettings.cpp:358-367`. The setter
+creates the legacy salted SHA-256 hash, persists only
+`[Security] AdministratorPassword` through the configured initialization
+file, and publishes the mutable verifier only after the write reports success.
+The concrete authenticated Settings adapter owns the behavior; the base
+adapter and direct activation remain denied. No SQL/Data, SMTP, service,
+reload, COM registration, DCOM, or installed contract identity changed.
+
+Focused setter plus Settings tests pass `262/262`; full Debug Net10 passes
+`2672`, skips `94`, and fails `0` (`2766` total). Remaining release risks are
+installed/out-of-process COM proof, crash/power-loss INI atomicity, Full-Text
+SQL/Data, SEC-18, installer rollback, paired C++ performance, protocol
+thresholds, and 24-hour soak. Older sections are historical.
+
 ## Historical authoritative parity status (2026-08-22, private backup snapshot root ACL containment)
 
 Code/test commit `59a461a11` rejects existing reparse points at the private
