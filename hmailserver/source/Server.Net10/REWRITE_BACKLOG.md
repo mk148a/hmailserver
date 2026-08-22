@@ -1,10 +1,11 @@
 
-## Current bounded slice: private backup snapshot reparse containment (2026-08-22)
+## Current bounded slice: private backup snapshot root ACL containment (2026-08-22)
 
-Code/test commit `8d6bb37f` rejects existing reparse points at the private
-snapshot root and GUID child before ACL application or archive/raw `DataBackup`
-copy. The root also disables inherited ACLs and grants full control to the
-executing identity and `SYSTEM`; child files inherit that restricted DACL.
+Code/test commit `59a461a11` rejects existing reparse points at the private
+snapshot root and GUID child before archive/raw `DataBackup` copy, and applies
+the protected root ACL before creating the GUID child. The root and child
+disable inherited ACLs and grant full control to the executing identity and
+`SYSTEM`; child files inherit that restricted DACL.
 Legacy backup behavior is anchored at
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
 and `BackupManager.cpp:101-132`, which use temporary extraction/copy paths but
@@ -225,9 +226,10 @@ full Net10 passes `2601`, skips `92`, and fails `0` (`2693` total). This slice
 changes tests only; no production behavior, COM identity, SQL schema, service,
 registry, DCOM, IIS, or production state changed.
 
-The static `BackupManager.ExecuteBackupAsync` fallback remains incomplete when
-called without the configured production runtime host; the tested service
-composition bypasses it through the configured operation runtime. Real SQL/Data
+The static `BackupManager.ExecuteBackupAsync` fallback remains intentionally
+unavailable when called without a configured runtime host; production
+`Program.cs:41-84` already supplies `SevenZipBackupArchiveRuntime.CreateAsync`
+through `BackupOperationRuntime` (wired by `a1f1d92f46`). Real SQL/Data
 backup acceptance, recursive handle-relative DataBackup traversal, Full-Text
 SQL Server `6000`, registered/out-of-process COM, SEC-18, installer rollback,
 paired C++ performance, SMTP/delivery thresholds, and long-soak evidence remain

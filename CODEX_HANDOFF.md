@@ -1,12 +1,13 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, private backup snapshot reparse containment)
+## Current Authoritative Continuation (2026-08-22, private backup snapshot root ACL containment)
 
-Code/test commit `8d6bb37f` rejects existing reparse points at the GUID-scoped
-temporary snapshot root and child before ACL application or archive/raw
-`DataBackup` copy. It also disables inherited ACLs and grants full control to
-the executing identity and `SYSTEM`, with focused coverage for protected ACLs,
-reparse rejection, readability, snapshot independence, hashing, and cleanup.
+Code/test commit `59a461a11` rejects existing reparse points at the GUID-scoped
+temporary snapshot root and child before archive/raw `DataBackup` copy, and
+protects the root before creating the child. It disables inherited ACLs and
+grants full control to the executing identity and `SYSTEM`, with focused
+coverage for protected root/child ACLs, reparse rejection, readability,
+snapshot independence, hashing, and cleanup.
 Legacy references are
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
 and `BackupManager.cpp:101-132`; no legacy-visible destination path, COM

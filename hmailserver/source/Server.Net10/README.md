@@ -1,9 +1,10 @@
-## Current authoritative parity status (2026-08-22, private backup snapshot reparse containment)
+## Current authoritative parity status (2026-08-22, private backup snapshot root ACL containment)
 
-Code/test commit `8d6bb37f` rejects existing reparse points at the private
-snapshot root and GUID child before ACL application or archive/raw `DataBackup`
-copy. The root still disables ACL inheritance and grants full control only to
-the executing identity and `SYSTEM`. Legacy backup behavior is anchored at
+Code/test commit `59a461a11` rejects existing reparse points at the private
+snapshot root and GUID child before archive/raw `DataBackup` copy, and applies
+the protected root ACL before creating the GUID child. The root and child
+disable ACL inheritance and grant full control only to the executing identity
+and `SYSTEM`. Legacy backup behavior is anchored at
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
 and `BackupManager.cpp:101-132`; legacy-visible destination paths and COM
 identity are unchanged.

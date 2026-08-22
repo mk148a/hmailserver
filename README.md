@@ -3,11 +3,12 @@ hMailServer
 
 ## Current backup snapshot security gate (2026-08-22)
 
-Code/test commit `8d6bb37f` hardens only the private GUID-scoped temporary
+Code/test commit `59a461a11` hardens only the private GUID-scoped temporary
 snapshot root and GUID child created by `BackupArchiveBinding.TryCreate`.
 Existing reparse points are rejected before ACL application or archive/Data
-copy, and the protected DACL still grants access only to the executing
-identity and `SYSTEM`. Legacy backup references are
+copy; the root is protected before child creation, and the protected DACL
+grants access only to the executing identity and `SYSTEM`. Legacy backup
+references are
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
 and `BackupManager.cpp:101-132`; legacy-visible destination paths, SQL/Data
 semantics, COM identity, and service behavior are unchanged.
@@ -18,8 +19,9 @@ and fail `0`; the full Debug Net10 suite passes `2652`, skips `94`, and fails
 **RED**: Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
 installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and 24-hour soak remain open or
-environment-blocked. Pre-existing reparse redirection is covered; a
-handle-based TOCTOU race and target-identity review remain open. Older
+environment-blocked. Pre-existing reparse redirection is covered and root ACL
+protection now precedes child creation; a handle-based TOCTOU race and
+target-identity review remain open. Older
 sections below are historical.
 
 ## Current Application.Connect gate (2026-08-22)
