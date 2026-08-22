@@ -10,6 +10,19 @@ namespace HMailServer.Net10.Tests;
 public sealed class Pop3SessionTests
 {
     [TestMethod]
+    public async Task RunAsync_HandlesLegacyHelpBeforeAuthentication()
+    {
+        await using var stream = new DuplexMemoryStream("HELP\r\nQUIT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            new FakePop3MailboxStore(Array.Empty<StoredMessage>()));
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "+OK Normal POP3 commands allowed\r\n");
+    }
+
+    [TestMethod]
     public async Task RunAsync_HandlesAuthenticatedMailboxCommands()
     {
         var messageOne = Encoding.ASCII.GetBytes("Subject: one\r\n\r\n.Line\r\n..Two\r\nEnd");

@@ -113,6 +113,10 @@ public sealed class Pop3Session
     {
         switch (command)
         {
+            case "HELP":
+                await WriteAsync(stream, "+OK Normal POP3 commands allowed\r\n", cancellationToken).ConfigureAwait(false);
+                return false;
+
             case "USER":
                 await HandleUserAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
                 return false;
