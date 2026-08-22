@@ -1,17 +1,20 @@
 hMailServer
 ===========
 
-## Current backup snapshot security gate (2026-08-22)
+## Current backup snapshot security gate (2026-08-22, handle-relative raw DataBackup snapshot)
 
-Code/test commit `59a461a11` hardens only the private GUID-scoped temporary
-snapshot root and GUID child created by `BackupArchiveBinding.TryCreate`.
+Code/test commit `35901f31b` routes the private raw non-DB-only `DataBackup`
+snapshot through `WindowsHandleRelativeDirectoryCopier.Copy` after the
+existing root/child reparse and ACL protections.
 Existing reparse points are rejected before ACL application or archive/Data
 copy; the root is protected before child creation, and the protected DACL
 grants access only to the executing identity and `SYSTEM`. Legacy backup
 references are
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
-and `BackupManager.cpp:101-132`; legacy-visible destination paths, SQL/Data
-semantics, COM identity, and service behavior are unchanged.
+and `FileUtilities.cpp:370-402`; the .NET symbols are
+`BackupDataDirectoryIdentity.CopyStableSnapshot` and
+`WindowsHandleRelativeDirectoryCopier.Copy`. Legacy-visible destination paths,
+SQL/Data semantics, COM identity, and service behavior are unchanged.
 
 Focused `BackupArchiveIdentityTests` pass `6`, skip `2` (symlink privilege),
 and fail `0`; the full Debug Net10 suite passes `2652`, skips `94`, and fails
@@ -19,9 +22,8 @@ and fail `0`; the full Debug Net10 suite passes `2652`, skips `94`, and fails
 **RED**: Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
 installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and 24-hour soak remain open or
-environment-blocked. Pre-existing reparse redirection is covered and root ACL
-protection now precedes child creation; a handle-based TOCTOU race and
-target-identity review remain open. Older
+environment-blocked. Nested and empty directories are covered; source
+hash/capture and private binding destination TOCTOU review remain open. Older
 sections below are historical.
 
 ## Current Application.Connect gate (2026-08-22)

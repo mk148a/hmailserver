@@ -1,5 +1,5 @@
 
-## Current bounded slice: private backup snapshot root ACL containment (2026-08-22)
+## Historical bounded slice: private backup snapshot root ACL containment (2026-08-22)
 
 Code/test commit `59a461a11` rejects existing reparse points at the private
 snapshot root and GUID child before archive/raw `DataBackup` copy, and applies
@@ -24,7 +24,34 @@ slices are the approved Full-Text SQL/Data acceptance, isolated registered
 COM/SEC-18 evidence when the disposable guest is visible, and installer
 rollback acceptance.
 
-## Current bounded slice: Application.Connect error reporting parity (2026-08-22)
+## Current bounded slice: handle-relative raw DataBackup snapshot copy (2026-08-22)
+
+Code/test commit `35901f31b` replaces the private path-based recursive raw
+`DataBackup` snapshot copy with `WindowsHandleRelativeDirectoryCopier.Copy`.
+The existing root/child reparse rejection and protected DACL remain in place;
+source before/after SHA-256 checks and destination identity capture still guard
+against source mutation. Nested and empty directories are covered by
+`BackupArchiveIdentityTests.Binding_SnapshotsAndHashesTheRawDataBackupSibling`.
+
+Legacy behavior is anchored at
+`source/Server/Common/Application/BackupExecuter.cpp:195-217` and
+`source/Server/Common/Util/FileUtilities.cpp:370-402`; the .NET symbols are
+`BackupDataDirectoryIdentity.CopyStableSnapshot` and
+`WindowsHandleRelativeDirectoryCopier.Copy`. This is a bounded filesystem
+hardening slice: no COM identity, SQL schema, legacy-visible path, SMTP,
+service, or production state changed.
+
+Focused `BackupArchiveIdentityTests` pass `6`, skip `2` because disposable
+symlink creation is not permitted on this host, and fail `0`; full Debug Net10
+passes `2652`, skips `94`, fails `0` (`2746` total). Release remains **RED**.
+The remaining backup security work is source hash/capture and private binding
+destination TOCTOU review, followed by the environment-blocked Full-Text
+SQL/Data acceptance. Other open gates remain registered/out-of-process COM and
+SEC-18, installer/service/data rollback, remaining COM/Admin parity, paired
+C++/.NET performance, protocol thresholds, and 24-hour soak. The previous
+root-ACL entry is historical.
+
+## Historical bounded slice: Application.Connect error reporting parity (2026-08-22)
 
 Code/test commit `fe0893c8f` closes the legacy `IInterfaceApplication.Connect`
 gap (`DISPID 11`). Legacy `InterfaceApplication::Connect` at

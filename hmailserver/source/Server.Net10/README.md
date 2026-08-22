@@ -1,4 +1,4 @@
-## Current authoritative parity status (2026-08-22, private backup snapshot root ACL containment)
+## Historical authoritative parity status (2026-08-22, private backup snapshot root ACL containment)
 
 Code/test commit `59a461a11` rejects existing reparse points at the private
 snapshot root and GUID child before archive/raw `DataBackup` copy, and applies
@@ -17,6 +17,29 @@ installer/service/data rollback, paired C++/.NET performance, protocol
 thresholds, and long-soak acceptance remain open or environment-blocked.
 Pre-existing reparse redirection is covered; handle-based TOCTOU protection
 and target-identity native filesystem review remain open.
+
+## Current authoritative parity status (2026-08-22, handle-relative raw DataBackup snapshot)
+
+Code/test commit `35901f31b` routes private raw non-DB-only `DataBackup`
+snapshot copying through `WindowsHandleRelativeDirectoryCopier.Copy`, while
+retaining the root/child reparse rejection, protected DACL, source
+before/after SHA-256 checks, and destination identity capture. The legacy
+anchors are `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:195-217`) and
+`FileUtilities::CopyDirectory` (`source/Server/Common/Util/FileUtilities.cpp:370-402`).
+The .NET implementation is `BackupDataDirectoryIdentity.CopyStableSnapshot`;
+`BackupArchiveIdentityTests.Binding_SnapshotsAndHashesTheRawDataBackupSibling`
+proves nested and empty directory preservation plus tamper detection.
+
+Focused `BackupArchiveIdentityTests` pass `6`, skip `2` because the host does
+not permit disposable symlink creation, and fail `0`; the full Debug Net10
+suite is `2652 passed, 94 skipped, 0 failed` (`2746` total). Release remains
+**RED**: source hash/capture and private binding destination TOCTOU review,
+Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
+installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
+performance, protocol thresholds, and long-soak acceptance remain open or
+environment-blocked. No COM identity or production state changed.
+
 Older sections below are historical.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)

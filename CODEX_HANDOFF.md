@@ -1,6 +1,6 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, private backup snapshot root ACL containment)
+## Historical Authoritative Continuation (2026-08-22, private backup snapshot root ACL containment)
 
 Code/test commit `59a461a11` rejects existing reparse points at the GUID-scoped
 temporary snapshot root and child before archive/raw `DataBackup` copy, and
@@ -24,7 +24,34 @@ open or environment-blocked. Next: approved Full-Text
 SQL/Data acceptance; otherwise isolated registered COM/SEC-18 evidence when
 the disposable guest is visible, then installer/service/data rollback.
 
-## Current Authoritative Continuation (2026-08-22, Application.Connect)
+## Current Authoritative Continuation (2026-08-22, handle-relative raw DataBackup snapshot)
+
+Code/test commit `35901f31b` routes private raw non-DB-only `DataBackup`
+snapshot copying through `WindowsHandleRelativeDirectoryCopier.Copy` after
+the root/child reparse and ACL protections. Legacy anchors are
+`BackupExecuter::BackupDataDirectory_`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:195-217`)
+and `FileUtilities::CopyDirectory`
+(`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`); .NET
+symbols are `BackupDataDirectoryIdentity.CopyStableSnapshot` and
+`WindowsHandleRelativeDirectoryCopier.Copy`. Focused coverage preserves nested
+and empty directories, source SHA-256 stability checks, destination identity,
+tamper detection, and cleanup.
+
+Focused `BackupArchiveIdentityTests` pass `6`, skip `2` because disposable
+symlink creation is unavailable, and fail `0`; full Debug Net10 passes `2652`,
+skips `94`, and fails `0` (`2746` total). No COM identity, SQL/Data schema,
+service, registry, DCOM, IIS, firewall, or production state changed. Release
+remains **RED**. Source hash/capture and private binding destination TOCTOU
+review remain open, as do Full-Text SQL/Data, registered COM/SEC-18,
+installer rollback, remaining COM/Admin parity, paired C++/.NET performance,
+protocol thresholds, and 24-hour soak.
+
+Next: use an approved Full-Text SQL/Data environment if available; otherwise
+continue isolated registered COM/SEC-18 evidence only when the disposable guest
+is visible, then installer/service/data rollback acceptance.
+
+## Historical Authoritative Continuation (2026-08-22, Application.Connect)
 
 Code/test commit `fe0893c8f` implements legacy no-auth
 `Application.Connect` (`DISPID 11`). Legacy
