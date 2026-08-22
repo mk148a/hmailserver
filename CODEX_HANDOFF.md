@@ -1,21 +1,23 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, SMTP HELP command parity)
+## Current Authoritative Continuation (2026-08-22, SMTP HELP crash consumer)
 
-Code/test commit `52567a795` adds legacy SMTP `HELP` behavior. The C++ source
-recognizes `HELP` at `hmailserver/source/Server/SMTP/SMTPConnection.cpp:198-201`,
-dispatches it before transaction-state handling at `:352-360`, and
-`ProtocolHELP_` emits the exact `211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET
-SAML TURN VRFY` response at `:1734-1752`. Net10 `SmtpSession` now returns the
-same response and keeps the connection active. Focused SMTP tests are `33
-passed, 0 skipped, 0 failed`; full Debug Net10 is `2683 passed, 94 skipped,
-0 failed` (`2777` total). No COM identity, SQL/Data, service, registration,
-DCOM, IIS, firewall, or pre-existing artifact changed. The separate legacy
-HELP crash-simulation consumer remains open. Release remains RED for
-Full-Text SQL/Data, installed COM, migration/restore, SEC-18, installer/
-service/Data rollback, paired C++ performance, protocol thresholds, and
-24-hour soak. Next: approved Full-Text SQL/Data round-trip acceptance. Older
-entries are historical.
+Code/test commit `49a89f2ef` completes the bounded legacy HELP crash consumer
+after `52567a795` added the response. Legacy
+`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1734-1752` invokes the
+crash-simulation path, with mode branches at
+`hmailserver/source/Server/Common/Util/CrashSimulation.cpp:18-35`. Net10 now
+reads the configured mode and invokes an executor before emitting HELP.
+Focused SMTP tests are `35 passed, 0 skipped, 0 failed`; full Debug Net10 is
+`2685 passed, 94 skipped, 0 failed` (`2779` total). Modes 1/2, 3, and 4 use
+managed `InvalidOperationException`, `AccessViolationException`, and
+`IOException`; native process fault/disconnect and service lifecycle parity
+remain unproven. No COM identity, SQL/Data, service, registration, DCOM, IIS,
+firewall, or pre-existing artifact changed. Release remains RED for the native
+crash gap, Full-Text SQL/Data, installed COM, migration/restore, SEC-18,
+installer/service/Data rollback, paired C++ performance, protocol thresholds,
+and 24-hour soak. Next: approved Full-Text SQL/Data round-trip acceptance.
+Older entries are historical.
 
 ## Historical Authoritative Continuation (2026-08-22, client-password runner secret transport)
 

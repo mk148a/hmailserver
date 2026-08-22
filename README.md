@@ -1,23 +1,26 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, SMTP HELP command parity)
+## Current parity gate (2026-08-22, SMTP HELP crash-simulation consumer)
 
-Code/test commit `52567a795` adds the legacy SMTP `HELP` command to the .NET
-session dispatcher. Legacy `SMTPConnection::GetCommandType_` at
-`source/Server/SMTP/SMTPConnection.cpp:198-201` recognizes `HELP`, the command
-is dispatched before transaction-state handling at `:352-360`, and
-`ProtocolHELP_` emits the exact `211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET
-SAML TURN VRFY` response at `:1734-1752`. Net10 now returns that response and
-keeps the session open. Focused SMTP tests pass `33`, and full Debug Net10
-passes `2683`, skips `94`, and fails `0` (`2777` total).
+Code/test commit `49a89f2ef` completes the bounded consumer wiring after
+`52567a795` added the legacy SMTP `HELP` response. Legacy
+`SMTPConnection::ProtocolHELP_` at
+`source/Server/SMTP/SMTPConnection.cpp:1734-1752` calls the crash-simulation
+path, whose mode branches are defined in `source/Server/Common/Util/CrashSimulation.cpp:18-35`.
+Net10 now reads the configured mode through `SettingsAdministrationRuntimeHost`
+and invokes an injected executor before writing the HELP response. Focused
+SMTP tests pass `35`, and full Debug Net10 passes `2685`, skips `94`, and
+fails `0` (`2779` total).
 
-The separate legacy HELP crash-simulation consumer remains open and is not
-changed by this slice. The release gate remains **RED**: Full-Text SQL/Data,
-installed COM, migration/restore, SEC-18, installer rollback, paired C++
-performance, protocol thresholds, and soak gates remain open. The next
-independent slice is approved Full-Text SQL/Data round-trip acceptance. The
-previous password-transport entry below is historical.
+Modes 1/2 are represented as managed `InvalidOperationException`, mode 3 as a
+managed `AccessViolationException`, and mode 4 as an `IOException`; this is
+consumer parity, not proof of the legacy native process crash/disconnect or
+service lifecycle semantics. The release gate remains **RED**: native crash
+semantics, Full-Text SQL/Data, installed COM, migration/restore, SEC-18,
+installer rollback, paired C++ performance, protocol thresholds, and soak
+gates remain open. The next independent slice is approved Full-Text SQL/Data
+round-trip acceptance. The previous HELP response entry below is historical.
 
 ## Historical parity gate (2026-08-22, client-password runner secret transport)
 
