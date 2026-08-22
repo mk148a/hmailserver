@@ -25,6 +25,19 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_HandlesLegacyHelpCommand()
+    {
+        await using var stream = new DuplexMemoryStream("HELP\r\nQUIT\r\n");
+        var session = new SmtpSession(new SmtpSessionOptions { ServerName = "mx.example.test" });
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(
+            stream.GetOutputText(),
+            "211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY\r\n");
+    }
+
+    [TestMethod]
     public async Task RunAsync_UsesLegacySettingsBackedGreetingFormatting(
         )
     {

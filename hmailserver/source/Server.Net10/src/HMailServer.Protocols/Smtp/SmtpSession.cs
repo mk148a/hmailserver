@@ -259,6 +259,13 @@ public sealed class SmtpSession
                 await WriteAsync(stream, "250 OK\r\n", cancellationToken).ConfigureAwait(false);
                 return SmtpDispatchResult.Continue;
 
+            case "HELP":
+                await WriteAsync(
+                    stream,
+                    "211 DATA HELO EHLO MAIL NOOP QUIT RCPT RSET SAML TURN VRFY\r\n",
+                    cancellationToken).ConfigureAwait(false);
+                return SmtpDispatchResult.Continue;
+
             case "RSET":
                 state.ResetTransaction();
                 await WriteAsync(stream, "250 OK\r\n", cancellationToken).ConfigureAwait(false);
