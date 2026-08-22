@@ -216,6 +216,26 @@ public sealed class ScriptingComContractTests
         Assert.AreEqual("VBScript", runtimeReloader.Language);
     }
 
+    [TestMethod]
+    public void AuthorizedSettings_ScriptingChildHoldsAuthorizationLeaseThroughConstruction()
+    {
+        var leaseDisposed = false;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                UseScriptServer: true,
+                ScriptLanguage: "VBScript"),
+            authorizationLeaseFactory: _ =>
+                ValueTask.FromResult<IDisposable?>(new DelegateLease(() => leaseDisposed = true)));
+
+        _ = settings.Scripting;
+
+        Assert.IsTrue(leaseDisposed);
+    }
+
     private static void AssertBstrProperty(Type contract, string name, int dispatchId, bool canWrite)
     {
         var property = contract.GetProperty(name);
@@ -269,5 +289,10 @@ public sealed class ScriptingComContractTests
             Language = language;
             ScriptFile = scriptFile;
         }
+    }
+
+    private sealed class DelegateLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 }
