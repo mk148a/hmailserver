@@ -1,8 +1,8 @@
 
 
-## Current authoritative next slice (2026-08-22, Settings.Scripting parent reauthentication complete)
+## Current authoritative next slice (2026-08-22, Settings.Scripting construction lease complete)
 
-Code/test commit `d1cde1af2` closes the bounded authorization gap where a
+Code/test commit `964972f55` closes the bounded authorization gap where a
 retained authenticated .NET `Settings` object could mint a new `Scripting`
 child after administrator reauthentication was revoked. Legacy
 `InterfaceSettings::get_Scripting` performs the live administrator check at
@@ -10,15 +10,14 @@ child after administrator reauthentication was revoked. Legacy
 configuration in `InterfaceScripting::LoadSettings` at
 `source/Server/COM/InterfaceScripting.cpp:18` and remains usable after
 revocation. Net10 now calls `EnsureServerAdministrator()` before creating a
-new child in `HMailServer.ComInterop.Settings.Scripting`, while preserving
-the existing retained child behavior.
+new child in `HMailServer.ComInterop.Settings.Scripting`, holds the
+generation-bound authorization lease through construction, and preserves the
+existing retained child behavior.
 
-`ScriptingComContractTests` covers the denial and retained-child compatibility:
-`8 passed, 0 skipped, 0 failed`; full Debug Net10 is `2675 passed, 94 skipped,
+`ScriptingComContractTests` covers the denial, retained-child compatibility,
+and construction lease: `9 passed, 0 skipped, 0 failed`; full Debug Net10 is `2675 passed, 94 skipped,
 0 failed` (`2769` total). This slice changes no COM identity, SQL mutation,
-runtime script enablement, SMTP trust, or installed state. A concurrent
-check-versus-revocation race remains open because the current getter does not
-hold an authorization lease across child construction. Release remains
+runtime script enablement, SMTP trust, or installed state. Release remains
 **RED**: Scripting runtime enablement and plaintext runner-file handling,
 installed COM, migration/restore, SEC-18, performance, protocol, and soak
 gates remain open. Next independent slices remain: approved Full-Text SQL/Data

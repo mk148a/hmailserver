@@ -1,16 +1,18 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, Settings.Scripting parent reauthentication)
+## Current parity gate (2026-08-22, Settings.Scripting construction lease)
 
-Code/test commit `d1cde1af2` closes the retained-parent authorization gap for
+Code/test commit `964972f55` closes the retained-parent authorization gap and
+construction race for
 `Settings.Scripting`. Legacy `InterfaceSettings::get_Scripting` performs a
 live administrator check at `InterfaceSettings.cpp:1060`, while the returned
 legacy child caches its settings in `InterfaceScripting::LoadSettings` and
 continues to work after revocation. Net10 now checks the live administrator
-before creating a new child and preserves the retained-child behavior.
+before creating a new child, holds the generation-bound authorization lease
+through construction, and preserves the retained-child behavior.
 
-Focused tests pass `8`, skip `0`, fail `0`; full Debug Net10 passes `2675`,
+Focused tests pass `9`, skip `0`, fail `0`; full Debug Net10 passes `2675`,
 skips `94`, and fails `0` (`2769` total). Release remains **RED**: the
 concurrent authorization race, runtime Scripting enablement/SQL mutation,
 plaintext runner-file handling, installed COM, migration/restore, SEC-18,
