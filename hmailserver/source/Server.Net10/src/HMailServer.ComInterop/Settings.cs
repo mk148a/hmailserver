@@ -2026,6 +2026,34 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         }
     }
 
+    public override void SetAdministratorPassword(string newVal)
+    {
+        EnsureAuthorized();
+        EnsureServerAdministrator();
+
+        if (_runtimeConfiguration.AdministratorPasswordWriter is null)
+        {
+            base.SetAdministratorPassword(newVal);
+            return;
+        }
+
+        using var authorizationLease = AcquireAuthorizationLease();
+        try
+        {
+            _runtimeConfiguration.AdministratorPasswordWriter(newVal);
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                "The administrator password could not be persisted.",
+                EFail);
+        }
+    }
+
     public override string IMAPPublicFolderName
     {
         get
@@ -3798,7 +3826,7 @@ public abstract class SettingsComAdapter : IInterfaceSettings
     public virtual bool AddDeliveredToHeader { get => Unavailable<bool>(); set => Unavailable(); }
     public virtual string IMAPPublicFolderName { get => Unavailable<string>(); set => Unavailable(); }
     public virtual bool IMAPACLEnabled { get => Unavailable<bool>(); set => Unavailable(); }
-    public void SetAdministratorPassword(string newVal) => Unavailable();
+    public virtual void SetAdministratorPassword(string newVal) => Unavailable();
     public virtual IInterfaceDirectories Directories => Unavailable<IInterfaceDirectories>();
     public virtual IInterfaceIMAPFolders PublicFolders => Unavailable<IInterfaceIMAPFolders>();
     public virtual string PublicFolderDiskName => Unavailable<string>();
@@ -3859,7 +3887,8 @@ public sealed record SettingsRuntimeConfiguration(
     Action<int>? GreyListingFinalDeletePublisher = null,
     ISpamAssassinConnectionTestRuntime? SpamAssassinConnectionTestRuntime = null,
     ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null,
-    Action<bool>? RewriteEnvelopeFromWhenForwardingWriter = null);
+    Action<bool>? RewriteEnvelopeFromWhenForwardingWriter = null,
+    Action<string>? AdministratorPasswordWriter = null);
 
 [ComVisible(false)]
 public static class SettingsAdministrationRuntimeHost

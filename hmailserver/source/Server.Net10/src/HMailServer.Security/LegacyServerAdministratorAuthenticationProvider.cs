@@ -7,12 +7,18 @@ public sealed class LegacyServerAdministratorAuthenticationProvider : IServerAdm
     private const int Md5HashLength = 32;
     private const int SaltedSha256HashLength = 70;
 
-    private readonly string _storedPasswordHash;
+    private string _storedPasswordHash;
 
     public LegacyServerAdministratorAuthenticationProvider(string storedPasswordHash)
     {
         ArgumentNullException.ThrowIfNull(storedPasswordHash);
         _storedPasswordHash = storedPasswordHash.Trim();
+    }
+
+    public void PublishStoredPasswordHash(string storedPasswordHash)
+    {
+        ArgumentNullException.ThrowIfNull(storedPasswordHash);
+        Volatile.Write(ref _storedPasswordHash, storedPasswordHash.Trim());
     }
 
     public bool Authenticate(string username, string password)
@@ -25,12 +31,13 @@ public sealed class LegacyServerAdministratorAuthenticationProvider : IServerAdm
             return false;
         }
 
-        if (_storedPasswordHash.Length == 0)
+        var storedPasswordHash = Volatile.Read(ref _storedPasswordHash);
+        if (storedPasswordHash.Length == 0)
         {
             return false;
         }
 
-        var encryptionType = _storedPasswordHash.Length switch
+        var encryptionType = storedPasswordHash.Length switch
         {
             Md5HashLength => LegacyPasswordEncryptionType.MD5,
             SaltedSha256HashLength => LegacyPasswordEncryptionType.SHA256,
@@ -38,6 +45,6 @@ public sealed class LegacyServerAdministratorAuthenticationProvider : IServerAdm
         };
 
         return encryptionType is { } type
-            && LegacyPasswordVerifier.Verify(password, _storedPasswordHash, type);
+            && LegacyPasswordVerifier.Verify(password, storedPasswordHash, type);
     }
 }

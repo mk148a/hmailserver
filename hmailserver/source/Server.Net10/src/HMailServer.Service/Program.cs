@@ -30,6 +30,8 @@ BackupRestoreRecoveryJournal.EnsureNoPendingRecovery(dataDirectory);
 var backupMessagesDbOnly = hostComposition.BackupMessagesDbOnly;
 var userInterfaceLanguage = hostComposition.UserInterfaceLanguage;
 var rewriteEnvelopeFromWhenForwarding = hostComposition.RewriteEnvelopeFromWhenForwarding;
+var administratorAuthenticationProvider = host.Services
+    .GetRequiredService<IServerAdministratorAuthenticationProvider>();
 var reinitializationCoordinator =
     host.Services.GetRequiredService<ServiceReinitializationCoordinator>();
 
@@ -110,6 +112,21 @@ SettingsAdministrationRuntimeHost.Configure(
         RewriteEnvelopeFromWhenForwarding: rewriteEnvelopeFromWhenForwarding,
         RewriteEnvelopeFromWhenForwardingWriter: value =>
             LegacyInitializationFile.SaveRewriteEnvelopeFromWhenForwarding(initializationFile, value),
+        AdministratorPasswordWriter: value =>
+        {
+            if (administratorAuthenticationProvider is not LegacyServerAdministratorAuthenticationProvider legacyProvider)
+            {
+                throw new InvalidOperationException("The legacy administrator authentication provider is unavailable.");
+            }
+
+            var hash = LegacyPasswordHasher.CreateSaltedSha256(value);
+            if (!LegacyInitializationFile.SaveAdministratorPasswordHash(initializationFile, hash))
+            {
+                throw new InvalidOperationException("The administrator password could not be persisted.");
+            }
+
+            legacyProvider.PublishStoredPasswordHash(hash);
+        },
         LoggingDirectory: directoryAdministrationSnapshot.LogDirectory,
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,
         ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),

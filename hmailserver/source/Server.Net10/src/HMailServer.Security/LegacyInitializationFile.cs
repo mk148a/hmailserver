@@ -26,6 +26,18 @@ public static class LegacyInitializationFile
         return configuration["Security:AdministratorPassword"]?.Trim() ?? string.Empty;
     }
 
+    public static bool SaveAdministratorPasswordHash(string path, string hash)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(hash);
+
+        return WritePrivateProfileString(
+            "Security",
+            "AdministratorPassword",
+            hash,
+            Path.GetFullPath(path));
+    }
+
     public static LegacyDatabaseConfiguration LoadDatabaseConfiguration(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
