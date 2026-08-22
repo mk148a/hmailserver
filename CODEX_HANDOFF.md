@@ -1,6 +1,30 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, JScript line-separator parity)
+## Current Authoritative Continuation (2026-08-22, Settings.Scripting parent reauthentication)
+
+Code/test commit `d1cde1af2` prevents a retained .NET `Settings` object from
+creating a new `Scripting` child after administrator revocation. Legacy
+`InterfaceSettings::get_Scripting` checks the administrator at
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1060`; legacy
+`InterfaceScripting::LoadSettings` then caches pointers at
+`hmailserver/source/Server/COM/InterfaceScripting.cpp:18`, so an already
+retained child continues to work. Net10 now applies
+`EnsureServerAdministrator()` before `Scripting.CreateAuthorized` and leaves
+the child ungated to preserve that behavior.
+
+Focused `ScriptingComContractTests` are `8 passed, 0 skipped, 0 failed`; full
+Debug Net10 is `2675 passed, 94 skipped, 0 failed` (`2769` total). No COM
+identity, SQL mutation, runtime enablement, SMTP trust, production service,
+database, Data directory, COM registration, DCOM ACL, IIS, firewall, or
+pre-existing untracked artifact changed. Residual risks include the
+check-versus-revocation race, immutable snapshot freshness, missing live
+Scripting setter/runtime gate, plaintext runner files, installed COM proof,
+Full-Text SQL/Data, SEC-18, installer/service/Data rollback, paired C++
+performance, protocol thresholds, and 24-hour soak. Next: approved Full-Text
+SQL/Data round-trip; isolated registered COM/SEC-18 caller evidence;
+installer/service/Data rollback acceptance. Older entries are historical.
+
+## Historical Authoritative Continuation (2026-08-22, JScript line-separator parity)
 
 Code/test commit `d4ea47713` closes the legacy JScript source-literal gap for
 U+2028 and U+2029. Legacy

@@ -1,7 +1,23 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, JScript line-separator escaping)
+## Current parity gate (2026-08-22, Settings.Scripting parent reauthentication)
+
+Code/test commit `d1cde1af2` closes the retained-parent authorization gap for
+`Settings.Scripting`. Legacy `InterfaceSettings::get_Scripting` performs a
+live administrator check at `InterfaceSettings.cpp:1060`, while the returned
+legacy child caches its settings in `InterfaceScripting::LoadSettings` and
+continues to work after revocation. Net10 now checks the live administrator
+before creating a new child and preserves the retained-child behavior.
+
+Focused tests pass `8`, skip `0`, fail `0`; full Debug Net10 passes `2675`,
+skips `94`, and fails `0` (`2769` total). Release remains **RED**: the
+concurrent authorization race, runtime Scripting enablement/SQL mutation,
+plaintext runner-file handling, installed COM, migration/restore, SEC-18,
+installer rollback, paired C++ performance, protocol thresholds, and soak
+gates remain open. The previous JScript entry below is historical.
+
+## Historical parity gate (2026-08-22, JScript line-separator escaping)
 
 Code/test commit `d4ea47713` implements the legacy JScript source-literal
 escaping for U+2028 and U+2029. Legacy `Events.cpp:30-40` emits these values

@@ -1,6 +1,31 @@
 
 
-## Current authoritative next slice (2026-08-22, JScript line-separator escaping complete)
+## Current authoritative next slice (2026-08-22, Settings.Scripting parent reauthentication complete)
+
+Code/test commit `d1cde1af2` closes the bounded authorization gap where a
+retained authenticated .NET `Settings` object could mint a new `Scripting`
+child after administrator reauthentication was revoked. Legacy
+`InterfaceSettings::get_Scripting` performs the live administrator check at
+`source/Server/COM/InterfaceSettings.cpp:1060`; the child then caches its
+configuration in `InterfaceScripting::LoadSettings` at
+`source/Server/COM/InterfaceScripting.cpp:18` and remains usable after
+revocation. Net10 now calls `EnsureServerAdministrator()` before creating a
+new child in `HMailServer.ComInterop.Settings.Scripting`, while preserving
+the existing retained child behavior.
+
+`ScriptingComContractTests` covers the denial and retained-child compatibility:
+`8 passed, 0 skipped, 0 failed`; full Debug Net10 is `2675 passed, 94 skipped,
+0 failed` (`2769` total). This slice changes no COM identity, SQL mutation,
+runtime script enablement, SMTP trust, or installed state. A concurrent
+check-versus-revocation race remains open because the current getter does not
+hold an authorization lease across child construction. Release remains
+**RED**: Scripting runtime enablement and plaintext runner-file handling,
+installed COM, migration/restore, SEC-18, performance, protocol, and soak
+gates remain open. Next independent slices remain: approved Full-Text SQL/Data
+round-trip; isolated registered COM/SEC-18 caller evidence; installer,
+service, and Data rollback acceptance. Older sections are historical records.
+
+## Historical authoritative next slice (2026-08-22, JScript line-separator escaping complete)
 
 Code/test commit `d4ea47713` closes the bounded source-literal parity gap for
 JScript U+2028 and U+2029. Legacy

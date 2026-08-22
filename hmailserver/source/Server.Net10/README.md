@@ -1,4 +1,23 @@
-## Current authoritative parity status (2026-08-22, JScript line-separator escaping)
+## Current authoritative parity status (2026-08-22, Settings.Scripting parent reauthentication)
+
+Code/test commit `d1cde1af2` adds the live administrator check required before
+an authenticated `Settings` object creates a new `Scripting` child. Legacy
+`InterfaceSettings::get_Scripting` checks at
+`source/Server/COM/InterfaceSettings.cpp:1060`; its child then caches settings
+in `InterfaceScripting::LoadSettings` at
+`source/Server/COM/InterfaceScripting.cpp:18` and remains usable after
+revocation. Net10 now matches that parent/child boundary without adding a live
+gate to the retained child.
+
+Focused `ScriptingComContractTests` pass `8/8`; full Debug Net10 passes
+`2675`, skips `94`, and fails `0` (`2769` total). The check-versus-revocation
+race is still open because child construction is not held under an
+authorization lease. Runtime Scripting setter/enablement, plaintext runner
+files, installed COM/out-of-process proof, Full-Text SQL/Data, SEC-18,
+installer rollback, paired C++ performance, protocol thresholds, and 24-hour
+soak remain open. Older sections are historical.
+
+## Historical authoritative parity status (2026-08-22, JScript line-separator escaping)
 
 Code/test commit `d4ea47713` closes the legacy JScript source-literal gap for
 U+2028 and U+2029. The C++ reference is
