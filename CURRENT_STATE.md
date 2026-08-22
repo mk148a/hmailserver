@@ -1,9 +1,9 @@
 # Current State
-- UTC/local timestamp: `2026-08-22T00:03:22Z` / `2026-08-22T03:03:22+03:00`
+- UTC/local timestamp: `2026-08-22T00:11:55Z` / `2026-08-22T03:11:55+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
 - Current HEAD: verify with `git rev-parse HEAD`; this state is maintained by the latest documentation commit
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
-- Latest focused-test result: Application `22 passed, 0 skipped, 0 failed`; Application/delivery queue `32 passed, 0 skipped, 0 failed`; `DomainsComContractTests` `19 passed, 0 skipped, 0 failed`; native restore/containment/execution `50 passed, 0 skipped, 0 failed`; isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`
+- Latest focused-test result: Application `22 passed, 0 skipped, 0 failed` (fresh verification); Application/delivery queue `32 passed, 0 skipped, 0 failed`; `DomainsComContractTests` `19 passed, 0 skipped, 0 failed`; native restore/containment/execution `50 passed, 0 skipped, 0 failed`; isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default Debug `2651 passed, 92 skipped, 0 failed` (`2743` total)
 - Opt-in tests passed/skipped/blocked: isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`; the broader disposable run remains environment-blocked by LocalDB Full-Text support and two authenticated COM capability expectations
 - Current bounded slice: legacy-compatible no-auth `Application.Connect` error reporting; code/test commit `fe0893c8f`
