@@ -1,8 +1,10 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, Settings.Scripting construction lease)
+## Current Authoritative Continuation (2026-08-22, Settings.Scripting persistence)
 
-Code/test commit `7ab59e849` adds a deterministic real-authority lease test and
+Code/test commit `768dd75ef` adds legacy `Settings.Scripting.Enabled` and
+`Language` persistence through the existing `hm_settings` rows, plus the
+deterministic real-authority lease test and
 prevents a retained .NET `Settings` object from
 creating a new `Scripting` child after administrator revocation and holds the
 generation-bound authorization lease through construction. Legacy
@@ -14,13 +16,13 @@ retained child continues to work. Net10 now applies
 `EnsureServerAdministrator()` before `Scripting.CreateAuthorized`, acquires the
 construction lease, and leaves the child ungated to preserve that behavior.
 
-Focused `ScriptingComContractTests` are `10 passed, 0 skipped, 0 failed`; full
-Debug Net10 is `2677 passed, 94 skipped, 0 failed` (`2771` total). No COM
-identity, SQL mutation, runtime enablement, SMTP trust, production service,
+Focused scripting/SQL tests are `107 passed, 0 skipped, 0 failed`; full
+Debug Net10 is `2681 passed, 94 skipped, 0 failed` (`2775` total). No COM
+identity, SMTP trust, production service,
 database, Data directory, COM registration, DCOM ACL, IIS, firewall, or
 pre-existing untracked artifact changed. Residual risks include the
-immutable snapshot freshness, retained-child runtime reauthentication, missing live
-Scripting setter/runtime gate, plaintext runner files, installed COM proof,
+immutable snapshot freshness, retained-child runtime reauthentication, live
+SMTP/IMAP publication, plaintext runner files, installed COM proof,
 Full-Text SQL/Data, SEC-18, installer/service/Data rollback, paired C++
 performance, protocol thresholds, and 24-hour soak. Next: approved Full-Text
 SQL/Data round-trip; isolated registered COM/SEC-18 caller evidence;
