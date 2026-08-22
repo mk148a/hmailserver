@@ -1,4 +1,6 @@
 using HMailServer.ComInterop;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace HMailServer.Net10.Tests;
 
@@ -112,6 +114,36 @@ public sealed class BackupArchiveIdentityTests
     }
 
     [TestMethod]
+    public void Binding_ProtectsPrivateSnapshotForCurrentUserAndSystem()
+    {
+        var archivePath = CreateArchive("protected");
+        try
+        {
+            using var binding = BackupArchiveBinding.TryCreate(archivePath);
+            Assert.IsNotNull(binding);
+
+            var snapshotDirectory = new DirectoryInfo(Path.GetDirectoryName(binding.ArchivePath)!);
+            var security = snapshotDirectory.GetAccessControl();
+            var rules = security
+                .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
+                .Cast<FileSystemAccessRule>()
+                .Where(rule => rule.AccessControlType == AccessControlType.Allow)
+                .ToArray();
+            var currentUserSid = WindowsIdentity.GetCurrent().User!.Value;
+
+            Assert.IsTrue(security.AreAccessRulesProtected);
+            Assert.IsTrue(HasFullControl(rules, currentUserSid));
+            Assert.IsTrue(HasFullControl(
+                rules,
+                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value));
+        }
+        finally
+        {
+            File.Delete(archivePath);
+        }
+    }
+
+    [TestMethod]
     public void Manager_LoadBackupReadsTheSnapshotBeforeMetadataParsing()
     {
         var archivePath = CreateArchive("first");
@@ -141,6 +173,11 @@ public sealed class BackupArchiveIdentityTests
         File.WriteAllText(archivePath, contents);
         return archivePath;
     }
+
+    private static bool HasFullControl(IEnumerable<FileSystemAccessRule> rules, string sid) =>
+        rules.Any(rule =>
+            rule.IdentityReference.Value.Equals(sid, StringComparison.OrdinalIgnoreCase)
+            && (rule.FileSystemRights & FileSystemRights.FullControl) == FileSystemRights.FullControl);
 
     private sealed class ReplacingMetadataReader(string sourcePath) : IBackupArchiveMetadataReader
     {

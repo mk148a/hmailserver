@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace HMailServer.ComInterop;
 
@@ -47,6 +49,7 @@ internal sealed class BackupArchiveBinding : IDisposable
         try
         {
             Directory.CreateDirectory(snapshotDirectory);
+            ProtectSnapshotDirectory(snapshotDirectory);
             BackupArchiveIdentity identity;
             using (var source = BackupArchiveIdentity.OpenReadLock(fullSourcePath))
             using (var snapshot = new FileStream(
@@ -121,5 +124,29 @@ internal sealed class BackupArchiveBinding : IDisposable
         {
             // Best-effort cleanup; the snapshot is never used after binding failure.
         }
+    }
+
+    private static void ProtectSnapshotDirectory(string directory)
+    {
+        var currentUser = WindowsIdentity.GetCurrent().User
+            ?? throw new InvalidOperationException("The current process has no user SID.");
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var inheritance = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+        var security = new DirectorySecurity();
+
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.AddAccessRule(new FileSystemAccessRule(
+            currentUser,
+            FileSystemRights.FullControl,
+            inheritance,
+            PropagationFlags.None,
+            AccessControlType.Allow));
+        security.AddAccessRule(new FileSystemAccessRule(
+            system,
+            FileSystemRights.FullControl,
+            inheritance,
+            PropagationFlags.None,
+            AccessControlType.Allow));
+        new DirectoryInfo(directory).SetAccessControl(security);
     }
 }
