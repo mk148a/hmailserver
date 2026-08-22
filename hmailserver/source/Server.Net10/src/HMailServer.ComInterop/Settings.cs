@@ -2716,7 +2716,41 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                         _administrationSnapshot.ScriptLanguage,
                         _runtimeConfiguration.ScriptingDirectory),
                     _runtimeConfiguration.ScriptSyntaxChecker,
-                    _runtimeConfiguration.ScriptRuntimeReloader);
+                    _runtimeConfiguration.ScriptRuntimeReloader,
+                    updateEnabled: _settingsMutationStore is null
+                        ? null
+                        : value =>
+                        {
+                            if (!_settingsMutationStore.UpdateUseScriptServerAsync(value, CancellationToken.None)
+                                .GetAwaiter()
+                                .GetResult())
+                            {
+                                return false;
+                            }
+
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                UseScriptServer = value
+                            };
+                            return true;
+                        },
+                    updateLanguage: _settingsMutationStore is null
+                        ? null
+                        : value =>
+                        {
+                            if (!_settingsMutationStore.UpdateScriptLanguageAsync(value, CancellationToken.None)
+                                .GetAwaiter()
+                                .GetResult())
+                            {
+                                return false;
+                            }
+
+                            _administrationSnapshot = _administrationSnapshot with
+                            {
+                                ScriptLanguage = value
+                            };
+                            return true;
+                        });
         }
     }
 

@@ -45,10 +45,15 @@ public interface IInterfaceScripting
 public sealed class Scripting : ScriptingComAdapter
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
+    private const int EFail = unchecked((int)0x80004005);
 
     private readonly ScriptingAdministrationSnapshot? _snapshot;
     private readonly IScriptSyntaxChecker? _syntaxChecker;
     private readonly IScriptRuntimeReloader? _runtimeReloader;
+    private readonly Func<bool, bool>? _updateEnabled;
+    private readonly Func<string, bool>? _updateLanguage;
+    private bool _enabled;
+    private string _language = string.Empty;
 
     public Scripting()
     {
@@ -57,35 +62,71 @@ public sealed class Scripting : ScriptingComAdapter
     private Scripting(
         ScriptingAdministrationSnapshot snapshot,
         IScriptSyntaxChecker? syntaxChecker,
-        IScriptRuntimeReloader? runtimeReloader)
+        IScriptRuntimeReloader? runtimeReloader,
+        Func<bool, bool>? updateEnabled,
+        Func<string, bool>? updateLanguage)
     {
         _snapshot = snapshot;
         _syntaxChecker = syntaxChecker;
         _runtimeReloader = runtimeReloader;
+        _updateEnabled = updateEnabled;
+        _updateLanguage = updateLanguage;
+        _enabled = snapshot.Enabled;
+        _language = snapshot.Language;
     }
 
-    public override bool Enabled { get => Snapshot.Enabled; set => base.Enabled = value; }
+    public override bool Enabled
+    {
+        get => _snapshot is null ? throw AccessDenied() : _enabled;
+        set
+        {
+            if (_updateEnabled is null)
+            {
+                ScriptingComAuthorization.Unavailable(this);
+                return;
+            }
 
-    public override string Language { get => Snapshot.Language; set => base.Language = value; }
+            if (!_updateEnabled(value))
+                throw new COMException("The scripting enabled update did not affect the existing settings row.", EFail);
+
+            _enabled = value;
+        }
+    }
+
+    public override string Language
+    {
+        get => _snapshot is null ? throw AccessDenied() : _language;
+        set
+        {
+            if (_updateLanguage is null)
+            {
+                ScriptingComAuthorization.Unavailable(this);
+                return;
+            }
+
+            if (!_updateLanguage(value))
+                throw new COMException("The scripting language update did not affect the existing settings row.", EFail);
+
+            _language = value;
+        }
+    }
 
     public override void Reload()
     {
-        var snapshot = Snapshot;
         if (_runtimeReloader is null)
         {
             base.Reload();
             return;
         }
 
-        _runtimeReloader.Reload(snapshot.Language, CurrentScriptFile);
+        _runtimeReloader.Reload(Language, CurrentScriptFile);
     }
 
     public override string CheckSyntax()
     {
-        var snapshot = Snapshot;
         return _syntaxChecker is null
             ? base.CheckSyntax()
-            : _syntaxChecker.CheckSyntax(snapshot.Language, CurrentScriptFile);
+            : _syntaxChecker.CheckSyntax(Language, CurrentScriptFile);
     }
 
     public override string Directory => Snapshot.Directory;
@@ -94,7 +135,7 @@ public sealed class Scripting : ScriptingComAdapter
     {
         get
         {
-            var extension = Snapshot.Language switch
+            var extension = Language switch
             {
                 "VBScript" => "vbs",
                 "JScript" => "js",
@@ -108,16 +149,22 @@ public sealed class Scripting : ScriptingComAdapter
     internal static Scripting CreateAuthorized(
         ScriptingAdministrationSnapshot snapshot,
         IScriptSyntaxChecker? syntaxChecker = null,
-        IScriptRuntimeReloader? runtimeReloader = null)
+        IScriptRuntimeReloader? runtimeReloader = null,
+        Func<bool, bool>? updateEnabled = null,
+        Func<string, bool>? updateLanguage = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Scripting(snapshot, syntaxChecker, runtimeReloader);
+        return new Scripting(snapshot, syntaxChecker, runtimeReloader, updateEnabled, updateLanguage);
     }
 
     private ScriptingAdministrationSnapshot Snapshot =>
         _snapshot ?? throw new COMException(
             "Scripting access requires an authenticated server administrator.",
             EAccessDenied);
+
+    private static COMException AccessDenied() => new(
+        "Scripting access requires an authenticated server administrator.",
+        EAccessDenied);
 }
 
 [ComVisible(false)]

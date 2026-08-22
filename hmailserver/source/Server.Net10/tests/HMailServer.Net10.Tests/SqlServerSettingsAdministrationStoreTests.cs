@@ -11,6 +11,30 @@ public sealed class SqlServerSettingsAdministrationStoreTests
     }
 
     [TestMethod]
+    public void UpdateUseScriptServerSql_UpdatesOnlyTheLegacyIntegerRow()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateUseScriptServerSql;
+
+        AssertSql(
+            "UPDATE hm_settings\nSET settinginteger = @UseScriptServer\nWHERE settingname = N'usescriptserver';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public void UpdateScriptLanguageSql_UpdatesOnlyTheLegacyStringRow()
+    {
+        var sql = SqlServerSettingsAdministrationStore.UpdateScriptLanguageSql;
+
+        AssertSql(
+            "UPDATE hm_settings\nSET settingstring = @ScriptLanguage\nWHERE settingname = N'scriptlanguage';",
+            sql);
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void UpdateDefaultDomainSql_UpdatesOnlyTheExistingDefaultDomainRowWithAParameter()
     {
         var sql = SqlServerSettingsAdministrationStore.UpdateDefaultDomainSql;

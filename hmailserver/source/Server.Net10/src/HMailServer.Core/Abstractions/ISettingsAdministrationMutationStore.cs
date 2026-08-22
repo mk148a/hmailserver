@@ -2,6 +2,14 @@ namespace HMailServer.Core.Abstractions;
 
 public interface ISettingsAdministrationMutationStore
 {
+    ValueTask<bool> UpdateUseScriptServerAsync(
+        bool useScriptServer,
+        CancellationToken cancellationToken);
+
+    ValueTask<bool> UpdateScriptLanguageAsync(
+        string scriptLanguage,
+        CancellationToken cancellationToken);
+
     ValueTask<bool> UpdateDefaultDomainAsync(
         string defaultDomain,
         CancellationToken cancellationToken);

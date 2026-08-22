@@ -47,6 +47,51 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_ScriptingEnabledAndLanguagePersistAndPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                UseScriptServer: false,
+                ScriptLanguage: "VBScript"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.Scripting.Enabled = true;
+        settings.Scripting.Language = "JScript";
+
+        Assert.IsTrue(settings.Scripting.Enabled);
+        Assert.AreEqual("JScript", settings.Scripting.Language);
+        Assert.IsTrue(store.Snapshot.UseScriptServer);
+        Assert.AreEqual("JScript", store.Snapshot.ScriptLanguage);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_ScriptingMutationFailureDoesNotPublishSnapshot()
+    {
+        var store = new FakeSettingsAdministrationMutationStore { UpdateResult = false };
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                UseScriptServer: false,
+                ScriptLanguage: "VBScript"),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        var error = Assert.ThrowsExactly<COMException>(() => settings.Scripting.Enabled = true);
+
+        Assert.AreEqual(EFail, error.ErrorCode);
+        Assert.IsFalse(settings.Scripting.Enabled);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_AntiVirusClamWinEnabledPersistsWithAuthorizationLease()
     {
         TrackingAuthorizationLease? activeLease = null;
@@ -8747,6 +8792,22 @@ public sealed class SettingsComContractTests
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(Snapshot);
+
+        public ValueTask<bool> UpdateUseScriptServerAsync(
+            bool useScriptServer,
+            CancellationToken cancellationToken)
+        {
+            Snapshot = Snapshot with { UseScriptServer = useScriptServer };
+            return ValueTask.FromResult(UpdateResult);
+        }
+
+        public ValueTask<bool> UpdateScriptLanguageAsync(
+            string scriptLanguage,
+            CancellationToken cancellationToken)
+        {
+            Snapshot = Snapshot with { ScriptLanguage = scriptLanguage };
+            return ValueTask.FromResult(UpdateResult);
+        }
 
         public ValueTask<bool> UpdateDefaultDomainAsync(
             string defaultDomain,

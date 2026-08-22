@@ -10,6 +10,18 @@ public sealed class SqlServerSettingsAdministrationStore :
     ISettingsAdministrationMutationStore,
     IBackupSettingsPropertyStore
 {
+    public const string UpdateUseScriptServerSql = """
+UPDATE hm_settings
+SET settinginteger = @UseScriptServer
+WHERE settingname = N'usescriptserver';
+""";
+
+    public const string UpdateScriptLanguageSql = """
+UPDATE hm_settings
+SET settingstring = @ScriptLanguage
+WHERE settingname = N'scriptlanguage';
+""";
+
     public const string UpdateDefaultDomainSql = """
 UPDATE hm_settings
 SET settingstring = @DefaultDomain
@@ -875,6 +887,28 @@ WHERE settingname <> N'smtprelayerpassword'
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    public async ValueTask<bool> UpdateUseScriptServerAsync(
+        bool useScriptServer,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateUseScriptServerSql, connection);
+        command.Parameters.Add("@UseScriptServer", SqlDbType.Int).Value = useScriptServer ? 1 : 0;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
+    }
+
+    public async ValueTask<bool> UpdateScriptLanguageAsync(
+        string scriptLanguage,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(UpdateScriptLanguageSql, connection);
+        command.Parameters.Add("@ScriptLanguage", SqlDbType.NVarChar, 255).Value = scriptLanguage;
+
+        return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) == 1;
     }
 
     public async ValueTask<bool> UpdateDefaultDomainAsync(
