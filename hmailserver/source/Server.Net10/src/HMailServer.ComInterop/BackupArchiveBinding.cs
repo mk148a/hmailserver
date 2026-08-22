@@ -68,6 +68,7 @@ internal sealed class BackupArchiveBinding : IDisposable
         {
             Directory.CreateDirectory(snapshotRoot);
             EnsureNotReparsePoint(snapshotRoot, "backup snapshot root");
+            ProtectSnapshotDirectory(snapshotRoot);
             Directory.CreateDirectory(snapshotDirectory);
             EnsureNotReparsePoint(snapshotDirectory, "backup snapshot directory");
             ProtectSnapshotDirectory(snapshotDirectory);

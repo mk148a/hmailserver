@@ -122,20 +122,10 @@ public sealed class BackupArchiveIdentityTests
             using var binding = BackupArchiveBinding.TryCreate(archivePath);
             Assert.IsNotNull(binding);
 
-            var snapshotDirectory = new DirectoryInfo(Path.GetDirectoryName(binding.ArchivePath)!);
-            var security = snapshotDirectory.GetAccessControl();
-            var rules = security
-                .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
-                .Cast<FileSystemAccessRule>()
-                .Where(rule => rule.AccessControlType == AccessControlType.Allow)
-                .ToArray();
-            var currentUserSid = WindowsIdentity.GetCurrent().User!.Value;
-
-            Assert.IsTrue(security.AreAccessRulesProtected);
-            Assert.IsTrue(HasFullControl(rules, currentUserSid));
-            Assert.IsTrue(HasFullControl(
-                rules,
-                new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value));
+            var snapshotDirectory = Path.GetDirectoryName(binding.ArchivePath)!;
+            var snapshotRoot = Directory.GetParent(snapshotDirectory)!.FullName;
+            AssertProtectedForCurrentUserAndSystem(snapshotRoot);
+            AssertProtectedForCurrentUserAndSystem(snapshotDirectory);
         }
         finally
         {
@@ -253,6 +243,24 @@ public sealed class BackupArchiveIdentityTests
         rules.Any(rule =>
             rule.IdentityReference.Value.Equals(sid, StringComparison.OrdinalIgnoreCase)
             && (rule.FileSystemRights & FileSystemRights.FullControl) == FileSystemRights.FullControl);
+
+    private static void AssertProtectedForCurrentUserAndSystem(string directory)
+    {
+        var security = new DirectoryInfo(directory).GetAccessControl();
+        var rules = security
+            .GetAccessRules(includeExplicit: true, includeInherited: true, typeof(SecurityIdentifier))
+            .Cast<FileSystemAccessRule>()
+            .Where(rule => rule.AccessControlType == AccessControlType.Allow)
+            .ToArray();
+        var currentUserSid = WindowsIdentity.GetCurrent().User!.Value;
+
+        Assert.IsTrue(security.AreAccessRulesProtected, directory);
+        Assert.IsTrue(HasFullControl(rules, currentUserSid), directory);
+        Assert.IsTrue(HasFullControl(
+            rules,
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value),
+            directory);
+    }
 
     private static void TryDeleteReparseOrDirectory(string path)
     {
