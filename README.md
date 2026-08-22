@@ -1,19 +1,19 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, legacy POP3 QUIT)
+## Current parity gate (2026-08-22, legacy POP3 USER)
 
-Code/test commit `fa9fd0702` closes the legacy POP3 QUIT response gap. Legacy
-`ProtocolQUIT_` at `source/Server/POP3/POP3Connection.cpp:385-395` returns
-`+OK POP3 server saying goodbye...`; Net10 now preserves the unlock/close
-behavior and response. Focused POP3 tests pass `13`, and full Debug Net10 passes
+Code/test commit `38fb3a133` closes the legacy POP3 USER response gap. Legacy
+`ProtocolUSER_` at `source/Server/POP3/POP3Connection.cpp:398-420` returns
+`+OK Send your password`; Net10 now preserves the same staged-authentication
+response. Focused POP3/listener tests pass `20`, and full Debug Net10 passes
 `2693`, skips `94`, and fails `0` (`2787` total).
 
 The release gate remains **RED** because power-loss injection/durability,
 native crash semantics, Full-Text SQL/Data, installed COM, migration/restore,
 SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
 soak gates remain open. The next independent slice is approved Full-Text
-SQL/Data round-trip acceptance. The previous POP3 RSET entry below is
+SQL/Data round-trip acceptance. The previous POP3 QUIT entry below is
 historical.
 
 ## Historical parity gate (2026-08-22, client-password runner secret transport)

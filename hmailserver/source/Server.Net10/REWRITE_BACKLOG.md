@@ -1,11 +1,11 @@
 
 
-## Current authoritative next slice (2026-08-22, legacy POP3 QUIT complete)
+## Current authoritative next slice (2026-08-22, legacy POP3 USER complete)
 
-Code/test commit `fa9fd0702` closes the legacy POP3 QUIT response gap. Legacy
-`source/Server/POP3/POP3Connection.cpp:385-395` returns
-`+OK POP3 server saying goodbye...`; Net10 now does the same. Focused POP3
-tests pass `13`; full Debug Net10 passes `2693`, skips `94`, and fails `0`
+Code/test commit `38fb3a133` closes the legacy POP3 USER response gap. Legacy
+`source/Server/POP3/POP3Connection.cpp:398-420` returns
+`+OK Send your password`; Net10 now does the same. Focused POP3/listener
+tests pass `20`; full Debug Net10 passes `2693`, skips `94`, and fails `0`
 (`2787` total). Release remains RED for power-loss INI
 durability, native crash semantics, Full-Text SQL/Data, installed COM,
 migration/restore, SEC-18, installer rollback, paired C++ performance,

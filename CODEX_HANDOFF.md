@@ -1,11 +1,11 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, legacy POP3 QUIT)
+## Current Authoritative Continuation (2026-08-22, legacy POP3 USER)
 
-Code/test commit `fa9fd0702` closes the legacy POP3 QUIT response gap. Legacy
-`hmailserver/source/Server/POP3/POP3Connection.cpp:385-395` returns
-`+OK POP3 server saying goodbye...`; Net10 now does the same. Focused POP3 tests are
-`13 passed, 0 skipped, 0 failed`; full Debug Net10 is `2693 passed, 94 skipped,
+Code/test commit `38fb3a133` closes the legacy POP3 USER response gap. Legacy
+`hmailserver/source/Server/POP3/POP3Connection.cpp:398-420` returns
+`+OK Send your password`; Net10 now does the same. Focused POP3/listener tests are
+`20 passed, 0 skipped, 0 failed`; full Debug Net10 is `2693 passed, 94 skipped,
 0 failed` (`2787` total). No COM identity,
 SMTP trust, SQL/Data, production
 service, database, Data directory, registration, DCOM ACL, IIS, firewall, or
