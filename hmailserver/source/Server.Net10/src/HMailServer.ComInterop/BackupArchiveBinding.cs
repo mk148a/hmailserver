@@ -62,20 +62,27 @@ internal sealed class BackupArchiveBinding : IDisposable
         var snapshotDirectory = Path.Combine(
             snapshotRoot,
             snapshotName);
+        var stagingDirectory = Path.Combine(
+            snapshotRoot,
+            $"{snapshotName}.creating-{Guid.NewGuid():N}");
+        var stagingPath = Path.Combine(stagingDirectory, "archive.7z");
         var snapshotPath = Path.Combine(snapshotDirectory, "archive.7z");
+        var ownsStagingDirectory = false;
+        var ownsSnapshotDirectory = false;
 
         try
         {
             Directory.CreateDirectory(snapshotRoot);
             EnsureNotReparsePoint(snapshotRoot, "backup snapshot root");
             ProtectSnapshotDirectory(snapshotRoot);
-            Directory.CreateDirectory(snapshotDirectory);
-            EnsureNotReparsePoint(snapshotDirectory, "backup snapshot directory");
-            ProtectSnapshotDirectory(snapshotDirectory);
+            Directory.CreateDirectory(stagingDirectory);
+            ownsStagingDirectory = true;
+            EnsureNotReparsePoint(stagingDirectory, "backup snapshot staging directory");
+            ProtectSnapshotDirectory(stagingDirectory);
             BackupArchiveIdentity identity;
             using (var source = BackupArchiveIdentity.OpenReadLock(fullSourcePath))
             using (var snapshot = new FileStream(
-                snapshotPath,
+                stagingPath,
                 FileMode.CreateNew,
                 FileAccess.Write,
                 FileShare.Read,
@@ -104,9 +111,14 @@ internal sealed class BackupArchiveBinding : IDisposable
             {
                 rawDataBackupIdentity = BackupDataDirectoryIdentity.CopyStableSnapshot(
                     rawSourcePath,
-                    Path.Combine(snapshotDirectory, "DataBackup"));
+                    Path.Combine(stagingDirectory, "DataBackup"));
             }
 
+            Directory.Move(stagingDirectory, snapshotDirectory);
+            ownsStagingDirectory = false;
+            ownsSnapshotDirectory = true;
+            EnsureNotReparsePoint(snapshotDirectory, "backup snapshot directory");
+            ProtectSnapshotDirectory(snapshotDirectory);
             var snapshotReadLock = BackupArchiveIdentity.OpenReadLock(snapshotPath);
             return new(
                 snapshotDirectory,
@@ -117,7 +129,16 @@ internal sealed class BackupArchiveBinding : IDisposable
         }
         catch
         {
-            TryDelete(snapshotDirectory);
+            if (ownsSnapshotDirectory)
+            {
+                TryDelete(snapshotDirectory);
+            }
+
+            if (ownsStagingDirectory)
+            {
+                TryDelete(stagingDirectory);
+            }
+
             throw;
         }
     }

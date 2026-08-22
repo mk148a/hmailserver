@@ -130,6 +130,135 @@ public sealed class BackupArchiveIdentityTests
     }
 
     [TestMethod]
+    public void Binding_FailsOnPreExistingSnapshotDirectoryWithoutDeletingSentinel()
+    {
+        var root = CreateTestDirectory("hmailserver-binding-collision-");
+        var archivePath = Path.Combine(root, "backup.7z");
+        var snapshotDirectory = Path.Combine(root, "snapshot");
+        Directory.CreateDirectory(snapshotDirectory);
+        File.WriteAllText(archivePath, "archive");
+        var sentinelPath = Path.Combine(snapshotDirectory, "sentinel.txt");
+        File.WriteAllText(sentinelPath, "preserve");
+
+        try
+        {
+            Assert.ThrowsExactly<IOException>(() =>
+                BackupArchiveBinding.TryCreateForTesting(archivePath, root, "snapshot"));
+
+            Assert.AreEqual("preserve", File.ReadAllText(sentinelPath));
+            Assert.IsFalse(File.Exists(Path.Combine(snapshotDirectory, "archive.7z")));
+            CollectionAssert.AreEqual(
+                new[] { "snapshot" },
+                Directory.GetDirectories(root)
+                    .Select(Path.GetFileName)
+                    .OrderBy(name => name)
+                    .ToArray());
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void Binding_SecondBindingPreservesTheFirstBinding()
+    {
+        var root = CreateTestDirectory("hmailserver-binding-duplicate-");
+        var archivePath = Path.Combine(root, "backup.7z");
+        File.WriteAllText(archivePath, "first");
+        BackupArchiveBinding? first = null;
+
+        try
+        {
+            first = BackupArchiveBinding.TryCreateForTesting(archivePath, root, "snapshot");
+            Assert.IsNotNull(first);
+
+            Assert.ThrowsExactly<IOException>(() =>
+                BackupArchiveBinding.TryCreateForTesting(archivePath, root, "snapshot"));
+
+            Assert.AreEqual("first", File.ReadAllText(first.ArchivePath));
+            Assert.IsTrue(File.Exists(first.ArchivePath));
+            CollectionAssert.AreEqual(
+                new[] { "snapshot" },
+                Directory.GetDirectories(root)
+                    .Select(Path.GetFileName)
+                    .OrderBy(name => name)
+                    .ToArray());
+        }
+        finally
+        {
+            first?.Dispose();
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void Binding_FailedCreationCleansItsOwnedStagingDirectoryRecursively()
+    {
+        var sourceRoot = CreateTestDirectory("hmailserver-binding-failure-source-");
+        var snapshotRoot = CreateTestDirectory("hmailserver-binding-failure-snapshot-");
+        var archivePath = Path.Combine(sourceRoot, "backup.7z");
+        var rawPath = Path.Combine(sourceRoot, "DataBackup");
+        var snapshotDirectory = Path.Combine(snapshotRoot, "snapshot");
+        Directory.CreateDirectory(Path.Combine(rawPath, "nested", "deeper"));
+        File.WriteAllText(archivePath, "archive");
+        File.WriteAllText(Path.Combine(rawPath, "nested", "deeper", "message.eml"), "message");
+        Directory.CreateDirectory(snapshotDirectory);
+        var sentinelPath = Path.Combine(snapshotDirectory, "sentinel.txt");
+        File.WriteAllText(sentinelPath, "preserve");
+
+        try
+        {
+            Assert.ThrowsExactly<IOException>(() =>
+                BackupArchiveBinding.TryCreateForTesting(archivePath, snapshotRoot, "snapshot"));
+
+            Assert.AreEqual("preserve", File.ReadAllText(sentinelPath));
+            CollectionAssert.AreEqual(
+                new[] { "snapshot" },
+                Directory.GetDirectories(snapshotRoot)
+                    .Select(Path.GetFileName)
+                    .OrderBy(name => name)
+                    .ToArray());
+        }
+        finally
+        {
+            Directory.Delete(sourceRoot, recursive: true);
+            Directory.Delete(snapshotRoot, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    public void Binding_DisposeDeletesOnlyItsOwnedSnapshotDirectory()
+    {
+        var sourceRoot = CreateTestDirectory("hmailserver-binding-dispose-source-");
+        var snapshotRoot = CreateTestDirectory("hmailserver-binding-dispose-snapshot-");
+        var archivePath = Path.Combine(sourceRoot, "backup.7z");
+        File.WriteAllText(archivePath, "archive");
+        BackupArchiveBinding? binding = null;
+
+        try
+        {
+            binding = BackupArchiveBinding.TryCreateForTesting(archivePath, snapshotRoot, "snapshot");
+            Assert.IsNotNull(binding);
+            var snapshotDirectory = Path.GetDirectoryName(binding.ArchivePath)!;
+
+            Assert.IsTrue(Directory.Exists(snapshotDirectory));
+            binding.Dispose();
+            binding = null;
+
+            Assert.IsFalse(Directory.Exists(snapshotDirectory));
+            Assert.IsTrue(Directory.Exists(snapshotRoot));
+            Assert.AreEqual(0, Directory.GetDirectories(snapshotRoot).Length);
+        }
+        finally
+        {
+            binding?.Dispose();
+            Directory.Delete(sourceRoot, recursive: true);
+            Directory.Delete(snapshotRoot, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void RawDataIdentity_PreservesCanonicalDigestForNestedEmptyZeroByteAndUnicodeEntries()
     {
         var root = Path.Combine(
@@ -289,6 +418,13 @@ public sealed class BackupArchiveIdentityTests
             "hmailserver-archive-identity-" + Guid.NewGuid().ToString("N") + ".7z");
         File.WriteAllText(archivePath, contents);
         return archivePath;
+    }
+
+    private static string CreateTestDirectory(string prefix)
+    {
+        var path = Path.Combine(Path.GetTempPath(), prefix + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        return path;
     }
 
     private static bool HasFullControl(IEnumerable<FileSystemAccessRule> rules, string sid) =>
