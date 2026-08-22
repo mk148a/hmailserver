@@ -1,12 +1,12 @@
 
 
-## Current authoritative next slice (2026-08-22, legacy POP3 RSET complete)
+## Current authoritative next slice (2026-08-22, legacy POP3 QUIT complete)
 
-Code/test commit `3c382f964` closes the legacy POP3 RSET response gap. Legacy
-`source/Server/POP3/POP3Connection.cpp:355-362` returns `+OK 0` after the
-mailbox reset; Net10 now does the same. Focused POP3 tests pass `13`; full
-Debug Net10 passes `2693`, skips `94`, and fails `0` (`2787` total). Release
-remains RED for power-loss INI
+Code/test commit `fa9fd0702` closes the legacy POP3 QUIT response gap. Legacy
+`source/Server/POP3/POP3Connection.cpp:385-395` returns
+`+OK POP3 server saying goodbye...`; Net10 now does the same. Focused POP3
+tests pass `13`; full Debug Net10 passes `2693`, skips `94`, and fails `0`
+(`2787` total). Release remains RED for power-loss INI
 durability, native crash semantics, Full-Text SQL/Data, installed COM,
 migration/restore, SEC-18, installer rollback, paired C++ performance,
 protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data
