@@ -1,6 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
-
 namespace HMailServer.ComInterop;
 
 internal sealed record BackupDataDirectoryIdentity(string Sha256)
@@ -20,22 +17,27 @@ internal sealed record BackupDataDirectoryIdentity(string Sha256)
             throw new IOException("The DataBackup snapshot path already exists.");
         }
 
-        var before = Capture(fullSourcePath);
+        var before = WindowsHandleRelativeDirectoryCopier.ComputeSha256(fullSourcePath);
         WindowsHandleRelativeDirectoryCopier.Copy(fullSourcePath, fullSnapshotPath);
-        var after = Capture(fullSourcePath);
-        if (!string.Equals(before.Sha256, after.Sha256, StringComparison.Ordinal))
+        var after = WindowsHandleRelativeDirectoryCopier.ComputeSha256(fullSourcePath);
+        if (!string.Equals(before, after, StringComparison.Ordinal))
         {
             throw new IOException("The raw DataBackup source changed while it was being bound.");
         }
 
-        return Capture(fullSnapshotPath);
+        return new(WindowsHandleRelativeDirectoryCopier.ComputeSha256(fullSnapshotPath));
     }
 
     internal bool Matches(string path)
     {
         try
         {
-            return string.Equals(Sha256, Capture(path).Sha256, StringComparison.Ordinal);
+            var fullPath = Path.GetFullPath(path);
+            EnsureSafeDirectory(fullPath);
+            return string.Equals(
+                Sha256,
+                WindowsHandleRelativeDirectoryCopier.ComputeSha256(fullPath),
+                StringComparison.Ordinal);
         }
         catch (IOException)
         {
@@ -44,47 +46,6 @@ internal sealed record BackupDataDirectoryIdentity(string Sha256)
         catch (UnauthorizedAccessException)
         {
             return false;
-        }
-    }
-
-    private static BackupDataDirectoryIdentity Capture(string path)
-    {
-        var fullPath = Path.GetFullPath(path);
-        EnsureSafeDirectory(fullPath);
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        AppendDirectory(hash, fullPath, relativePath: string.Empty);
-        return new(Convert.ToHexString(hash.GetHashAndReset()));
-    }
-
-    private static void AppendDirectory(
-        IncrementalHash hash,
-        string directoryPath,
-        string relativePath)
-    {
-        Append(hash, "D\0" + relativePath);
-        foreach (var directory in Directory.EnumerateDirectories(directoryPath).OrderBy(static item => item, StringComparer.OrdinalIgnoreCase))
-        {
-            RejectReparsePoint(directory);
-            AppendDirectory(hash, directory, CombineRelative(relativePath, Path.GetFileName(directory)));
-        }
-
-        foreach (var file in Directory.EnumerateFiles(directoryPath).OrderBy(static item => item, StringComparer.OrdinalIgnoreCase))
-        {
-            RejectReparsePoint(file);
-            Append(hash, "F\0" + CombineRelative(relativePath, Path.GetFileName(file)));
-            using var stream = new FileStream(
-                file,
-                FileMode.Open,
-                FileAccess.Read,
-                FileShare.Read,
-                bufferSize: 64 * 1024,
-                options: FileOptions.SequentialScan);
-            var buffer = new byte[64 * 1024];
-            int bytesRead;
-            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                hash.AppendData(buffer, 0, bytesRead);
-            }
         }
     }
 
@@ -117,12 +78,4 @@ internal sealed record BackupDataDirectoryIdentity(string Sha256)
         }
     }
 
-    private static string CombineRelative(string parent, string child) =>
-        string.IsNullOrEmpty(parent) ? child : parent + "/" + child;
-
-    private static void Append(IncrementalHash hash, string value)
-    {
-        hash.AppendData(Encoding.UTF8.GetBytes(value));
-        hash.AppendData(new byte[] { 0 });
-    }
 }

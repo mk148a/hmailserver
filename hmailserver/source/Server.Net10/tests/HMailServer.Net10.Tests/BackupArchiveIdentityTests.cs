@@ -1,6 +1,7 @@
 using HMailServer.ComInterop;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Text;
 
 namespace HMailServer.Net10.Tests;
 
@@ -121,6 +122,42 @@ public sealed class BackupArchiveIdentityTests
         finally
         {
             binding?.Dispose();
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [TestMethod]
+    public void RawDataIdentity_PreservesCanonicalDigestForNestedEmptyZeroByteAndUnicodeEntries()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "hmailserver-raw-digest-" + Guid.NewGuid().ToString("N"));
+        var source = Path.Combine(root, "source");
+        var snapshot = Path.Combine(root, "snapshot");
+        Directory.CreateDirectory(Path.Combine(source, "empty"));
+        Directory.CreateDirectory(Path.Combine(source, "nested"));
+        File.WriteAllBytes(Path.Combine(source, "nested", "zero.bin"), Array.Empty<byte>());
+        File.WriteAllBytes(
+            Path.Combine(source, "\u00DCnicode.txt"),
+            Encoding.UTF8.GetBytes("\u0434\u0430\u043D\u043D\u044B\u0435"));
+
+        try
+        {
+            var identity = BackupDataDirectoryIdentity.CopyStableSnapshot(source, snapshot);
+
+            Assert.AreEqual(
+                "AACAEBC218DEA987630A27182447D2A2D1A58451422E770E4C90AD5125905A89",
+                identity.Sha256);
+            Assert.IsTrue(identity.Matches(snapshot));
+
+            File.WriteAllText(Path.Combine(snapshot, "\u00DCnicode.txt"), "tampered");
+            Assert.IsFalse(identity.Matches(snapshot));
+        }
+        finally
+        {
             if (Directory.Exists(root))
             {
                 Directory.Delete(root, recursive: true);

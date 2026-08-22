@@ -1,5 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.Win32.SafeHandles;
 
 namespace HMailServer.ComInterop;
@@ -65,6 +67,22 @@ internal static class WindowsHandleRelativeDirectoryCopier
         using var directory = OpenOrCreateDirectoryPath(Path.GetFullPath(path), "destination");
     }
 
+    internal static string ComputeSha256(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException(
+                "The handle-relative directory hashing is supported only on Windows.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        using var source = OpenDirectoryPath(Path.GetFullPath(path), "source");
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        AppendDirectoryHash(hash, source, relativePath: string.Empty);
+        return Convert.ToHexString(hash.GetHashAndReset());
+    }
+
     private static void CopyDirectory(
         SafeFileHandle source,
         SafeFileHandle destination,
@@ -94,6 +112,59 @@ internal static class WindowsHandleRelativeDirectoryCopier
             EnsureNotReparsePoint(destinationFile, "destination file");
             CopyFile(sourceFile, destinationFile, cancellationToken);
         }
+    }
+
+    private static void AppendDirectoryHash(
+        IncrementalHash hash,
+        SafeFileHandle directory,
+        string relativePath)
+    {
+        AppendHashValue(hash, "D\0" + relativePath);
+        var entries = EnumerateDirectory(directory);
+
+        foreach (var entry in entries
+            .Where(static entry => (entry.Attributes & (uint)FileAttributes.Directory) != 0)
+            .OrderBy(static entry => entry.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            using var childDirectory = OpenRelativeDirectory(directory, entry.Name);
+            EnsureNotReparsePoint(childDirectory, "source directory");
+            AppendDirectoryHash(hash, childDirectory, CombineRelative(relativePath, entry.Name));
+        }
+
+        foreach (var entry in entries
+            .Where(static entry => (entry.Attributes & (uint)FileAttributes.Directory) == 0)
+            .OrderBy(static entry => entry.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            using var file = OpenRelativeFile(directory, entry.Name, FileReadData | FileReadAttributes | Synchronize);
+            EnsureNotReparsePoint(file, "source file");
+            AppendHashValue(hash, "F\0" + CombineRelative(relativePath, entry.Name));
+            AppendFileHash(hash, file);
+        }
+    }
+
+    private static void AppendFileHash(IncrementalHash hash, SafeFileHandle file)
+    {
+        using var stream = new FileStream(file, FileAccess.Read, 64 * 1024, isAsync: false);
+        var buffer = new byte[64 * 1024];
+        while (true)
+        {
+            var read = stream.Read(buffer, 0, buffer.Length);
+            if (read == 0)
+            {
+                break;
+            }
+
+            hash.AppendData(buffer, 0, read);
+        }
+    }
+
+    private static string CombineRelative(string parent, string child) =>
+        string.IsNullOrEmpty(parent) ? child : parent + "/" + child;
+
+    private static void AppendHashValue(IncrementalHash hash, string value)
+    {
+        hash.AppendData(Encoding.UTF8.GetBytes(value));
+        hash.AppendData(new byte[] { 0 });
     }
 
     private static void CopyFile(
