@@ -14,7 +14,7 @@ retained child continues to work. Net10 now applies
 construction lease, and leaves the child ungated to preserve that behavior.
 
 Focused `ScriptingComContractTests` are `9 passed, 0 skipped, 0 failed`; full
-Debug Net10 is `2675 passed, 94 skipped, 0 failed` (`2769` total). No COM
+Debug Net10 is `2676 passed, 94 skipped, 0 failed` (`2770` total). No COM
 identity, SQL mutation, runtime enablement, SMTP trust, production service,
 database, Data directory, COM registration, DCOM ACL, IIS, firewall, or
 pre-existing untracked artifact changed. Residual risks include the

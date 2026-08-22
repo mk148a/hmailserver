@@ -12,7 +12,7 @@ continues to work after revocation. Net10 now checks the live administrator
 before creating a new child, holds the generation-bound authorization lease
 through construction, and preserves the retained-child behavior.
 
-Focused tests pass `9`, skip `0`, fail `0`; full Debug Net10 passes `2675`,
+Focused tests pass `9`, skip `0`, fail `0`; full Debug Net10 passes `2676`,
 skips `94`, and fails `0` (`2769` total). Release remains **RED**: the
 concurrent authorization race, runtime Scripting enablement/SQL mutation,
 plaintext runner-file handling, installed COM, migration/restore, SEC-18,

@@ -1,10 +1,10 @@
 # Current State
-- UTC/local timestamp: `2026-08-22T04:48:00Z` / `2026-08-22T07:48:00+03:00`
+- UTC/local timestamp: `2026-08-22T05:05:00Z` / `2026-08-22T08:05:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
 - Current HEAD: `964972f55` (code/test commit; docs commit pending)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: `ScriptingComContractTests` `9 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: default Debug `2675 passed, 94 skipped, 0 failed` (`2769` total)
+- Latest full Net10 result: default Debug `2676 passed, 94 skipped, 0 failed` (`2770` total)
 - Opt-in tests passed/skipped/blocked: isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`; reparse-point tests skipped because disposable symlink creation is not permitted; the broader disposable run remains environment-blocked by LocalDB Full-Text support and two authenticated COM capability expectations
 - Current bounded slice: authenticated `Settings.Scripting` child construction holds the generation-bound authorization lease; code/test commit `964972f55`
 - Completed milestones: native Data restore rename; authenticated AntiVirus ClamAVPort, ClamAVHost, ClamAVEnabled, EnableAttachmentBlocking, MaximumMessageSize, CustomScannerReturnValue, CustomScannerExecutable, CustomScannerEnabled, NotifySender, NotifyReceiver, Action, ClamWinDBFolder, ClamWinExecutable, and ClamWinEnabled mutations with retained-snapshot publication and lease enforcement; handle-relative recursive raw `DataBackup` traversal, digesting, and nested destination creation; owned private snapshot collision cleanup; process-local CrashSimulationMode COM/Admin parity; authenticated production-shaped backup dispatch evidence; legacy salted-SHA256 administrator-password setter with INI write result and live verifier publication after persistence; legacy JScript line-separator escaping with WSH regression coverage; retained Settings.Scripting parent reauthentication guard while preserving legacy retained-child behavior; prior raw non-DB-only backup and legacy-version host-start refusal slices; detailed history remains in `hmailserver/source/Server.Net10/REWRITE_BACKLOG.md` and `CODEX_HANDOFF.md`

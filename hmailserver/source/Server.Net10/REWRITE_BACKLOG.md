@@ -15,8 +15,8 @@ generation-bound authorization lease through construction, and preserves the
 existing retained child behavior.
 
 `ScriptingComContractTests` covers the denial, retained-child compatibility,
-and construction lease: `9 passed, 0 skipped, 0 failed`; full Debug Net10 is `2675 passed, 94 skipped,
-0 failed` (`2769` total). This slice changes no COM identity, SQL mutation,
+and construction lease: `9 passed, 0 skipped, 0 failed`; full Debug Net10 is `2676 passed, 94 skipped,
+0 failed` (`2770` total). This slice changes no COM identity, SQL mutation,
 runtime script enablement, SMTP trust, or installed state. Release remains
 **RED**: Scripting runtime enablement and plaintext runner-file handling,
 installed COM, migration/restore, SEC-18, performance, protocol, and soak
