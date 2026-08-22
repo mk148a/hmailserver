@@ -1,4 +1,26 @@
 
+## Current bounded slice: private backup snapshot ACL hardening (2026-08-22)
+
+Code/test commit `468aef10a` hardens only the private GUID-scoped snapshot
+root created by `BackupArchiveBinding.TryCreate`. The root disables inherited
+ACLs and grants full control to the executing identity and `SYSTEM`; child
+archive and raw `DataBackup` files inherit that restricted DACL. Legacy
+backup behavior is anchored at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
+and `BackupManager.cpp:101-132`, which use temporary extraction/copy paths but
+do not expose the .NET binding snapshot path through COM. Legacy destination
+paths, SQL/Data semantics, COM identity, and service behavior are unchanged.
+
+Focused `BackupArchiveIdentityTests` pass `6`, skip `0`, fail `0`; full Debug
+Net10 passes `2652`, skips `92`, fails `0` (`2744` total). Release remains
+**RED**. Open gates are Full-Text SQL/Data round-trip, target-identity native
+filesystem review, registered/out-of-process COM and SEC-18 caller evidence,
+installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
+performance, protocol thresholds, and 24-hour leak soak. Next independent
+slices are the approved Full-Text SQL/Data acceptance, isolated registered
+COM/SEC-18 evidence when the disposable guest is visible, and installer
+rollback acceptance.
+
 ## Current bounded slice: Application.Connect error reporting parity (2026-08-22)
 
 Code/test commit `fe0893c8f` closes the legacy `IInterfaceApplication.Connect`

@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-22, private backup snapshot ACL)
+
+Code/test commit `468aef10a` hardens only the GUID-scoped temporary snapshot
+root created by `BackupArchiveBinding.TryCreate`. It disables inherited ACLs
+and grants full control to the executing identity and `SYSTEM`, with focused
+coverage for protected ACLs, readability, snapshot independence, hashing,
+and cleanup. Legacy references are
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
+and `BackupManager.cpp:101-132`; no legacy-visible destination path, COM
+identity, SQL/Data store, service, registry, DCOM, IIS, or firewall state was
+changed.
+
+Focused `BackupArchiveIdentityTests` pass `6/6`; full Debug Net10 passes
+`2652`, skips `92`, and fails `0` (`2744` total). Release remains **RED**:
+Full-Text SQL/Data, registered COM/SEC-18 caller evidence, installer rollback,
+remaining COM/Admin parity, paired C++/.NET performance, protocol thresholds,
+and 24-hour soak remain open or environment-blocked. Next: approved Full-Text
+SQL/Data acceptance; otherwise isolated registered COM/SEC-18 evidence when
+the disposable guest is visible, then installer/service/data rollback.
+
 ## Current Authoritative Continuation (2026-08-22, Application.Connect)
 
 Code/test commit `fe0893c8f` implements legacy no-auth

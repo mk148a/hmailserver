@@ -1,12 +1,20 @@
-## Current authoritative parity status (2026-08-20, empty/omitted Groups cleanup parity)
+## Current authoritative parity status (2026-08-22, private backup snapshot ACL)
 
-Code/test commit `b2271b26a` closes the legacy empty/omitted `Groups` cleanup
-gap. Restore now clears groups whenever group metadata is selected, even when
-the XML container is absent or empty, while retaining the legacy stale
-`hm_group_members` behavior. Focused coverage is `28 passed, 0 skipped, 0
-failed`; full disposable Net10 is `2447 passed, 10 skipped, 0 failed`
-(`2457` total).
-Release remains **RED**.
+Code/test commit `468aef10a` hardens only the private GUID-scoped snapshot
+root created by `BackupArchiveBinding.TryCreate`. The root now disables ACL
+inheritance and grants full control to the executing identity and `SYSTEM`,
+so archive and raw `DataBackup` snapshots are not left with broad `%TEMP%`
+permissions. Legacy backup behavior is anchored at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
+and `BackupManager.cpp:101-132`; legacy-visible destination paths and COM
+identity are unchanged.
+
+Focused `BackupArchiveIdentityTests` pass `6/6`; the full Debug Net10 suite is
+`2652 passed, 92 skipped, 0 failed` (`2744` total). Release remains **RED**:
+Full-Text SQL/Data round-trip, registered COM and SEC-18 caller evidence,
+installer/service/data rollback, paired C++/.NET performance, protocol
+thresholds, and long-soak acceptance remain open or environment-blocked.
+Older sections below are historical.
 
 ## Historical authoritative parity status (2026-08-20, transaction-scoped group/member restore)
 
