@@ -1,6 +1,23 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, Settings.Scripting runtime publication)
+## Current Authoritative Continuation (2026-08-22, client-password runner secret transport)
+
+Code/test commit `c86bb6f94` removes the client password from temporary WSH
+runner files. Legacy `hmailserver/source/Server/Common/Scripting/Events.cpp:67-90`
+constructs the `OnClientValidatePassword` call in memory and
+`ScriptServer.cpp:202-320` executes that generated source. Net10 now transports
+the password as UTF-16LE Base64 over redirected stdin and decodes it inside the
+runner, preserving the handler signature, account object, and Result behavior.
+Focused WSH tests are `63 passed, 0 skipped, 0 failed`; full Debug Net10 is
+`2682 passed, 94 skipped, 0 failed` (`2776` total). No COM identity, SMTP
+trust, production service, database, Data directory, registration, DCOM ACL,
+IIS, firewall, or pre-existing artifact changed. Release remains RED for
+installed COM, migration/restore, SEC-18, installer/service/Data rollback,
+paired C++ performance, protocol thresholds, and 24-hour soak. Next:
+approved Full-Text SQL/Data round-trip acceptance. Older entries are
+historical.
+
+## Historical Authoritative Continuation (2026-08-22, Settings.Scripting runtime publication)
 
 Code/test commit `e7ac977ef` publishes legacy `Settings.Scripting.Enabled` and
 `Language` persistence through the existing `hm_settings` rows, plus the

@@ -1,7 +1,24 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, Settings.Scripting runtime publication)
+## Current parity gate (2026-08-22, client-password runner secret transport)
+
+Code/test commit `c86bb6f94` removes the plaintext client password from the
+temporary `runner.vbs`/`runner.js` files. Legacy `Events.cpp:67-90` builds the
+`OnClientValidatePassword(HMAILSERVER_ACCOUNT, password)` call in memory and
+`ScriptServer.cpp:202-320` executes the generated source; the password is not
+persisted as a runner file. Net10 now sends a UTF-16LE Base64 representation
+over redirected stdin and decodes it inside the WSH runner, preserving the
+legacy handler signature and result contract. Focused WSH tests pass `63`, and
+full Debug Net10 passes `2682`, skips `94`, and fails `0` (`2776` total).
+
+The release gate remains **RED**: installed COM, migration/restore, SEC-18,
+installer rollback, paired C++ performance, protocol thresholds, and soak
+gates remain open. The next independent slice is approved Full-Text SQL/Data
+round-trip acceptance. The previous Settings.Scripting entry below is
+historical.
+
+## Historical parity gate (2026-08-22, Settings.Scripting runtime publication)
 
 Code/test commit `e7ac977ef` publishes legacy `Settings.Scripting.Enabled` and
 `Language` changes from the existing `hm_settings` rows into the singleton

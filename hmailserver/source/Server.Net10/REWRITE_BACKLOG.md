@@ -1,6 +1,20 @@
 
 
-## Current authoritative next slice (2026-08-22, Settings.Scripting runtime publication complete)
+## Current authoritative next slice (2026-08-22, client-password runner secret transport complete)
+
+Code/test commit `c86bb6f94` closes the bounded plaintext runner-file gap for
+`OnClientValidatePassword`. Legacy `source/Server/Common/Scripting/Events.cpp:67-90`
+constructs the password call in memory and `ScriptServer.cpp:202-320` runs the
+generated source. Net10 `WindowsScriptRuleExecutor.Execute` now keeps the
+password out of `runner.vbs`/`runner.js`, sends UTF-16LE Base64 through stdin,
+and decodes it inside the runner before invoking the unchanged handler.
+Focused WSH tests pass `63`; full Debug Net10 passes `2682`, skips `94`, and
+fails `0` (`2776` total). Release remains RED for installed COM,
+migration/restore, SEC-18, installer rollback, paired C++ performance,
+protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data
+round-trip acceptance. Older sections are historical.
+
+## Historical authoritative next slice (2026-08-22, Settings.Scripting runtime publication complete)
 
 Code/test commit `e7ac977ef` adds runtime publication for the legacy
 `Enabled`/`Language` persistence added in `768dd75ef`.
