@@ -535,7 +535,7 @@ public sealed class Pop3Session
             return true;
         }
 
-        await WriteErrAsync(stream, "Authentication required", cancellationToken).ConfigureAwait(false);
+        await WriteErrAsync(stream, "Invalid command in current state.", cancellationToken).ConfigureAwait(false);
         return false;
     }
 

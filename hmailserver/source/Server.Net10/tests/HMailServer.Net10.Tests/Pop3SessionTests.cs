@@ -108,7 +108,7 @@ public sealed class Pop3SessionTests
         await session.RunAsync(stream, CancellationToken.None);
 
         var output = stream.GetOutputText();
-        StringAssert.Contains(output, "-ERR Authentication required\r\n");
+        StringAssert.Contains(output, "-ERR Invalid command in current state.\r\n");
         StringAssert.Contains(output, "-ERR USER required\r\n");
         StringAssert.Contains(output, "-ERR Invalid user name or password.\r\n");
         Assert.AreEqual(0, store.ListCallCount);
@@ -352,7 +352,7 @@ public sealed class Pop3SessionTests
 
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "-ERR Your mailbox is already locked\r\n");
-        StringAssert.Contains(output, "-ERR Authentication required\r\n");
+        StringAssert.Contains(output, "-ERR Invalid command in current state.\r\n");
         Assert.AreEqual(1, lockManager.AttemptCount);
         Assert.AreEqual(0, store.ListCallCount);
     }
