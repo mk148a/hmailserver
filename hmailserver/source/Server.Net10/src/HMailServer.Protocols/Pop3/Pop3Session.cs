@@ -192,7 +192,7 @@ public sealed class Pop3Session
                 }
 
                 state.ResetDeleted();
-                await WriteOkAsync(stream, "Reset state", cancellationToken).ConfigureAwait(false);
+                await WriteOkAsync(stream, "0", cancellationToken).ConfigureAwait(false);
                 return false;
 
             case "NOOP":

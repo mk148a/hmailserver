@@ -74,7 +74,7 @@ public sealed class Pop3SessionTests
             output,
             $"+OK {messageOne.Length} octets\r\nSubject: one\r\n\r\n..Line\r\n...Two\r\nEnd\r\n.\r\n");
         StringAssert.Contains(output, $"+OK 1 {messageTwo.Length}\r\n");
-        StringAssert.Contains(output, "+OK Reset state\r\n");
+        StringAssert.Contains(output, "+OK 0\r\n");
         StringAssert.Contains(output, "+OK hMailServer POP3 server signing off\r\n");
         CollectionAssert.AreEqual(new long[] { 102 }, store.DeletedMessageIds.ToArray());
     }
