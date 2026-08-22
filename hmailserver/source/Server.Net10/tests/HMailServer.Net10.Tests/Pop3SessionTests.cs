@@ -153,7 +153,7 @@ public sealed class Pop3SessionTests
 
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "-ERR Invalid command in current state.\r\n");
-        StringAssert.Contains(output, "-ERR USER required\r\n");
+        StringAssert.Contains(output, "-ERR Invalid user name or password. Please use full email address as user name.\r\n");
         StringAssert.Contains(output, "-ERR Invalid user name or password.\r\n");
         Assert.AreEqual(0, store.ListCallCount);
         CollectionAssert.AreEqual(Array.Empty<long>(), store.DeletedMessageIds.ToArray());

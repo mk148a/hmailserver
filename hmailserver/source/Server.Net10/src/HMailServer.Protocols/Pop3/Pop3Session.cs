@@ -240,8 +240,7 @@ public sealed class Pop3Session
 
         if (state.PendingUsername is null)
         {
-            await WriteErrAsync(stream, "USER required", cancellationToken).ConfigureAwait(false);
-            return false;
+            state.PendingUsername = string.Empty;
         }
 
         var clientAuthentication = await _clientAwareAuthenticationService
@@ -263,11 +262,14 @@ public sealed class Pop3Session
                 state.PendingUsername,
                 isAuthenticated: false,
                 cancellationToken);
+            var failureMessage = state.PendingUsername.Contains('@', StringComparison.Ordinal)
+                ? (result.FailureMessage.Length == 0
+                    ? "Invalid user name or password."
+                    : result.FailureMessage)
+                : "Invalid user name or password. Please use full email address as user name.";
             await WriteErrAsync(
                 stream,
-                SanitizeResponseText(result.FailureMessage.Length == 0
-                    ? "Invalid user name or password."
-                    : result.FailureMessage),
+                SanitizeResponseText(failureMessage),
                 cancellationToken).ConfigureAwait(false);
             return clientAuthentication.Disconnect;
         }
