@@ -1,13 +1,12 @@
 
 
-## Current authoritative next slice (2026-08-22, legacy POP3 authorization state gating complete)
+## Current authoritative next slice (2026-08-22, legacy POP3 empty USER complete)
 
-Code/test commit `717c68ad3` closes the legacy POP3 authorization state-gating
-gap. Legacy `source/Server/POP3/POP3Connection.cpp:172-206` rejects
-transaction commands during AUTHORIZATION with `-ERR Invalid command in
-current state.`; Net10 now does the same. Focused POP3/listener tests pass
-`21`; full Debug Net10 passes `2694`, skips `94`, and fails `0` (`2788` total).
-Release remains RED for power-loss INI
+Code/test commit `ef1996523` closes the legacy POP3 empty-USER gap. Legacy
+`source/Server/POP3/POP3Connection.cpp:398-420` accepts an empty parameter and
+returns `+OK Send your password`; Net10 now does the same. Focused
+POP3/listener tests pass `22`; full Debug Net10 passes `2695`, skips `94`, and
+fails `0` (`2789` total). Release remains RED for power-loss INI
 durability, native crash semantics, Full-Text SQL/Data, installed COM,
 migration/restore, SEC-18, installer rollback, paired C++ performance,
 protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data

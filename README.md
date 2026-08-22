@@ -1,19 +1,19 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, legacy POP3 authorization state gating)
+## Current parity gate (2026-08-22, legacy POP3 empty USER)
 
-Code/test commit `717c68ad3` closes the legacy POP3 authorization state-gating
-gap. Legacy `GetCommand` at `source/Server/POP3/POP3Connection.cpp:172-206`
-rejects transaction commands during AUTHORIZATION with `-ERR Invalid command
-in current state.`; Net10 now does the same. Focused POP3/listener tests pass
-`21`, and full Debug Net10 passes `2694`, skips `94`, and fails `0` (`2788` total).
+Code/test commit `ef1996523` closes the legacy POP3 empty-USER gap. Legacy
+`ProtocolUSER_` at `source/Server/POP3/POP3Connection.cpp:398-420` accepts an
+empty parameter and returns `+OK Send your password`; Net10 now does the same.
+Focused POP3/listener tests pass `22`, and full Debug Net10 passes `2695`,
+skips `94`, and fails `0` (`2789` total).
 
 The release gate remains **RED** because power-loss injection/durability,
 native crash semantics, Full-Text SQL/Data, installed COM, migration/restore,
 SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
 soak gates remain open. The next independent slice is approved Full-Text
-SQL/Data round-trip acceptance. The previous invalid-command response entry
+SQL/Data round-trip acceptance. The previous authorization state-gating entry
 below is historical.
 historical.
 
