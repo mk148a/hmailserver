@@ -27,6 +27,9 @@ internal static class WindowsHandleRelativeDirectoryCopier
     private const uint FileNonDirectoryFile = 0x00000040;
     private const uint FileOpenReparsePoint = 0x00200000;
     private const uint FileFlagBackupSemantics = 0x02000000;
+    private const uint DirectoryTraversalAccess = FileListDirectory | FileReadAttributes | Synchronize;
+    private const uint DestinationDirectoryAccess =
+        DirectoryTraversalAccess | FileAddFile | FileAddSubdirectory;
     private const uint ObjCaseInsensitive = 0x00000040;
     private const int FileDirectoryInformation = 1;
     private const int StatusSuccess = 0;
@@ -192,30 +195,145 @@ internal static class WindowsHandleRelativeDirectoryCopier
 
     private static SafeFileHandle OpenOrCreateDirectoryPath(string path, string description)
     {
+        var rootPath = Path.GetPathRoot(path);
+        if (rootPath is null)
+        {
+            throw new IOException($"The {description} directory path has no root.");
+        }
+
+        var components = path[rootPath.Length..]
+            .Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries);
+        var handles = new List<SafeFileHandle>
+        {
+            OpenDirectoryPath(rootPath, $"{description} root")
+        };
+        var hasDestinationAccess = new List<bool> { false };
         try
         {
-            return OpenDirectoryPath(path, description);
-        }
-        catch (IOException exception) when (exception.InnerException is Win32Exception win32
-            && (win32.NativeErrorCode == 2 || win32.NativeErrorCode == 3))
-        {
-            var parentPath = Path.GetDirectoryName(path);
-            var name = Path.GetFileName(path);
-            if (parentPath is null || string.IsNullOrWhiteSpace(name))
+            foreach (var component in components)
             {
-                throw;
+                var parent = handles[^1];
+                var parentHasDestinationAccess = hasDestinationAccess[^1];
+                SafeFileHandle next;
+                var nextHasDestinationAccess = parentHasDestinationAccess;
+                try
+                {
+                    next = OpenExistingDirectory(
+                        parent,
+                        component,
+                        parentHasDestinationAccess
+                            ? DestinationDirectoryAccess
+                            : DirectoryTraversalAccess,
+                        description);
+                }
+                catch (IOException exception) when (IsPathNotFound(exception))
+                {
+                    if (!parentHasDestinationAccess && handles.Count > 1)
+                    {
+                        parent = OpenExistingDirectory(
+                            handles[^2],
+                            components[handles.Count - 2],
+                            DestinationDirectoryAccess,
+                            description);
+                        handles[^1].Dispose();
+                        handles[^1] = parent;
+                        hasDestinationAccess[^1] = true;
+                    }
+                    else if (!parentHasDestinationAccess)
+                    {
+                        parent = OpenDirectoryPath(
+                            rootPath,
+                            $"{description} root",
+                            DestinationDirectoryAccess);
+                        handles[^1].Dispose();
+                        handles[^1] = parent;
+                        hasDestinationAccess[^1] = true;
+                    }
+
+                    try
+                    {
+                        next = CreateRelativeDirectory(parent, component);
+                        EnsureNotReparsePoint(next, $"{description} directory");
+                        nextHasDestinationAccess = true;
+                    }
+                    catch (IOException collision) when (IsAlreadyExists(collision))
+                    {
+                        next = OpenExistingDirectory(
+                            parent,
+                            component,
+                            DestinationDirectoryAccess,
+                            description);
+                        nextHasDestinationAccess = true;
+                    }
+                }
+
+                handles.Add(next);
+                hasDestinationAccess.Add(nextHasDestinationAccess);
             }
 
-            using var parent = OpenDirectoryPath(parentPath, $"{description} parent");
-            return CreateRelativeDirectory(parent, name);
+            if (!hasDestinationAccess[^1] && handles.Count > 1)
+            {
+                var final = OpenExistingDirectory(
+                    handles[^2],
+                    components[^1],
+                    DestinationDirectoryAccess,
+                    description);
+                handles[^1].Dispose();
+                handles[^1] = final;
+            }
+
+            var result = handles[^1];
+            for (var index = 0; index < handles.Count - 1; index++)
+            {
+                handles[index].Dispose();
+            }
+
+            return result;
+        }
+        catch
+        {
+            foreach (var handle in handles)
+            {
+                handle.Dispose();
+            }
+
+            throw;
         }
     }
 
-    private static SafeFileHandle OpenDirectoryPath(string path, string description)
+    private static SafeFileHandle OpenExistingDirectory(
+        SafeFileHandle parent,
+        string name,
+        uint desiredAccess,
+        string description)
+    {
+        var handle = OpenRelativeDirectory(
+            parent,
+            name,
+            desiredAccess,
+            $"{description} directory");
+        try
+        {
+            EnsureNotReparsePoint(handle, $"{description} directory");
+            return handle;
+        }
+        catch
+        {
+            handle.Dispose();
+            throw;
+        }
+    }
+
+    private static SafeFileHandle OpenDirectoryPath(
+        string path,
+        string description,
+        uint desiredAccess = DirectoryTraversalAccess)
     {
         var handle = CreateFileW(
             path,
-            FileListDirectory | FileReadAttributes | Synchronize,
+            desiredAccess,
             FileShareRead | FileShareWrite | FileShareDelete,
             IntPtr.Zero,
             Win32OpenExisting,
@@ -231,14 +349,18 @@ internal static class WindowsHandleRelativeDirectoryCopier
         return handle;
     }
 
-    private static SafeFileHandle OpenRelativeDirectory(SafeFileHandle parent, string name) =>
+    private static SafeFileHandle OpenRelativeDirectory(
+        SafeFileHandle parent,
+        string name,
+        uint desiredAccess = DirectoryTraversalAccess,
+        string description = "source directory") =>
         OpenRelative(
             parent,
             name,
-            FileListDirectory | FileReadAttributes | Synchronize,
+            desiredAccess,
             FileDirectoryFile | FileSynchronousIoNonalert | FileOpenReparsePoint,
             NtOpenExisting,
-            "source directory");
+            description);
 
     private static SafeFileHandle CreateRelativeDirectory(SafeFileHandle parent, string name) =>
         OpenRelative(
@@ -422,6 +544,14 @@ internal static class WindowsHandleRelativeDirectoryCopier
         var error = unchecked((int)RtlNtStatusToDosError(status));
         return new IOException(message, new Win32Exception(error));
     }
+
+    private static bool IsPathNotFound(IOException exception) =>
+        exception.InnerException is Win32Exception win32
+        && (win32.NativeErrorCode == 2 || win32.NativeErrorCode == 3);
+
+    private static bool IsAlreadyExists(IOException exception) =>
+        exception.InnerException is Win32Exception win32
+        && (win32.NativeErrorCode == 80 || win32.NativeErrorCode == 183);
 
     private readonly record struct DirectoryEntry(string Name, uint Attributes);
 

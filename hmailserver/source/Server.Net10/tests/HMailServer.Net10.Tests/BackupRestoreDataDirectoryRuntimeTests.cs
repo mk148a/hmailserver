@@ -60,6 +60,53 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
     }
 
     [TestMethod]
+    public void HandleRelativeCopier_EnsureDirectoryCreatesMissingNestedAncestors()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var destination = Path.Combine(fixture.RootPath, "missing", "nested", "destination");
+
+        WindowsHandleRelativeDirectoryCopier.EnsureDirectory(destination);
+
+        Assert.IsTrue(Directory.Exists(destination));
+    }
+
+    [TestMethod]
+    public void HandleRelativeCopier_EnsureDirectoryReusesExistingFinalDirectory()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var destination = Path.Combine(fixture.RootPath, "existing");
+        Directory.CreateDirectory(destination);
+        File.WriteAllText(Path.Combine(destination, "preserved.txt"), "preserved");
+
+        WindowsHandleRelativeDirectoryCopier.EnsureDirectory(destination);
+
+        Assert.AreEqual("preserved", File.ReadAllText(Path.Combine(destination, "preserved.txt")));
+    }
+
+    [TestMethod]
+    public void HandleRelativeCopier_EnsureDirectoryRejectsExistingFinalFile()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var destination = Path.Combine(fixture.RootPath, "existing-file");
+        File.WriteAllText(destination, "file");
+
+        Assert.ThrowsExactly<IOException>(
+            () => WindowsHandleRelativeDirectoryCopier.EnsureDirectory(destination));
+    }
+
+    [TestMethod]
+    public void HandleRelativeCopier_EnsureDirectoryRejectsExistingIntermediateFile()
+    {
+        using var fixture = new DataDirectoryFixture();
+        var blockingFile = Path.Combine(fixture.RootPath, "blocking-file");
+        File.WriteAllText(blockingFile, "file");
+        var destination = Path.Combine(blockingFile, "nested");
+
+        Assert.ThrowsExactly<IOException>(
+            () => WindowsHandleRelativeDirectoryCopier.EnsureDirectory(destination));
+    }
+
+    [TestMethod]
     public async Task RestoreAsync_CompressedArchiveStagesDataBackupAndCleansExtraction()
     {
         using var fixture = new DataDirectoryFixture();
