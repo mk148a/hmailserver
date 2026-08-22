@@ -50,6 +50,7 @@ public sealed class ApplicationComContractTests
         Assert.AreEqual(3, contract.GetProperty(nameof(IInterfaceApplication.Settings))?.GetCustomAttribute<DispIdAttribute>()?.Value);
         Assert.AreEqual(17, contract.GetMethod(nameof(IInterfaceApplication.Authenticate))?.GetCustomAttribute<DispIdAttribute>()?.Value);
         Assert.AreEqual(8, contract.GetMethod(nameof(IInterfaceApplication.SubmitEMail))?.GetCustomAttribute<DispIdAttribute>()?.Value);
+        Assert.AreEqual(11, contract.GetMethod(nameof(IInterfaceApplication.Connect))?.GetCustomAttribute<DispIdAttribute>()?.Value);
     }
 
     [TestMethod]
@@ -301,6 +302,8 @@ public sealed class ApplicationComContractTests
                     VersionArchitecture: Environment.Is64BitProcess ? "x64" : "x86")));
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
 
+        application.Connect();
+
         Assert.AreEqual("5.7.0-B2643", application.Version);
         Assert.AreEqual(Environment.Is64BitProcess ? "x64" : "x86", application.VersionArchitecture);
 
@@ -316,6 +319,25 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
+    public void Application_ConnectReturnsLegacyErrorWhenRuntimeReportsLastError()
+    {
+        const string lastError = "database connection failed";
+        ApplicationRuntimeHost.Configure(
+            new FixedApplicationRuntimeStore(
+                new ApplicationRuntimeSnapshot(
+                    ServerState: (int)ComServerState.Stopped,
+                    Version: "5.7.0-B2643",
+                    InitializationFile: @"C:\Program Files\hMailServer\Bin\hMailServer.ini",
+                    VersionArchitecture: "x64",
+                    LastErrorMessage: lastError)));
+
+        var error = Assert.ThrowsExactly<COMException>(() => new Application().Connect());
+
+        Assert.AreEqual(unchecked((int)0x800403E9), error.ErrorCode);
+        Assert.AreEqual(lastError, error.Message);
+    }
+
+    [TestMethod]
     public void Application_ServiceControlOperationsRemainExplicitlyPending()
     {
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
@@ -323,7 +345,6 @@ public sealed class ApplicationComContractTests
 
         AssertOperationPending(application.Start);
         AssertOperationPending(application.Stop);
-        AssertOperationPending(application.Connect);
         AssertOperationPending(application.Reinitialize);
     }
 

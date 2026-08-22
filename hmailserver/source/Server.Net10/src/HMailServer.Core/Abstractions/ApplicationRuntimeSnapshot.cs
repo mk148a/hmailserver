@@ -4,4 +4,5 @@ public sealed record ApplicationRuntimeSnapshot(
     int ServerState,
     string Version,
     string InitializationFile,
-    string VersionArchitecture);
+    string VersionArchitecture,
+    string LastErrorMessage = "");

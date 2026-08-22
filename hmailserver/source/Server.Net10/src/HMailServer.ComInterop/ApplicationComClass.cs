@@ -13,6 +13,7 @@ public sealed class Application : IInterfaceApplication
     private const int CoENotInitialized = unchecked((int)0x800401F0);
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
+    private const int ELegacyComError = unchecked((int)0x800403E9);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
     private readonly IServerAdministratorAuthenticationProvider? _authenticationProvider;
@@ -241,7 +242,14 @@ public sealed class Application : IInterfaceApplication
         }
     }
 
-    public void Connect() => NotImplemented();
+    public void Connect()
+    {
+        var lastErrorMessage = ApplicationRuntimeHost.Snapshot.LastErrorMessage;
+        if (!string.IsNullOrEmpty(lastErrorMessage))
+        {
+            throw new COMException(lastErrorMessage, ELegacyComError);
+        }
+    }
 
     public void Reinitialize()
     {
