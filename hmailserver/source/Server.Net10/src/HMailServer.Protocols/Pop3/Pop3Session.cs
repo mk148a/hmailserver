@@ -128,7 +128,7 @@ public sealed class Pop3Session
                 return await HandlePassAsync(stream, state, arguments, cancellationToken).ConfigureAwait(false);
 
             case "CAPA":
-                await WriteAsync(stream, "+OK Capability list follows\r\nUIDL\r\nTOP\r\nUSER\r\n.\r\n", cancellationToken).ConfigureAwait(false);
+                await WriteAsync(stream, "+OK CAPA list follows\r\nUIDL\r\nTOP\r\nUSER\r\n.\r\n", cancellationToken).ConfigureAwait(false);
                 return false;
 
             case "STAT":

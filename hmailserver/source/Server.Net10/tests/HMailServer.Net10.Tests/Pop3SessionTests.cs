@@ -312,7 +312,7 @@ public sealed class Pop3SessionTests
         await session.RunAsync(stream, CancellationToken.None);
 
         var output = stream.GetOutputText();
-        StringAssert.Contains(output, "+OK Capability list follows\r\nUIDL\r\nTOP\r\nUSER\r\n.\r\n");
+        StringAssert.Contains(output, "+OK CAPA list follows\r\nUIDL\r\nTOP\r\nUSER\r\n.\r\n");
         StringAssert.Contains(
             output,
             $"+OK {message.Length} octets\r\nSubject: one\r\nX-Test: yes\r\n\r\n..Line\r\nSecond\r\n.\r\n");
