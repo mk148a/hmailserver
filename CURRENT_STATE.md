@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-22T01:05:07Z` / `2026-08-22T04:05:07+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `59a461a116177b08c620514c83a2e6ede7e5cf31`
+- Current HEAD: verify with `git rev-parse HEAD`; the latest docs commit records the code/test commit below
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: `BackupArchiveIdentityTests` `6 passed, 2 skipped, 0 failed`; Application `22 passed, 0 skipped, 0 failed`; Application/delivery queue `32 passed, 0 skipped, 0 failed`; `DomainsComContractTests` `19 passed, 0 skipped, 0 failed`; native restore/containment/execution `50 passed, 0 skipped, 0 failed`; isolated LocalDB/Data backup-restore round-trip `25 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default Debug `2652 passed, 94 skipped, 0 failed` (`2746` total)
