@@ -19,12 +19,20 @@ public sealed partial class WindowsScriptRuleExecutor :
     private const int MaxMessageCopyOperations = 100;
     private readonly WindowsScriptRuleExecutorOptions _options;
     private readonly object _eventLogSync = new();
+    private bool _enabled;
+    private string _language;
 
     public WindowsScriptRuleExecutor(WindowsScriptRuleExecutorOptions options)
     {
         _options = options;
+        _enabled = options.Enabled;
+        _language = options.Language;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(options.Timeout.Ticks, 0);
     }
+
+    public void UpdateEnabled(bool enabled) => Volatile.Write(ref _enabled, enabled);
+
+    public void UpdateLanguage(string language) => Volatile.Write(ref _language, language ?? string.Empty);
 
     public SmtpRuleScriptExecutionResult Execute(
         SmtpRuleScriptExecutionRequest request,
@@ -175,12 +183,12 @@ public sealed partial class WindowsScriptRuleExecutor :
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (!_options.Enabled || !OperatingSystem.IsWindows())
+        if (!Volatile.Read(ref _enabled) || !OperatingSystem.IsWindows())
         {
             return ClientPasswordValidationScriptResult.Continue();
         }
 
-        var language = NormalizeLanguage(_options.Language);
+        var language = NormalizeLanguage(Volatile.Read(ref _language));
         if (language is null)
         {
             return ClientPasswordValidationScriptResult.Continue();
@@ -232,12 +240,12 @@ public sealed partial class WindowsScriptRuleExecutor :
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        if (!_options.Enabled || !OperatingSystem.IsWindows())
+        if (!Volatile.Read(ref _enabled) || !OperatingSystem.IsWindows())
         {
             return;
         }
 
-        var language = NormalizeLanguage(_options.Language);
+        var language = NormalizeLanguage(Volatile.Read(ref _language));
         if (language is null)
         {
             return;
@@ -281,7 +289,7 @@ public sealed partial class WindowsScriptRuleExecutor :
         ScriptExecutionSpec spec,
         CancellationToken cancellationToken)
     {
-        if (!_options.Enabled)
+        if (!Volatile.Read(ref _enabled))
         {
             return SmtpRuleScriptExecutionResult.Continue();
         }
@@ -296,7 +304,7 @@ public sealed partial class WindowsScriptRuleExecutor :
             return SmtpRuleScriptExecutionResult.Failure("Invalid SMTP rule script function name.");
         }
 
-        var language = NormalizeLanguage(_options.Language);
+        var language = NormalizeLanguage(Volatile.Read(ref _language));
         if (language is null)
         {
             return SmtpRuleScriptExecutionResult.Failure("Unsupported SMTP rule script language.");

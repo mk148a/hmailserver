@@ -131,6 +131,10 @@ SettingsAdministrationRuntimeHost.Configure(
         ScriptingDirectory: directoryAdministrationSnapshot.EventDirectory,
         ScriptSyntaxChecker: host.Services.GetRequiredService<IScriptSyntaxChecker>(),
         ScriptRuntimeReloader: host.Services.GetRequiredService<IScriptRuntimeReloader>(),
+        ScriptEnabledPublisher: value =>
+            host.Services.GetRequiredService<WindowsScriptRuleExecutor>().UpdateEnabled(value),
+        ScriptLanguagePublisher: value =>
+            host.Services.GetRequiredService<WindowsScriptRuleExecutor>().UpdateLanguage(value),
         ClamAvScannerTestRuntime: host.Services.GetRequiredService<IClamAvScannerTestRuntime>(),
         ClamWinScannerTestRuntime: new ClamWinScannerTestRuntime(
             new ClamWinScannerTestRuntimeOptions

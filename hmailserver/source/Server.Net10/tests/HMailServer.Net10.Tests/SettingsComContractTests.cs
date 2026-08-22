@@ -50,6 +50,8 @@ public sealed class SettingsComContractTests
     public void AuthorizedSettings_ScriptingEnabledAndLanguagePersistAndPublishSnapshot()
     {
         var store = new FakeSettingsAdministrationMutationStore { UpdateResult = true };
+        bool? publishedEnabled = null;
+        string? publishedLanguage = null;
         IInterfaceSettings settings = Settings.CreateAuthorized(
             new SettingsAdministrationSnapshot(
                 HostName: string.Empty,
@@ -59,7 +61,10 @@ public sealed class SettingsComContractTests
                 UseScriptServer: false,
                 ScriptLanguage: "VBScript"),
             isServerAdministrator: static () => true,
-            settingsMutationStore: store);
+            settingsMutationStore: store,
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                ScriptEnabledPublisher: value => publishedEnabled = value,
+                ScriptLanguagePublisher: value => publishedLanguage = value));
 
         settings.Scripting.Enabled = true;
         settings.Scripting.Language = "JScript";
@@ -68,6 +73,8 @@ public sealed class SettingsComContractTests
         Assert.AreEqual("JScript", settings.Scripting.Language);
         Assert.IsTrue(store.Snapshot.UseScriptServer);
         Assert.AreEqual("JScript", store.Snapshot.ScriptLanguage);
+        Assert.IsTrue(publishedEnabled);
+        Assert.AreEqual("JScript", publishedLanguage);
     }
 
     [TestMethod]

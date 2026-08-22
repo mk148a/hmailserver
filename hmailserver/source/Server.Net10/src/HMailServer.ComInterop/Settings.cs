@@ -2732,6 +2732,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                             {
                                 UseScriptServer = value
                             };
+                            _runtimeConfiguration.ScriptEnabledPublisher?.Invoke(value);
                             return true;
                         },
                     updateLanguage: _settingsMutationStore is null
@@ -2749,6 +2750,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                             {
                                 ScriptLanguage = value
                             };
+                            _runtimeConfiguration.ScriptLanguagePublisher?.Invoke(value);
                             return true;
                         });
         }
@@ -3921,6 +3923,8 @@ public sealed record SettingsRuntimeConfiguration(
     Action<int>? GreyListingInitialDelayPublisher = null,
     Action<int>? GreyListingInitialDeletePublisher = null,
     Action<int>? GreyListingFinalDeletePublisher = null,
+    Action<bool>? ScriptEnabledPublisher = null,
+    Action<string>? ScriptLanguagePublisher = null,
     ISpamAssassinConnectionTestRuntime? SpamAssassinConnectionTestRuntime = null,
     ILogonFailureAdministrationStore? LogonFailureAdministrationStore = null,
     Action<bool>? RewriteEnvelopeFromWhenForwardingWriter = null,
@@ -3959,6 +3963,8 @@ public static class SettingsAdministrationRuntimeHost
         runtimeSettings.GreyListingInitialDelayPublisher?.Invoke(snapshot.AntiSpamGreyListingInitialDelay);
         runtimeSettings.GreyListingInitialDeletePublisher?.Invoke(snapshot.AntiSpamGreyListingInitialDelete);
         runtimeSettings.GreyListingFinalDeletePublisher?.Invoke(snapshot.AntiSpamGreyListingFinalDelete);
+        runtimeSettings.ScriptEnabledPublisher?.Invoke(snapshot.UseScriptServer);
+        runtimeSettings.ScriptLanguagePublisher?.Invoke(snapshot.ScriptLanguage);
 
         Volatile.Write(
             ref _configuration,
