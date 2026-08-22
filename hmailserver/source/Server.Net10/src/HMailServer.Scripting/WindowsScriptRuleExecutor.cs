@@ -210,11 +210,14 @@ public sealed partial class WindowsScriptRuleExecutor :
             File.WriteAllText(
                 runnerPath,
                 language.Extension == "vbs"
-                    ? CreateVbScriptClientPasswordRunner(scriptPath, statusPath, eventLogOperationPath, request.Account, request.Password)
-                    : CreateJScriptClientPasswordRunner(scriptPath, statusPath, eventLogOperationPath, request.Account, request.Password),
+                    ? CreateVbScriptClientPasswordRunner(scriptPath, statusPath, eventLogOperationPath, request.Account)
+                    : CreateJScriptClientPasswordRunner(scriptPath, statusPath, eventLogOperationPath, request.Account),
                 Encoding.Unicode);
 
-            var processResult = RunScript(runnerPath, cancellationToken);
+            var processResult = RunScript(
+                runnerPath,
+                cancellationToken,
+                Convert.ToBase64String(Encoding.Unicode.GetBytes(request.Password)));
             ApplyEventLogOperations(eventLogOperationPath);
             return processResult.Succeeded
                 ? ReadClientPasswordValidationStatus(statusPath)
@@ -468,7 +471,8 @@ public sealed partial class WindowsScriptRuleExecutor :
 
     private ProcessResult RunScript(
         string runnerPath,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? standardInput = null)
     {
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
@@ -478,7 +482,9 @@ public sealed partial class WindowsScriptRuleExecutor :
             CreateNoWindow = true,
             UseShellExecute = false,
             RedirectStandardError = true,
-            RedirectStandardOutput = true
+            RedirectStandardOutput = true,
+            RedirectStandardInput = standardInput is not null,
+            StandardInputEncoding = standardInput is null ? null : Encoding.ASCII
         };
 
         var output = new StringBuilder();
@@ -499,6 +505,11 @@ public sealed partial class WindowsScriptRuleExecutor :
         };
 
         process.Start();
+        if (standardInput is not null)
+        {
+            process.StandardInput.WriteLine(standardInput);
+            process.StandardInput.Close();
+        }
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         using var registration = cancellationToken.Register(static state =>
@@ -946,11 +957,26 @@ public sealed partial class WindowsScriptRuleExecutor :
         string scriptPath,
         string statusPath,
         string eventLogOperationPath,
-        ScriptAccount account,
-        string password)
+        ScriptAccount account)
     {
         return $$"""
 {{CreateVbScriptEventLogFacade(eventLogOperationPath)}}
+Function HMailServerDecodePassword(value)
+   Dim xml, node, stream
+   Set xml = CreateObject("Msxml2.DOMDocument.6.0")
+   Set node = xml.createElement("base64")
+   node.dataType = "bin.base64"
+   node.text = value
+   Set stream = CreateObject("ADODB.Stream")
+   stream.Type = 1
+   stream.Open
+   stream.Write node.nodeTypedValue
+   stream.Position = 0
+   stream.Type = 2
+   stream.Charset = "unicode"
+   HMailServerDecodePassword = stream.ReadText
+   stream.Close
+End Function
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
 
 Class HMailServerScriptAccount
@@ -1031,7 +1057,7 @@ If Err.Number <> 0 Then
    On Error GoTo 0
 Else
    On Error GoTo 0
-   Call hMailServerEventHandler(HMAILSERVER_ACCOUNT, "{{EscapeVbScript(password)}}")
+   Call hMailServerEventHandler(HMAILSERVER_ACCOUNT, HMailServerDecodePassword(WScript.StdIn.ReadLine))
 End If
 
 Dim hMailServerRuleStatusFileSystem, hMailServerRuleStatusFile
@@ -1125,12 +1151,27 @@ if (typeof OnError === "function") {
         string scriptPath,
         string statusPath,
         string eventLogOperationPath,
-        ScriptAccount account,
-        string password)
+        ScriptAccount account)
     {
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
 {{CreateJScriptEventLogFacade("hMailServerRuleFileSystem", eventLogOperationPath)}}
+function HMailServerDecodePassword(value) {
+  var xml = new ActiveXObject("Msxml2.DOMDocument.6.0");
+  var node = xml.createElement("base64");
+  node.dataType = "bin.base64";
+  node.text = value;
+  var stream = new ActiveXObject("ADODB.Stream");
+  stream.Type = 1;
+  stream.Open();
+  stream.Write(node.nodeTypedValue);
+  stream.Position = 0;
+  stream.Type = 2;
+  stream.Charset = "unicode";
+  var decoded = stream.ReadText();
+  stream.Close();
+  return decoded;
+}
 var hMailServerRuleScriptFile = hMailServerRuleFileSystem.OpenTextFile("{{EscapeJScript(scriptPath)}}", 1, false);
 eval(hMailServerRuleScriptFile.ReadAll());
 hMailServerRuleScriptFile.Close();
@@ -1171,7 +1212,7 @@ var Result = {
 };
 
 if (typeof OnClientValidatePassword === "function") {
-  OnClientValidatePassword(HMAILSERVER_ACCOUNT, "{{EscapeJScript(password)}}");
+  OnClientValidatePassword(HMAILSERVER_ACCOUNT, HMailServerDecodePassword(WScript.StdIn.ReadLine()));
 }
 
 var hMailServerRuleStatusFile = hMailServerRuleFileSystem.CreateTextFile("{{EscapeJScript(statusPath)}}", true, false);

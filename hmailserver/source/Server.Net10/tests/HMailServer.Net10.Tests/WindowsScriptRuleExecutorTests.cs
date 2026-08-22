@@ -2963,6 +2963,40 @@ End Sub
     }
 
     [TestMethod]
+    public void Execute_VbScriptClientPasswordPreservesUnicodeAndNewlinePayload()
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        const string password = "first-line\r\nsecond-line";
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.vbs"),
+                """
+Sub OnClientValidatePassword(account, password)
+   If password = "first-line" & vbCrLf & "second-line" Then
+      Result.Value = 0
+   Else
+      Result.Value = 1
+   End If
+End Sub
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest(password),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Accept, result.Decision);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_VbScriptClientValidatePasswordSeedsResultParameter()
     {
         var cscript = GetCscriptPathOrInconclusive();
