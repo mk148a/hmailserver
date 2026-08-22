@@ -2706,6 +2706,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
+            EnsureServerAdministrator();
             return _administrationSnapshot is null
                 ? base.Scripting
                 : HMailServer.ComInterop.Scripting.CreateAuthorized(

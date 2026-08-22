@@ -185,6 +185,37 @@ public sealed class ScriptingComContractTests
         Assert.AreEqual(@"E:\hMailServer\Events\\EventHandlers.vbs", runtimeReloader.ScriptFile);
     }
 
+    [TestMethod]
+    public void AuthorizedSettings_DeniesNewScriptingChildAfterAdministratorRevocation_RetainsExistingChild()
+    {
+        var isServerAdministrator = true;
+        var syntaxChecker = new RecordingScriptSyntaxChecker(string.Empty);
+        var runtimeReloader = new RecordingScriptRuntimeReloader();
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                UseScriptServer: true,
+                ScriptLanguage: "VBScript"),
+            new SettingsRuntimeConfiguration(
+                ScriptingDirectory: @"E:\hMailServer\Events\",
+                ScriptSyntaxChecker: syntaxChecker,
+                ScriptRuntimeReloader: runtimeReloader),
+            isServerAdministrator: () => isServerAdministrator);
+
+        var retainedScripting = settings.Scripting;
+        isServerAdministrator = false;
+
+        var error = Assert.ThrowsExactly<COMException>(() => _ = settings.Scripting);
+        Assert.AreEqual(EAccessDenied, error.ErrorCode);
+        Assert.IsTrue(retainedScripting.Enabled);
+        Assert.AreEqual(string.Empty, retainedScripting.CheckSyntax());
+        retainedScripting.Reload();
+        Assert.AreEqual("VBScript", runtimeReloader.Language);
+    }
+
     private static void AssertBstrProperty(Type contract, string name, int dispatchId, bool canWrite)
     {
         var property = contract.GetProperty(name);
