@@ -1,4 +1,26 @@
 
+## Current bounded slice: Application.Connect error reporting parity (2026-08-22)
+
+Code/test commit `fe0893c8f` closes the legacy `IInterfaceApplication.Connect`
+gap (`DISPID 11`). Legacy `InterfaceApplication::Connect` at
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:306-324` performs no
+authentication check, reads `Application::GetLastErrorMessage`, returns `S_OK`
+when empty, and otherwise returns `COMError::GenerateError` with
+`MAKE_HRESULT(1, FACILITY_ITF, 1001)` (`0x800403E9`).
+
+Net10 adds an optional `LastErrorMessage` to `ApplicationRuntimeSnapshot` and
+implements the same success/error mapping without SQL, Data, filesystem,
+service, registry, or COM-registration mutation. Application IID, vtable,
+DISPID, and direct no-auth boundary remain unchanged. Focused Application
+tests pass `22`, skip `0`, fail `0`; full Debug Net10 passes `2651`, skips `92`,
+and fails `0` (`2743` total).
+
+The default production runtime supplies an empty last-error; real startup or
+database failure propagation and registered COM activation are not claimed.
+Release remains **RED**. Next independent gates are the approved Full-Text
+SQL/Data round-trip, isolated registered COM/SEC-18 caller evidence when the
+disposable guest is visible, and installer/service/data rollback acceptance.
+
 ## Current bounded slice: Application.SubmitEMail delivery wake parity (2026-08-22)
 
 Code/test commit `173685313` closes the legacy `IInterfaceApplication`

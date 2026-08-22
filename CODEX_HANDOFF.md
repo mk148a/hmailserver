@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-22, Application.Connect)
+
+Code/test commit `fe0893c8f` implements legacy no-auth
+`Application.Connect` (`DISPID 11`). Legacy
+`InterfaceApplication::Connect` at
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:306-324` returns
+`S_OK` for an empty last connection error and `COMError::GenerateError`
+(`0x800403E9`) when one exists. Net10 adds optional `LastErrorMessage` to the
+runtime snapshot and preserves the Application IID/vtable/DISPID.
+
+Focused tests pass `22/22`; full Debug Net10 passes `2651`, skips `92`, and
+fails `0`. No production SQL/Data, service, registry, COM registration, DCOM,
+IIS, or firewall state changed. Real startup-error population, registered COM,
+Full-Text SQL/Data, installer rollback, SEC-18, paired performance, and soak
+remain open; release is **RED**.
+
+Next: use an approved Full-Text SQL/Data environment if available; otherwise
+continue isolated registered COM/SEC-18 evidence only when the disposable guest
+is visible, then installer/service/data rollback acceptance.
+
 ## Current Authoritative Continuation (2026-08-22, Application.SubmitEMail)
 
 Code/test commit `173685313` implements the legacy no-auth

@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current Application.Connect gate (2026-08-22)
+
+Code/test commit `fe0893c8f` restores legacy `Application.Connect` behavior.
+`InterfaceApplication::Connect` in
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:306-324` performs no
+authentication check, reads the last connection error, returns `S_OK` when it
+is empty, and otherwise returns `COMError::GenerateError` with HRESULT
+`0x800403E9`. Net10 carries an optional `LastErrorMessage` in its application
+runtime snapshot and preserves Application IID, vtable order, DISPID `11`,
+and direct no-auth behavior.
+
+Focused Application tests pass `22/22`; the full Debug Net10 suite passes
+`2651`, skips `92`, and fails `0` (`2743` total). The default production
+runtime reports an empty last-error unless a host supplies one; no SQL, Data,
+service, registry, COM registration, DCOM, IIS, or firewall state changed.
+Registered COM, real startup-failure propagation, and service lifecycle gates
+remain unproven. Release remains **RED**.
+
 ## Current Application.SubmitEMail gate (2026-08-22)
 
 Code/test commit `173685313` restores the legacy `Application.SubmitEMail`
