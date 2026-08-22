@@ -1,20 +1,20 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, legacy POP3 empty PASS)
+## Current parity gate (2026-08-22, legacy POP3 PASS before USER)
 
-Code/test commit `230f491cf` closes the legacy POP3 empty-PASS gap. Legacy
-`ProtocolPASS_` at `source/Server/POP3/POP3Connection.cpp:443-496` forwards an
-empty password to authentication instead of returning a syntax error; Net10
-now does the same. Focused POP3/listener tests pass `24`, and full Debug Net10
-passes `2697`, skips `94`, and fails `0` (`2791` total).
+Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.
+Legacy `ProtocolPASS_` at `source/Server/POP3/POP3Connection.cpp:443-496`
+routes the empty username through logon and returns the full-email guidance;
+Net10 now does the same. Focused POP3/listener tests pass `24`, and full
+Debug Net10 passes `2697`, skips `94`, and fails `0` (`2791` total).
 
 The release gate remains **RED** because power-loss injection/durability,
 native crash semantics, Full-Text SQL/Data, installed COM, migration/restore,
 SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
 soak gates remain open. The next independent slice is approved Full-Text
-SQL/Data round-trip acceptance. The previous authenticated state-gating entry
-below is historical.
+SQL/Data round-trip acceptance. The previous empty-PASS entry below is
+historical.
 historical.
 historical.
 

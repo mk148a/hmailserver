@@ -1,12 +1,12 @@
 
 
-## Current authoritative next slice (2026-08-22, legacy POP3 empty PASS complete)
+## Current authoritative next slice (2026-08-22, legacy POP3 PASS before USER complete)
 
-Code/test commit `230f491cf` closes the legacy POP3 empty-PASS gap. Legacy
-`source/Server/POP3/POP3Connection.cpp:443-496` forwards an empty password to
-authentication instead of returning a syntax error; Net10 now does the same.
-Focused POP3/listener tests pass `24`; full Debug Net10 passes `2697`, skips
-`94`, and fails `0` (`2791` total). Release remains RED for power-loss INI
+Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.
+Legacy `source/Server/POP3/POP3Connection.cpp:443-496` routes the empty
+username through logon and returns the full-email guidance; Net10 now does the
+same. Focused POP3/listener tests pass `24`; full Debug Net10 passes `2697`,
+skips `94`, and fails `0` (`2791` total). Release remains RED for power-loss INI
 durability, native crash semantics, Full-Text SQL/Data, installed COM,
 migration/restore, SEC-18, installer rollback, paired C++ performance,
 protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data
