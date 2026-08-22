@@ -236,6 +236,48 @@ public sealed class ScriptingComContractTests
         Assert.IsTrue(leaseDisposed);
     }
 
+    [TestMethod]
+    public async Task AuthorizedSettings_ScriptingConstructionHoldsRealAuthorizationGate()
+    {
+        var authority = new ApplicationAuthorizationAuthority();
+        var authentication = authority.BeginAuthentication();
+        Assert.IsTrue(authority.CompleteAuthentication(authentication, isServerAdministrator: true));
+
+        var leaseAcquired = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseLease = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty,
+                UseScriptServer: true,
+                ScriptLanguage: "VBScript"),
+            isServerAdministrator: () => authority.IsCurrentAdministrator(authentication.Generation),
+            authorizationLeaseFactory: async cancellationToken =>
+            {
+                var lease = await authority.AcquireLeaseAsync(authentication.Generation, cancellationToken);
+                if (lease is null)
+                {
+                    throw new InvalidOperationException("Expected the authenticated authority lease.");
+                }
+
+                leaseAcquired.SetResult(null);
+                await releaseLease.Task.WaitAsync(cancellationToken);
+                return new DelegateLease(lease.Dispose);
+            });
+
+        var scripting = Task.Run(() => settings.Scripting);
+        await leaseAcquired.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var reauthentication = Task.Run(authority.BeginAuthentication);
+        Assert.IsFalse(reauthentication.Wait(TimeSpan.FromMilliseconds(100)));
+
+        releaseLease.SetResult(null);
+        Assert.IsNotNull(await scripting.WaitAsync(TimeSpan.FromSeconds(5)));
+        _ = await reauthentication.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     private static void AssertBstrProperty(Type contract, string name, int dispatchId, bool canWrite)
     {
         var property = contract.GetProperty(name);
