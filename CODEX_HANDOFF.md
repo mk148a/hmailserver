@@ -1,13 +1,12 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, legacy POP3 authenticated command gating)
+## Current Authoritative Continuation (2026-08-22, legacy POP3 empty PASS)
 
-Code/test commit `e4334f5fd` closes the legacy POP3 authenticated command-gating
-gap. Legacy `hmailserver/source/Server/POP3/POP3Connection.cpp:172-206`
-rejects USER/PASS during TRANSACTION with `-ERR Invalid command in current
-state.`; Net10 now does the same. Focused POP3/listener tests are `23 passed,
-0 skipped, 0 failed`; full Debug Net10 is `2696 passed, 94 skipped, 0 failed`
-(`2790` total). No COM identity,
+Code/test commit `230f491cf` closes the legacy POP3 empty-PASS gap. Legacy
+`hmailserver/source/Server/POP3/POP3Connection.cpp:443-496` forwards an empty
+password to authentication instead of returning a syntax error; Net10 now
+does the same. Focused POP3/listener tests are `24 passed, 0 skipped, 0 failed`;
+full Debug Net10 is `2697 passed, 94 skipped, 0 failed` (`2791` total). No COM identity,
 SMTP trust, SQL/Data, production
 service, database, Data directory, registration, DCOM ACL, IIS, firewall, or
 pre-existing artifact changed. Release remains RED for power-loss INI
