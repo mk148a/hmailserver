@@ -1,12 +1,12 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, legacy POP3 CAPA)
+## Current Authoritative Continuation (2026-08-22, legacy POP3 RSET)
 
-Code/test commit `5baa7ceec` closes the legacy POP3 CAPA response-header gap.
-Legacy `hmailserver/source/Server/POP3/POP3Connection.cpp:369-382` returns
-`+OK CAPA list follows`; Net10 now does the same for the default capability
-list. Focused POP3 tests are `13 passed, 0 skipped, 0 failed`; full Debug
-Net10 is `2693 passed, 94 skipped, 0 failed` (`2787` total). No COM identity,
+Code/test commit `3c382f964` closes the legacy POP3 RSET response gap. Legacy
+`hmailserver/source/Server/POP3/POP3Connection.cpp:355-362` returns `+OK 0`
+after the mailbox reset; Net10 now does the same. Focused POP3 tests are
+`13 passed, 0 skipped, 0 failed`; full Debug Net10 is `2693 passed, 94 skipped,
+0 failed` (`2787` total). No COM identity,
 SMTP trust, SQL/Data, production
 service, database, Data directory, registration, DCOM ACL, IIS, firewall, or
 pre-existing artifact changed. Release remains RED for power-loss INI
