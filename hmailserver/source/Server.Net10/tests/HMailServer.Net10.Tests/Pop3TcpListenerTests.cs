@@ -52,7 +52,7 @@ public sealed class Pop3TcpListenerTests
 
         Assert.AreEqual("+OK hMailServer .NET 10 POP3 ready", await ReadLineAsync(reader, cts.Token));
         await WriteLineAsync(writer, "USER user@example.test", cts.Token);
-        Assert.AreEqual("+OK User accepted", await ReadLineAsync(reader, cts.Token));
+        Assert.AreEqual("+OK Send your password", await ReadLineAsync(reader, cts.Token));
         await WriteLineAsync(writer, "PASS secret", cts.Token);
         Assert.AreEqual("+OK Mailbox locked and ready", await ReadLineAsync(reader, cts.Token));
         await WriteLineAsync(writer, "STAT", cts.Token);
@@ -86,7 +86,7 @@ public sealed class Pop3TcpListenerTests
 
             Assert.AreEqual("+OK hMailServer .NET 10 POP3 ready", await ReadLineAsync(reader, cts.Token));
             await WriteLineAsync(writer, "USER user@example.test", cts.Token);
-            Assert.AreEqual("+OK User accepted", await ReadLineAsync(reader, cts.Token));
+            Assert.AreEqual("+OK Send your password", await ReadLineAsync(reader, cts.Token));
             await WriteLineAsync(writer, "PASS secret", cts.Token);
 
             Assert.AreEqual("+OK Mailbox locked and ready", await ReadLineAsync(reader, cts.Token));

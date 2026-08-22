@@ -65,7 +65,7 @@ public sealed class Pop3SessionTests
 
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "+OK hMailServer .NET 10 POP3 ready\r\n");
-        StringAssert.Contains(output, "+OK User accepted\r\n");
+        StringAssert.Contains(output, "+OK Send your password\r\n");
         StringAssert.Contains(output, "+OK Mailbox locked and ready\r\n");
         StringAssert.Contains(output, $"+OK 2 {messageOne.Length + messageTwo.Length}\r\n");
         StringAssert.Contains(output, $"+OK Mailbox scan listing follows\r\n1 {messageOne.Length}\r\n2 {messageTwo.Length}\r\n.\r\n");

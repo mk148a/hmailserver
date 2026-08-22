@@ -229,7 +229,7 @@ public sealed class Pop3Session
         }
 
         state.PendingUsername = username;
-        await WriteOkAsync(stream, "User accepted", cancellationToken).ConfigureAwait(false);
+        await WriteOkAsync(stream, "Send your password", cancellationToken).ConfigureAwait(false);
     }
 
     private async ValueTask<bool> HandlePassAsync(
