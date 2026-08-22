@@ -1,13 +1,14 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, Settings.Scripting persistence)
+## Current Authoritative Continuation (2026-08-22, Settings.Scripting runtime publication)
 
-Code/test commit `768dd75ef` adds legacy `Settings.Scripting.Enabled` and
+Code/test commit `e7ac977ef` publishes legacy `Settings.Scripting.Enabled` and
 `Language` persistence through the existing `hm_settings` rows, plus the
-deterministic real-authority lease test and
-prevents a retained .NET `Settings` object from
-creating a new `Scripting` child after administrator revocation and holds the
-generation-bound authorization lease through construction. Legacy
+singleton script executor used by the SMTP/IMAP/delivery event paths. The
+persistence was added in `768dd75ef`; the slice also retains the
+deterministic real-authority lease test. It prevents a retained .NET `Settings`
+object from creating a new `Scripting` child after administrator revocation and
+holds the generation-bound authorization lease through construction. Legacy
 `InterfaceSettings::get_Scripting` checks the administrator at
 `hmailserver/source/Server/COM/InterfaceSettings.cpp:1060`; legacy
 `InterfaceScripting::LoadSettings` then caches pointers at
@@ -21,8 +22,8 @@ Debug Net10 is `2681 passed, 94 skipped, 0 failed` (`2775` total). No COM
 identity, SMTP trust, production service,
 database, Data directory, COM registration, DCOM ACL, IIS, firewall, or
 pre-existing untracked artifact changed. Residual risks include the
-immutable snapshot freshness, retained-child runtime reauthentication, live
-SMTP/IMAP publication, plaintext runner files, installed COM proof,
+immutable snapshot freshness, retained-child runtime reauthentication, plaintext
+runner files, installed COM proof,
 Full-Text SQL/Data, SEC-18, installer/service/Data rollback, paired C++
 performance, protocol thresholds, and 24-hour soak. Next: approved Full-Text
 SQL/Data round-trip; isolated registered COM/SEC-18 caller evidence;

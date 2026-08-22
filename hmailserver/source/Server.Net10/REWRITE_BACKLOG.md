@@ -1,10 +1,12 @@
 
 
-## Current authoritative next slice (2026-08-22, Settings.Scripting persistence complete)
+## Current authoritative next slice (2026-08-22, Settings.Scripting runtime publication complete)
 
-Code/test commit `768dd75ef` adds legacy `Enabled`/`Language` persistence
-through the `hm_settings` `usescriptserver`/`scriptlanguage` rows, plus
-deterministic real-authority proof, and closes the bounded authorization gap where a
+Code/test commit `e7ac977ef` adds runtime publication for the legacy
+`Enabled`/`Language` persistence added in `768dd75ef`.
+The values are written through the `hm_settings`
+`usescriptserver`/`scriptlanguage` rows. The slice also includes deterministic
+real-authority proof and closes the bounded authorization gap where a
 retained authenticated .NET `Settings` object could mint a new `Scripting`
 child after administrator reauthentication was revoked. Legacy
 `InterfaceSettings::get_Scripting` performs the live administrator check at
@@ -18,8 +20,8 @@ existing retained child behavior.
 
 Focused scripting/SQL tests pass `107 passed, 0 skipped, 0 failed`; full Debug
 Net10 is `2681 passed, 94 skipped, 0 failed` (`2775` total). This slice changes
-no COM identity, SMTP trust, or installed state. Live SMTP/IMAP runtime
-publication remains out of scope. Release remains **RED**: plaintext runner-file
+no COM identity, SMTP trust, or installed state. Release remains **RED**:
+plaintext runner-file
 handling,
 installed COM, migration/restore, SEC-18, performance, protocol, and soak
 gates remain open. Next independent slices remain: approved Full-Text SQL/Data

@@ -1,10 +1,12 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, Settings.Scripting persistence)
+## Current parity gate (2026-08-22, Settings.Scripting runtime publication)
 
-Code/test commit `768dd75ef` adds legacy `Settings.Scripting.Enabled` and
-`Language` persistence through the existing `hm_settings` rows, while retaining
+Code/test commit `e7ac977ef` publishes legacy `Settings.Scripting.Enabled` and
+`Language` changes from the existing `hm_settings` rows into the singleton
+script executor used by SMTP/IMAP/delivery event paths; persistence was added in
+`768dd75ef`, while retaining
 the deterministic real-authority proof for the parent construction race.
 Legacy `InterfaceSettings::get_Scripting` performs a
 live administrator check at `InterfaceSettings.cpp:1060`, while the returned
@@ -15,7 +17,7 @@ through construction, and preserves the retained-child behavior.
 
 Focused scripting/SQL tests pass `107`, skip `0`, fail `0`; full Debug Net10
 passes `2681`, skips `94`, and fails `0` (`2775` total). Release remains
-**RED**: live SMTP/IMAP runtime publication, plaintext runner-file handling,
+**RED**: plaintext runner-file handling,
 plaintext runner-file handling, installed COM, migration/restore, SEC-18,
 installer rollback, paired C++ performance, protocol thresholds, and soak
 gates remain open. The previous JScript entry below is historical.
