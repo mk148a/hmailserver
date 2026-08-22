@@ -1,12 +1,12 @@
 
 
-## Current authoritative next slice (2026-08-22, legacy POP3 line length complete)
+## Current authoritative next slice (2026-08-22, legacy POP3 CAPA complete)
 
-Code/test commit `4150e62aa` closes the legacy POP3 overlong-line response
-gap. Legacy `source/Server/POP3/POP3Connection.cpp:263-266` rejects lines
-over 500 bytes with `-ERR Line too long.`; Net10 now does the same. Focused
-POP3 tests pass `13`; full Debug Net10 passes `2693`, skips `94`, and fails
-`0` (`2787` total). Release remains RED for power-loss INI
+Code/test commit `5baa7ceec` closes the legacy POP3 CAPA response-header gap.
+Legacy `source/Server/POP3/POP3Connection.cpp:369-382` returns
+`+OK CAPA list follows`; Net10 now does the same for the default capability
+list. Focused POP3 tests pass `13`; full Debug Net10 passes `2693`, skips `94`,
+and fails `0` (`2787` total). Release remains RED for power-loss INI
 durability, native crash semantics, Full-Text SQL/Data, installed COM,
 migration/restore, SEC-18, installer rollback, paired C++ performance,
 protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data
