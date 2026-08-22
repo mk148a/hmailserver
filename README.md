@@ -1,7 +1,24 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, Settings.SetAdministratorPassword)
+## Current parity gate (2026-08-22, JScript line-separator escaping)
+
+Code/test commit `d4ea47713` implements the legacy JScript source-literal
+escaping for U+2028 and U+2029. Legacy `Events.cpp:30-40` emits these values
+as `\\u2028` and `\\u2029` before `ScriptServer::FireEvent` parses generated
+event source; Net10 now mirrors that behavior in
+`WindowsScriptRuleExecutor.EscapeJScript`. Focused WSH coverage preserves
+both values as handler data and rejects an injection-shaped statement.
+
+Focused tests pass `62`, skip `0`, fail `0`; full Debug Net10 passes `2674`,
+skips `94`, and fails `0` (`2768` total). Release remains **RED** because
+retained Scripting authorization/live enablement, plaintext runner-file
+handling, installed COM, migration/restore, SEC-18, installer rollback,
+paired C++ performance, protocol thresholds, and 24-hour soak remain open.
+
+The previous SetAdministratorPassword entry below is historical.
+
+## Historical parity gate (2026-08-22, Settings.SetAdministratorPassword)
 
 Code/test commit `3d8cc17a9` implements the bounded legacy
 `Settings.SetAdministratorPassword` slice. Legacy behavior is anchored at

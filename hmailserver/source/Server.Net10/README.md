@@ -1,4 +1,24 @@
-## Current authoritative parity status (2026-08-22, SetAdministratorPassword)
+## Current authoritative parity status (2026-08-22, JScript line-separator escaping)
+
+Code/test commit `d4ea47713` closes the legacy JScript source-literal gap for
+U+2028 and U+2029. The C++ reference is
+`source/Server/Common/Scripting/Events.cpp:30-40`, where
+`EscapeJScriptStringLiteral` converts each separator to its Unicode escape
+before `ScriptServer::FireEvent` parses the generated source
+(`ScriptServer.cpp:297-320`, `ScriptSite.h:312-322`). Net10 mirrors this in
+`WindowsScriptRuleExecutor.EscapeJScript`; focused WSH tests verify both values
+round-trip as data and cannot terminate the literal to execute an injected
+statement. The slice does not change COM, SQL, protocol, SMTP trust,
+Scripting setter, or runner-file behavior.
+
+Focused tests pass `62/62`; full Debug Net10 passes `2674`, skips `94`, and
+fails `0` (`2768` total). Release remains **RED**: retained Scripting
+authorization/live enablement, plaintext runner-file handling, installed
+COM/out-of-process proof, Full-Text SQL/Data, SEC-18, installer rollback,
+paired C++ performance, protocol thresholds, and 24-hour soak remain open.
+Older sections are historical.
+
+## Historical authoritative parity status (2026-08-22, SetAdministratorPassword)
 
 Code/test commit `3d8cc17a9` implements legacy `IInterfaceSettings` DISPID
 `76`, anchored at `source/Server/COM/InterfaceSettings.cpp:1014-1031` and

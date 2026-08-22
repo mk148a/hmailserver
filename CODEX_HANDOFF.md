@@ -1,6 +1,29 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, SetAdministratorPassword parity)
+## Current Authoritative Continuation (2026-08-22, JScript line-separator parity)
+
+Code/test commit `d4ea47713` closes the legacy JScript source-literal gap for
+U+2028 and U+2029. Legacy
+`hmailserver/source/Server/Common/Scripting/Events.cpp:30-40`
+serializes these line separators as `\\u2028`/`\\u2029` before
+`ScriptServer::FireEvent` appends and parses generated event source
+(`ScriptServer.cpp:297-320`, `ScriptSite.h:312-322`). Net10 now does the same
+in `WindowsScriptRuleExecutor.EscapeJScript`. `WindowsScriptRuleExecutorTests`
+contains executable WSH coverage for both code points, preserving the exact
+value as data and rejecting an injection-shaped statement.
+
+Focused WSH tests are `62 passed, 0 skipped, 0 failed`; full Debug Net10 is
+`2674 passed, 94 skipped, 0 failed` (`2768` total). No COM/SQL/SMTP trust,
+Scripting setter, runner-file, production service, database, Data directory,
+COM registration, DCOM ACL, IIS, firewall, or pre-existing untracked artifact
+was changed. Release remains **RED**. Retained Scripting authorization/live
+enablement, plaintext runner-file handling, installed COM proof, Full-Text
+SQL/Data, SEC-18, installer/service/Data rollback, paired C++ performance,
+protocol thresholds, and 24-hour soak remain open. Next: approved Full-Text
+SQL/Data round-trip; isolated registered COM/SEC-18 caller evidence;
+installer/service/Data rollback acceptance. Older entries are historical.
+
+## Historical Authoritative Continuation (2026-08-22, SetAdministratorPassword parity)
 
 Code/test commit `3d8cc17a9` closes the bounded legacy
 `Settings.SetAdministratorPassword` / DISPID `76` slice. The exact C++

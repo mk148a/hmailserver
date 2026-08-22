@@ -1,6 +1,29 @@
 
 
-## Current authoritative next slice (2026-08-22, SetAdministratorPassword complete)
+## Current authoritative next slice (2026-08-22, JScript line-separator escaping complete)
+
+Code/test commit `d4ea47713` closes the bounded source-literal parity gap for
+JScript U+2028 and U+2029. Legacy
+`source/Server/Common/Scripting/Events.cpp:30-40` explicitly replaces these
+characters with `\\u2028` and `\\u2029` before appending event calls to the
+script source; `ScriptServer::FireEvent` parses that generated source through
+`CScriptSiteImpl::AddScript` (`ScriptServer.cpp:297-320`, `ScriptSite.h:312-322`).
+Net10 now performs the same replacements in
+`WindowsScriptRuleExecutor.EscapeJScript` and covers password-hook data
+round-trip plus injection-shaped payloads in
+`tests/HMailServer.Net10.Tests/WindowsScriptRuleExecutorTests.cs`.
+
+Focused WSH tests pass `62 passed, 0 skipped, 0 failed`; full Debug Net10 is
+`2674 passed, 94 skipped, 0 failed` (`2768` total). This slice changes no COM,
+SQL, protocol, SMTP trust, Scripting setter, or runner-file behavior. Release
+remains **RED**: retained Scripting authorization/live enablement, plaintext
+runner-file handling, installed COM, migration/restore, SEC-18, performance,
+protocol, and soak gates remain open. The next independent slices remain, in
+order: approved Full-Text SQL/Data round-trip; isolated registered COM/SEC-18
+caller evidence; installer, service, and Data rollback acceptance. Older
+sections are historical records.
+
+## Historical bounded slice (2026-08-22, SetAdministratorPassword complete)
 
 Code/test commit `3d8cc17a9` closes the bounded legacy
 `Settings.SetAdministratorPassword` / `IInterfaceSettings` DISPID `76` gap.
