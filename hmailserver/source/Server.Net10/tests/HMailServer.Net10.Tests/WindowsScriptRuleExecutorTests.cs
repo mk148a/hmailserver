@@ -3126,6 +3126,41 @@ function OnClientValidatePassword(account, password) {
     }
 
     [TestMethod]
+    [DataRow("\u2028")]
+    [DataRow("\u2029")]
+    public void Execute_JScriptClientPasswordTreatsLineSeparatorsAsData(string lineSeparator)
+    {
+        var cscript = GetCscriptPathOrInconclusive();
+        var eventDirectory = CreateTempDirectory();
+        var eventLogPath = Path.Combine(eventDirectory, "hmailserver_events.log");
+        var attack = lineSeparator + "\\\"); Result.Value = 0; //";
+        try
+        {
+            File.WriteAllText(
+                Path.Combine(eventDirectory, "EventHandlers.js"),
+                """
+function OnClientValidatePassword(account, password) {
+  EventLog.Write(password);
+  Result.Value = 1;
+}
+""",
+                Encoding.ASCII);
+            var executor = CreateExecutor(eventDirectory, cscript, "JScript", eventLogPath);
+
+            var result = executor.Execute(
+                CreatePasswordValidationRequest(attack),
+                CancellationToken.None);
+
+            Assert.AreEqual(ClientPasswordValidationScriptDecision.Reject, result.Decision);
+            AssertLegacyEventLogLines(eventLogPath, attack);
+        }
+        finally
+        {
+            TryDeleteDirectory(eventDirectory);
+        }
+    }
+
+    [TestMethod]
     public void Execute_JScriptClientValidatePasswordSeedsResultParameter()
     {
         var cscript = GetCscriptPathOrInconclusive();

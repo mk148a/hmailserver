@@ -3509,7 +3509,9 @@ if (typeof {{functionName}} === "function") {
         value.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal)
             .Replace("\r", "\\r", StringComparison.Ordinal)
-            .Replace("\n", "\\n", StringComparison.Ordinal);
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\u2028", "\\u2028", StringComparison.Ordinal)
+            .Replace("\u2029", "\\u2029", StringComparison.Ordinal);
 
     private static string CreateVbScriptDateExpression(DateTimeOffset value)
     {
