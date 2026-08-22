@@ -1,21 +1,19 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, authenticated SMTP ETRN)
+## Current Authoritative Continuation (2026-08-22, legacy POP3 HELP)
 
-Code/test commit `b213c5a2a` implements legacy SMTP `ETRN`. Legacy
-`hmailserver/source/Server/SMTP/SMTPConnection.cpp:2001-2120` requires SMTP
-authentication, rejects a missing domain, accepts an exact route, and resets
-route-owned queued messages to normal delivery at the 1901 epoch. Net10 now
-uses the configured `IRouteAdministrationStore` for route snapshots and the
-owner-scoped SQL queue update, returning the legacy 530/500/501/458/250
-responses. Focused SMTP tests are `39 passed, 0 skipped, 0 failed`; full Debug
-Net10 is `2691 passed, 94 skipped, 0 failed` (`2785` total). No COM identity,
-production service, database, Data directory, registration, DCOM ACL, IIS,
-firewall, or pre-existing artifact changed. Release remains RED for
-power-loss INI durability, native crash semantics, Full-Text SQL/Data,
-installed COM, migration/restore, SEC-18, installer/service/Data rollback,
-paired C++ performance, protocol thresholds, and 24-hour soak. Next: approved
-Full-Text SQL/Data round-trip acceptance. Older entries are historical.
+Code/test commit `3292cefb2` closes the legacy POP3 `HELP` gap. Legacy
+`hmailserver/source/Server/POP3/POP3Connection.cpp:292-294` returns
+`+OK Normal POP3 commands allowed` before authentication; Net10 now returns
+the same response and keeps the connection open. Focused POP3 tests are
+`12 passed, 0 skipped, 0 failed`; full Debug Net10 is `2692 passed, 94 skipped,
+0 failed` (`2786` total). No COM identity, SMTP trust, SQL/Data, production
+service, database, Data directory, registration, DCOM ACL, IIS, firewall, or
+pre-existing artifact changed. Release remains RED for power-loss INI
+durability, native crash semantics, Full-Text SQL/Data, installed COM,
+migration/restore, SEC-18, installer/service/Data rollback, paired C++
+performance, protocol thresholds, and 24-hour soak. Next: approved Full-Text
+SQL/Data round-trip acceptance. Older entries are historical.
 
 ## Historical Authoritative Continuation (2026-08-22, client-password runner secret transport)
 

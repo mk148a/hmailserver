@@ -1,22 +1,20 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, authenticated SMTP ETRN)
+## Current parity gate (2026-08-22, legacy POP3 HELP)
 
-Code/test commit `b213c5a2a` implements the legacy SMTP `ETRN` path. Legacy
-`SMTPConnection::ProtocolETRN_` at
-`source/Server/SMTP/SMTPConnection.cpp:2001-2120` requires authentication,
-rejects a missing domain, accepts only an exact configured route, and resets
-route-owned queued messages to normal delivery with `messagenexttrytime` at
-the legacy epoch. Net10 now exposes the same behavior through the configured
-route store. Focused SMTP tests pass `39`, and full Debug Net10 passes `2691`,
-skips `94`, and fails `0` (`2785` total).
+Code/test commit `3292cefb2` closes the legacy POP3 `HELP` response gap.
+Legacy `POP3Connection::InternalParseData` at
+`source/Server/POP3/POP3Connection.cpp:292-294` returns
+`+OK Normal POP3 commands allowed` before authentication; Net10 now returns
+the same response and keeps the session open. Focused POP3 tests pass `12`,
+and full Debug Net10 passes `2692`, skips `94`, and fails `0` (`2786` total).
 
 The release gate remains **RED** because power-loss injection/durability,
 native crash semantics, Full-Text SQL/Data, installed COM, migration/restore,
 SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
 soak gates remain open. The next independent slice is approved Full-Text
-SQL/Data round-trip acceptance. The previous INI persistence entry below is
+SQL/Data round-trip acceptance. The previous ETRN entry below is
 historical.
 
 ## Historical parity gate (2026-08-22, client-password runner secret transport)

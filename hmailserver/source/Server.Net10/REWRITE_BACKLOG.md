@@ -1,19 +1,16 @@
 
 
-## Current authoritative next slice (2026-08-22, authenticated SMTP ETRN complete)
+## Current authoritative next slice (2026-08-22, legacy POP3 HELP complete)
 
-Code/test commit `b213c5a2a` closes the legacy SMTP `ETRN` gap. Legacy
-`source/Server/SMTP/SMTPConnection.cpp:2001-2120` requires an authenticated
-session, returns the missing-domain syntax response, requires an exact route
-name, and updates `hm_messages` rows with `messagetype = 3` and the route ID
-back to `messagetype = 1`, `messageaccountid = 0`, and the 1901 epoch. Net10
-adds `IRouteAdministrationStore.QueueMessagesForRouteAsync`, the SQL update,
-and an injected SMTP route/queue boundary. Focused SMTP tests pass `39`; full
-Debug Net10 passes `2691`, skips `94`, and fails `0` (`2785` total). Release
-remains RED for power-loss INI durability, native crash semantics, Full-Text
-SQL/Data, installed COM, migration/restore, SEC-18, installer rollback, paired
-C++ performance, protocol thresholds, and soak. Next slice: approved
-Full-Text SQL/Data round-trip acceptance. Older sections are historical.
+Code/test commit `3292cefb2` closes the legacy POP3 `HELP` gap. Legacy
+`source/Server/POP3/POP3Connection.cpp:292-294` returns
+`+OK Normal POP3 commands allowed` without authentication; Net10 now does the
+same. Focused POP3 tests pass `12`; full Debug Net10 passes `2692`, skips `94`,
+and fails `0` (`2786` total). Release remains RED for power-loss INI
+durability, native crash semantics, Full-Text SQL/Data, installed COM,
+migration/restore, SEC-18, installer rollback, paired C++ performance,
+protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data
+round-trip acceptance. Older sections are historical.
 
 ## Historical authoritative next slice (2026-08-22, client-password runner secret transport complete)
 
