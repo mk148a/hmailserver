@@ -1,26 +1,23 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, SMTP HELP crash-simulation consumer)
+## Current parity gate (2026-08-22, atomic administrator-password INI persistence)
 
-Code/test commit `49a89f2ef` completes the bounded consumer wiring after
-`52567a795` added the legacy SMTP `HELP` response. Legacy
-`SMTPConnection::ProtocolHELP_` at
-`source/Server/SMTP/SMTPConnection.cpp:1734-1752` calls the crash-simulation
-path, whose mode branches are defined in `source/Server/Common/Util/CrashSimulation.cpp:18-35`.
-Net10 now reads the configured mode through `SettingsAdministrationRuntimeHost`
-and invokes an injected executor before writing the HELP response. Focused
-SMTP tests pass `35`, and full Debug Net10 passes `2685`, skips `94`, and
-fails `0` (`2779` total).
+Code/test commit `d00214ec3` hardens the existing
+`Settings.SetAdministratorPassword` persistence. Legacy
+`IniFileSettings::SetAdministratorPassword` at
+`source/Server/Common/Application/IniFileSettings.cpp:352-366` hashes the
+password and writes only `[Security] AdministratorPassword` through
+`WritePrivateProfileString`; Net10 now writes a same-directory `.ini`
+snapshot, flushes the profile API, flushes the file, and atomically replaces
+the target. Focused initialization/settings tests pass `18`, and full Debug
+Net10 passes `2687`, skips `94`, and fails `0` (`2781` total).
 
-Modes 1/2 are represented as managed `InvalidOperationException`, mode 3 as a
-managed `AccessViolationException`, and mode 4 as an `IOException`; this is
-consumer parity, not proof of the legacy native process crash/disconnect or
-service lifecycle semantics. The release gate remains **RED**: native crash
-semantics, Full-Text SQL/Data, installed COM, migration/restore, SEC-18,
-installer rollback, paired C++ performance, protocol thresholds, and soak
-gates remain open. The next independent slice is approved Full-Text SQL/Data
-round-trip acceptance. The previous HELP response entry below is historical.
+The release gate remains **RED** because power-loss injection/durability,
+native crash semantics, Full-Text SQL/Data, installed COM, migration/restore,
+SEC-18, installer rollback, paired C++ performance, protocol thresholds, and
+soak gates remain open. The next independent slice is approved Full-Text
+SQL/Data round-trip acceptance. The previous HELP entry below is historical.
 
 ## Historical parity gate (2026-08-22, client-password runner secret transport)
 

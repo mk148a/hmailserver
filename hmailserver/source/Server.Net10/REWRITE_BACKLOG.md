@@ -1,21 +1,19 @@
 
 
-## Current authoritative next slice (2026-08-22, SMTP HELP crash consumer complete)
+## Current authoritative next slice (2026-08-22, atomic administrator-password INI persistence)
 
-Code/test commit `49a89f2ef` closes the bounded consumer wiring after
-`52567a795` added the SMTP `HELP` response. Legacy
-`source/Server/SMTP/SMTPConnection.cpp:1734-1752` invokes crash simulation;
-the mode branches are in `source/Server/Common/Util/CrashSimulation.cpp:18-35`.
-Net10 reads the mode from the existing settings runtime host and executes the
-mode before emitting HELP. Focused SMTP tests pass `35`, and full Debug Net10
-passes `2685`, skips `94`, and fails `0` (`2779` total). Modes 1/2, 3, and 4
-are represented by managed `InvalidOperationException`,
-`AccessViolationException`, and `IOException` respectively. Exact native
-process-level fault, disconnect, and service lifecycle behavior remains open.
-Release remains RED for that native semantic gap, Full-Text SQL/Data, installed
-COM, migration/restore, SEC-18, installer rollback, paired C++ performance,
-protocol thresholds, and soak. Next slice: approved Full-Text SQL/Data
-round-trip acceptance. Older sections are historical.
+Code/test commit `d00214ec3` hardens the existing administrator-password
+setter. Legacy `source/Server/Common/Application/IniFileSettings.cpp:352-366`
+hashes the password and calls `WritePrivateProfileString` for only the
+`[Security] AdministratorPassword` value. Net10 now writes a same-directory
+`.ini` snapshot, flushes the profile API and file, then atomically replaces the
+target and cleans the sibling on success or failure. Focused initialization/
+settings tests pass `18`; full Debug Net10 passes `2687`, skips `94`, and fails
+`0` (`2781` total). Power-loss injection and post-reboot durability are not
+proven, so that release risk remains open. Release remains RED for Full-Text
+SQL/Data, installed COM, migration/restore, SEC-18, installer rollback,
+paired C++ performance, protocol thresholds, and soak. Next slice: approved
+Full-Text SQL/Data round-trip acceptance. Older sections are historical.
 
 ## Historical authoritative next slice (2026-08-22, client-password runner secret transport complete)
 
