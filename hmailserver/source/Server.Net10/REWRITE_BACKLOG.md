@@ -24,7 +24,7 @@ slices are the approved Full-Text SQL/Data acceptance, isolated registered
 COM/SEC-18 evidence when the disposable guest is visible, and installer
 rollback acceptance.
 
-## Current bounded slice: handle-relative raw DataBackup snapshot copy (2026-08-22)
+## Historical bounded slice: handle-relative raw DataBackup snapshot copy (2026-08-22)
 
 Code/test commit `35901f31b` replaces the private path-based recursive raw
 `DataBackup` snapshot copy with `WindowsHandleRelativeDirectoryCopier.Copy`.
@@ -50,6 +50,25 @@ SQL/Data acceptance. Other open gates remain registered/out-of-process COM and
 SEC-18, installer/service/data rollback, remaining COM/Admin parity, paired
 C++/.NET performance, protocol thresholds, and 24-hour soak. The previous
 root-ACL entry is historical.
+
+## Current bounded slice: handle-relative raw DataBackup identity hashing (2026-08-22)
+
+Code/test commit `b26836360` replaces path-based raw `DataBackup` tree hashing
+in `BackupDataDirectoryIdentity` with
+`WindowsHandleRelativeDirectoryCopier.ComputeSha256`. The canonical digest
+framing, case-insensitive ordering, UTF-8 encoding, and uppercase SHA-256
+output remain compatible. Focused tests cover nested, empty, zero-byte,
+Unicode, and tampered snapshot entries; full Debug Net10 is `2653 passed, 94
+skipped, 0 failed` (`2747` total).
+
+Legacy behavior is anchored at
+`source/Server/Common/Application/BackupExecuter.cpp:195-217` and
+`source/Server/Common/Util/FileUtilities.cpp:370-402`. This is filesystem-only:
+COM identity, SQL schema, archive layout, service, SMTP, and production state
+are unchanged. It reduces path-based identity races but does not provide an
+atomic filesystem snapshot. Same-name replacement, destination ancestor
+TOCTOU, target-identity native review, and privilege-dependent reparse tests
+remain open, followed by the environment-blocked Full-Text SQL/Data gate.
 
 ## Historical bounded slice: Application.Connect error reporting parity (2026-08-22)
 

@@ -18,7 +18,7 @@ thresholds, and long-soak acceptance remain open or environment-blocked.
 Pre-existing reparse redirection is covered; handle-based TOCTOU protection
 and target-identity native filesystem review remain open.
 
-## Current authoritative parity status (2026-08-22, handle-relative raw DataBackup snapshot)
+## Historical authoritative parity status (2026-08-22, handle-relative raw DataBackup snapshot)
 
 Code/test commit `35901f31b` routes private raw non-DB-only `DataBackup`
 snapshot copying through `WindowsHandleRelativeDirectoryCopier.Copy`, while
@@ -36,6 +36,28 @@ not permit disposable symlink creation, and fail `0`; the full Debug Net10
 suite is `2652 passed, 94 skipped, 0 failed` (`2746` total). Release remains
 **RED**: source hash/capture and private binding destination TOCTOU review,
 Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
+installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
+performance, protocol thresholds, and long-soak acceptance remain open or
+environment-blocked. No COM identity or production state changed.
+
+## Current authoritative parity status (2026-08-22, handle-relative raw DataBackup identity)
+
+Code/test commit `b26836360` moves raw non-DB-only `DataBackup` identity
+hashing and matching from path-based enumeration to
+`WindowsHandleRelativeDirectoryCopier.ComputeSha256`. The existing digest
+framing, case-insensitive ordering, UTF-8 encoding, uppercase SHA-256 output,
+root/child reparse rejection, and protected DACL remain unchanged.
+Legacy anchors are `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:195-217`) and
+`FileUtilities::CopyDirectory` (`source/Server/Common/Util/FileUtilities.cpp:370-402`).
+Focused coverage includes nested, empty, zero-byte, Unicode, and tamper cases
+in `BackupArchiveIdentityTests`.
+
+Focused `BackupArchiveIdentityTests` pass `7`, skip `2` because the host does
+not permit disposable symlink creation, and fail `0`; the full Debug Net10
+suite is `2653 passed, 94 skipped, 0 failed` (`2747` total). Release remains
+**RED**: this is not an atomic filesystem snapshot; same-name replacement and
+destination ancestor TOCTOU, Full-Text SQL/Data, registered COM/SEC-18,
 installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and long-soak acceptance remain open or
 environment-blocked. No COM identity or production state changed.

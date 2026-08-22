@@ -1,11 +1,12 @@
 hMailServer
 ===========
 
-## Current backup snapshot security gate (2026-08-22, handle-relative raw DataBackup snapshot)
+## Current backup snapshot security gate (2026-08-22, handle-relative raw DataBackup identity)
 
-Code/test commit `35901f31b` routes the private raw non-DB-only `DataBackup`
-snapshot through `WindowsHandleRelativeDirectoryCopier.Copy` after the
-existing root/child reparse and ACL protections.
+Code/test commit `b26836360` routes private raw non-DB-only `DataBackup`
+identity hashing and matching through handle-relative Windows traversal, after
+the existing root/child reparse and ACL protections. The digest framing,
+ordering, UTF-8 encoding, and uppercase SHA-256 contract are preserved.
 Existing reparse points are rejected before ACL application or archive/Data
 copy; the root is protected before child creation, and the protected DACL
 grants access only to the executing identity and `SYSTEM`. Legacy backup
@@ -13,17 +14,19 @@ references are
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
 and `FileUtilities.cpp:370-402`; the .NET symbols are
 `BackupDataDirectoryIdentity.CopyStableSnapshot` and
-`WindowsHandleRelativeDirectoryCopier.Copy`. Legacy-visible destination paths,
+`WindowsHandleRelativeDirectoryCopier.ComputeSha256`. Legacy-visible destination paths,
 SQL/Data semantics, COM identity, and service behavior are unchanged.
 
-Focused `BackupArchiveIdentityTests` pass `6`, skip `2` (symlink privilege),
-and fail `0`; the full Debug Net10 suite passes `2652`, skips `94`, and fails
-`0` (`2746` total). Release remains
-**RED**: Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
+Focused `BackupArchiveIdentityTests` pass `7`, skip `2` (symlink privilege),
+and fail `0`; the full Debug Net10 suite passes `2653`, skips `94`, and fails
+`0` (`2747` total). Release remains
+**RED**: atomic snapshot/quiescence, same-name replacement and private binding
+destination TOCTOU review, Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
 installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and 24-hour soak remain open or
-environment-blocked. Nested and empty directories are covered; source
-hash/capture and private binding destination TOCTOU review remain open. Older
+environment-blocked. Nested, empty, zero-byte, and Unicode entries are covered;
+the hash is not an atomic filesystem snapshot and destination ancestor TOCTOU
+remains open. Older
 sections below are historical.
 
 ## Current Application.Connect gate (2026-08-22)

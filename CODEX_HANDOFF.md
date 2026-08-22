@@ -24,7 +24,7 @@ open or environment-blocked. Next: approved Full-Text
 SQL/Data acceptance; otherwise isolated registered COM/SEC-18 evidence when
 the disposable guest is visible, then installer/service/data rollback.
 
-## Current Authoritative Continuation (2026-08-22, handle-relative raw DataBackup snapshot)
+## Historical Authoritative Continuation (2026-08-22, handle-relative raw DataBackup snapshot)
 
 Code/test commit `35901f31b` routes private raw non-DB-only `DataBackup`
 snapshot copying through `WindowsHandleRelativeDirectoryCopier.Copy` after
@@ -50,6 +50,30 @@ protocol thresholds, and 24-hour soak.
 Next: use an approved Full-Text SQL/Data environment if available; otherwise
 continue isolated registered COM/SEC-18 evidence only when the disposable guest
 is visible, then installer/service/data rollback acceptance.
+
+## Current Authoritative Continuation (2026-08-22, handle-relative raw DataBackup identity)
+
+Code/test commit `b26836360` moves raw non-DB-only `DataBackup` identity
+hashing and matching to `WindowsHandleRelativeDirectoryCopier.ComputeSha256`.
+The canonical digest framing, ordering, UTF-8 encoding, and uppercase SHA-256
+output remain compatible. Legacy anchors are
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:195-217` and
+`hmailserver/source/Server/Common/Util/FileUtilities.cpp:370-402`; focused
+coverage includes nested, empty, zero-byte, Unicode, and tamper cases.
+
+Focused `BackupArchiveIdentityTests` pass `7`, skip `2` because disposable
+symlink creation is unavailable, and fail `0`; full Debug Net10 passes `2653`,
+skips `94`, and fails `0` (`2747` total). No COM identity, SQL/Data schema,
+service, registry, DCOM, IIS, firewall, or production state changed. Release
+remains **RED**: the handle-relative digest is not an atomic filesystem
+snapshot; same-name replacement and destination ancestor TOCTOU review remain
+open, as do Full-Text SQL/Data, registered COM/SEC-18, installer rollback,
+remaining COM/Admin parity, paired C++/.NET performance, protocol thresholds,
+and 24-hour soak.
+
+Next: close or formally bound native filesystem races with privileged tests;
+otherwise use an approved Full-Text SQL/Data environment, then isolated
+registered COM/SEC-18 and installer/service/data rollback acceptance.
 
 ## Historical Authoritative Continuation (2026-08-22, Application.Connect)
 
