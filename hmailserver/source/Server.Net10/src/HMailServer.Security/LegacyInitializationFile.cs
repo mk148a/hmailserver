@@ -31,11 +31,78 @@ public static class LegacyInitializationFile
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(hash);
 
-        return WritePrivateProfileString(
-            "Security",
-            "AdministratorPassword",
-            hash,
-            Path.GetFullPath(path));
+        var targetPath = Path.GetFullPath(path);
+        var temporaryPath = targetPath + $".{Guid.NewGuid():N}.ini";
+        var targetExists = File.Exists(targetPath);
+
+        try
+        {
+            if (targetExists)
+            {
+                File.Copy(targetPath, temporaryPath, overwrite: false);
+            }
+            else
+            {
+                using (File.Create(temporaryPath))
+                {
+                }
+            }
+
+            if (!WritePrivateProfileString(
+                    "Security",
+                    "AdministratorPassword",
+                    hash,
+                    temporaryPath))
+            {
+                return false;
+            }
+
+            _ = WritePrivateProfileString(null, null, null, temporaryPath);
+
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.Open,
+                       FileAccess.Read,
+                       FileShare.Read))
+            {
+                stream.Flush(flushToDisk: true);
+            }
+
+            if (targetExists)
+            {
+                File.Replace(temporaryPath, targetPath, destinationBackupFileName: null);
+            }
+            else
+            {
+                File.Move(temporaryPath, targetPath);
+            }
+
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
     }
 
     public static LegacyDatabaseConfiguration LoadDatabaseConfiguration(string path)

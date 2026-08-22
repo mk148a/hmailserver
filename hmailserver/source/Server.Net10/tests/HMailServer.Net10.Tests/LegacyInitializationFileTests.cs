@@ -75,6 +75,44 @@ public sealed class LegacyInitializationFileTests
     }
 
     [TestMethod]
+    public void SaveAdministratorPasswordHash_AtomicallyReplacesHashAndPreservesOtherSettings()
+    {
+        var path = CreateTemporaryInitializationFile(
+            "[Settings]\nUseLanguage=English\n\n[Security]\n"
+            + "AdministratorPassword=old-hash\nOtherValue=preserved\n");
+
+        try
+        {
+            Assert.IsTrue(LegacyInitializationFile.SaveAdministratorPasswordHash(path, "new-hash"));
+            Assert.AreEqual("new-hash", LegacyInitializationFile.LoadAdministratorPasswordHash(path));
+            StringAssert.Contains(File.ReadAllText(path), "UseLanguage=English");
+            StringAssert.Contains(File.ReadAllText(path), "OtherValue=preserved");
+            Assert.IsFalse(Directory.GetFiles(Path.GetDirectoryName(path)!, $"{Path.GetFileName(path)}.*.ini").Any());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
+    public void SaveAdministratorPasswordHash_CreatesMissingFileAndCleansTemporarySibling()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}.ini");
+
+        try
+        {
+            Assert.IsTrue(LegacyInitializationFile.SaveAdministratorPasswordHash(path, "new-hash"));
+            Assert.AreEqual("new-hash", LegacyInitializationFile.LoadAdministratorPasswordHash(path));
+            Assert.IsFalse(Directory.GetFiles(Path.GetDirectoryName(path)!, $"{Path.GetFileName(path)}.*.ini").Any());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public void SaveUserInterfaceLanguage_WritesLegacySettingAndPreservesOtherSettings()
     {
         var path = CreateTemporaryInitializationFile(
