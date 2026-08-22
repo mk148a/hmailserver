@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current backup snapshot security gate (2026-08-22)
+
+Code/test commit `468aef10a` hardens only the private GUID-scoped temporary
+snapshot root created by `BackupArchiveBinding.TryCreate`. It disables
+inherited ACLs and grants full control to the executing identity and
+`SYSTEM`, so archive and raw `DataBackup` snapshots do not inherit broad
+`%TEMP%` permissions. Legacy backup references are
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
+and `BackupManager.cpp:101-132`; legacy-visible destination paths, SQL/Data
+semantics, COM identity, and service behavior are unchanged.
+
+Focused `BackupArchiveIdentityTests` pass `6/6`; the full Debug Net10 suite
+passes `2652`, skips `92`, and fails `0` (`2744` total). Release remains
+**RED**: Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
+installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
+performance, protocol thresholds, and 24-hour soak remain open or
+environment-blocked. Older sections below are historical.
+
 ## Current Application.Connect gate (2026-08-22)
 
 Code/test commit `fe0893c8f` restores legacy `Application.Connect` behavior.
