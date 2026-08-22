@@ -75,7 +75,7 @@ Next: close or formally bound native filesystem races with privileged tests;
 otherwise use an approved Full-Text SQL/Data environment, then isolated
 registered COM/SEC-18 and installer/service/data rollback acceptance.
 
-## Current Authoritative Continuation (2026-08-22, owned backup snapshot collision cleanup)
+## Historical Authoritative Continuation (2026-08-22, owned backup snapshot collision cleanup)
 
 Code/test commit `b37cb2e86` gives `BackupArchiveBinding.TryCreate` explicit
 snapshot ownership. It builds in an invocation-specific staging directory,
@@ -93,6 +93,27 @@ C++/.NET performance, protocol thresholds, and 24-hour soak remain open.
 
 Next: native ancestor/same-name filesystem binding only after privileged
 disposable tests are available; otherwise use the approved Full-Text SQL/Data
+environment, then registered COM/SEC-18 and installer/service rollback.
+
+## Current Authoritative Continuation (2026-08-22, handle-relative nested destination creation)
+
+Code/test commit `28d046d3d` makes
+`WindowsHandleRelativeDirectoryCopier.OpenOrCreateDirectoryPath` create
+missing nested destination ancestors through a root-to-leaf pinned-handle
+walk. Existing final directories are reused, files still fail, and
+intermediate collisions are reopened only after non-reparse validation.
+Focused runtime coverage passes `23/23`; full Debug Net10 passes `2661`, skips
+`94`, and fails `0` (`2755` total).
+
+No COM identity, SQL/Data schema, archive layout, service, registry, DCOM,
+IIS, firewall, or production state changed. Release remains **RED**: atomic
+snapshot/quiescence, same-name replacement and remaining binding-ancestor
+TOCTOU, target-identity filesystem review, Full-Text SQL/Data, registered
+COM/SEC-18, installer rollback, paired C++/.NET performance, protocol
+thresholds, and 24-hour soak remain open.
+
+Next: obtain privileged disposable filesystem/service-identity evidence for
+the remaining native races; otherwise use the approved Full-Text SQL/Data
 environment, then registered COM/SEC-18 and installer/service rollback.
 
 ## Historical Authoritative Continuation (2026-08-22, Application.Connect)

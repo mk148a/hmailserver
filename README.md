@@ -1,13 +1,13 @@
 hMailServer
 ===========
 
-## Current backup snapshot security gate (2026-08-22, owned snapshot collision cleanup)
+## Current backup snapshot security gate (2026-08-22, handle-relative destination creation)
 
-Code/test commit `b37cb2e86` stages private raw non-DB-only `DataBackup`
-snapshots in invocation-specific directories and atomically claims the final
-snapshot name with `Directory.Move`. Existing same-name directories are
-rejected before ACL/copy work, and failure/Dispose cleanup removes only owned
-staging or final directories. The prior handle-relative identity hashing,
+Code/test commit `28d046d3d` extends `WindowsHandleRelativeDirectoryCopier`
+with a root-to-leaf pinned-handle walk for missing nested destination
+ancestors. Existing final directories remain reusable, existing files still
+fail, intermediate collisions are reopened only as non-reparse directories,
+and the prior owned snapshot staging/collision cleanup, identity hashing,
 reparse rejection, and protected DACL remain in force.
 Existing reparse points are rejected before ACL application or archive/Data
 copy; the root is protected before child creation, and the protected DACL
@@ -16,15 +16,15 @@ references are
 `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209,339-386`
 and `FileUtilities.cpp:370-402`; the .NET symbols are
 `BackupDataDirectoryIdentity.CopyStableSnapshot`,
-`WindowsHandleRelativeDirectoryCopier.ComputeSha256`, and
+`WindowsHandleRelativeDirectoryCopier.OpenOrCreateDirectoryPath`, and
 `BackupArchiveBinding.TryCreate`. Legacy-visible destination paths,
 SQL/Data semantics, COM identity, and service behavior are unchanged.
 
-Focused `BackupArchiveIdentityTests` pass `11`, skip `2` (symlink privilege),
-and fail `0`; the full Debug Net10 suite passes `2657`, skips `94`, and fails
-`0` (`2751` total). Release remains
-**RED**: atomic snapshot/quiescence, same-name replacement and private binding
-destination TOCTOU review, Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
+Focused `BackupRestoreDataDirectoryRuntimeTests` pass `23`, skip `0`, and fail
+`0`; `BackupArchiveIdentityTests` pass `11`, skip `2` (symlink privilege),
+and fail `0`; the full Debug Net10 suite passes `2661`, skips `94`, and fails
+`0` (`2755` total). Release remains **RED**: atomic snapshot/quiescence,
+same-name replacement and remaining binding ancestor TOCTOU review, Full-Text SQL/Data round-trip, registered COM/SEC-18 caller evidence,
 installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and 24-hour soak remain open or
 environment-blocked. Nested, empty, zero-byte, and Unicode entries plus

@@ -62,7 +62,7 @@ installer/service/data rollback, remaining COM/Admin parity, paired C++/.NET
 performance, protocol thresholds, and long-soak acceptance remain open or
 environment-blocked. No COM identity or production state changed.
 
-## Current authoritative parity status (2026-08-22, owned snapshot collision cleanup)
+## Historical authoritative parity status (2026-08-22, owned snapshot collision cleanup)
 
 Code/test commit `b37cb2e86` stages private backup snapshots in an
 invocation-specific directory and atomically claims the requested final name
@@ -81,6 +81,25 @@ changed. Focused tests pass `11`, skip `2`, fail `0`; full Debug Net10 passes
 atomic snapshot/quiescence, destination ancestor/same-name replacement TOCTOU,
 Full-Text SQL/Data, registered COM/SEC-18, installer rollback, paired
 C++/.NET performance, protocol thresholds, and soak.
+
+## Current authoritative parity status (2026-08-22, handle-relative destination creation)
+
+Code/test commit `28d046d3d` makes `WindowsHandleRelativeDirectoryCopier`
+create missing nested destination ancestors root-to-leaf using pinned relative
+handles. Existing final directories remain reusable, existing files fail, and
+intermediate collisions are reopened only after non-reparse validation. Legacy
+parity is anchored at `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:195-217`) and
+`FileUtilities::CopyDirectory` (`source/Server/Common/Util/FileUtilities.cpp:370-402`).
+Focused `BackupRestoreDataDirectoryRuntimeTests` pass `23/23`; full Debug
+Net10 passes `2661`, skips `94`, and fails `0` (`2755` total).
+
+The helper remains internal: no COM identity, SQL schema, archive layout,
+service, or production state changed. Release remains **RED** because atomic
+snapshot/quiescence, same-name replacement and remaining binding-ancestor
+TOCTOU, target-identity filesystem review, Full-Text SQL/Data, registered
+COM/SEC-18, installer rollback, paired performance, protocol thresholds, and
+24-hour soak remain open or environment-blocked.
 
 Older sections below are historical.
 

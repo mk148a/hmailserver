@@ -70,7 +70,7 @@ atomic filesystem snapshot. Same-name replacement, destination ancestor
 TOCTOU, target-identity native review, and privilege-dependent reparse tests
 remain open, followed by the environment-blocked Full-Text SQL/Data gate.
 
-## Current bounded slice: owned backup snapshot collision cleanup (2026-08-22)
+## Historical bounded slice: owned backup snapshot collision cleanup (2026-08-22)
 
 Code/test commit `b37cb2e86` prevents `BackupArchiveBinding.TryCreate` from
 adopting or recursively deleting a pre-existing same-name snapshot directory.
@@ -88,6 +88,26 @@ Remaining gates are atomic snapshot/quiescence, destination ancestor and
 same-name replacement TOCTOU, target-identity filesystem review, Full-Text
 SQL/Data, registered COM/SEC-18, installer rollback, paired performance,
 protocol thresholds, and 24-hour soak.
+
+## Current bounded slice: handle-relative nested destination creation (2026-08-22)
+
+Code/test commit `28d046d3d` changes
+`WindowsHandleRelativeDirectoryCopier.OpenOrCreateDirectoryPath` to walk
+from the root handle and create missing destination ancestors relative to
+pinned handles. Existing final directories are reused; existing files fail;
+intermediate collisions are reopened only as validated non-reparse
+directories. Focused `BackupRestoreDataDirectoryRuntimeTests` pass `23`, skip
+`0`, fail `0`; full Debug Net10 passes `2661`, skips `94`, fails `0` (`2755`
+total).
+
+Legacy references are `BackupExecuter::BackupDataDirectory_`
+(`source/Server/Common/Application/BackupExecuter.cpp:195-217`) and
+`FileUtilities::CopyDirectory` (`source/Server/Common/Util/FileUtilities.cpp:370-402`).
+This is internal filesystem hardening with no COM, SQL, archive, service,
+SMTP, or production-state change. Remaining work includes atomic snapshot/
+quiescence, same-name replacement and binding-ancestor TOCTOU, target-identity
+review, Full-Text SQL/Data, registered COM/SEC-18, installer rollback, paired
+performance, protocol thresholds, and 24-hour soak.
 
 ## Historical bounded slice: Application.Connect error reporting parity (2026-08-22)
 
