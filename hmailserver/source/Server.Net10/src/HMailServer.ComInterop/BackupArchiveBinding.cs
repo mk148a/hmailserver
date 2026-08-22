@@ -6,6 +6,8 @@ namespace HMailServer.ComInterop;
 
 internal sealed class BackupArchiveBinding : IDisposable
 {
+    private const string SnapshotRootName = "hmailserver-backup-bindings";
+
     private readonly string _snapshotDirectory;
     private readonly FileStream _snapshotReadLock;
     private int _disposed;
@@ -32,7 +34,24 @@ internal sealed class BackupArchiveBinding : IDisposable
 
     internal static BackupArchiveBinding? TryCreate(string sourcePath)
     {
+        var snapshotRoot = Path.Combine(Path.GetTempPath(), SnapshotRootName);
+        return TryCreate(sourcePath, snapshotRoot, Guid.NewGuid().ToString("N"));
+    }
+
+    internal static BackupArchiveBinding? TryCreateForTesting(
+        string sourcePath,
+        string snapshotRoot,
+        string snapshotName) =>
+        TryCreate(sourcePath, snapshotRoot, snapshotName);
+
+    private static BackupArchiveBinding? TryCreate(
+        string sourcePath,
+        string snapshotRoot,
+        string snapshotName)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotRoot);
+        ArgumentException.ThrowIfNullOrWhiteSpace(snapshotName);
 
         var fullSourcePath = Path.GetFullPath(sourcePath);
         if (!File.Exists(fullSourcePath) || Directory.Exists(fullSourcePath))
@@ -41,14 +60,16 @@ internal sealed class BackupArchiveBinding : IDisposable
         }
 
         var snapshotDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "hmailserver-backup-bindings",
-            Guid.NewGuid().ToString("N"));
+            snapshotRoot,
+            snapshotName);
         var snapshotPath = Path.Combine(snapshotDirectory, "archive.7z");
 
         try
         {
+            Directory.CreateDirectory(snapshotRoot);
+            EnsureNotReparsePoint(snapshotRoot, "backup snapshot root");
             Directory.CreateDirectory(snapshotDirectory);
+            EnsureNotReparsePoint(snapshotDirectory, "backup snapshot directory");
             ProtectSnapshotDirectory(snapshotDirectory);
             BackupArchiveIdentity identity;
             using (var source = BackupArchiveIdentity.OpenReadLock(fullSourcePath))
@@ -148,5 +169,13 @@ internal sealed class BackupArchiveBinding : IDisposable
             PropagationFlags.None,
             AccessControlType.Allow));
         new DirectoryInfo(directory).SetAccessControl(security);
+    }
+
+    private static void EnsureNotReparsePoint(string path, string description)
+    {
+        if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new IOException($"The {description} is a reparse point.");
+        }
     }
 }

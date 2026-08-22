@@ -144,6 +144,81 @@ public sealed class BackupArchiveIdentityTests
     }
 
     [TestMethod]
+    public void Binding_RejectsReparsePointAtPrivateSnapshotRoot()
+    {
+        var archivePath = CreateArchive("root-reparse");
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-root-{Guid.NewGuid():N}");
+        var target = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-root-target-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(target);
+            try
+            {
+                Directory.CreateSymbolicLink(root, target);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                Assert.Inconclusive("The test host does not allow creating a disposable root reparse point: " + exception.Message);
+            }
+
+            Assert.ThrowsExactly<IOException>(() =>
+                BackupArchiveBinding.TryCreateForTesting(archivePath, root, "snapshot"));
+            Assert.IsFalse(File.Exists(Path.Combine(target, "snapshot", "archive.7z")));
+        }
+        finally
+        {
+            TryDeleteReparseOrDirectory(root);
+            if (Directory.Exists(target))
+            {
+                Directory.Delete(target, recursive: true);
+            }
+
+            File.Delete(archivePath);
+        }
+    }
+
+    [TestMethod]
+    public void Binding_RejectsReparsePointAtPrivateSnapshotDirectory()
+    {
+        var archivePath = CreateArchive("child-reparse");
+        var root = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-child-{Guid.NewGuid():N}");
+        var target = Path.Combine(Path.GetTempPath(), $"hmailserver-binding-child-target-{Guid.NewGuid():N}");
+        var child = Path.Combine(root, "snapshot");
+        try
+        {
+            Directory.CreateDirectory(root);
+            Directory.CreateDirectory(target);
+            try
+            {
+                Directory.CreateSymbolicLink(child, target);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            {
+                Assert.Inconclusive("The test host does not allow creating a disposable child reparse point: " + exception.Message);
+            }
+
+            Assert.ThrowsExactly<IOException>(() =>
+                BackupArchiveBinding.TryCreateForTesting(archivePath, root, "snapshot"));
+            Assert.IsFalse(File.Exists(Path.Combine(target, "archive.7z")));
+        }
+        finally
+        {
+            TryDeleteReparseOrDirectory(child);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+
+            if (Directory.Exists(target))
+            {
+                Directory.Delete(target, recursive: true);
+            }
+
+            File.Delete(archivePath);
+        }
+    }
+
+    [TestMethod]
     public void Manager_LoadBackupReadsTheSnapshotBeforeMetadataParsing()
     {
         var archivePath = CreateArchive("first");
@@ -178,6 +253,21 @@ public sealed class BackupArchiveIdentityTests
         rules.Any(rule =>
             rule.IdentityReference.Value.Equals(sid, StringComparison.OrdinalIgnoreCase)
             && (rule.FileSystemRights & FileSystemRights.FullControl) == FileSystemRights.FullControl);
+
+    private static void TryDeleteReparseOrDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path) || File.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            // The test cleanup must not follow a disposable reparse target.
+        }
+    }
 
     private sealed class ReplacingMetadataReader(string sourcePath) : IBackupArchiveMetadataReader
     {
