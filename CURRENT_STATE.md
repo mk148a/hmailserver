@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-22T05:05:00Z` / `2026-08-22T08:05:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `964972f55` (code/test commit; docs commit pending)
+- Current HEAD: `0937cfe06` (docs commit after code/test `964972f55`)
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: `ScriptingComContractTests` `9 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default Debug `2676 passed, 94 skipped, 0 failed` (`2770` total)
