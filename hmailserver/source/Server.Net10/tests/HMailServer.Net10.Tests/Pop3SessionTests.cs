@@ -23,6 +23,19 @@ public sealed class Pop3SessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_UsesLegacyInvalidCommandResponse()
+    {
+        await using var stream = new DuplexMemoryStream("NOTACOMMAND\r\nQUIT\r\n");
+        var session = new Pop3Session(
+            new FakeAccountAuthenticator(),
+            new FakePop3MailboxStore(Array.Empty<StoredMessage>()));
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "-ERR Invalid command in current state.\r\n");
+    }
+
+    [TestMethod]
     public async Task RunAsync_UsesLegacyLineTooLongResponse()
     {
         await using var stream = new DuplexMemoryStream(new string('A', 501) + "\r\n");

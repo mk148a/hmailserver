@@ -204,7 +204,7 @@ public sealed class Pop3Session
                 return true;
 
             default:
-                await WriteErrAsync(stream, "Unknown command", cancellationToken).ConfigureAwait(false);
+                await WriteErrAsync(stream, "Invalid command in current state.", cancellationToken).ConfigureAwait(false);
                 return false;
         }
     }
