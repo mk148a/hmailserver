@@ -21,7 +21,7 @@ internal sealed record BackupDataDirectoryIdentity(string Sha256)
         }
 
         var before = Capture(fullSourcePath);
-        CopyDirectory(fullSourcePath, fullSnapshotPath);
+        WindowsHandleRelativeDirectoryCopier.Copy(fullSourcePath, fullSnapshotPath);
         var after = Capture(fullSourcePath);
         if (!string.Equals(before.Sha256, after.Sha256, StringComparison.Ordinal))
         {
@@ -54,25 +54,6 @@ internal sealed record BackupDataDirectoryIdentity(string Sha256)
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         AppendDirectory(hash, fullPath, relativePath: string.Empty);
         return new(Convert.ToHexString(hash.GetHashAndReset()));
-    }
-
-    private static void CopyDirectory(string sourcePath, string destinationPath)
-    {
-        EnsureSafeDirectory(sourcePath);
-        Directory.CreateDirectory(destinationPath);
-        RejectReparsePoint(destinationPath);
-
-        foreach (var directory in Directory.EnumerateDirectories(sourcePath).OrderBy(static item => item, StringComparer.OrdinalIgnoreCase))
-        {
-            RejectReparsePoint(directory);
-            CopyDirectory(directory, Path.Combine(destinationPath, Path.GetFileName(directory)));
-        }
-
-        foreach (var file in Directory.EnumerateFiles(sourcePath).OrderBy(static item => item, StringComparer.OrdinalIgnoreCase))
-        {
-            RejectReparsePoint(file);
-            File.Copy(file, Path.Combine(destinationPath, Path.GetFileName(file)), overwrite: false);
-        }
     }
 
     private static void AppendDirectory(

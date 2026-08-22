@@ -83,6 +83,11 @@ public sealed class BackupArchiveIdentityTests
         Directory.CreateDirectory(rawPath);
         File.WriteAllText(archivePath, "archive");
         File.WriteAllText(Path.Combine(rawPath, "message.eml"), "first");
+        var nestedPath = Path.Combine(rawPath, "nested", "deeper");
+        Directory.CreateDirectory(nestedPath);
+        File.WriteAllText(Path.Combine(nestedPath, "nested.eml"), "nested");
+        Directory.CreateDirectory(Path.Combine(rawPath, "empty"));
+        Directory.CreateDirectory(Path.Combine(rawPath, "nested-empty"));
         BackupArchiveBinding? binding = null;
         try
         {
@@ -95,6 +100,16 @@ public sealed class BackupArchiveIdentityTests
                 "DataBackup",
                 "message.eml");
             Assert.AreEqual("first", File.ReadAllText(snapshotRawPath));
+            var snapshotDataBackupPath = Path.GetDirectoryName(snapshotRawPath)!;
+            Assert.AreEqual(
+                "nested",
+                File.ReadAllText(Path.Combine(
+                    snapshotDataBackupPath,
+                    "nested",
+                    "deeper",
+                    "nested.eml")));
+            Assert.IsTrue(Directory.Exists(Path.Combine(snapshotDataBackupPath, "empty")));
+            Assert.IsTrue(Directory.Exists(Path.Combine(snapshotDataBackupPath, "nested-empty")));
             Assert.IsTrue(binding.RawDataBackupIdentity.Matches(Path.GetDirectoryName(snapshotRawPath)!));
 
             File.WriteAllText(Path.Combine(rawPath, "message.eml"), "replacement");
