@@ -513,9 +513,16 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         get
         {
             EnsureAuthorized();
-            return _runtimeConfiguration.CrashSimulationMode;
+            EnsureServerAdministrator();
+            return CrashSimulationModeRuntime.Read(_runtimeConfiguration.CrashSimulationMode);
         }
-        set => base.CrashSimulationMode = value;
+        set
+        {
+            EnsureAuthorized();
+            EnsureServerAdministrator();
+            using var authorizationLease = AcquireAuthorizationLease();
+            CrashSimulationModeRuntime.Write(value);
+        }
     }
 
     public override int MaxSMTPConnections
@@ -3689,6 +3696,52 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
             .GetAwaiter()
             .GetResult()
             ?? throw new COMException("Settings access requires an authenticated server administrator.", EAccessDenied);
+    }
+}
+
+[ComVisible(false)]
+internal static class CrashSimulationModeRuntime
+{
+    private static readonly ReaderWriterLockSlim Gate = new();
+    private static int? _value;
+
+    internal static int Read(int fallback)
+    {
+        Gate.EnterReadLock();
+        try
+        {
+            return _value ?? fallback;
+        }
+        finally
+        {
+            Gate.ExitReadLock();
+        }
+    }
+
+    internal static void Write(int value)
+    {
+        Gate.EnterWriteLock();
+        try
+        {
+            _value = value;
+        }
+        finally
+        {
+            Gate.ExitWriteLock();
+        }
+    }
+
+    internal static void ResetForTests()
+    {
+        Gate.EnterWriteLock();
+        try
+        {
+            _value = null;
+        }
+        finally
+        {
+            Gate.ExitWriteLock();
+        }
     }
 }
 

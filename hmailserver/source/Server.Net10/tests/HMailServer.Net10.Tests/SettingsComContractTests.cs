@@ -6,12 +6,16 @@ using HMailServer.Core.Abstractions;
 namespace HMailServer.Net10.Tests;
 
 [TestClass]
+[DoNotParallelize]
 public sealed class SettingsComContractTests
 {
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int EFail = unchecked((int)0x80004005);
     private const int EInvalidArg = unchecked((int)0x80070057);
     private const int ENotImplemented = unchecked((int)0x80004001);
+
+    [TestCleanup]
+    public void ResetProcessLocalCrashSimulationMode() => CrashSimulationModeRuntime.ResetForTests();
 
     [TestMethod]
     public void Interface_PreservesLegacyIidCompleteVtableAndMessageIndexingSlot()
@@ -928,6 +932,8 @@ public sealed class SettingsComContractTests
         var userInterfaceLanguageError = Assert.ThrowsExactly<COMException>(() => _ = settings.UserInterfaceLanguage);
         var rewriteEnvelopeError = Assert.ThrowsExactly<COMException>(() => _ = settings.RewriteEnvelopeFromWhenForwarding);
         var crashSimulationError = Assert.ThrowsExactly<COMException>(() => _ = settings.CrashSimulationMode);
+        var crashSimulationSetterError = Assert.ThrowsExactly<COMException>(
+            () => settings.CrashSimulationMode = 1);
         var relayerAuthenticationError = Assert.ThrowsExactly<COMException>(
             () => _ = settings.SMTPRelayerRequiresAuthentication);
         var relayerAuthenticationSetterError = Assert.ThrowsExactly<COMException>(
@@ -1008,6 +1014,7 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(EAccessDenied, userInterfaceLanguageError.ErrorCode);
         Assert.AreEqual(EAccessDenied, rewriteEnvelopeError.ErrorCode);
         Assert.AreEqual(EAccessDenied, crashSimulationError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, crashSimulationSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerAuthenticationError.ErrorCode);
         Assert.AreEqual(EAccessDenied, relayerAuthenticationSetterError.ErrorCode);
         Assert.AreEqual(EAccessDenied, defaultDomainSetterError.ErrorCode);
@@ -1047,6 +1054,86 @@ public sealed class SettingsComContractTests
         var unimplementedClear = Assert.ThrowsExactly<COMException>(settings.ClearLogonFailureList);
         Assert.AreEqual(ENotImplemented, unimplemented.ErrorCode);
         Assert.AreEqual(ENotImplemented, unimplementedClear.ErrorCode);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_CrashSimulationModeSetterStoresArbitraryIntAndReleasesAuthorizationLease()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.CrashSimulationMode = -123456789;
+
+        Assert.AreEqual(-123456789, settings.CrashSimulationMode);
+        Assert.IsTrue(activeLease!.Disposed);
+
+        settings.CrashSimulationMode = int.MaxValue;
+
+        Assert.AreEqual(int.MaxValue, settings.CrashSimulationMode);
+        Assert.IsTrue(activeLease.Disposed);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_CrashSimulationModeIsVisibleAcrossRetainedAndNewAdapters()
+    {
+        IInterfaceSettings retained = Settings.CreateAuthorized();
+        IInterfaceSettings newlyCreated = Settings.CreateAuthorized();
+
+        retained.CrashSimulationMode = 7;
+        Assert.AreEqual(7, newlyCreated.CrashSimulationMode);
+
+        newlyCreated.CrashSimulationMode = -9;
+        Assert.AreEqual(-9, retained.CrashSimulationMode);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_CrashSimulationModeDoesNotUseMutationStoreOrReloadRuntime()
+    {
+        var store = new FakeSettingsAdministrationMutationStore();
+        var reloader = new RecordingScriptRuntimeReloader();
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                ScriptRuntimeReloader: reloader),
+            isServerAdministrator: static () => true,
+            settingsMutationStore: store);
+
+        settings.CrashSimulationMode = 11;
+
+        Assert.AreEqual(11, settings.CrashSimulationMode);
+        Assert.AreEqual(0, store.UpdateCount);
+        Assert.AreEqual(0, reloader.CallCount);
+    }
+
+    [TestMethod]
+    public void ApplicationSettings_CrashSimulationModeRetainedAdapterIsRevokedWithAuthorizationGeneration()
+    {
+        SettingsAdministrationRuntimeHost.Configure(new FakeSettingsAdministrationMutationStore());
+        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        var settings = application.Settings;
+        settings.CrashSimulationMode = 13;
+        Assert.AreEqual(13, settings.CrashSimulationMode);
+
+        Assert.IsNull(application.Authenticate("Administrator", "wrong"));
+
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => _ = settings.CrashSimulationMode).ErrorCode);
+        Assert.AreEqual(
+            EAccessDenied,
+            Assert.ThrowsExactly<COMException>(() => settings.CrashSimulationMode = 14).ErrorCode);
     }
 
     [TestMethod]
@@ -1255,9 +1342,6 @@ public sealed class SettingsComContractTests
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.RewriteEnvelopeFromWhenForwarding = false).ErrorCode);
-        Assert.AreEqual(
-            ENotImplemented,
-            Assert.ThrowsExactly<COMException>(() => settings.CrashSimulationMode = 1).ErrorCode);
         Assert.AreEqual(
             ENotImplemented,
             Assert.ThrowsExactly<COMException>(() => settings.SMTPRelayerUseSSL = true).ErrorCode);
@@ -7911,6 +7995,13 @@ public sealed class SettingsComContractTests
         public void Clear() { }
         public void Index() { }
         public void Rebuild() { }
+    }
+
+    private sealed class RecordingScriptRuntimeReloader : IScriptRuntimeReloader
+    {
+        public int CallCount { get; private set; }
+
+        public void Reload(string language, string scriptFile) => CallCount++;
     }
 
     private sealed class FakeLogonFailureAdministrationStore : ILogonFailureAdministrationStore
