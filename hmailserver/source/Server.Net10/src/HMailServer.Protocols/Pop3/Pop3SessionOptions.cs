@@ -2,7 +2,7 @@ namespace HMailServer.Protocols.Pop3;
 
 public sealed record Pop3SessionOptions
 {
-    public const int DefaultMaxLineBytes = 8192;
+    public const int DefaultMaxLineBytes = 500;
 
     public int MaxLineBytes { get; init; } = DefaultMaxLineBytes;
 

@@ -71,7 +71,10 @@ public sealed class Pop3Session
                 }
                 catch (InvalidDataException ex)
                 {
-                    await WriteErrAsync(stream, SanitizeResponseText(ex.Message), cancellationToken).ConfigureAwait(false);
+                    var response = ex.Message.StartsWith("Protocol line exceeded ", StringComparison.Ordinal)
+                        ? "Line too long."
+                        : SanitizeResponseText(ex.Message);
+                    await WriteErrAsync(stream, response, cancellationToken).ConfigureAwait(false);
                     return;
                 }
 
