@@ -1,6 +1,16 @@
 hMailServer
 ===========
 
+## Current parity gate (2026-08-25, private binding reparse safety)
+
+Private backup binding snapshot-root and staging-directory creation now uses
+the existing handle-relative directory creator, so ancestor and final reparse
+points are rejected during creation rather than checked only afterward. The
+existing `BackupArchiveIdentityTests` reparse coverage remains green: `11`
+passed, `2` skipped, `0` failed. Full Debug Net10 remains `2709` passed,
+`95` skipped, `0` failed (`2804` total). Atomic source quiescence and
+snapshot consistency remain separate release gates.
+
 ## Current release gate (2026-08-25, installer rollback guard)
 
 The installer now snapshots every existing `hMailServer` service before COM or

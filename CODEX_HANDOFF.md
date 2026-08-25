@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, PRIVATE BINDING REPARSE SAFETY)
+
+Code/test commit `053a590af` changes `BackupArchiveBinding` to create its
+private snapshot root and invocation staging directory through
+`WindowsHandleRelativeDirectoryCopier.EnsureDirectory`. Existing reparse,
+collision, ownership, and cleanup behavior remains covered; creation now
+rejects unsafe path components at the handle-relative boundary.
+
+Focused `BackupArchiveIdentityTests`: `11 passed, 2 skipped, 0 failed`. Full
+Debug Net10: `2709 passed, 95 skipped, 0 failed` (`2804` total). The two skips
+are privilege-dependent disposable reparse-point creation. This does not
+prove atomic source quiescence or a crash-consistent filesystem snapshot.
+
+Next slice: atomic backup snapshot/quiescence review without production state
+changes; cloned installer rollback and live SEC-18 evidence remain gated by
+isolated infrastructure.
+
 ## Current Authoritative Continuation (2026-08-25, INSTALLER ROLLBACK GUARD)
 
 Code/test commit `57ed0f421` closes an installer failure-path gap in

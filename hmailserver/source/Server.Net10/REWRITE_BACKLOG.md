@@ -8166,3 +8166,17 @@ state was changed. Release remains **RED** for that drill, atomic backup
 snapshot/quiescence, SEC-18, paired C++/.NET performance, protocol thresholds,
 and 24-hour soak. Next slice: cloned-state rollback acceptance when available;
 otherwise continue the atomic snapshot/quiescence review.
+## Current authoritative status (2026-08-25, private binding reparse safety)
+
+Code/test commit `053a590af` routes `BackupArchiveBinding` snapshot-root and
+staging-directory creation through
+`WindowsHandleRelativeDirectoryCopier.EnsureDirectory`, preserving private
+binding collision/cleanup semantics while rejecting reparse components during
+creation. Focused `BackupArchiveIdentityTests` pass `11`, skip `2`, and fail
+`0`; full Debug Net10 passes `2709`, skips `95`, and fails `0` (`2804` total).
+The skipped tests require privilege-dependent disposable reparse creation.
+
+This slice does not close atomic source quiescence or crash-consistent
+filesystem snapshot requirements. Release remains **RED** for those gates,
+cloned installer rollback, SEC-18, paired C++/.NET performance, protocol
+thresholds, and 24-hour soak. Next slice: atomic snapshot/quiescence review.
