@@ -8759,6 +8759,29 @@ claim is valid. Release remains **RED**. Next slice: message COM mutation
 admission with direct-activation/authorization and rollback coverage, or cloned
 installer/service/Data rollback acceptance.
 
+## Current authoritative status (2026-08-25, Message COM mutation backup admission)
+
+Code/test commit `c58d25a02` wires the existing
+`DeliveryQueuePauseDrainGate.EnterWorkerAsync` into the normal mutation methods
+of `SqlServerMessageAdministrationStore`: `InsertMessageAsync`,
+`UpdateMessageAsync`, `DeleteMessageAsync`, and `ClearMessagesAsync`. The lease
+is held across each SQL mutation and released on success, failure, or
+cancellation. Restore transaction construction is separate and unchanged.
+
+Legacy `InterfaceMessage::Save` delegates to
+`PersistentMessage::SaveObject`; references are
+`hmailserver/source/Server/COM/InterfaceMessage.cpp:421-498` and
+`hmailserver/source/Server/Common/Persistence/PersistentMessage.cpp:481-501`.
+Focused message-store tests pass `10/10`; standard full Debug passes `2738
+passed, 96 skipped, 0 failed` (`2834` total).
+
+Delivery queue, external-fetch, import, SMTP, POP3 deletion, IMAP mutations,
+and normal Message COM persistence are now coordinated. Lifecycle writers
+remain outside the barrier. No full atomic SQL/Data, crash-consistency, or
+power-loss claim is valid. Release remains **RED**. Next slice: service
+lifecycle writer admission with restart/rollback coverage, or cloned
+installer/service/Data rollback acceptance.
+
 ## Current authoritative status (2026-08-25, import message backup admission)
 
 Code/test commit `200aad565` wires the existing

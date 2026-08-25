@@ -8696,3 +8696,20 @@ and IMAP mutations are coordinated; message COM and lifecycle writers remain
 outside the barrier. Release remains **RED**. Next work is message COM
 mutation admission with direct-activation/authorization and rollback coverage
 or cloned installer/service/Data rollback acceptance.
+
+## Current authoritative continuation (2026-08-25, Message COM mutation backup admission)
+
+Code/test commit `c58d25a02` wires `DeliveryQueuePauseDrainGate.EnterWorkerAsync`
+into normal `SqlServerMessageAdministrationStore` insert, update, delete, and
+clear mutations used by the retained Message COM facade. Restore transaction
+construction and installed COM identity are unchanged. Legacy references are
+`InterfaceMessage::Save` and `PersistentMessage::SaveObject` at
+`hmailserver/source/Server/COM/InterfaceMessage.cpp:421-498` and
+`hmailserver/source/Server/Common/Persistence/PersistentMessage.cpp:481-501`.
+
+Focused message-store tests pass `10/10`; standard full Debug passes
+`2738/96/0` (`2834` total). Delivery queue, external-fetch, import, SMTP,
+POP3 deletion, IMAP, and normal Message COM persistence are coordinated;
+lifecycle writers remain outside the barrier. Release remains **RED**. Next
+work is lifecycle writer admission with restart/rollback coverage or cloned
+installer/service/Data rollback acceptance.
