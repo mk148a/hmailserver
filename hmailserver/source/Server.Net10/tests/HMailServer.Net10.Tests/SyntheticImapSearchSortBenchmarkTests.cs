@@ -41,6 +41,27 @@ public sealed class SyntheticImapSearchSortBenchmarkTests
     }
 
     [TestMethod]
+    public void Run_UsesSearchMatchAndUidTieBreakContract()
+    {
+        var sent = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        var messages = new SyntheticImapMessage[]
+        {
+            new(1, 20, sent, sent, 100, "from@example.test", "to@example.test", "NEEDLE", "body"),
+            new(2, 10, sent, sent, 100, "from@example.test", "to@example.test", "subject", "needle body"),
+            new(3, 30, sent, sent, 100, "from@example.test", "to@example.test", "subject", "unrelated")
+        };
+
+        var report = SyntheticImapSearchSortBenchmark.Run(
+            messages,
+            new SyntheticImapBenchmarkOptions(WarmupIterations: 0, MeasuredIterations: 1));
+
+        Assert.AreEqual(2, report.ExpectedMatchCount);
+        Assert.AreEqual(2, report.ActualMatchCount);
+        CollectionAssert.AreEqual(new long[] { 10, 20 }, report.FirstResultIds.ToArray());
+        Assert.IsTrue(report.Correct);
+    }
+
+    [TestMethod]
     public void ArtifactWriterEmitsJsonCsvAndMarkdownWithAcceptanceFields()
     {
         var outputDirectory = Path.Combine(Path.GetTempPath(), "hmailserver-net10-benchmark-" + Guid.NewGuid().ToString("N"));
