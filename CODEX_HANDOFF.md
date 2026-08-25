@@ -8725,3 +8725,17 @@ mutation tests pass `8/8`, including account-zero cancellation and lease
 release; standard full Debug passes `2739/96/0` (`2835` total). Release remains **RED**. Next slice: service lifecycle writer
 admission with restart/rollback coverage, or cloned installer/service/Data
 rollback acceptance.
+## Current authoritative status (2026-08-25, FetchAccount.DownloadNow stale-item closure)
+
+The previously recorded `DownloadNow()` gap is already implemented in the
+current tree and is not a new slice. `InterfaceFetchAccount::DownloadNow`
+(`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp:500-520`) calls
+legacy `PersistentFetchAccount::SetRetryNow`; the .NET
+`FetchAccount.DownloadNow` facade forwards the owning account ID and selected
+fetch-account ID to `SqlServerFetchAccountAdministrationStore.SetRetryNowAsync`,
+which updates `fanexttry` with the current SQL timestamp and signals the
+external-fetch wake path. `FetchAccountsComContractTests` passes `37/37`.
+
+No code change was made for this stale item. The remaining `FetchAccount`
+password/credential boundary requires separate secret-handling and runtime
+evidence; it is not folded into retry-now parity. Release remains **RED**.

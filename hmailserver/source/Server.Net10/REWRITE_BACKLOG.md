@@ -8819,3 +8819,15 @@ coverage is `8/8`; standard full Debug passes `2739/96/0` (`2835` total);
 live SQL public-folder acceptance remains unavailable. Release remains **RED**. Next slice: service lifecycle writer admission with
 restart/rollback coverage, or cloned installer/service/Data rollback
 acceptance.
+## Current authoritative status (2026-08-25, FetchAccount.DownloadNow stale-item closure)
+
+The older backlog entry naming `FetchAccount.DownloadNow()` as the next slice
+is stale. Current code already implements the legacy path: C++
+`InterfaceFetchAccount::DownloadNow` (`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp:500-520`)
+calls `PersistentFetchAccount::SetRetryNow`, while .NET
+`FetchAccount.DownloadNow` forwards the owning account/fetch IDs to
+`SqlServerFetchAccountAdministrationStore.SetRetryNowAsync`, updates
+`fanexttry`, and signals `IExternalFetchWakeSignal`. Focused
+`FetchAccountsComContractTests` pass `37/37`. No code change was made. The
+remaining FetchAccount password/credential handling is a separate security
+slice requiring secret-free runtime evidence. Release remains **RED**.
