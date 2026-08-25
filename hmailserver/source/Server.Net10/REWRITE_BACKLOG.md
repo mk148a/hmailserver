@@ -8087,3 +8087,10 @@ Code/test commit `4a5fb3d12` implements the bounded `Settings.Directories.DataDi
 Focused `DirectoriesComContractTests` pass `8/8`; full Debug Net10 passes `2706`, skips `94`, and fails `0` (`2800` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
 
 Next slice: authenticated `Settings.Directories.ProgramDirectory` mutation parity, with DB script path and restart-time semantics explicitly preserved.
+## Current authoritative next slice (2026-08-25, authenticated ProgramDirectory mutation)
+
+Code/test commit `20dab2240` implements the bounded `Settings.Directories.ProgramDirectory` mutation slice. Legacy `InterfaceDirectories::put_ProgramDirectory` in `hmailserver/source/Server/COM/InterfaceDirectories.cpp:30-44` delegates to `IniFileSettings::SetProgramDirectory`, which writes `[Directories] ProgramFolder`. Net10 now exposes the setter only through the authenticated directory store path, preserves direct activation denial, refreshes the retained program-directory value after success, and intentionally preserves the legacy cached `DBScriptDirectory` value. This is persistence-only parity and does not move files or live-reconfigure the running server.
+
+Focused `DirectoriesComContractTests` pass `9/9`; full Debug Net10 passes `2707`, skips `94`, and fails `0` (`2801` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
+
+Next slice: authenticated `Settings.Directories.EventDirectory` mutation parity.

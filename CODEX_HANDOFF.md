@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, PROGRAM DIRECTORY MUTATION)
+
+Code/test commit `20dab2240` closes the legacy `Settings.Directories.ProgramDirectory`
+mutation gap. Legacy `InterfaceDirectories::put_ProgramDirectory` at
+`hmailserver/source/Server/COM/InterfaceDirectories.cpp:30-44` calls
+`IniFileSettings::SetProgramDirectory`, persisting `[Directories] ProgramFolder`.
+The authenticated .NET 10 facade now uses the configured directory store and
+preserves direct activation access denial. As in legacy, changing the program
+directory does not rebuild the retained cached `DBScriptDirectory` value. The
+slice is persistence-only; COM identity and dispatch order are unchanged.
+
+Focused tests: `DirectoriesComContractTests` `9/9`. Full Debug Net10:
+`2707 passed, 94 skipped, 0 failed` (`2801` total). No production or
+machine-wide state was changed.
+
+Next bounded slice: authenticated `Settings.Directories.EventDirectory`
+mutation parity.
+
+
 ## Current Authoritative Continuation (2026-08-25, DATA DIRECTORY MUTATION)
 
 Code/test commit `4a5fb3d12` closes the legacy `Settings.Directories.DataDirectory`
