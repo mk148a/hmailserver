@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, INACTIVE ACCOUNT PASSWORD DENIAL)
+
+Code/test commit `d21480b09` closes the legacy inactive-account branch in
+`SqlServerAccountPasswordVerifier.Verify`. Legacy
+`InterfaceAccount::ValidatePassword` (`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`)
+delegates to `PasswordValidator::ValidatePassword`, which rejects inactive
+accounts before password acceptance. Net10 now checks `accountactive` before
+script, AD, or legacy hash validation. Focused verifier tests pass `3`, skip
+`1` because the disposable SQL connection is not configured; full Debug Net10
+passes `2709`, skips `95`, and fails `0`.
+
+Domain-active, AD, and script-backed validation remain separate gaps. No COM
+identity, SMTP trust, production SQL/Data, service, or registration state
+changed. Release remains **RED**.
+
+Next slice: close the domain-active password-verification branch only when its
+SQL/store contract can be covered without weakening the isolated boundary;
+otherwise continue the atomic backup quiescence design review.
+
 ## Current Authoritative Continuation (2026-08-25, STABLE RAW BACKUP SOURCE)
 
 Code/test commit `d2a443f3d` wires raw `DataBackup` staging through the
