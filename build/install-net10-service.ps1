@@ -52,12 +52,14 @@ if ($serviceExists) {
             throw "Stop service '$serviceName' before using -ReplaceExisting."
         }
         $requiresRollbackArchive = $true
-        $rollbackSnapshot = New-Net10ServiceRollbackSnapshot -Service $existingService
         $legacyExecutable = $existingExecutable
         if (-not (Test-Path -LiteralPath $legacyExecutable -PathType Leaf)) {
             throw "Legacy executable for rollback was not found: $legacyExecutable"
         }
     }
+
+    $rollbackSnapshot = New-Net10ServiceRollbackSnapshot -Service $existingService
+    $legacyExecutable = $existingExecutable
 }
 
 if ($requiresRollbackArchive) {
@@ -102,7 +104,7 @@ try {
 }
 catch {
     $rollbackErrors = [System.Collections.Generic.List[string]]::new()
-    if ($requiresRollbackArchive -and $null -ne $rollbackSnapshot -and ($serviceMutationAttempted -or $comRegistrationAttempted)) {
+    if ($serviceExists -and $null -ne $rollbackSnapshot -and ($serviceMutationAttempted -or $comRegistrationAttempted)) {
         try {
             Invoke-Net10ServiceRollback -Snapshot $rollbackSnapshot -LegacyExecutable $legacyExecutable
         }

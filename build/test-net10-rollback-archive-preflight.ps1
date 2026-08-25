@@ -218,6 +218,8 @@ try {
     Assert-True ($installerSource -match "depend= RPCSS") 'New service registration does not preserve the legacy RPCSS dependency.'
     Assert-True ($installerSource -match 'Legacy executable for rollback') 'Replacement preflight does not require the legacy executable for rollback.'
     Assert-True ($installerSource -match '\[string\]\$BackupArchive') 'Installer does not declare an explicit -BackupArchive parameter.'
+    Assert-True ($installerSource -match '\$rollbackSnapshot = New-Net10ServiceRollbackSnapshot -Service \$existingService') 'Installer does not snapshot every existing service before mutation.'
+    Assert-True ($installerSource -match '\$serviceExists -and \$null -ne \$rollbackSnapshot') 'Installer failure path does not restore an existing service after mutation.'
     $stateCheckIndex = $installerSource.IndexOf("`$existingService.State -ne 'Stopped'", [StringComparison]::Ordinal)
     $preflightIndex = $installerSource.IndexOf('Assert-Net10RollbackArchivePreflight', [StringComparison]::Ordinal)
     $registerComIndex = $installerSource.IndexOf('& $executable --register-com', [StringComparison]::Ordinal)
