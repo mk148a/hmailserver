@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, READ-ONLY SQL BACKUP SNAPSHOT SCOPE)
+
+Code/test commit `e28c767f6` adds
+`IBackupDomainProjectionSnapshotFactory` and
+`SqlServerBackupDomainProjectionSnapshotFactory`. The scope uses one SQL
+connection and explicit `IsolationLevel.Snapshot`, exposes only domain,
+account, alias, and distribution-list projection stores, and rolls back on
+disposal. Legacy references are `BackupExecuter::StartBackup` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57`,
+`BackupTask::DoWork` at `.../BackupTask.cpp:27`, and
+`Configuration::XMLStore` at `.../Configuration.cpp:687`.
+
+Focused contract coverage is `2/2`; full standard Debug is `2728 passed, 96
+skipped, 0 failed`. The production backup payload is intentionally not wired
+to this scope yet, so this does not prove atomic SQL/Data backup, quiescence, or
+crash consistency. Next slice: wire supported domain metadata projections into
+`BackupXmlPayloadRuntime` and fail closed for unsupported projections.
+
 ## Current Authoritative Continuation (2026-08-25, INI SETTINGS LEASE PARITY)
 
 Code/test commit `fcacafeb6` adds generation-bound authorization leases around
