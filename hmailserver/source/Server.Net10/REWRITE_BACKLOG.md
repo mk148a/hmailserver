@@ -8371,3 +8371,15 @@ The post-oracle 100k CLI rerun passed with p50/p95/p99
 `9.253/12.450/13.239 ms` and approximately `923,109 messages/s` at commit
 `df2ce7d4d`. This remains Net10-only diagnostic evidence; the performance gate
 remains **RED** without paired C++ and live service/soak evidence.
+## Current authoritative status (2026-08-25, INDEPENDENT SEARCH ORACLE)
+
+Code/test commits `ada3a16a3` and `3a4ee775f` replace the offline
+SEARCH/SORT benchmark’s self-referential expected result with an independent
+imperative reference filter/sort implementation and add a custom-corpus
+case-insensitive/tie-break regression. Synthetic tests pass `4/4`; full
+opt-in Debug remains `2791` passed, `16` skipped, `0` failed.
+
+The post-oracle 100k CLI passed at p50/p95/p99 `9.253/12.450/13.239 ms` and
+approximately `923,109 messages/s` on commit `df2ce7d4d`. This remains
+Net10-only diagnostic evidence; paired C++ and live service/soak gates remain
+RED.

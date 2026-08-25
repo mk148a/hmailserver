@@ -13,6 +13,10 @@ messages/s` at commit `df2ce7d4d`. This does not establish SQL FTS, C++
 equivalence, live service attribution, or 24-hour soak; release remains
 **RED**.
 
+Follow-up test commit `3a4ee775f` locks case-insensitive matching and the UID
+ascending tie-break with a focused custom corpus; the synthetic benchmark
+tests now pass `4/4`.
+
 Next independent slice: complete backup quiescence with all writer hooks, or
 cloned installer rollback acceptance.
 
