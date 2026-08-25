@@ -1,4 +1,22 @@
+## Current authoritative status (2026-08-25, backup event ordering recheck)
 
+Legacy `BackupExecuter::StartBackup` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-193`)
+fires `BackupManager::OnBackupCompleted` only after XML/archive work and raw or
+compressed `DataBackup` handling finish. Its failure paths call
+`OnBackupFailed` before returning, while `BackupTask::DoWork`
+(`hmailserver/source/Server/Common/Application/BackupTask.cpp:27-43`) releases
+the running state afterward. Net10 `SevenZipBackupArchiveRuntime.CreateAsync`
+and `BackupManager` preserve the corresponding ordering: completion dispatch
+follows archive publication and staging cleanup, and failure dispatch follows
+temporary metadata/DataBackup cleanup. Existing focused coverage includes
+`BackupFailureCleanupIntegrationTests.QueuedAuthenticatedStartBackup_DispatchesFailureAfterArchiveCleanup`
+and real archive round-trip/raw backup tests.
+
+This closes only event ordering/cleanup parity. It does not prove atomic SQL plus
+Data-directory quiescence, crash consistency, or power-loss durability. Release
+remains **RED**. The next independent slice is complete backup quiescence only
+when all SMTP/IMAP/POP3/message writers participate; otherwise proceed to
+cloned installer/service/Data rollback acceptance.
 
 ## Current authoritative status (2026-08-25, environment recheck)
 

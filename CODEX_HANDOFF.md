@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, BACKUP EVENT ORDERING RECHECK)
+
+Legacy `BackupExecuter::StartBackup` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-193`)
+calls `BackupManager::OnBackupCompleted` only after archive and raw/compressed
+`DataBackup` work completes; failure paths call `OnBackupFailed` before return.
+`BackupTask::DoWork` (`BackupTask.cpp:27-43`) clears the running state after the
+executor returns. Net10 preserves this bounded ordering and has focused failure
+cleanup plus real archive round-trip/raw backup coverage. No code change was
+needed in this recheck.
+
+This is not atomic SQL/Data snapshot or power-loss evidence. Release remains
+**RED**. Next slice: complete writer-participating backup quiescence, or cloned
+installer/service/Data rollback acceptance if quiescence hooks are unavailable.
+
 ## Current Authoritative Continuation (2026-08-25, INDEPENDENT SEARCH ORACLE)
 
 Benchmark commit `ada3a16a3` separates the offline SEARCH/SORT acceptance
