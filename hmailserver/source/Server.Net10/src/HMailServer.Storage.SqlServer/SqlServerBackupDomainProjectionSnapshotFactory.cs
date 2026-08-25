@@ -57,6 +57,8 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         BackupRuleStore = ruleStore;
         RuleCriteriaStore = new SqlServerRuleCriteriaAdministrationStore(context);
         RuleActionStore = new SqlServerRuleActionAdministrationStore(context);
+        FolderStore = new SqlServerImapFolderAdministrationStore(context);
+        MessageBackupStore = new SqlServerMessageAdministrationStore(context);
         DomainAliasStore = new SqlServerDomainAliasAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
         DistributionListStore = new SqlServerDistributionListAdministrationStore(context);
@@ -76,6 +78,10 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
     public IRuleCriteriaAdministrationStore RuleCriteriaStore { get; }
 
     public IRuleActionAdministrationStore RuleActionStore { get; }
+
+    public IImapFolderAdministrationStore FolderStore { get; }
+
+    public IMessageAdministrationBackupStore MessageBackupStore { get; }
 
     public IDomainAliasAdministrationStore DomainAliasStore { get; }
 

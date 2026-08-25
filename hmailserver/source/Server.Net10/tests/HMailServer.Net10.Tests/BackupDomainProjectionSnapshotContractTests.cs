@@ -26,6 +26,8 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(IBackupRuleAdministrationStore),
                 typeof(IRuleCriteriaAdministrationStore),
                 typeof(IRuleActionAdministrationStore),
+                typeof(IImapFolderAdministrationStore),
+                typeof(IMessageAdministrationBackupStore),
                 typeof(IDomainAliasAdministrationStore),
                 typeof(IAliasAdministrationStore),
                 typeof(IDistributionListAdministrationStore),
@@ -62,7 +64,12 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             domainProjectionSnapshotFactory: factory);
 
         var payload = await runtime.GetPayloadAsync(
-            new BackupStartPlanEvidence("unused", BackupStartPlan.BackupDomainsFlag, false, true, true),
+            new BackupStartPlanEvidence(
+                "unused",
+                BackupStartPlan.BackupDomainsFlag | BackupStartPlan.BackupMessagesFlag,
+                true,
+                true,
+                true),
             CancellationToken.None);
 
         Assert.AreEqual(1, factory.BeginCount);
@@ -75,6 +82,8 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         Assert.AreEqual("rule", payload.Rules![9][0].Name);
         Assert.AreEqual("match", payload.RuleCriterias![101][0].MatchValue);
         Assert.AreEqual("subject", payload.RuleActions![101][0].Subject);
+        Assert.IsNotNull(payload.Folders);
+        Assert.IsNotNull(payload.FolderMessages);
     }
 
     private sealed class RecordingSnapshotFactory : IBackupDomainProjectionSnapshotFactory
@@ -105,6 +114,8 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 new FixedRuleCriteriaStore();
             public IRuleActionAdministrationStore RuleActionStore { get; } =
                 new FixedRuleActionStore();
+            public IImapFolderAdministrationStore FolderStore { get; } = new EmptyFolderStore();
+            public IMessageAdministrationBackupStore MessageBackupStore { get; } = new EmptyMessageBackupStore();
             public IDomainAliasAdministrationStore DomainAliasStore { get; } = new EmptyDomainAliasStore();
             public IAliasAdministrationStore AliasStore { get; } = new EmptyAliasStore();
             public IDistributionListAdministrationStore DistributionListStore { get; } = new EmptyDistributionListStore();
@@ -267,6 +278,27 @@ public sealed class BackupDomainProjectionSnapshotContractTests
     {
         public ValueTask<IReadOnlyList<AliasAdministrationSnapshot>> GetAliasesAsync(int domainId, CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<AliasAdministrationSnapshot>>(Array.Empty<AliasAdministrationSnapshot>());
+    }
+
+    private sealed class EmptyFolderStore : IImapFolderAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetFoldersForAccountAsync(int accountId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(Array.Empty<ImapFolderAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetRootFoldersAsync(int accountId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(Array.Empty<ImapFolderAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<ImapFolderAdministrationSnapshot>> GetChildFoldersAsync(int parentFolderId, int accountId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderAdministrationSnapshot>>(Array.Empty<ImapFolderAdministrationSnapshot>());
+
+        public ValueTask<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>> GetFolderPermissionsAsync(int folderId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<ImapFolderPermissionAdministrationSnapshot>>(Array.Empty<ImapFolderPermissionAdministrationSnapshot>());
+    }
+
+    private sealed class EmptyMessageBackupStore : IMessageAdministrationBackupStore
+    {
+        public ValueTask<IReadOnlyList<MessageAdministrationSnapshot>> GetFolderMessagesForBackupAsync(int accountId, int folderId, CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<MessageAdministrationSnapshot>>(Array.Empty<MessageAdministrationSnapshot>());
     }
 
     private sealed class EmptyDistributionListStore : IDistributionListAdministrationStore

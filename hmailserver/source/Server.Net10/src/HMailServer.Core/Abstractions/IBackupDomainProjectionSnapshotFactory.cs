@@ -22,6 +22,10 @@ public interface IBackupDomainProjectionSnapshot : IAsyncDisposable
 
     IRuleActionAdministrationStore RuleActionStore { get; }
 
+    IImapFolderAdministrationStore FolderStore { get; }
+
+    IMessageAdministrationBackupStore MessageBackupStore { get; }
+
     IDomainAliasAdministrationStore DomainAliasStore { get; }
 
     IAliasAdministrationStore AliasStore { get; }

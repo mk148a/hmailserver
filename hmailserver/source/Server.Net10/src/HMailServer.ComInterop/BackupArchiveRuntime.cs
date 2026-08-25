@@ -1394,13 +1394,17 @@ public sealed class BackupXmlPayloadRuntime
     {
         ArgumentNullException.ThrowIfNull(evidence);
 
-        var nonDomainProjectionOptions = BackupStartPlan.BackupSettingsFlag
-            | BackupStartPlan.BackupMessagesFlag;
+        var includesDomainMessages =
+            (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+        var canSnapshotMessages = !includesDomainMessages || evidence.BackupMessagesDbOnly;
         if (_domainProjectionSnapshotFactory is not null
             && (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
-            && (evidence.BackupOptions & nonDomainProjectionOptions) == 0)
+            && (evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) == 0
+            && canSnapshotMessages)
         {
-            return await GetDomainOnlyPayloadFromSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            return await GetDomainOnlyPayloadFromSnapshotAsync(
+                includesDomainMessages,
+                cancellationToken).ConfigureAwait(false);
         }
 
         var settings = (evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0
@@ -1679,6 +1683,7 @@ public sealed class BackupXmlPayloadRuntime
     }
 
     private async ValueTask<BackupArchiveXmlPayload> GetDomainOnlyPayloadFromSnapshotAsync(
+        bool includeMessages,
         CancellationToken cancellationToken)
     {
         await using var snapshot = await _domainProjectionSnapshotFactory!
@@ -1695,6 +1700,12 @@ public sealed class BackupXmlPayloadRuntime
         var rules = new Dictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>();
         var ruleCriterias = new Dictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>();
         var ruleActions = new Dictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>();
+        var folders = includeMessages
+            ? new Dictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>()
+            : null;
+        var folderMessages = includeMessages
+            ? new Dictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>()
+            : null;
         var aliases = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
         var distributionLists = new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>();
         var recipients = new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>();
@@ -1729,6 +1740,20 @@ public sealed class BackupXmlPayloadRuntime
                         .GetRuleActionsAsync(rule.Id, cancellationToken)
                         .ConfigureAwait(false);
                 }
+
+                if (includeMessages)
+                {
+                    var accountFolders = await snapshot.FolderStore
+                        .GetFoldersForAccountAsync(account.Id, cancellationToken)
+                        .ConfigureAwait(false);
+                    folders![account.Id] = accountFolders;
+                    foreach (var folder in accountFolders)
+                    {
+                        folderMessages![folder.Id] = await snapshot.MessageBackupStore
+                            .GetFolderMessagesForBackupAsync(account.Id, folder.Id, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                }
             }
             aliases[domain.Id] = await snapshot.AliasStore
                 .GetAliasesAsync(domain.Id, cancellationToken)
@@ -1757,7 +1782,9 @@ public sealed class BackupXmlPayloadRuntime
             BackupFetchAccounts: backupFetchAccounts,
             Rules: rules,
             RuleCriterias: ruleCriterias,
-            RuleActions: ruleActions);
+            RuleActions: ruleActions,
+            Folders: folders,
+            FolderMessages: folderMessages);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(
