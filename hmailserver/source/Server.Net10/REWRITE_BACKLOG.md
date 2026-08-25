@@ -8903,3 +8903,21 @@ failure cleanup, and password update staging.
 This closure does not claim that plaintext credential exposure is acceptable:
 live secret-free WSH/COM/log/session evidence and external-fetch acceptance
 remain release blockers. Do not restart the stale E_NOTIMPL item.
+
+## Current authoritative status (2026-08-25, Directories setter stale-item closure)
+
+Older entries that list `Settings.Directories.TempDirectory`,
+`DataDirectory`, `ProgramDirectory`, `EventDirectory`, or
+`DatabaseDirectory` as the next E_NOTIMPL slice are stale. Legacy
+`InterfaceDirectories::put_*` methods delegate to `IniFileSettings::Set*`
+(`hmailserver/source/Server/COM/InterfaceDirectories.cpp:30-170`). The current
+Net10 `Directories` adapter exposes all five authenticated setters through
+`DirectoryAdministrationRuntimeHost` and the configured
+`IDirectoryAdministrationStore`; focused `DirectoriesComContractTests` and
+`LegacyDirectoryAdministrationStoreTests` cover persistence, authorization,
+failure mapping, and retained snapshots. `DBScriptDirectory` remains the
+legacy read-only projection.
+
+This does not prove live restart semantics, target-identity filesystem safety,
+or production Data/Database relocation. Those remain release blockers, but the
+COM setter implementation itself must not be restarted as a new slice.

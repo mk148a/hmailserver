@@ -8791,3 +8791,16 @@ lease. `FetchAccountsComContractTests` passes `37/37` with lazy reads,
 cross-owner denial, reauthentication, failure cleanup, and update staging.
 This is not a plaintext-credential release approval; live secret-free
 WSH/COM/log/session evidence remains required.
+
+## Current authoritative status (2026-08-25, Directories setter stale-item closure)
+
+The older next-slice entries for `Settings.Directories` setters are stale.
+Legacy `InterfaceDirectories::put_*`
+(`hmailserver/source/Server/COM/InterfaceDirectories.cpp:30-170`) delegates to
+the INI settings boundary; Net10 wires the authenticated
+`ProgramDirectory`, `DatabaseDirectory`, `DataDirectory`, `LogDirectory`,
+`TempDirectory`, and `EventDirectory` setters through
+`DirectoryAdministrationRuntimeHost` and `IDirectoryAdministrationStore`.
+Focused directory contract/store tests cover the setter paths and retained
+snapshot/failure behavior. Live restart, filesystem identity, and production
+Data/Database relocation acceptance remain separate release gates.
