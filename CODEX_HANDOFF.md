@@ -8749,3 +8749,18 @@ invokes the legacy event names `OnBackupCompleted` and `OnBackupFailed` after
 durable task callbacks. Focused BackupManager/BackupArchive tests pass `90`
 with `5` explicit environment skips. This does not prove live WSH execution,
 registered COM, or isolated backup/restore acceptance. Release remains **RED**.
+
+## Current authoritative status (2026-08-25, Account password verifier wiring audit)
+
+The older `Account.ValidatePassword` no-verifier claim is stale for the
+production composition. Legacy `InterfaceAccount::ValidatePassword`
+(`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`) delegates to
+`PasswordValidator::ValidatePassword`; `HMailServer.Service/Program.cs` now
+passes `SqlServerAccountPasswordVerifier.Verify` into
+`AccountAdministrationRuntimeHost`. The verifier preserves the legacy order:
+client-password script decision, empty-password rejection, AD validation, and
+stored-hash verification. Focused account/verifier tests pass `84`, with `2`
+explicit skips. Live SQL/WSH/AD execution evidence is still unavailable and
+remains a release blocker. Cache remains fenced because the .NET runtime seam
+has no real typed-cache backend or lifecycle registration equivalent to legacy
+`CacheContainer`.

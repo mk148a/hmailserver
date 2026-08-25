@@ -8842,3 +8842,24 @@ registers it and `Program.cs` configures `BackupEventDispatcherRuntimeHost`.
 BackupManager/BackupArchive coverage passes `90`, with `5` explicit
 environment skips. Live WSH, registered COM, and isolated backup/restore
 acceptance remain unproven. Release remains **RED**.
+
+## Current authoritative status (2026-08-25, Account password verifier wiring audit)
+
+The older claim that `Account.ValidatePassword` has no production verifier
+wiring is stale. Legacy `InterfaceAccount::ValidatePassword` delegates to
+`PasswordValidator::ValidatePassword` at
+`hmailserver/source/Server/COM/InterfaceAccount.cpp:350-364`; the .NET
+production composition in `HMailServer.Service/Program.cs` now supplies
+`SqlServerAccountPasswordVerifier` to `AccountAdministrationRuntimeHost`.
+That verifier reads the active account row, runs the optional
+`OnClientValidatePassword` script decision first, then AD validation or the
+legacy stored-hash verifier. Focused account/verifier coverage is `84 passed,
+2 skipped, 0 failed`. The implementation does not prove live SQL, WSH, or
+AD/SSPI execution on this host, so those remain release evidence blockers.
+
+`Cache` is not a safe mechanical next slice: legacy `CacheContainer` owns
+process-wide typed caches and lifecycle invalidation, while the .NET
+`ICacheAdministrationRuntime` is only an injectable seam and has no service
+registration or real cache backend. Cache `Clear`, setters, and statistics
+must remain fenced until that backend and lifecycle contract are designed.
+Release remains **RED**.
