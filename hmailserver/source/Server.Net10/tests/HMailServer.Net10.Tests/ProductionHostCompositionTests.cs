@@ -5,6 +5,7 @@ using HMailServer.ComInterop;
 using HMailServer.Delivery;
 using HMailServer.Protocols.Pop3;
 using HMailServer.Protocols.Smtp;
+using HMailServer.Scripting;
 using HMailServer.Service;
 using Microsoft.Extensions.DependencyInjection;
 using Hosting = Microsoft.Extensions.Hosting;
@@ -50,6 +51,31 @@ public sealed class ProductionHostCompositionTests
                 expected,
                 host.Services.GetRequiredService<ExternalFetchPop3ClientOptions>().EnforceEgressPolicy);
         }
+    }
+
+    [TestMethod]
+    public void HostBuild_ResolvesScriptExecutorWhenScriptingIsDisabled()
+    {
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-host-scripting-disabled-{Guid.NewGuid():N}");
+        var initializationFile = Path.Combine(dataDirectory, "hMailServer.ini");
+
+        var composition = HMailServer.Service.Host.Build(
+            [
+                "--ConnectionStrings:hMailServer=Server=127.0.0.1;Database=NeverOpened;Integrated Security=False;User Id=never;Password=never;TrustServerCertificate=True",
+                $"--DataDirectory={dataDirectory}",
+                $"--InitializationFile={initializationFile}",
+                "--Imap:Enabled=false",
+                "--Pop3:Enabled=false",
+                "--Smtp:Enabled=false",
+                "--ExternalFetch:Enabled=false",
+                "--Scripting:Enabled=false"
+            ]);
+
+        using var host = composition.Host;
+        Assert.IsNotNull(host.Services.GetRequiredService<WindowsScriptRuleExecutor>());
+        Assert.IsFalse(host.Services.GetService<ISmtpRuleScriptExecutor>() is not null);
     }
 
     [TestMethod]

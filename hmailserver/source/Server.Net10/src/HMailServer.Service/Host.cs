@@ -640,6 +640,7 @@ public static class Host
     builder.Services.AddSingleton(idleOptions);
     builder.Services.AddSingleton(smtpRuleOptions);
     builder.Services.AddSingleton(scriptingOptions);
+    builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
     builder.Services.AddSingleton<IScriptSyntaxChecker, WindowsScriptSyntaxChecker>();
     builder.Services.AddSingleton<IScriptRuntimeReloader, WindowsScriptRuntimeReloader>();
     builder.Services.AddSingleton(spamAssassinOptions);
@@ -669,7 +670,6 @@ public static class Host
     builder.Services.AddSingleton(urlBlockListOptions);
     if (scriptingOptions.Enabled)
     {
-        builder.Services.AddSingleton<WindowsScriptRuleExecutor>();
         builder.Services.AddSingleton<ISmtpRuleScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
         builder.Services.AddSingleton<ISmtpEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
         builder.Services.AddSingleton<IDeliveryEventScriptExecutor>(static serviceProvider => serviceProvider.GetRequiredService<WindowsScriptRuleExecutor>());
