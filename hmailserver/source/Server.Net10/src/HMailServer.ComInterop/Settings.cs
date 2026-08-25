@@ -3601,7 +3601,9 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         {
             EnsureAuthorized();
             EnsureServerAdministrator();
-            return SecurityRangeAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
+            return SecurityRangeAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
         }
     }
 

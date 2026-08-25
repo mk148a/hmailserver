@@ -272,6 +272,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
     private readonly Action<SecurityRangeAdministrationSnapshot>? _save;
     private readonly Func<SecurityRangeAdministrationSnapshot, int>? _insert;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public SecurityRanges()
     {
@@ -283,7 +284,8 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         Action<int>? deleteById,
         Action<SecurityRangeAdministrationSnapshot>? save,
         Func<SecurityRangeAdministrationSnapshot, int>? insert,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _ranges = ranges.ToArray();
         _reload = reload;
@@ -291,6 +293,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         _save = save;
         _insert = insert;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetRanges().Count;
@@ -301,10 +304,18 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         Action<int>? deleteById = null,
         Action<SecurityRangeAdministrationSnapshot>? save = null,
         Func<SecurityRangeAdministrationSnapshot, int>? insert = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(ranges);
-        return new SecurityRanges(ranges, reload, deleteById, save, insert, isServerAdministrator);
+        return new SecurityRanges(
+            ranges,
+            reload,
+            deleteById,
+            save,
+            insert,
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceSecurityRange this[int index]
@@ -367,6 +378,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         }
 
         EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _deleteById(ranges[index].Id);
@@ -398,6 +410,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         }
 
         EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _deleteById(databaseId);
@@ -469,6 +482,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
         }
 
         EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             Refresh();
@@ -528,6 +542,7 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
             ValidateExistingRange(range, ranges);
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             if (range.Id == 0)
@@ -616,6 +631,21 @@ public sealed class SecurityRanges : IInterfaceSecurityRanges
                 "SecurityRanges access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Security range mutation requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private T Unavailable<T>()
@@ -855,7 +885,9 @@ public static class SecurityRangeAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static SecurityRanges CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static SecurityRanges CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -886,7 +918,8 @@ public static class SecurityRangeAdministrationRuntimeHost
             DeleteRangeById,
             SaveRange,
             InsertRange,
-            isServerAdministrator);
+            isServerAdministrator,
+            authorizationLeaseFactory);
 
         void DeleteRangeById(int databaseId) => store
             .DeleteSecurityRangeByIdAsync(databaseId, CancellationToken.None)

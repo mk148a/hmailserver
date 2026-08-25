@@ -888,6 +888,80 @@ public sealed class SecurityRangesComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = ranges.get_ItemByDBID(20)).ErrorCode);
     }
 
+    [TestMethod]
+    public void CollectionMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var leaseFactory = new Func<CancellationToken, ValueTask<IDisposable?>>(_ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+            {
+                activeLeases--;
+                disposedLeases++;
+            }));
+        });
+
+        IInterfaceSecurityRanges ranges = SecurityRanges.CreateAuthorized(
+            new[] { Snapshot(10, "Custom", "192.0.2.1", "192.0.2.1", 10, AllOptions, false, new DateTime(2001, 1, 1)) },
+            reload: () =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                return new[] { Snapshot(10, "Custom", "192.0.2.1", "192.0.2.1", 10, AllOptions, false, new DateTime(2001, 1, 1)) };
+            },
+            deleteById: _ => Assert.AreEqual(1, activeLeases),
+            save: _ => Assert.AreEqual(1, activeLeases),
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                return 20;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+
+        var draft = ranges.Add();
+        draft.Save();
+        var existing = ranges.get_ItemByDBID(10);
+        existing.Priority = 20;
+        existing.Save();
+        existing.Delete();
+        ranges.SetDefault();
+
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(4, disposedLeases);
+    }
+
+    [TestMethod]
+    public void CollectionMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var stores = 0;
+        IInterfaceSecurityRanges ranges = SecurityRanges.CreateAuthorized(
+            new[] { Snapshot(10, "Custom", "192.0.2.1", "192.0.2.1", 10, AllOptions, false, new DateTime(2001, 1, 1)) },
+            reload: static () => new[] { Snapshot(10, "Custom", "192.0.2.1", "192.0.2.1", 10, AllOptions, false, new DateTime(2001, 1, 1)) },
+            deleteById: _ => stores++,
+            save: _ => stores++,
+            insert: _ =>
+            {
+                stores++;
+                return 20;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => ranges.Add().Save()).ErrorCode);
+        var existing = ranges.get_ItemByDBID(10);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => existing.Save()).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => existing.Delete()).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(ranges.SetDefault).ErrorCode);
+        Assert.AreEqual(0, stores);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
+    }
+
     private static int AllOptions =>
         AllowSmtp
         | AllowPop3
