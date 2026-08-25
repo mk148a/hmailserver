@@ -8094,3 +8094,10 @@ Code/test commit `20dab2240` implements the bounded `Settings.Directories.Progra
 Focused `DirectoriesComContractTests` pass `9/9`; full Debug Net10 passes `2707`, skips `94`, and fails `0` (`2801` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
 
 Next slice: authenticated `Settings.Directories.EventDirectory` mutation parity.
+## Current authoritative next slice (2026-08-25, authenticated EventDirectory mutation)
+
+Code/test commit `1ccef4ba5` implements the bounded `Settings.Directories.EventDirectory` mutation slice. Legacy `InterfaceDirectories::put_EventDirectory` in `hmailserver/source/Server/COM/InterfaceDirectories.cpp:186-204` delegates to `IniFileSettings::SetEventDirectory`, which writes `[Directories] EventFolder`. Net10 now exposes the setter only through the authenticated directory store path, preserves direct activation denial, refreshes a retained authorized facade after success, and reports persistence failure when the INI write fails. This is persistence-only parity and does not live-reconfigure event scripting.
+
+Focused `DirectoriesComContractTests` pass `10/10`; full Debug Net10 passes `2708`, skips `94`, and fails `0` (`2802` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
+
+Next slice: authenticated `Settings.Directories.DatabaseDirectory` mutation parity, with database-path and restart-time semantics explicitly preserved.
