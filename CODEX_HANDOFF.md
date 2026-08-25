@@ -1,5 +1,17 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, DB-ONLY MESSAGE SNAPSHOT PARITY)
+
+Code/test commit `50e95294c` adds transaction-scoped folder and DB message
+metadata to the domain-only snapshot when `BackupMessagesDbOnly=true`. The
+existing SQL folder/message transaction constructors are reused; physical
+DataBackup staging is unchanged. Legacy reference:
+`hmailserver/source/Server/Common/BO/Account.cpp:318-327`.
+
+Focused coverage is `3/3`; full standard Debug is `2729 passed, 96 skipped, 0
+failed`. Physical Data quiescence/rollback and full backup atomicity remain
+open; no crash-consistency claim is valid.
+
 ## Current Authoritative Continuation (2026-08-25, DOMAIN RULE SNAPSHOT PARITY)
 
 Code/test commit `b60432724` adds transaction-scoped Rules, Criteria, and

@@ -8588,3 +8588,13 @@ tests are `3/3`; full standard Debug is `2729/96/0`. Folder/message metadata,
 physical Data quiescence, settings-wide consistency, and crash consistency
 remain open. Next slice: complete folder/message projection only with a full
 transaction context, otherwise cloned installer/service/Data rollback.
+## Current authoritative status (2026-08-25, DB-only message snapshot parity)
+
+Code/test commit `50e95294c` extends the domain-only SQL snapshot to
+`BackupMessagesDbOnly=true`, using transaction-scoped folder and DB message
+metadata stores. Legacy anchor is `Account::XMLStore` and
+`GetFolders()->XMLStore` at `hmailserver/source/Server/Common/BO/Account.cpp:318-327`.
+Focused tests are `3/3`; full standard Debug is `2729/96/0`. Physical
+DataBackup staging, Data quiescence, settings-wide consistency, and crash
+consistency remain open. Next slice: physical Data rollback/quiescence only
+with isolated writer coordination, otherwise cloned installer rollback.

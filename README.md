@@ -1,6 +1,19 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, DB-only message snapshot parity)
+
+Code/test commit `50e95294c` extends the domain-only snapshot to the legacy
+`BOMessages` plus `BackupMessagesDbOnly` path. Folder and DB message metadata
+now use the same SQL snapshot transaction through the existing folder/message
+store transaction constructors. Physical DataBackup staging is unchanged.
+Legacy anchor: `Account::XMLStore` and `GetFolders()->XMLStore` at
+`hmailserver/source/Server/Common/BO/Account.cpp:318-327`. Focused tests pass
+`3/3`; full Debug Net10 passes `2729`, skips `96`, and fails `0` (`2825` total).
+
+Physical message backup, Data quiescence, settings-wide consistency, and crash
+consistency remain open. Release remains **RED**.
+
 ## Current authoritative status (2026-08-25, domain backup rule snapshot parity)
 
 Code/test commit `b60432724` extends the domain-only SQL snapshot with the
