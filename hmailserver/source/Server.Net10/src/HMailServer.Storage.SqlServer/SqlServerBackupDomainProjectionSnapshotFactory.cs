@@ -53,6 +53,10 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         AccountStore = accountStore;
         BackupAccountStore = accountStore;
         BackupFetchAccountStore = new SqlServerBackupFetchAccountAdministrationStore(context);
+        var ruleStore = new SqlServerRuleAdministrationStore(context);
+        BackupRuleStore = ruleStore;
+        RuleCriteriaStore = new SqlServerRuleCriteriaAdministrationStore(context);
+        RuleActionStore = new SqlServerRuleActionAdministrationStore(context);
         DomainAliasStore = new SqlServerDomainAliasAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
         DistributionListStore = new SqlServerDistributionListAdministrationStore(context);
@@ -66,6 +70,12 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
     public IBackupAccountAdministrationStore BackupAccountStore { get; }
 
     public IBackupFetchAccountAdministrationStore BackupFetchAccountStore { get; }
+
+    public IBackupRuleAdministrationStore BackupRuleStore { get; }
+
+    public IRuleCriteriaAdministrationStore RuleCriteriaStore { get; }
+
+    public IRuleActionAdministrationStore RuleActionStore { get; }
 
     public IDomainAliasAdministrationStore DomainAliasStore { get; }
 

@@ -1692,6 +1692,9 @@ public sealed class BackupXmlPayloadRuntime
         var accounts = new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>();
         var backupAccounts = new Dictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>();
         var backupFetchAccounts = new Dictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>();
+        var rules = new Dictionary<int, IReadOnlyList<RuleAdministrationSnapshot>>();
+        var ruleCriterias = new Dictionary<int, IReadOnlyList<RuleCriteriaAdministrationSnapshot>>();
+        var ruleActions = new Dictionary<int, IReadOnlyList<RuleActionAdministrationSnapshot>>();
         var aliases = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
         var distributionLists = new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>();
         var recipients = new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>();
@@ -1713,6 +1716,19 @@ public sealed class BackupXmlPayloadRuntime
                 backupFetchAccounts[account.Id] = await snapshot.BackupFetchAccountStore
                     .GetBackupFetchAccountsAsync(account.Id, cancellationToken)
                     .ConfigureAwait(false);
+                var accountRules = await snapshot.BackupRuleStore
+                    .GetBackupRulesAsync(account.Id, cancellationToken)
+                    .ConfigureAwait(false);
+                rules[account.Id] = accountRules;
+                foreach (var rule in accountRules)
+                {
+                    ruleCriterias[rule.Id] = await snapshot.RuleCriteriaStore
+                        .GetRuleCriteriaAsync(rule.Id, cancellationToken)
+                        .ConfigureAwait(false);
+                    ruleActions[rule.Id] = await snapshot.RuleActionStore
+                        .GetRuleActionsAsync(rule.Id, cancellationToken)
+                        .ConfigureAwait(false);
+                }
             }
             aliases[domain.Id] = await snapshot.AliasStore
                 .GetAliasesAsync(domain.Id, cancellationToken)
@@ -1738,7 +1754,10 @@ public sealed class BackupXmlPayloadRuntime
             DistributionLists: distributionLists,
             DistributionListRecipients: recipients,
             BackupAccounts: backupAccounts,
-            BackupFetchAccounts: backupFetchAccounts);
+            BackupFetchAccounts: backupFetchAccounts,
+            Rules: rules,
+            RuleCriterias: ruleCriterias,
+            RuleActions: ruleActions);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(

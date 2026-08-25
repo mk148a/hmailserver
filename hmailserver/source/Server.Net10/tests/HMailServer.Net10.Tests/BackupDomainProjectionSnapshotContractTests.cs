@@ -23,6 +23,9 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(IAccountAdministrationStore),
                 typeof(IBackupAccountAdministrationStore),
                 typeof(IBackupFetchAccountAdministrationStore),
+                typeof(IBackupRuleAdministrationStore),
+                typeof(IRuleCriteriaAdministrationStore),
+                typeof(IRuleActionAdministrationStore),
                 typeof(IDomainAliasAdministrationStore),
                 typeof(IAliasAdministrationStore),
                 typeof(IDistributionListAdministrationStore),
@@ -69,6 +72,9 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         Assert.AreEqual("encrypted", payload.BackupAccounts![7][0].Password);
         Assert.AreEqual(2, payload.BackupAccounts[7][0].PasswordEncryption);
         Assert.AreEqual("fetch-encrypted", payload.BackupFetchAccounts![9][0].Password);
+        Assert.AreEqual("rule", payload.Rules![9][0].Name);
+        Assert.AreEqual("match", payload.RuleCriterias![101][0].MatchValue);
+        Assert.AreEqual("subject", payload.RuleActions![101][0].Subject);
     }
 
     private sealed class RecordingSnapshotFactory : IBackupDomainProjectionSnapshotFactory
@@ -93,6 +99,12 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 new FixedBackupAccountStore();
             public IBackupFetchAccountAdministrationStore BackupFetchAccountStore { get; } =
                 new FixedBackupFetchAccountStore();
+            public IBackupRuleAdministrationStore BackupRuleStore { get; } =
+                new FixedBackupRuleStore();
+            public IRuleCriteriaAdministrationStore RuleCriteriaStore { get; } =
+                new FixedRuleCriteriaStore();
+            public IRuleActionAdministrationStore RuleActionStore { get; } =
+                new FixedRuleActionStore();
             public IDomainAliasAdministrationStore DomainAliasStore { get; } = new EmptyDomainAliasStore();
             public IAliasAdministrationStore AliasStore { get; } = new EmptyAliasStore();
             public IDistributionListAdministrationStore DistributionListStore { get; } = new EmptyDistributionListStore();
@@ -191,6 +203,64 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                                 "2026-08-25 00:00:00")
                         })
                 });
+    }
+
+    private sealed class FixedBackupRuleStore : IBackupRuleAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<RuleAdministrationSnapshot>> GetBackupRulesAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<RuleAdministrationSnapshot>>(
+                new[] { new RuleAdministrationSnapshot(101, accountId, "rule", true, true, 1) });
+    }
+
+    private sealed class FixedRuleCriteriaStore : IRuleCriteriaAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<RuleCriteriaAdministrationSnapshot>> GetRuleCriteriaAsync(
+            int ruleId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<RuleCriteriaAdministrationSnapshot>>(
+                new[] { new RuleCriteriaAdministrationSnapshot(201, ruleId, "match", true, 1, 2, "") });
+
+        public ValueTask DeleteRuleCriteriaByIdAsync(int ruleId, int databaseId, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask SaveRuleCriteriaAsync(int owningRuleId, RuleCriteriaAdministrationSnapshot criterion, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+    }
+
+    private sealed class FixedRuleActionStore : IRuleActionAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<RuleActionAdministrationSnapshot>> GetRuleActionsAsync(
+            int ruleId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<RuleActionAdministrationSnapshot>>(
+                new[]
+                {
+                    new RuleActionAdministrationSnapshot(
+                        301,
+                        ruleId,
+                        1,
+                        "subject",
+                        "body",
+                        "",
+                        "",
+                        "",
+                        "to@example.test",
+                        "",
+                        "",
+                        "",
+                        "",
+                        0,
+                        false,
+                        1)
+                });
+
+        public ValueTask DeleteRuleActionByIdAsync(int ruleId, int databaseId, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask SaveRuleActionAsync(int owningRuleId, RuleActionAdministrationSnapshot action, CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
     }
 
     private sealed class EmptyAliasStore : IAliasAdministrationStore
