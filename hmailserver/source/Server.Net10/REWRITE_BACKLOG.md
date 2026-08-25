@@ -8080,3 +8080,10 @@ Code/test commit `982eb4b81` implements the bounded `Settings.Directories.TempDi
 Focused `DirectoriesComContractTests` pass `7/7`; full Debug Net10 passes `2705`, skips `94`, and fails `0` (`2799` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
 
 Next slice: authenticated `Settings.Directories.DataDirectory` mutation parity, with explicit containment and failure review before enabling the setter.
+## Current authoritative next slice (2026-08-25, authenticated DataDirectory mutation)
+
+Code/test commit `4a5fb3d12` implements the bounded `Settings.Directories.DataDirectory` mutation slice. Legacy `InterfaceDirectories::put_DataDirectory` in `hmailserver/source/Server/COM/InterfaceDirectories.cpp:94-108` delegates to `IniFileSettings::SetDataDirectory`, which writes `[Directories] DataFolder`. Net10 now exposes the setter only through the authenticated directory store path, preserves direct activation denial, refreshes a retained authorized facade after success, and reports persistence failure when the INI write fails. This is persistence-only parity: it does not move files or live-reconfigure the running Data root.
+
+Focused `DirectoriesComContractTests` pass `8/8`; full Debug Net10 passes `2706`, skips `94`, and fails `0` (`2800` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
+
+Next slice: authenticated `Settings.Directories.ProgramDirectory` mutation parity, with DB script path and restart-time semantics explicitly preserved.

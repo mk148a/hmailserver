@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, DATA DIRECTORY MUTATION)
+
+Code/test commit `4a5fb3d12` closes the legacy `Settings.Directories.DataDirectory`
+mutation gap. Legacy `InterfaceDirectories::put_DataDirectory` at
+`hmailserver/source/Server/COM/InterfaceDirectories.cpp:94-108` calls
+`IniFileSettings::SetDataDirectory`, persisting `[Directories] DataFolder`.
+The authenticated .NET 10 facade now uses the configured directory store,
+refreshes retained-object state after success, and preserves direct activation
+access denial. The slice is persistence-only and does not move files or live
+reconfigure the running Data root. COM identity and dispatch order are unchanged.
+
+Focused tests: `DirectoriesComContractTests` `8/8`. Full Debug Net10:
+`2706 passed, 94 skipped, 0 failed` (`2800` total). No production or
+machine-wide state was changed.
+
+Next bounded slice: authenticated `Settings.Directories.ProgramDirectory`
+mutation parity, preserving DB script path and restart-time semantics.
+
+
 ## Current Authoritative Continuation (2026-08-25, TEMP DIRECTORY MUTATION)
 
 Code/test commit `982eb4b81` closes the legacy `Settings.Directories.TempDirectory`
