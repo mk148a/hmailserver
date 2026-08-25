@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, STABLE RAW BACKUP SOURCE)
+
+Code/test commit `d2a443f3d` wires raw `DataBackup` staging through the
+existing `BackupDataDirectoryIdentity.CopyStableSnapshot` helper. The helper
+hashes the source tree before and after the handle-relative copy and fails
+closed if the source changed during staging. Focused
+`BackupArchiveRuntimeTests`/`BackupArchiveIdentityTests` pass `70`, skip `3`,
+and fail `0`; full Debug Net10 passes `2709`, skips `95`, and fails `0`.
+
+The legacy reference remains
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:195-217`.
+This is not an atomic filesystem snapshot, process quiescence, crash-consistent
+backup, or power-loss proof; protocol writers can still mutate the live Data
+directory outside this check. Release remains **RED**.
+
+Next independent slice: design the complete backup quiescence boundary without
+claiming that a partial lock is sufficient; cloned installer rollback and live
+SEC-18 evidence remain environment-gated.
+
 ## Current Authoritative Continuation (2026-08-25, ENVIRONMENT RECHECK)
 
 The latest repository state is documentation commit `9f0145abf`, following

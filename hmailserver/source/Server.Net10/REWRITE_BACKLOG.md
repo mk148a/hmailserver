@@ -1,5 +1,25 @@
 
 
+## Current authoritative status (2026-08-25, stable raw DataBackup source)
+
+Code/test commit `d2a443f3d` wires the production-shaped raw DataBackup path
+through `BackupDataDirectoryIdentity.CopyStableSnapshot` in
+`HMailServer.ComInterop/BackupArchiveRuntime.cs`. The source tree is hashed
+before and after the handle-relative copy; a detected concurrent source change
+fails closed, and root files are then omitted as required by legacy
+`BackupExecuter::BackupDataDirectory_`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:195-217`).
+`BackupArchiveRuntimeTests.CreatesRawMessageArchiveWithExternalDataBackupDirectory`
+also verifies that a post-staging source mutation cannot change the owned
+DataBackup snapshot.
+
+Focused tests pass `70`, skip `3`, and fail `0`; full Debug Net10 passes
+`2709`, skips `95`, and fails `0` (`2804` total). This does not provide a
+quiescence barrier, atomic filesystem snapshot, crash-consistency, or
+power-loss guarantee. Release remains **RED**. Next slice: complete the
+quiescence-boundary design/review without introducing an incomplete partial
+lock; cloned installer rollback and live SEC-18 evidence remain gated.
+
 ## Current authoritative status (2026-08-25, environment recheck)
 
 The legacy-first review of `Settings.SecurityRanges.SetDefault()` found no
