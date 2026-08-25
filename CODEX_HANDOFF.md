@@ -8483,3 +8483,15 @@ Focused coverage is `28/28`; standard full Debug is `2724/96/0`. Lease denial
 is preserved as `E_ACCESSDENIED` instead of being remapped to store `E_FAIL`.
 The next code slice remains the read-only SQL backup projection snapshot
 factory, excluding physical Data-file quiescence.
+## Current authoritative status (2026-08-25, SURBL mutation leases)
+
+Code/test commit `6a83d5401` adds generation-bound authorization leases to the
+authenticated `AntiSpam.SURBLServers` insert, update, collection delete, and
+item delete paths, preserving the installed COM contract and owner snapshots.
+Legacy references are `InterfaceSURBLServer::Save/Delete`
+(`hmailserver/source/Server/COM/InterfaceSURBLServer.cpp:12,187`) and
+`InterfaceSURBLServers::DeleteByDBID/Add`
+(`hmailserver/source/Server/COM/InterfaceSURBLServers.cpp:88,135`). Focused
+coverage is `17/17` COM and `6/6` SQL; standard full Debug is `2726/96/0`.
+The next code slice remains the new read-only SQL backup projection snapshot
+contract, excluding physical Data-file quiescence.

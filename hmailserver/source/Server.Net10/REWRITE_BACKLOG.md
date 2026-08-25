@@ -8532,3 +8532,18 @@ The next independent slice is the transaction-scoped read-only SQL backup
 projection snapshot. It must not claim physical Data-directory quiescence or
 crash consistency, and unsupported projections must fail closed rather than
 fall back silently to independent connections.
+## Current authoritative status (2026-08-25, SURBL mutation leases)
+
+SURBL mutation authorization is complete in code/test commit `6a83d5401`.
+`AntiSpam.SURBLServers` forwards the existing generation-bound lease and the
+collection/item callbacks hold it through SQL insert, update, and delete.
+Legacy anchors are `InterfaceSURBLServer::Save/Delete`
+(`hmailserver/source/Server/COM/InterfaceSURBLServer.cpp:12,187`) and
+`InterfaceSURBLServers::DeleteByDBID/Add`
+(`hmailserver/source/Server/COM/InterfaceSURBLServers.cpp:88,135`). Focused
+tests: `17/17` COM and `6/6` SQL; standard full Debug: `2726/96/0`.
+
+The next independent implementation is the read-only SQL backup projection
+snapshot contract. It must use one explicit snapshot transaction for the
+supported projection and fail closed for unsupported projections; it must not
+claim Data-directory quiescence or crash consistency.

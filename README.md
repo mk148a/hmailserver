@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, SURBL mutation leases)
+
+The latest bounded COM/Admin slice forwards the generation-bound authorization
+lease through `AntiSpam.SURBLServers` and holds it across SURBL insert, update,
+and delete callbacks. Legacy anchors are `InterfaceSURBLServer::Save/Delete`
+(`source/Server/COM/InterfaceSURBLServer.cpp:12,187`) and
+`InterfaceSURBLServers::DeleteByDBID/Add`
+(`source/Server/COM/InterfaceSURBLServers.cpp:88,135`). Focused SURBL COM
+tests pass `17/17`; related SQL store tests pass `6/6`; standard full Debug
+passes `2726`, skips `96`, and fails `0` (`2822` total). COM identity and
+direct activation denial remain unchanged.
+
+Release remains **RED**. The SQL backup snapshot, rollback, SEC-18, registered
+COM, credential, paired performance, and long-soak gates remain open.
+
 ## Current authoritative status (2026-08-25, security-range mutation leases)
 
 The latest bounded COM/Admin slice carries the generation-bound authorization
