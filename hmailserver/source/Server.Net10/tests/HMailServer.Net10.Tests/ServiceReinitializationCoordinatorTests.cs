@@ -191,6 +191,32 @@ public sealed class ServiceReinitializationCoordinatorTests
     }
 
     [TestMethod]
+    public async Task LifecycleAdmissionCancellation_ReleasesCoordinatorForTheNextOperation()
+    {
+        using var writerGate = new DeliveryQueuePauseDrainGate();
+        using var heldWriter = await writerGate.EnterWorkerAsync(CancellationToken.None);
+        var coordinator = new ServiceReinitializationCoordinator(new ServerReadinessSignal(), writerGate);
+        var starts = 0;
+        coordinator.Register(
+            "listener",
+            _ => ValueTask.CompletedTask,
+            _ =>
+            {
+                starts++;
+                return ValueTask.CompletedTask;
+            });
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsExactlyAsync<TaskCanceledException>(
+            () => coordinator.StartServersAsync(cancellation.Token).AsTask());
+
+        heldWriter.Dispose();
+        await coordinator.StartServersAsync(CancellationToken.None);
+        Assert.AreEqual(1, starts);
+    }
+
+    [TestMethod]
     public void Register_RejectsAfterFirstReinitializeAttempt()
     {
         var coordinator = new ServiceReinitializationCoordinator();
