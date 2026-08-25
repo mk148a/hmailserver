@@ -3642,7 +3642,9 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         {
             EnsureAuthorized();
             EnsureServerAdministrator();
-            return TcpIpPortAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
+            return TcpIpPortAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
         }
     }
 

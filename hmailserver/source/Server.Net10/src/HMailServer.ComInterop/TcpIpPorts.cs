@@ -95,6 +95,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
     private readonly Action<TcpIpPortAdministrationSnapshot>? _update;
     private readonly Action? _deleteAll;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public TCPIPPorts()
     {
@@ -107,7 +108,8 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         Action<int>? deleteById,
         Action<TcpIpPortAdministrationSnapshot>? update,
         Action? deleteAll,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _ports = ports.ToArray();
         _reload = reload;
@@ -116,6 +118,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         _update = update;
         _deleteAll = deleteAll;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetPorts().Count;
@@ -127,10 +130,19 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
         Action<int>? deleteById = null,
         Action<TcpIpPortAdministrationSnapshot>? update = null,
         Action? deleteAll = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(ports);
-        return new TCPIPPorts(ports, reload, insert, deleteById, update, deleteAll, isServerAdministrator);
+        return new TCPIPPorts(
+            ports,
+            reload,
+            insert,
+            deleteById,
+            update,
+            deleteAll,
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceTCPIPPort this[int index]
@@ -178,6 +190,8 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
             return;
         }
 
+        EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _deleteById(databaseId);
@@ -222,6 +236,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
             Unavailable();
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             var generatedId = _insert!(port);
@@ -257,6 +272,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
             Unavailable();
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _update!(port);
@@ -309,6 +325,7 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             var refreshedPorts = _reload();
@@ -399,6 +416,21 @@ public sealed class TCPIPPorts : IInterfaceTCPIPPorts
                 "TCPIPPorts access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "TCP/IP port mutation requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private static void ValidateLegacyCertificateRequirement(TcpIpPortAdministrationSnapshot port)
@@ -590,7 +622,9 @@ public static class TcpIpPortAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static TCPIPPorts CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static TCPIPPorts CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -634,6 +668,7 @@ public static class TcpIpPortAdministrationRuntimeHost
             DeletePort,
             UpdatePort,
             DeleteAllPorts,
-            isServerAdministrator);
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 }

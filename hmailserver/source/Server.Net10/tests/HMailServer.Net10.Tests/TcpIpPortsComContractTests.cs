@@ -598,6 +598,96 @@ public sealed class TcpIpPortsComContractTests
     }
 
     [TestMethod]
+    public void CollectionMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var inserts = 0;
+        var updates = 0;
+        var deletes = 0;
+
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+            {
+                activeLeases--;
+                disposedLeases++;
+            }));
+        };
+
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) },
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                inserts++;
+                return 20;
+            },
+            update: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                updates++;
+            },
+            deleteById: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                deletes++;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+
+        var draft = ports.Add();
+        draft.PortNumber = 2525;
+        draft.Save();
+        var existing = ports[0];
+        existing.PortNumber = 2626;
+        existing.Save();
+        existing.Delete();
+
+        Assert.AreEqual(1, inserts);
+        Assert.AreEqual(1, updates);
+        Assert.AreEqual(1, deletes);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(3, disposedLeases);
+    }
+
+    [TestMethod]
+    public void CollectionMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var leaseRequests = 0;
+        var stores = 0;
+        IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
+            new[] { Snapshot(10, ComSessionType.Smtp, 25, "0.0.0.0", ComConnectionSecurity.None, 0) },
+            insert: _ =>
+            {
+                stores++;
+                return 20;
+            },
+            update: _ => stores++,
+            deleteById: _ => stores++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+
+        var draft = ports.Add();
+        var insertError = Assert.ThrowsExactly<COMException>(draft.Save);
+        var existing = ports[0];
+        existing.PortNumber = 2525;
+        var updateError = Assert.ThrowsExactly<COMException>(existing.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(() => ports.DeleteByDBID(10));
+
+        Assert.AreEqual(EAccessDenied, insertError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, updateError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(0, stores);
+        Assert.AreEqual(3, leaseRequests);
+    }
+
+    [TestMethod]
     public void SetDefault_MapsStoreFailureToEFailAndRetainsSnapshot()
     {
         IInterfaceTCPIPPorts ports = TCPIPPorts.CreateAuthorized(
@@ -651,6 +741,11 @@ public sealed class TcpIpPortsComContractTests
         Assert.AreEqual(useSsl, port.UseSSL);
         Assert.AreEqual(sslCertificateId, port.SSLCertificateID);
         Assert.AreEqual(connectionSecurity, port.ConnectionSecurity);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)
