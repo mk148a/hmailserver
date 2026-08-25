@@ -8073,3 +8073,10 @@ Code/test commit `ca2e67aed` implements the bounded `Settings.Directories.LogDir
 Focused `DirectoriesComContractTests` pass `6/6`; full Debug Net10 passes `2704`, skips `94`, and fails `0` (`2798` total). No production service, database, Data directory, COM registration, DCOM ACL, IIS, or firewall state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
 
 Next slice: authenticated `Settings.Directories.TempDirectory` mutation parity, using the same legacy INI/store boundary and focused failure tests.
+## Current authoritative next slice (2026-08-25, authenticated TempDirectory mutation)
+
+Code/test commit `982eb4b81` implements the bounded `Settings.Directories.TempDirectory` mutation slice. Legacy `InterfaceDirectories::put_TempDirectory` in `hmailserver/source/Server/COM/InterfaceDirectories.cpp:154-172` delegates to `IniFileSettings::SetTempDirectory`, which writes `[Directories] TempFolder`. Net10 now exposes the setter only through the authenticated directory store path, preserves direct activation denial, refreshes a retained authorized facade after success, and reports persistence failure when the INI write fails. Installed COM identity and dispatch shape remain unchanged.
+
+Focused `DirectoriesComContractTests` pass `7/7`; full Debug Net10 passes `2705`, skips `94`, and fails `0` (`2799` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
+
+Next slice: authenticated `Settings.Directories.DataDirectory` mutation parity, with explicit containment and failure review before enabling the setter.

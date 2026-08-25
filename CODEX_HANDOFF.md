@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, TEMP DIRECTORY MUTATION)
+
+Code/test commit `982eb4b81` closes the legacy `Settings.Directories.TempDirectory`
+mutation gap. Legacy `InterfaceDirectories::put_TempDirectory` at
+`hmailserver/source/Server/COM/InterfaceDirectories.cpp:154-172` calls
+`IniFileSettings::SetTempDirectory`, persisting `[Directories] TempFolder`.
+The authenticated .NET 10 facade now uses the configured directory store,
+refreshes retained-object state after success, and preserves direct activation
+access denial. COM identity and dispatch order are unchanged.
+
+Focused tests: `DirectoriesComContractTests` `7/7`. Full Debug Net10:
+`2705 passed, 94 skipped, 0 failed` (`2799` total). No production or
+machine-wide state was changed.
+
+Next bounded slice: authenticated `Settings.Directories.DataDirectory`
+mutation parity, with explicit containment and failure review.
+
+
 ## Current Authoritative Continuation (2026-08-25, LOG DIRECTORY MUTATION)
 
 Code/test commit `ca2e67aed` closes one legacy Admin mutation gap:
