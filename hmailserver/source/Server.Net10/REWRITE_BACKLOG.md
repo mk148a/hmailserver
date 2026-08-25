@@ -8066,3 +8066,10 @@ Full-Text-capable disposable SQL Server `6000`; complete isolated registered
 COM/SEC-18 caller evidence; then installer/service/data rollback acceptance.
 Do not broaden this slice to SMTP trust, live reconfiguration, other Admin
 collections, production registration, or production SQL/Data.
+## Current authoritative next slice (2026-08-25, authenticated LogDirectory mutation)
+
+Code/test commit `ca2e67aed` implements the bounded `Settings.Directories.LogDirectory` mutation slice. Legacy `InterfaceDirectories::put_LogDirectory` in `hmailserver/source/Server/COM/InterfaceDirectories.cpp:122-140` delegates to `IniFileSettings::SetLogDirectory`, which writes `[Directories] LogFolder`. Net10 now exposes that setter only through the authenticated `DirectoryAdministrationRuntimeHost` store path, preserves direct activation access denial, updates a retained authorized facade after a successful write, and reports persistence failure when the INI write fails. The installed `IInterfaceDirectories` IID, DISPID, vtable, and `Directories` class identity are unchanged.
+
+Focused `DirectoriesComContractTests` pass `6/6`; full Debug Net10 passes `2704`, skips `94`, and fails `0` (`2798` total). No production service, database, Data directory, COM registration, DCOM ACL, IIS, or firewall state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
+
+Next slice: authenticated `Settings.Directories.TempDirectory` mutation parity, using the same legacy INI/store boundary and focused failure tests.

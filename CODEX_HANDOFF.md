@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, LOG DIRECTORY MUTATION)
+
+Code/test commit `ca2e67aed` closes one legacy Admin mutation gap:
+`InterfaceDirectories::put_LogDirectory` at
+`hmailserver/source/Server/COM/InterfaceDirectories.cpp:122-140` calls
+`IniFileSettings::SetLogDirectory`, which persists `[Directories] LogFolder`.
+The .NET 10 authenticated `Settings.Directories` facade now performs the same
+write through `LegacyDirectoryAdministrationStore`, refreshes the retained
+facade snapshot after success, and keeps direct `Directories` activation
+unauthorized. COM identity and dispatch order were not changed.
+
+Focused tests: `DirectoriesComContractTests` `6/6`. Full Debug Net10:
+`2704 passed, 94 skipped, 0 failed` (`2798` total). No machine-wide or
+production hMailServer state was changed.
+
+Next bounded slice: authenticated `Settings.Directories.TempDirectory`
+mutation parity. Preserve all dirty artifact deletions and untracked evidence.
+Release remains RED pending SEC-18, registered COM, rollback, paired
+C++/.NET performance, and other release gates.
+
+
 ## Current Authoritative Continuation (2026-08-25, INI replacement durability metadata)
 
 Code/test commit `f8e040154` adds a containing-directory flush after the
