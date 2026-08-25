@@ -18,4 +18,9 @@ public interface IDirectoryAdministrationStore
         string dataDirectory,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Data directory updates are not implemented by this store.");
+
+    ValueTask<bool> UpdateProgramDirectoryAsync(
+        string programDirectory,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Program directory updates are not implemented by this store.");
 }

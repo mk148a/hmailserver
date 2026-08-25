@@ -45,6 +45,7 @@ public sealed class Directories : IInterfaceDirectories
     private readonly Func<string, bool>? _updateLogDirectory;
     private readonly Func<string, bool>? _updateTempDirectory;
     private readonly Func<string, bool>? _updateDataDirectory;
+    private readonly Func<string, bool>? _updateProgramDirectory;
 
     public Directories()
     {
@@ -54,15 +55,40 @@ public sealed class Directories : IInterfaceDirectories
         DirectoryAdministrationSnapshot snapshot,
         Func<string, bool>? updateLogDirectory,
         Func<string, bool>? updateTempDirectory,
-        Func<string, bool>? updateDataDirectory)
+        Func<string, bool>? updateDataDirectory,
+        Func<string, bool>? updateProgramDirectory)
     {
         _snapshot = snapshot;
         _updateLogDirectory = updateLogDirectory;
         _updateTempDirectory = updateTempDirectory;
         _updateDataDirectory = updateDataDirectory;
+        _updateProgramDirectory = updateProgramDirectory;
     }
 
-    public string ProgramDirectory { get => Snapshot.ProgramDirectory; set => Unavailable(); }
+    public string ProgramDirectory
+    {
+        get => Snapshot.ProgramDirectory;
+        set
+        {
+            _ = Snapshot;
+            var updateProgramDirectory = _updateProgramDirectory;
+            if (updateProgramDirectory is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            if (!updateProgramDirectory(value))
+            {
+                throw new COMException(
+                    "The program directory update could not be persisted.",
+                    unchecked((int)0x80004005));
+            }
+
+            // Legacy SetProgramDirectory does not rebuild the cached DB script path.
+            _snapshot = Snapshot with { ProgramDirectory = value };
+        }
+    }
 
     public string DatabaseDirectory { get => Snapshot.DatabaseDirectory; set => Unavailable(); }
 
@@ -146,10 +172,11 @@ public sealed class Directories : IInterfaceDirectories
         DirectoryAdministrationSnapshot snapshot,
         Func<string, bool>? updateLogDirectory = null,
         Func<string, bool>? updateTempDirectory = null,
-        Func<string, bool>? updateDataDirectory = null)
+        Func<string, bool>? updateDataDirectory = null,
+        Func<string, bool>? updateProgramDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Directories(snapshot, updateLogDirectory, updateTempDirectory, updateDataDirectory);
+        return new Directories(snapshot, updateLogDirectory, updateTempDirectory, updateDataDirectory, updateProgramDirectory);
     }
 
     private DirectoryAdministrationSnapshot Snapshot =>
@@ -204,6 +231,10 @@ public static class DirectoryAdministrationRuntimeHost
                 .GetResult(),
             value => store
                 .UpdateDataDirectoryAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult(),
+            value => store
+                .UpdateProgramDirectoryAsync(value, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult());
     }

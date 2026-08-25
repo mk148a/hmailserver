@@ -203,6 +203,31 @@ public sealed class DirectoriesComContractTests
         }
     }
 
+    [TestMethod]
+    public void AuthorizedRuntime_ProgramDirectorySetterPreservesLegacyDbScriptSnapshot()
+    {
+        var iniPath = Path.Combine(Path.GetTempPath(), $"hmailserver-{Guid.NewGuid():N}.ini");
+        try
+        {
+            File.WriteAllText(iniPath, "[Directories]\r\nProgramFolder=C:\\hMailServer\\\r\n");
+            DirectoryAdministrationRuntimeHost.Configure(new LegacyDirectoryAdministrationStore(iniPath));
+            var directories = Settings.CreateAuthorized().Directories;
+
+            directories.ProgramDirectory = @"D:\hMailServer\";
+
+            Assert.AreEqual(@"D:\hMailServer\", directories.ProgramDirectory);
+            Assert.AreEqual(@"C:\hMailServer\DBScripts", directories.DBScriptDirectory);
+            StringAssert.Contains(File.ReadAllText(iniPath), "ProgramFolder=D:\\hMailServer\\");
+        }
+        finally
+        {
+            if (File.Exists(iniPath))
+            {
+                File.Delete(iniPath);
+            }
+        }
+    }
+
     private static void AssertMutationPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
