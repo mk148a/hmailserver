@@ -8372,6 +8372,7 @@ execution, AD/SSPI credentials, and registered COM remain environment-gated;
 the release gate remains **RED**. Next slice: complete backup quiescence only
 with all protocol/message writer hooks, otherwise cloned installer rollback
 acceptance.
+
 ## Current Authoritative Status (2026-08-25, SHORT SOAK ACCEPTANCE CONTRACT)
 
 Benchmark commit `4fe899b27` removes the short-soak false PASS path where the
@@ -8633,3 +8634,18 @@ writer quiescence. Next slice: complete writer admission only when all
 SMTP/IMAP/POP3/queue/message/import/fetch/COM writers can join one tested
 barrier; otherwise proceed to cloned installer/service/Data rollback
 acceptance.
+
+## Current authoritative status (2026-08-25, settings group/public-folder parity)
+
+Follow-up code/test commit `9451962b4` keeps the legacy settings backup
+Groups and PublicFolders trees inside the same read-only SQL snapshot. Group
+members, public-folder ACL holders, and public-folder DB message metadata now
+use the transaction-scoped group/member/account/folder/message stores rather
+than falling back to independent connections. This closes the omission found
+during review of the preceding settings snapshot commit.
+
+Focused snapshot contract tests remain `4/4`; standard full Debug remains
+`2730 passed, 96 skipped, 0 failed` (`2826` total). Physical Data files,
+writer quiescence, crash consistency, and power-loss recovery remain outside
+scope. Release remains **RED**. Next slice is a complete tested writer barrier
+or cloned installer/service/Data rollback acceptance.

@@ -8585,3 +8585,16 @@ crash-consistency claim. Release remains **RED**. Next independent work is a
 complete writer barrier with protocol/lifecycle tests, or cloned installer/
 service/Data rollback acceptance if the barrier is not independently
 available.
+
+## Current authoritative continuation (2026-08-25, settings group/public-folder parity)
+
+Follow-up code/test commit `9451962b4` keeps Groups, group members,
+PublicFolders, ACL holders, and public-folder DB message metadata in the same
+read-only snapshot used for settings-plus-domain backup. The implementation
+reuses the existing transaction-compatible group/member/folder/message stores
+and preserves the legacy `Configuration::XMLStore` ordering boundary.
+
+Focused snapshot tests remain `4/4`; standard full Debug remains `2730/96/0`.
+No physical Data quiescence or crash-consistency claim is made. Release
+remains **RED**; next work is a complete writer barrier or cloned rollback
+acceptance.
