@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-25T18:44:45Z` / `2026-08-25T21:44:45+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD at last content update: `51824fa62` (`docs: close stale group members status`).
+- Current HEAD at last content update: `04a4d7060` (`docs: close stale core collection mutation status`).
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: Directories COM/store filter `13 passed, 0 skipped, 0 failed`; AntiSpam collection mutation/authorization filter `71 passed, 0 skipped, 0 failed`; account verifier plus Account COM filter `84 passed, 2 skipped, 0 failed`; BackupManager/BackupArchive filter `90 passed, 5 skipped, 0 failed`; `FetchAccountsComContractTests` remains `37 passed, 0 skipped, 0 failed`; `SqlServerImapMessageMutationStoreTests` remains `8 passed, 0 skipped, 0 failed`.
 - Latest full Net10 result: standard Debug `2739 passed, 96 skipped, 0 failed` (`2835` total); opt-in Debug remains unavailable because required environment variables are absent; prerequisites passed with .NET 10 SDK 10.0.301 and MSBuild 17.x
