@@ -8689,3 +8689,28 @@ Debug passes `2731 passed, 96 skipped, 0 failed` (`2827` total). Release
 remains **RED**. Next slice: add the next writer only with an explicit shared
 barrier and protocol/lifecycle regression coverage, or proceed to cloned
 installer/service/Data rollback acceptance.
+
+## Current authoritative status (2026-08-25, import message backup admission)
+
+Code/test commit `200aad565` wires the existing
+`DeliveryQueuePauseDrainGate.EnterWorkerAsync` into
+`StoreBackedImportMessageFromFileRuntime`. Both Administrator Utilities import
+entry points now hold the writer lease across path validation, legacy filename
+normalization, MIME parsing, folder/ACL resolution, SQL message persistence,
+and delivery wake-up. The lease is released on success, failure, and
+cancellation.
+
+Legacy references are `InterfaceUtilities::ImportMessageFromFile` and
+`InterfaceUtilities::ImportMessageFromFileToIMAPFolder` at
+`hmailserver/source/Server/COM/InterfaceUtilities.cpp:285-344`; both preserve
+the installed Utilities COM contract and delegate to `MailImporter::Import`
+after the authenticated Administrator boundary. Focused import runtime tests
+pass `9/9`; standard full Debug passes `2733 passed, 96 skipped, 0 failed`
+(`2829` total).
+
+The coordinated writer families are now delivery queue, external-fetch, and
+Utilities import. SMTP, IMAP, POP3, message COM, and lifecycle writers remain
+outside the barrier. No full atomic SQL/Data, crash-consistency, or power-loss
+claim is valid. Release remains **RED**. Next slice: one protocol writer
+admission integration with negative/rollback coverage, or cloned
+installer/service/Data rollback acceptance.

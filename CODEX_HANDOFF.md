@@ -8626,3 +8626,20 @@ IMAP, POP3, import, message COM, and lifecycle writers are not yet admitted
 through the gate, so release remains **RED** and no full atomic SQL/Data claim
 is made. Next work is another explicit writer integration or cloned rollback
 acceptance.
+
+## Current authoritative continuation (2026-08-25, import message backup admission)
+
+Code/test commit `200aad565` wires `DeliveryQueuePauseDrainGate.EnterWorkerAsync`
+into `StoreBackedImportMessageFromFileRuntime`. Both Utilities import entry
+points hold the lease across file normalization, MIME parsing, folder/ACL
+resolution, SQL persistence, and delivery wake-up. Legacy references are
+`InterfaceUtilities::ImportMessageFromFile` and
+`InterfaceUtilities::ImportMessageFromFileToIMAPFolder` at
+`hmailserver/source/Server/COM/InterfaceUtilities.cpp:285-344`.
+
+Focused import runtime tests pass `9/9`; standard full Debug passes
+`2733/96/0` (`2829` total). Delivery queue, external-fetch, and import are now
+coordinated; SMTP, IMAP, POP3, message COM, and lifecycle writers remain
+outside the barrier. Release remains **RED**. Next work is one protocol writer
+admission integration with rollback coverage or cloned installer/service/Data
+rollback acceptance.
