@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, whitelist mutation leases)
+
+The latest bounded COM/Admin slice carries the generation-bound authorization
+lease through `AntiSpam.WhiteListAddresses` into whitelist insert, update,
+item/collection delete, and clear store callbacks. Legacy anchors are
+`InterfaceWhiteListAddress::Save/Delete`
+(`source/Server/COM/InterfaceWhiteListAddress.cpp:8-54`) and
+`InterfaceWhiteListAddresses::Clear/DeleteByDBID/Add`
+(`source/Server/COM/InterfaceWhiteListAddresses.cpp:42-59,109-124,186-215`).
+COM identity, DISPIDs, direct activation denial, and owner snapshots remain
+unchanged. Focused whitelist COM tests pass `19/19`; related SQL store tests
+pass `11/11`; standard full Debug passes `2722`, skips `96`, and fails `0`
+(`2818` total).
+
+Release remains **RED**. Backup consistency, rollback, registered COM/SEC-18,
+credential evidence, paired C++/.NET performance, and long-soak gates remain
+open. Cache `Clear` is still blocked because no real .NET cache backend exists.
+
 ## Current authoritative status (2026-08-25, TCP/IP port mutation leases)
 
 The latest bounded COM/Admin slice guards TCP/IP port insert, update, delete,

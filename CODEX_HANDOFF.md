@@ -8456,3 +8456,17 @@ any further documentation commit. Cache `Clear` was audited against legacy
 rewrite has no real cache-container/backend abstraction; do not invent one.
 The next code slice remains the read-only SQL backup projection snapshot
 factory, explicitly excluding physical Data-file quiescence.
+## Current authoritative status (2026-08-25, whitelist mutation leases)
+
+Code/test commit `43035a7ee` adds generation-bound authorization leases to the
+authenticated `AntiSpam.WhiteListAddresses` path. The lease spans new and
+existing `WhiteListAddress.Save`, item/collection delete, and collection
+`Clear` callbacks. Legacy references are
+`InterfaceWhiteListAddress::Save/Delete`
+(`hmailserver/source/Server/COM/InterfaceWhiteListAddress.cpp:8-54`) and
+`InterfaceWhiteListAddresses::Clear/DeleteByDBID/Add`
+(`hmailserver/source/Server/COM/InterfaceWhiteListAddresses.cpp:42-59,109-124,186-215`).
+Focused COM coverage is `19/19`, related SQL store coverage is `11/11`, and
+standard full Debug is `2722/96/0`. No COM identity or direct activation
+boundary changed. The next code slice is the read-only SQL backup projection
+snapshot factory; physical Data-file quiescence remains explicitly excluded.

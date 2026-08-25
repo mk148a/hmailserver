@@ -8499,3 +8499,20 @@ Current implementation blocker: `IBackupRestoreMetadataTransaction` is
 restore-only, while `BackupXmlPayloadRuntime` receives independent production
 projection stores. Implement the read-only snapshot factory and transaction
 context wiring for every projection store before changing backup behavior.
+## Current authoritative status (2026-08-25, whitelist mutation leases)
+
+The whitelist mutation authorization gap is closed in code/test commit
+`43035a7ee`. `AntiSpam.WhiteListAddresses` now forwards the existing
+generation-bound lease factory, and `WhiteListAddresses` acquires it around
+insert, update, item/collection delete, and clear callbacks. Legacy anchors are
+`InterfaceWhiteListAddress::Save/Delete`
+(`hmailserver/source/Server/COM/InterfaceWhiteListAddress.cpp:8-54`) and
+`InterfaceWhiteListAddresses::Clear/DeleteByDBID/Add`
+(`hmailserver/source/Server/COM/InterfaceWhiteListAddresses.cpp:42-59,109-124,186-215`).
+Focused COM tests: `19/19`; related SQL store tests: `11/11`; full standard
+Debug: `2722/96/0`.
+
+The next slice is a read-only SQL backup projection snapshot factory using one
+transaction context for every compatible projection store. It must fail closed
+or explicitly report unsupported projections; it must not claim physical Data
+directory quiescence or crash consistency.
