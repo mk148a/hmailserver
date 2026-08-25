@@ -8494,3 +8494,8 @@ scoped SQL snapshot, explicitly excluding physical Data files and writer
 quiescence. Full backup quiescence is not currently implementable because
 SMTP, IMAP, POP3, delivery, import, external-fetch, and COM writers lack a
 shared admission coordinator. Do not add a partial gate or claim atomicity.
+
+Current implementation blocker: `IBackupRestoreMetadataTransaction` is
+restore-only, while `BackupXmlPayloadRuntime` receives independent production
+projection stores. Implement the read-only snapshot factory and transaction
+context wiring for every projection store before changing backup behavior.

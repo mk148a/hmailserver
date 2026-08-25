@@ -8438,3 +8438,10 @@ Release remains **RED**. The next independent slice is writer-participating
 backup quiescence only if all protocol and message writers can join one
 boundary; the parity explorer found no such current hook. Otherwise proceed
 to cloned installer/service/Data rollback acceptance.
+
+The backup parity audit also identified a smaller honest DB-only slice: add a
+read-only SQL backup projection snapshot factory and pass one transaction
+context through every production projection store. The current
+`IBackupRestoreMetadataTransaction` is restore-only and the production backup
+payload stores use independent connections, so no SQL snapshot claim is made
+until that factory and wiring exist.
