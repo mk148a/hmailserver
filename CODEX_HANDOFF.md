@@ -1,6 +1,20 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-25, Full-Text SQL/Data acceptance)
+## Current Authoritative Continuation (2026-08-25, external-fetch runner secret transport)
+
+Code/test commit `54a793740` removes stored external-fetch account passwords
+from generated VBScript/JScript runner files. Legacy
+`hmailserver/source/Server/Common/Scripting/Events.cpp:209-248` exposes the
+Password property to the event object; Net10
+`WindowsScriptRuleExecutor.CreateVbScriptFetchAccountSeed` and
+`CreateJScriptFetchAccountObject` now receive the value through UTF-16LE Base64
+stdin and decode it inside the runner. Focused tests pass `64/64`; full Debug
+Net10 passes `2702`, skips `94`, and fails `0`. Release remains **RED** for
+registered COM/SEC-18, plaintext PHP session credentials, rollback,
+paired C++ performance, protocol thresholds, and soak. Next: isolated
+registered COM/SEC-18 caller evidence.
+
+Older entries are historical.
 
 The disposable Full-Text SQL/Data acceptance is complete on the available
 local SQL Server Developer instance. `build/test-net10-sql-migration.ps1`

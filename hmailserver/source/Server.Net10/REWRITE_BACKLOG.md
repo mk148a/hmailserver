@@ -1,6 +1,20 @@
 
 
-## Current authoritative next slice (2026-08-25, Full-Text SQL/Data acceptance complete)
+## Current authoritative next slice (2026-08-25, external-fetch runner secret transport complete)
+
+Code/test commit `54a793740` closes the bounded external-fetch runner-file
+secret gap. Legacy `hmailserver/source/Server/Common/Scripting/Events.cpp:209-248`
+publishes the fetch-account object, including its Password property, to the
+script event. Net10 `WindowsScriptRuleExecutor.CreateVbScriptFetchAccountSeed`
+and `CreateJScriptFetchAccountObject` now leave the stored password out of
+`runner.vbs`/`runner.js`; `ExecuteCore` supplies UTF-16LE Base64 on stdin and the
+runner decodes it before the unchanged script sees the property. Focused WSH
+tests pass `64/64`; full Debug Net10 passes `2702`, skips `94`, and fails `0`.
+No COM identity, SMTP trust, or external-fetch network behavior changed.
+Release remains **RED**. Next slice: isolated registered COM/SEC-18 caller
+evidence.
+
+## Historical authoritative next slice (2026-08-25, Full-Text SQL/Data acceptance complete)
 
 The disposable Full-Text SQL/Data slice is complete for the currently
 available local test host. `build/test-net10-sql-migration.ps1 -SqlServerInstance

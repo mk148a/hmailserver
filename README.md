@@ -1,11 +1,14 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-25, Full-Text SQL/Data acceptance)
+## Current parity gate (2026-08-25, external-fetch runner secret transport)
 
-The disposable Full-Text SQL/Data acceptance passed: `25/25` backup/restore
+The external-fetch VBScript/JScript runner no longer embeds stored fetch-account
+passwords. Legacy `Events.cpp:209-248` still exposes the Password property to
+the script object; Net10 supplies UTF-16LE Base64 through stdin and decodes it
+inside the runner. Focused WSH coverage is `64/64`. The disposable Full-Text SQL/Data acceptance passed: `25/25` backup/restore
 round-trip tests and `7/7` SQL database-administration tests. The full Debug
-Net10 suite passes `2701`, skips `94`, and fails `0` (`2795` total). This is
+Net10 suite passes `2702`, skips `94`, and fails `0` (`2796` total). This is
 local disposable SQL Server evidence, not independent VM or production
 evidence. Release remains **RED** for installed/out-of-process COM, SEC-18,
 installer/service/Data rollback, power-loss durability, paired C++ performance,
