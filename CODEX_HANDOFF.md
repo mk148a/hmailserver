@@ -3,19 +3,24 @@
 ## Current Authoritative Continuation (2026-08-25, ENVIRONMENT RECHECK)
 
 The current Codex process remains non-elevated (`Administrator=False`); Hyper-V
-inventory is denied and no SQL service is discoverable in this user context.
-The last code/test commit is `2ba259c83` and the last docs/state commit is
-`71cabb96c`. Script override ordering and nullable hash handling are covered
-offline. Backup/restore tests pass `102` with `4` environment-dependent skips;
-the full Debug suite passes `2709`, skips `95`, and fails `0`. Live WSH
-override, AD/SSPI credentials, registered COM, cloned rollback, and VM-backed
-release evidence were not inferred. Release remains **RED**.
+inventory is denied, but the local MSSQLSERVER Developer instance is available
+for isolated GUID-scoped test databases. Code/test commit `560ab8356` aligns
+the SQL fixtures with legacy `InterfaceFetchAccount::get_Password` and active
+account admission. SQL integration passes `94` with `2` skips; the full opt-in
+Debug suite passes `2788`, skips `16`, and fails `0`. Live WSH override,
+AD/SSPI credentials, registered COM, cloned rollback, and VM-backed release
+evidence were not inferred. Release remains **RED**.
 
 The atomic backup review found that the legacy maintenance queue serializes
 backup/restore tasks but does not quiesce SMTP/IMAP/POP3/message writers or
 provide a shared SQL/filesystem snapshot boundary. Net10's stable source copy
 and digest therefore do not prove atomic or crash-consistent backup semantics.
 Do not add a partial lock and call it a release gate.
+
+The isolated SQL run created and dropped only GUID-named `hmailserver_net10_*`
+databases; a read-only catalog check found none remaining and did not connect
+to `HmailDb_Test5700`. This is isolated-database evidence, not proof of a
+disposable SQL instance or release acceptance.
 
 Next independent slice: implement or explicitly gate a complete quiescence
 boundary spanning protocol writers, SQL metadata, and Data-file staging when

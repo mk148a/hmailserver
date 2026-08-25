@@ -3,13 +3,13 @@
 ## Current authoritative status (2026-08-25, environment recheck)
 
 The current Codex process remains non-elevated (`Administrator=False`);
-Hyper-V inventory is denied and no SQL service is discoverable in this user
-context. The last code/test commit is `2ba259c83`; the latest docs/state commit
-is `71cabb96c`. Offline script-order and nullable-hash checks pass. The latest
-backup/restore filter passes `102`, skips `4`; the full Debug suite passes
-`2709`, skips `95`, and fails `0`. Live WSH override, AD/SSPI, registered COM,
-cloned rollback, and VM-backed release evidence remain unproven. No
-production state was touched. Release remains **RED**.
+Hyper-V inventory is denied, but the local MSSQLSERVER Developer instance is
+available for isolated GUID-scoped test databases. Code/test commit
+`560ab8356` aligns valid legacy Blowfish fetch-account ciphertext and inactive
+account rejection in the SQL fixtures. SQL integration passes `94`, skips `2`;
+the full opt-in Debug suite passes `2788`, skips `16`, and fails `0`. Live WSH,
+AD/SSPI, registered COM, cloned rollback, and VM-backed release evidence remain
+unproven. No production state was touched. Release remains **RED**.
 
 The atomic backup review confirms that the legacy maintenance queue only
 serializes backup/restore tasks. It does not quiesce SMTP/IMAP/POP3/message
@@ -17,6 +17,11 @@ writers or establish one SQL plus Data-directory snapshot boundary. The Net10
 stable source copy/digest is useful source-integrity evidence but is not an
 atomic or crash-consistent backup contract. A partial lock must not be treated
 as release completion.
+
+The SQL run created and dropped only GUID-named `hmailserver_net10_*` databases;
+a read-only catalog check found none remaining and did not connect to
+`HmailDb_Test5700`. This proves isolated-database execution, not a disposable
+SQL instance or release acceptance.
 
 Next independent slice: implement or explicitly gate a complete quiescence
 boundary across protocol writers, SQL metadata, and Data-file staging once the
