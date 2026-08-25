@@ -12,6 +12,16 @@ installer/service/Data rollback, power-loss durability, paired C++ performance,
 protocol thresholds, and long-soak acceptance. Next slice: isolated registered
 COM/SEC-18 caller evidence.
 
+Offline follow-up checks pass: SEC-18/COM boundary tests are `47 passed, 1
+skipped`, and installer/registration/rollback guard tests are `10 passed, 1
+skipped`. These do not replace registered out-of-process COM, IIS worker
+identity, service mutation, or disposable rollback evidence; release remains
+RED.
+
+The safe offline 100k SEARCH/SORT benchmark passed in Release (`p50 13.78 ms`,
+`p95 25.328 ms`, `p99 27.317 ms`). This is Net10-only diagnostic evidence,
+not a C++ speed comparison or service soak result.
+
 ## Historical parity gate (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.

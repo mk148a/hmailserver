@@ -19,6 +19,19 @@ and 24-hour soak. Next: isolated registered COM/SEC-18 caller evidence.
 
 Older entries are historical.
 
+Follow-up offline checks on this HEAD: SEC-18/COM boundary tests passed `47`
+with `1` registry opt-in skipped; installer/registration/rollback guard tests
+passed `10` with `1` installer-build opt-in skipped. The repository SEC-18
+evidence root is absent, and the current Codex token cannot query Hyper-V with
+`Get-VM`/`Get-VMHost`; no registered COM, IIS, service, DCOM, or production
+state was changed. Keep release RED and continue with an independently
+verifiable slice only.
+
+The safe offline 100k SEARCH/SORT benchmark then passed in Release (`p50
+13.78 ms`, `p95 25.328 ms`, `p99 27.317 ms`, `correct=True`). Its expected
+result is produced by the same implementation, so it is diagnostic only and
+does not close the paired C++/Net10 performance gate or the service soak gate.
+
 ## Historical Authoritative Continuation (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap. Legacy

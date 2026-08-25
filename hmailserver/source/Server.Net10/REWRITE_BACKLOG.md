@@ -16,6 +16,19 @@ isolated registered COM/SEC-18 caller evidence.
 
 Older entries are historical.
 
+Offline follow-up evidence: the focused SEC-18/COM boundary set passed `47`
+tests with `1` registry opt-in skipped, and installer/registration/rollback
+guard tests passed `10` with `1` installer-build opt-in skipped. These are
+source and boundary checks only; they do not prove registered out-of-process
+COM, IIS worker-token identity, service mutation, or rollback on a disposable
+installation. The repository SEC-18 evidence root is absent, so the staging
+inventory collector remains fail-closed.
+
+The offline 100k SEARCH/SORT benchmark also passed in Release (`p50 13.78 ms`,
+`p95 25.328 ms`, `p99 27.317 ms`, `correct=True`). It is diagnostic Net10-only
+evidence: the expected result uses the same implementation, and no C++
+comparison, live protocol load, or service leak claim is valid.
+
 ## Historical authoritative next slice (2026-08-22, legacy POP3 PASS before USER complete)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.
