@@ -8856,3 +8856,20 @@ contract tests. Legacy anchors are the corresponding `Interface*` and
 `Persistent*` classes under `hmailserver/source/Server/COM` and
 `hmailserver/source/Server/Common/Persistence`. Remaining live SQL,
 child-graph, protocol, and service evidence is still required.
+## Current authoritative continuation (2026-08-25, lifecycle writer admission)
+
+Code/test commit `19c0973fd` adds the existing `DeliveryQueuePauseDrainGate`
+to `ServiceReinitializationCoordinator` for Start, Stop, and Reinitialize.
+Legacy anchors are `InterfaceApplication::Start/Stop/Reinitialize` in
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:54-108` and
+`Application::StopServers/Reinitialize` in
+`hmailserver/source/Server/Common/Application/Application.cpp:414-457`.
+The coordinator preserves reverse stop, forward start, readiness generation,
+and compensation ordering; the regression proves lifecycle waits for an active
+writer lease. Focused tests pass `9/9`; full standard Debug passes `2740/96/0`.
+
+No registered COM/SCM, service, database, Data directory, IIS, DCOM, firewall,
+SMTP trust, or production state was changed. Out-of-process COM wake, listener
+readiness, installer rollback, crash consistency, and physical Data quiescence
+remain unproven. Next independent slice: cloned installer/service/Data rollback
+acceptance when an approved disposable target is available.

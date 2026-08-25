@@ -9018,3 +9018,19 @@ Current contract tests cover Add/new Save, existing Save, Delete, failure
 retention, owner scoping, stale-object behavior, and reauthentication for the
 implemented surfaces. Do not restart these old collection entries; live SQL,
 child-graph, protocol, and service acceptance remain separate release gates.
+## Current authoritative status (2026-08-25, lifecycle writer admission)
+
+Code/test commit `19c0973fd` adds the existing `DeliveryQueuePauseDrainGate`
+to `ServiceReinitializationCoordinator` for Start, Stop, and Reinitialize.
+Legacy `InterfaceApplication::Start/Stop/Reinitialize` is anchored at
+`hmailserver/source/Server/COM/InterfaceApplication.cpp:54-108`; the legacy
+server stops and starts work queues and protocol managers in
+`hmailserver/source/Server/Common/Application/Application.cpp:330-457`.
+Net10 preserves reverse-stop, forward-start, readiness, and compensation
+ordering while draining admitted writers before lifecycle mutation. Focused
+coordinator tests pass `9/9`; full standard Debug passes `2740/96/0`.
+
+This proves only the in-process admission boundary. Registered out-of-process
+COM/SCM wake, listener readiness, installer/service rollback, physical Data
+quiescence, crash consistency, and paired C++ load remain open. The next
+independent slice is cloned installer/service/Data rollback acceptance.
