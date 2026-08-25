@@ -1722,6 +1722,8 @@ public sealed class BackupXmlPayloadRuntime
         var aliases = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
         var distributionLists = new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>();
         var recipients = new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>();
+        IReadOnlyList<BackupGroupEntry>? backupGroups = null;
+        IReadOnlyList<BackupPublicFolderEntry>? publicFolders = null;
 
         foreach (var domain in domains)
         {
@@ -1783,6 +1785,32 @@ public sealed class BackupXmlPayloadRuntime
             }
         }
 
+        if (includeSettings)
+        {
+            var groups = await snapshot.GroupStore
+                .GetGroupsAsync(cancellationToken)
+                .ConfigureAwait(false);
+            backupGroups = await BuildGroupsAsync(
+                groups,
+                cancellationToken,
+                snapshot.GroupMemberStore,
+                snapshot.AccountStore).ConfigureAwait(false);
+
+            var publicFolderSnapshots = await snapshot.FolderStore
+                .GetFoldersForAccountAsync(0, cancellationToken)
+                .ConfigureAwait(false);
+            if (publicFolderSnapshots.Count > 0)
+            {
+                publicFolders = await BuildPublicFoldersAsync(
+                    publicFolderSnapshots,
+                    groups,
+                    cancellationToken,
+                    snapshot.FolderStore,
+                    snapshot.MessageBackupStore,
+                    snapshot.AccountStore).ConfigureAwait(false);
+            }
+        }
+
         return new BackupArchiveXmlPayload(
             Settings: settings,
             Domains: domains,
@@ -1798,25 +1826,31 @@ public sealed class BackupXmlPayloadRuntime
             RuleCriterias: ruleCriterias,
             RuleActions: ruleActions,
             Folders: folders,
-            FolderMessages: folderMessages);
+            FolderMessages: folderMessages,
+            PublicFolders: publicFolders,
+            Groups: backupGroups);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(
         IReadOnlyList<GroupAdministrationSnapshot> groups,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IGroupMemberAdministrationStore? groupMemberStore = null,
+        IAccountAdministrationStore? accountStore = null)
     {
+        groupMemberStore ??= _groupMemberStore;
+        accountStore ??= _accountStore;
         var result = new List<BackupGroupEntry>(groups.Count);
         foreach (var group in groups)
         {
             var memberNames = new List<string>();
-            if (_groupMemberStore is not null)
+            if (groupMemberStore is not null)
             {
-                var members = await _groupMemberStore
+                var members = await groupMemberStore
                     .GetGroupMembersAsync(group.Id, cancellationToken)
                     .ConfigureAwait(false);
                 foreach (var member in members)
                 {
-                    var account = await _accountStore
+                    var account = await accountStore
                         .GetAccountByIdAsync(member.AccountId, cancellationToken)
                         .ConfigureAwait(false);
                     if (account is null)
@@ -1838,7 +1872,10 @@ public sealed class BackupXmlPayloadRuntime
     private async ValueTask<IReadOnlyList<BackupPublicFolderEntry>> BuildPublicFoldersAsync(
         IReadOnlyList<ImapFolderAdministrationSnapshot> folders,
         IReadOnlyList<GroupAdministrationSnapshot> groups,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IImapFolderAdministrationStore? folderStore = null,
+        IMessageAdministrationBackupStore? messageBackupStore = null,
+        IAccountAdministrationStore? accountStore = null)
     {
         SevenZipBackupArchiveRuntime.ValidateFolderSnapshot(folders);
         if (folders.Any(static folder => folder.AccountId != 0))
@@ -1862,7 +1899,10 @@ public sealed class BackupXmlPayloadRuntime
                 foldersByParentId,
                 groups,
                 accountCache,
-                cancellationToken).ConfigureAwait(false));
+                cancellationToken,
+                folderStore,
+                messageBackupStore,
+                accountStore).ConfigureAwait(false));
         }
 
         return result;
@@ -1873,12 +1913,18 @@ public sealed class BackupXmlPayloadRuntime
         IReadOnlyDictionary<int, ImapFolderAdministrationSnapshot[]> foldersByParentId,
         IReadOnlyList<GroupAdministrationSnapshot> groups,
         IDictionary<int, AccountAdministrationSnapshot?> accountCache,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IImapFolderAdministrationStore? folderStore = null,
+        IMessageAdministrationBackupStore? messageBackupStore = null,
+        IAccountAdministrationStore? accountStore = null)
     {
-        var messages = _messageStore is null
+        folderStore ??= _folderStore;
+        messageBackupStore ??= _messageBackupStore;
+        accountStore ??= _accountStore;
+        var messages = messageBackupStore is null
             ? Array.Empty<MessageAdministrationSnapshot>()
-            : await GetFolderMessagesForBackupAsync(0, folder.Id, cancellationToken).ConfigureAwait(false);
-        var permissions = await _folderStore!
+            : await messageBackupStore.GetFolderMessagesForBackupAsync(0, folder.Id, cancellationToken).ConfigureAwait(false);
+        var permissions = await folderStore!
             .GetFolderPermissionsAsync(folder.Id, cancellationToken)
             .ConfigureAwait(false);
         var publicPermissions = new List<BackupPublicFolderPermission>(permissions.Count);
@@ -1886,7 +1932,7 @@ public sealed class BackupXmlPayloadRuntime
         {
             var holder = permission.PermissionType switch
             {
-                0 => await ResolveAccountHolderAsync(permission.PermissionAccountId, accountCache, cancellationToken).ConfigureAwait(false),
+                0 => await ResolveAccountHolderAsync(permission.PermissionAccountId, accountCache, cancellationToken, accountStore).ConfigureAwait(false),
                 1 => groups.FirstOrDefault(group => group.Id == permission.PermissionGroupId)?.Name,
                 2 => "Anyone",
                 _ => null
@@ -1914,7 +1960,10 @@ public sealed class BackupXmlPayloadRuntime
                     foldersByParentId,
                     groups,
                     accountCache,
-                    cancellationToken).ConfigureAwait(false));
+                    cancellationToken,
+                    folderStore,
+                    messageBackupStore,
+                    accountStore).ConfigureAwait(false));
             }
         }
 
@@ -1937,11 +1986,13 @@ public sealed class BackupXmlPayloadRuntime
     private async ValueTask<string?> ResolveAccountHolderAsync(
         int accountId,
         IDictionary<int, AccountAdministrationSnapshot?> accountCache,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IAccountAdministrationStore? accountStore = null)
     {
+        accountStore ??= _accountStore;
         if (!accountCache.TryGetValue(accountId, out var account))
         {
-            account = await _accountStore.GetAccountByIdAsync(accountId, cancellationToken).ConfigureAwait(false);
+            account = await accountStore.GetAccountByIdAsync(accountId, cancellationToken).ConfigureAwait(false);
             accountCache[accountId] = account;
         }
 

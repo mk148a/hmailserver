@@ -22,6 +22,8 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(IDomainAdministrationStore),
                 typeof(ISettingsAdministrationStore),
                 typeof(IBackupSettingsPropertyStore),
+                typeof(IGroupAdministrationStore),
+                typeof(IGroupMemberAdministrationStore),
                 typeof(IAccountAdministrationStore),
                 typeof(IBackupAccountAdministrationStore),
                 typeof(IBackupFetchAccountAdministrationStore),
@@ -153,6 +155,8 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 new FixedDomainStore(new DomainAdministrationSnapshot(7, "snapshot.example", true));
             public ISettingsAdministrationStore SettingsStore { get; } = settingsStore;
             public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; } = backupSettingsPropertyStore;
+            public IGroupAdministrationStore GroupStore { get; } = new EmptyGroupStore();
+            public IGroupMemberAdministrationStore GroupMemberStore { get; } = new EmptyGroupMemberStore();
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
             public IBackupAccountAdministrationStore BackupAccountStore { get; } =
                 new FixedBackupAccountStore();
@@ -205,6 +209,23 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         public ValueTask<IReadOnlyList<BackupSettingsPropertySnapshot>>
             GetBackupSettingsPropertiesAsync(CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<BackupSettingsPropertySnapshot>>(new[] { property });
+    }
+
+    private sealed class EmptyGroupStore : IGroupAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupAdministrationSnapshot>> GetGroupsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupAdministrationSnapshot>>(
+                Array.Empty<GroupAdministrationSnapshot>());
+    }
+
+    private sealed class EmptyGroupMemberStore : IGroupMemberAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<GroupMemberAdministrationSnapshot>> GetGroupMembersAsync(
+            int groupId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<GroupMemberAdministrationSnapshot>>(
+                Array.Empty<GroupMemberAdministrationSnapshot>());
     }
 
     private sealed class ThrowingDomainStore : IDomainAdministrationStore

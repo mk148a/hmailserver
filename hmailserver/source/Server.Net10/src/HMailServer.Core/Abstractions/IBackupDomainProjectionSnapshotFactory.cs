@@ -12,6 +12,10 @@ public interface IBackupDomainProjectionSnapshot : IAsyncDisposable
 
     IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; }
 
+    IGroupAdministrationStore GroupStore { get; }
+
+    IGroupMemberAdministrationStore GroupMemberStore { get; }
+
     IDomainAdministrationStore DomainStore { get; }
 
     IAccountAdministrationStore AccountStore { get; }
