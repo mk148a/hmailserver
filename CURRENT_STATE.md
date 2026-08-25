@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-25T13:10:00Z` / `2026-08-25T16:10:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `4a78faccf1cf91773a4053a46ce247798e43d38a`
+- Current HEAD: `335cd4836bb2fc7b7d2f38af8d02e3f1df32f1ab`
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: offline 100k SEARCH/SORT benchmark passed (`p50 13.78 ms`, `p95 25.328 ms`, `p99 27.317 ms`, `correct=True`); disposable Full-Text SQL/Data acceptance `32 passed, 0 skipped, 0 failed`; offline SEC-18 boundary tests `47 passed, 1 skipped`; installer/registration/rollback guard tests `10 passed, 1 skipped`
 - Latest full Net10 result: default Debug `2697 passed, 94 skipped, 0 failed` (`2791` total)
