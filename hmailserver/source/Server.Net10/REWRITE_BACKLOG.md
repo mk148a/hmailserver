@@ -8884,3 +8884,22 @@ rechecks, failure retention, direct activation denial, and installed COM
 identity. Do not restart these stale read-only items; remaining risk is live
 SQL/SMTP policy acceptance, not missing COM mutation plumbing. Release remains
 **RED**.
+
+## Current authoritative status (2026-08-25, FetchAccount password stale-item closure)
+
+The older backlog claim that `FetchAccount.Password` remains `E_NOTIMPL` is
+stale. Legacy `InterfaceFetchAccount::get/put_Password`
+(`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp:239-266`) reads and
+stages the attached object value; `PersistentFetchAccount` decrypts and
+encrypts `fapassword` with the legacy Blowfish cipher
+(`hmailserver/source/Server/Common/Persistence/PersistentFetchAccount.cpp:100,165`).
+The current .NET path implements the same boundary through
+`FetchAccount.ReadPassword`, `SqlServerFetchAccountAdministrationStore`, and
+the configured owner-scoped password callbacks. Focused
+`FetchAccountsComContractTests` pass `37/37`, including lazy read,
+cross-owner denial, retained-object reauthentication, lease lifetime,
+failure cleanup, and password update staging.
+
+This closure does not claim that plaintext credential exposure is acceptable:
+live secret-free WSH/COM/log/session evidence and external-fetch acceptance
+remain release blockers. Do not restart the stale E_NOTIMPL item.

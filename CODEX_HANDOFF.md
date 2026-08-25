@@ -8778,3 +8778,16 @@ by `Program.cs`. Legacy references are the matching `Interface*` and
 `hmailserver/source/Server/Common/Persistence`. Focused tests cover the
 mutation/failure/authorization matrix. Do not restart those stale entries;
 live SQL and SMTP policy acceptance remain separate release gates.
+
+## Current authoritative status (2026-08-25, FetchAccount password stale-item closure)
+
+The previous `FetchAccount.Password` `E_NOTIMPL` claim is stale. Legacy
+`InterfaceFetchAccount::get/put_Password`
+(`hmailserver/source/Server/COM/InterfaceFetchAccount.cpp:239-266`) exposes
+the attached value, and `PersistentFetchAccount` uses the legacy Blowfish
+decrypt/encrypt calls for `fapassword`. Net10 now reads and updates it through
+the owner-scoped SQL administration store and retained-object authorization
+lease. `FetchAccountsComContractTests` passes `37/37` with lazy reads,
+cross-owner denial, reauthentication, failure cleanup, and update staging.
+This is not a plaintext-credential release approval; live secret-free
+WSH/COM/log/session evidence remains required.
