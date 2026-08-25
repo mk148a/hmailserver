@@ -8969,3 +8969,18 @@ the authentication boundary, failure mapping, and authorization lease.
 Runtime-less direct construction remains intentionally unavailable. Registered
 out-of-process COM/SCM wake, listener readiness, service restart, and rollback
 acceptance remain release gates and are not implied by this closure.
+
+## Current authoritative status (2026-08-25, Groups mutation stale-item closure)
+
+Older entries that describe authenticated `Settings -> Groups` Add, Save, or
+Delete as `E_NOTIMPL` are stale. Legacy `InterfaceGroups::Add/DeleteByDBID`
+and `InterfaceGroup::Save/Delete` delegate to `PersistentGroup` at
+`hmailserver/source/Server/COM/InterfaceGroups.cpp:87-164` and
+`hmailserver/source/Server/COM/InterfaceGroup.cpp:39-153`; group deletion also
+cleans owned ACL rows. Net10 `Groups` and `Group` already use the configured
+`IGroupAdministrationStore`, publish only successful owner snapshots, hold
+the authorization lease, and preserve direct activation denial. The SQL store
+uses the matching group/ACL transaction boundary. `GroupsComContractTests`
+cover new/existing Save, failure retention, Delete/DeleteByDBID, stale IDs,
+and reauthentication. Do not restart the stale Groups mutation item; live SQL,
+ACL, and service acceptance remain separate release gates.

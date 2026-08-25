@@ -8789,6 +8789,17 @@ authorization lease. Focused lifecycle/application tests cover delegation and
 rollback behavior. This does not prove registered out-of-process COM/SCM,
 listener readiness, restart, or installer rollback; those remain release gates.
 
+## Current authoritative status (2026-08-25, Groups mutation stale-item closure)
+
+The previous read-only/E_NOTIMPL claim for `Settings -> Groups` mutation is
+stale. Net10 already implements authenticated Add/new-item Save, existing-row
+Save, Delete/DeleteByDBID, owner-snapshot publication, lease reauthentication,
+and SQL group/owned-ACL cleanup. Legacy anchors are
+`InterfaceGroups.cpp:87-164` and `InterfaceGroup.cpp:39-153`.
+`GroupsComContractTests` covers success, failure retention, stale IDs, and
+reauthentication. Live SQL/ACL/service acceptance remains a separate release
+gate.
+
 ## Current authoritative status (2026-08-25, FetchAccount password stale-item closure)
 
 The previous `FetchAccount.Password` `E_NOTIMPL` claim is stale. Legacy
