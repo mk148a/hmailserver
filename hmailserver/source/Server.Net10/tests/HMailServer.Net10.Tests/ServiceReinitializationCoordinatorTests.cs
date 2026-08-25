@@ -1,4 +1,5 @@
 using HMailServer.Service;
+using HMailServer.Delivery;
 
 namespace HMailServer.Net10.Tests;
 
@@ -157,6 +158,36 @@ public sealed class ServiceReinitializationCoordinatorTests
         CollectionAssert.AreEqual(
             new[] { "stop-listeners", "stop-bootstrap", "start-bootstrap", "stop-bootstrap" },
             calls);
+    }
+
+    [TestMethod]
+    public async Task ReinitializeAsync_WaitsForWriterAdmissionBeforeStoppingParticipants()
+    {
+        using var writerGate = new DeliveryQueuePauseDrainGate();
+        using var heldWriter = await writerGate.EnterWorkerAsync(CancellationToken.None);
+        var coordinator = new ServiceReinitializationCoordinator(new ServerReadinessSignal(), writerGate);
+        var events = new List<string>();
+        coordinator.Register(
+            "writer",
+            _ =>
+            {
+                events.Add("stop");
+                return ValueTask.CompletedTask;
+            },
+            _ =>
+            {
+                events.Add("start");
+                return ValueTask.CompletedTask;
+            });
+
+        var reinitialize = coordinator.ReinitializeAsync(CancellationToken.None).AsTask();
+        await Task.Delay(50);
+        CollectionAssert.DoesNotContain(events, "stop");
+
+        heldWriter.Dispose();
+        await reinitialize;
+
+        CollectionAssert.AreEqual(new[] { "stop", "start" }, events);
     }
 
     [TestMethod]

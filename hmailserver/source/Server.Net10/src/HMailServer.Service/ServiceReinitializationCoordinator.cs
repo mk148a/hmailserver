@@ -1,11 +1,14 @@
 namespace HMailServer.Service;
 
+using HMailServer.Delivery;
+
 public sealed class ServiceReinitializationCoordinator
 {
     private readonly ServerReadinessSignal? _serverReadinessSignal;
     private readonly object _gate = new();
     private readonly List<Participant> _participants = [];
     private readonly SemaphoreSlim _reinitializeGate = new(1, 1);
+    private readonly DeliveryQueuePauseDrainGate? _writerAdmissionGate;
     private bool _started;
 
     internal ServiceReinitializationCoordinator()
@@ -13,8 +16,16 @@ public sealed class ServiceReinitializationCoordinator
     }
 
     internal ServiceReinitializationCoordinator(ServerReadinessSignal serverReadinessSignal)
+        : this(serverReadinessSignal, writerAdmissionGate: null)
+    {
+    }
+
+    internal ServiceReinitializationCoordinator(
+        ServerReadinessSignal serverReadinessSignal,
+        DeliveryQueuePauseDrainGate? writerAdmissionGate)
     {
         _serverReadinessSignal = serverReadinessSignal ?? throw new ArgumentNullException(nameof(serverReadinessSignal));
+        _writerAdmissionGate = writerAdmissionGate;
     }
 
     internal void Register(
@@ -52,6 +63,7 @@ public sealed class ServiceReinitializationCoordinator
         ServerReadinessGeneration? generation = null;
         try
         {
+            using var writerAdmission = await EnterWriterAdmissionAsync(cancellationToken).ConfigureAwait(false);
             lock (_gate)
             {
                 if (_participants.Count == 0)
@@ -115,6 +127,7 @@ public sealed class ServiceReinitializationCoordinator
         await _reinitializeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            using var writerAdmission = await EnterWriterAdmissionAsync(cancellationToken).ConfigureAwait(false);
             var participants = GetParticipants();
             var started = new List<Participant>(participants.Length);
             try
@@ -142,6 +155,7 @@ public sealed class ServiceReinitializationCoordinator
         await _reinitializeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            using var writerAdmission = await EnterWriterAdmissionAsync(cancellationToken).ConfigureAwait(false);
             var participants = GetParticipants();
             var stopped = new List<Participant>(participants.Length);
             try
@@ -163,6 +177,11 @@ public sealed class ServiceReinitializationCoordinator
             _reinitializeGate.Release();
         }
     }
+
+    private ValueTask<IDisposable> EnterWriterAdmissionAsync(CancellationToken cancellationToken) =>
+        _writerAdmissionGate is null
+            ? ValueTask.FromResult<IDisposable>(NoopLease.Instance)
+            : _writerAdmissionGate.PauseAndDrainAsync(cancellationToken);
 
     private Participant[] GetParticipants()
     {
@@ -236,4 +255,13 @@ public sealed class ServiceReinitializationCoordinator
         string Name,
         Func<CancellationToken, ValueTask> StopAsync,
         Func<CancellationToken, ValueTask> StartAsync);
+
+    private sealed class NoopLease : IDisposable
+    {
+        internal static readonly NoopLease Instance = new();
+
+        public void Dispose()
+        {
+        }
+    }
 }

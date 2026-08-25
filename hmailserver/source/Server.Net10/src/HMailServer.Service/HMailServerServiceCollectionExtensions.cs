@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using HMailServer.Protocols.Imap;
 using HMailServer.Protocols.Pop3;
 using HMailServer.Protocols.Smtp;
+using HMailServer.Delivery;
 
 namespace HMailServer.Service;
 
@@ -17,7 +18,8 @@ public static class HMailServerServiceCollectionExtensions
         services.AddSingleton<ServerReadinessSignal>();
         services.AddSingleton<ServiceReinitializationCoordinator>(provider =>
             new ServiceReinitializationCoordinator(
-                provider.GetRequiredService<ServerReadinessSignal>()));
+                provider.GetRequiredService<ServerReadinessSignal>(),
+                provider.GetRequiredService<DeliveryQueuePauseDrainGate>()));
         services.AddSingleton<DatabaseVersionStartupGuard>();
         services.AddHostedService<ServerBootstrapper>();
         services.AddHostedService<BackupTaskHostedService>();
