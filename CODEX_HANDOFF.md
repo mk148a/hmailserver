@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, INSTALLER ROLLBACK GUARD)
+
+Code/test commit `57ed0f421` closes an installer failure-path gap in
+`build/install-net10-service.ps1`: an existing service is now snapshotted
+before any COM/service mutation, and a failed mutation invokes
+`Invoke-Net10ServiceRollback` even when the existing service already points to
+the .NET executable. New-service cleanup remains separate. The static guard
+`build/test-net10-rollback-archive-preflight.ps1` passes.
+
+Full Debug Net10 passes `2709`, skips `95`, and fails `0` (`2804` total).
+This does not prove a machine-level service/COM/SQL/Data rollback drill;
+production service, COM registration, DCOM ACL, SQL, and Data state were not
+touched. Release remains **RED** pending cloned legacy rollback acceptance,
+atomic backup snapshot/quiescence, SEC-18, paired C++/.NET load, and soak.
+
+Next slice: complete the installer/service/Data rollback acceptance on cloned
+legacy state when the isolated environment is available; otherwise continue
+the atomic backup snapshot/quiescence review without production changes.
+
 ## Current Authoritative Continuation (2026-08-25, RESTORE ANCESTOR CONTAINMENT)
 
 Code/test commit `c7a48e687` closes the destination-ancestor reparse/TOCTOU

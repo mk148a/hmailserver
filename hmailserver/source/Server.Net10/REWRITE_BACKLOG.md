@@ -8151,3 +8151,18 @@ quiescence and crash/power-loss recovery remain open, as do registered COM/
 SEC-18, installer rollback, paired performance, protocol thresholds, and
 24-hour soak. Next slice: atomic snapshot/quiescence review without production
 state changes.
+## Current authoritative status (2026-08-25, installer rollback guard)
+
+Code/test commit `57ed0f421` fixes the bounded installer failure path. When an
+existing `hMailServer` service is present, `build/install-net10-service.ps1`
+now snapshots it before COM/service mutation and restores the service and
+legacy COM registration on failure, including the same-executable path. The
+static `build/test-net10-rollback-archive-preflight.ps1` passes. Full Debug
+Net10 is `2709 passed, 95 skipped, 0 failed` (`2804` total).
+
+This is not machine-level rollback evidence. A cloned legacy service,
+registration, SQL, and Data-directory drill remains required and no production
+state was changed. Release remains **RED** for that drill, atomic backup
+snapshot/quiescence, SEC-18, paired C++/.NET performance, protocol thresholds,
+and 24-hour soak. Next slice: cloned-state rollback acceptance when available;
+otherwise continue the atomic snapshot/quiescence review.

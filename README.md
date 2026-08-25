@@ -1,6 +1,16 @@
 hMailServer
 ===========
 
+## Current release gate (2026-08-25, installer rollback guard)
+
+The installer now snapshots every existing `hMailServer` service before COM or
+service mutation and invokes compensating service plus legacy-COM rollback on
+failure, including the same-executable existing-service path. The guard is
+covered by `build/test-net10-rollback-archive-preflight.ps1`; the full Debug
+Net10 suite passes `2709`, skips `95`, and fails `0` (`2804` total). This is a
+rollback guard, not a completed machine-level installer drill. Cloned legacy
+SQL/Data acceptance and service/registration rollback remain required.
+
 ## Current parity gate (2026-08-25, restore ancestor containment)
 
 Restore directory moves now open the source and destination-parent paths
