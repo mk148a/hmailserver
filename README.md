@@ -3,22 +3,22 @@ hMailServer
 
 ## Current authoritative status (2026-08-25, read-only SQL backup snapshot scope)
 
-Code/test commit `e28c767f6` adds the bounded
-`IBackupDomainProjectionSnapshotFactory` contract and SQL Server implementation.
-It opens one explicit `IsolationLevel.Snapshot` transaction and exposes only
+Code/test commits `e28c767f6` and `503d4b724` add the bounded
+`IBackupDomainProjectionSnapshotFactory` contract, SQL Server implementation,
+and a production `BackupXmlPayloadRuntime` path for domain-only backups. That
+path opens one explicit `IsolationLevel.Snapshot` transaction and exposes only
 read-only domain projection stores; disposal rolls the transaction back and
 closes the connection. Legacy backup anchors are
 `BackupExecuter::StartBackup` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57`),
 `BackupTask::DoWork` (`.../BackupTask.cpp:27`), and
 `Configuration::XMLStore` (`.../Configuration.cpp:687`). Focused contract tests
-pass `2/2`; full Debug Net10 passes `2728`, skips `96`, and fails `0` (`2824`
+pass `3/3`; full Debug Net10 passes `2729`, skips `96`, and fails `0` (`2825`
 total).
 
-This is infrastructure only: `BackupXmlPayloadRuntime` is not yet switched to
-the snapshot factory, so backup creation still reads independent stores and no
-SQL/Data atomicity or crash-consistency claim is valid. Settings, fetch-account
+Only the domains-only projection path uses this scope. Settings, fetch-account
 secrets, rules, folders, messages, physical Data quiescence, and writer
-coordination remain open. Release remains **RED**.
+coordination remain independent/open; no full SQL/Data atomicity or
+crash-consistency claim is valid. Release remains **RED**.
 
 ## Current authoritative status (2026-08-25, SURBL mutation leases)
 

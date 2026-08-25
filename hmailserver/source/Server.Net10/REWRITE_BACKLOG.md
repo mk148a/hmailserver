@@ -8549,18 +8549,19 @@ supported projection and fail closed for unsupported projections; it must not
 claim Data-directory quiescence or crash consistency.
 ## Current authoritative status (2026-08-25, read-only SQL backup snapshot scope)
 
-Code/test commit `e28c767f6` adds `IBackupDomainProjectionSnapshotFactory`
-and `SqlServerBackupDomainProjectionSnapshotFactory`. The scope opens one
+Code/test commits `e28c767f6` and `503d4b724` add
+`IBackupDomainProjectionSnapshotFactory`,
+`SqlServerBackupDomainProjectionSnapshotFactory`, and the domain-only
+`BackupXmlPayloadRuntime` integration. The scope opens one
 `IsolationLevel.Snapshot` transaction, exposes only read-only domain projection
 stores, and rolls back on disposal. Legacy references are
 `BackupExecuter::StartBackup` at `hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57`,
 `BackupTask::DoWork` at `.../BackupTask.cpp:27`, and
 `Configuration::XMLStore` at `.../Configuration.cpp:687`.
 
-Focused contract tests pass `2/2`; full standard Debug passes `2728/96/0`.
-This infrastructure is not yet wired into `BackupXmlPayloadRuntime`, so the
-production writer still uses independent projection stores. No atomic SQL/Data
-or crash-consistency claim is valid. Next slice: wire the supported domain
-metadata projection into `BackupXmlPayloadRuntime` and fail closed for every
-unsupported projection; physical Data quiescence and cross-writer coordination
-remain separate blockers.
+Focused contract tests pass `3/3`; full standard Debug passes `2729/96/0`.
+Only the domains-only path is transaction-scoped. Settings, messages, rules,
+fetch accounts, folders, physical Data quiescence, and cross-writer coordination
+remain separate blockers; no full atomic SQL/Data or crash-consistency claim is
+valid. Next slice: extend only complete read-only projection contexts or proceed
+to cloned installer/service/Data rollback acceptance.
