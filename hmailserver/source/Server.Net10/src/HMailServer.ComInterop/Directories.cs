@@ -43,6 +43,7 @@ public sealed class Directories : IInterfaceDirectories
 
     private DirectoryAdministrationSnapshot? _snapshot;
     private readonly Func<string, bool>? _updateLogDirectory;
+    private readonly Func<string, bool>? _updateTempDirectory;
 
     public Directories()
     {
@@ -50,10 +51,12 @@ public sealed class Directories : IInterfaceDirectories
 
     private Directories(
         DirectoryAdministrationSnapshot snapshot,
-        Func<string, bool>? updateLogDirectory)
+        Func<string, bool>? updateLogDirectory,
+        Func<string, bool>? updateTempDirectory)
     {
         _snapshot = snapshot;
         _updateLogDirectory = updateLogDirectory;
+        _updateTempDirectory = updateTempDirectory;
     }
 
     public string ProgramDirectory { get => Snapshot.ProgramDirectory; set => Unavailable(); }
@@ -86,7 +89,29 @@ public sealed class Directories : IInterfaceDirectories
         }
     }
 
-    public string TempDirectory { get => Snapshot.TempDirectory; set => Unavailable(); }
+    public string TempDirectory
+    {
+        get => Snapshot.TempDirectory;
+        set
+        {
+            _ = Snapshot;
+            var updateTempDirectory = _updateTempDirectory;
+            if (updateTempDirectory is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            if (!updateTempDirectory(value))
+            {
+                throw new COMException(
+                    "The temp directory update could not be persisted.",
+                    unchecked((int)0x80004005));
+            }
+
+            _snapshot = Snapshot with { TempDirectory = value };
+        }
+    }
 
     public string EventDirectory { get => Snapshot.EventDirectory; set => Unavailable(); }
 
@@ -94,10 +119,11 @@ public sealed class Directories : IInterfaceDirectories
 
     internal static Directories CreateAuthorized(
         DirectoryAdministrationSnapshot snapshot,
-        Func<string, bool>? updateLogDirectory = null)
+        Func<string, bool>? updateLogDirectory = null,
+        Func<string, bool>? updateTempDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Directories(snapshot, updateLogDirectory);
+        return new Directories(snapshot, updateLogDirectory, updateTempDirectory);
     }
 
     private DirectoryAdministrationSnapshot Snapshot =>
@@ -144,6 +170,10 @@ public static class DirectoryAdministrationRuntimeHost
             snapshot,
             value => store
                 .UpdateLogDirectoryAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult(),
+            value => store
+                .UpdateTempDirectoryAsync(value, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult());
     }

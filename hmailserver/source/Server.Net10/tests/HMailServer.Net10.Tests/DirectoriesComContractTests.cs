@@ -155,6 +155,30 @@ public sealed class DirectoriesComContractTests
         }
     }
 
+    [TestMethod]
+    public void AuthorizedRuntime_TempDirectorySetterPersistsAndRefreshesRetainedObject()
+    {
+        var iniPath = Path.Combine(Path.GetTempPath(), $"hmailserver-{Guid.NewGuid():N}.ini");
+        try
+        {
+            File.WriteAllText(iniPath, "[Directories]\r\nTempFolder=C:\\hMailServer\\Temp\r\nProgramFolder=C:\\hMailServer\\\r\n");
+            DirectoryAdministrationRuntimeHost.Configure(new LegacyDirectoryAdministrationStore(iniPath));
+            var directories = Settings.CreateAuthorized().Directories;
+
+            directories.TempDirectory = @"D:\Temp";
+
+            Assert.AreEqual(@"D:\Temp", directories.TempDirectory);
+            StringAssert.Contains(File.ReadAllText(iniPath), "TempFolder=D:\\Temp");
+        }
+        finally
+        {
+            if (File.Exists(iniPath))
+            {
+                File.Delete(iniPath);
+            }
+        }
+    }
+
     private static void AssertMutationPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
