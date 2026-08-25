@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, BACKUP COMPLETION DISPATCH EVIDENCE)
+
+Code/test commit `7c5fc783d` extends the real backup round-trip acceptance
+test so its event dispatcher probes the final archive from inside
+`OnBackupCompleted`. The probe is true at callback dispatch. Focused backup
+cleanup/round-trip coverage is `26/26`; the full opt-in Debug suite is
+`2792 passed, 16 skipped, 0 failed`.
+
+Legacy anchors remain `BackupExecuter::StartBackup`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-193`)
+and `BackupManager::OnBackupCompleted`/`OnBackupFailed`
+(`BackupManager.cpp:160-193`). This proves callback ordering and published
+archive presence, not atomic SQL/Data quiescence, power-loss durability, or
+crash-consistent restore. Release remains **RED**. Next independent slice is
+complete writer-participating backup quiescence; if the required writer hooks
+are unavailable, proceed to cloned installer/service/Data rollback acceptance.
+The parallel Settings scalar audit found no additional qualifying lease gap;
+only the already documented INI-writer cases remain outside this result.
+
 ## Current Authoritative Continuation (2026-08-25, BACKUP EVENT ORDERING RECHECK)
 
 Legacy `BackupExecuter::StartBackup` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-193`)

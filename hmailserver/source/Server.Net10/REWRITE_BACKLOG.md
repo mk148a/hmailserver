@@ -17,6 +17,9 @@ Data-directory quiescence, crash consistency, or power-loss durability. Release
 remains **RED**. The next independent slice is complete backup quiescence only
 when all SMTP/IMAP/POP3/message writers participate; otherwise proceed to
 cloned installer/service/Data rollback acceptance.
+The Settings scalar audit found no additional qualifying missing lease guard;
+only the already documented `UserInterfaceLanguage` and
+`RewriteEnvelopeFromWhenForwarding` INI-writer cases remain.
 
 ## Current authoritative status (2026-08-25, environment recheck)
 
@@ -8401,3 +8404,16 @@ The post-oracle 100k CLI passed at p50/p95/p99 `9.253/12.450/13.239 ms` and
 approximately `923,109 messages/s` on commit `df2ce7d4d`. This remains
 Net10-only diagnostic evidence; paired C++ and live service/soak gates remain
 RED.
+## Current authoritative status (2026-08-25, backup completion dispatch evidence)
+
+Code/test commit `7c5fc783d` extends the real backup round-trip acceptance test
+so the `OnBackupCompleted` dispatcher probes the final archive from inside the
+callback. The probe is true at dispatch; focused backup cleanup/round-trip
+coverage is `26/26`, and full opt-in Debug is `2792/16/0`.
+
+This confirms legacy-anchored event ordering and archive publication only. It
+does not prove one atomic SQL/Data snapshot, writer quiescence, power-loss
+durability, or crash-consistent restore. Release remains **RED**. Next
+independent slice: complete backup quiescence only when all protocol/message
+writers participate; otherwise proceed to cloned installer/service/Data
+rollback acceptance.
