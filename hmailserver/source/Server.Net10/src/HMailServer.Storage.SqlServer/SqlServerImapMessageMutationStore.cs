@@ -67,15 +67,26 @@ WHERE
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
     private readonly Action<int>? _accountSizeInvalidationCallback;
+    private readonly Func<CancellationToken, ValueTask<IDisposable>>? _enterWriter;
 
     public SqlServerImapMessageMutationStore(
         SqlServerConnectionFactory connectionFactory,
         MessageFilePathResolver pathResolver,
         Action<int>? accountSizeInvalidationCallback = null)
+        : this(connectionFactory, pathResolver, accountSizeInvalidationCallback, enterWriter: null)
+    {
+    }
+
+    public SqlServerImapMessageMutationStore(
+        SqlServerConnectionFactory connectionFactory,
+        MessageFilePathResolver pathResolver,
+        Action<int>? accountSizeInvalidationCallback,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
         _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
+        _enterWriter = enterWriter;
     }
 
     public async IAsyncEnumerable<ImapStoredMessage> StoreFlagsAsync(
@@ -161,6 +172,10 @@ ORDER BY messageuid ASC;
     {
         ArgumentNullException.ThrowIfNull(request);
 
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
+
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         var rows = await LoadRowsAsync(connection, PlanStore(request), cancellationToken).ConfigureAwait(false);
         if (rows.Count == 0)
@@ -203,6 +218,10 @@ ORDER BY messageuid ASC;
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(accountId);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(folderId);
+
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
 
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         var rows = await LoadDeletedRowsAsync(connection, accountId, folderId, cancellationToken).ConfigureAwait(false);

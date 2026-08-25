@@ -128,6 +128,51 @@ public sealed class SqlServerImapMessageMutationStoreTests
         CollectionAssert.AreEqual(Array.Empty<int>(), invalidatedAccountIds);
     }
 
+    [TestMethod]
+    public async Task ExpungeAsync_HoldsWriterAdmissionAndReleasesItOnCancellation()
+    {
+        var admission = new RecordingWriterAdmission();
+        var store = new SqlServerImapMessageMutationStore(
+            new SqlServerConnectionFactory("Server=invalid;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            accountSizeInvalidationCallback: null,
+            enterWriter: admission.EnterAsync);
+        using var cancellationTokenSource = new CancellationTokenSource();
+        cancellationTokenSource.Cancel();
+
+        var enumerator = store.ExpungeDeletedAsync(11, 12, cancellationTokenSource.Token).GetAsyncEnumerator();
+        try
+        {
+            await Assert.ThrowsAsync<OperationCanceledException>(() => enumerator.MoveNextAsync().AsTask());
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
+        }
+
+        Assert.IsTrue(admission.WasEntered);
+        Assert.IsTrue(admission.WasReleased);
+        Assert.IsFalse(admission.IsHeld);
+    }
+
+    private sealed class RecordingWriterAdmission
+    {
+        public bool WasEntered { get; private set; }
+        public bool WasReleased { get; private set; }
+        public bool IsHeld => WasEntered && !WasReleased;
+
+        public ValueTask<IDisposable> EnterAsync(CancellationToken cancellationToken)
+        {
+            WasEntered = true;
+            return ValueTask.FromResult<IDisposable>(new Lease(this));
+        }
+
+        private sealed class Lease(RecordingWriterAdmission owner) : IDisposable
+        {
+            public void Dispose() => owner.WasReleased = true;
+        }
+    }
+
     private static string ReadStoreSource()
     {
         var sourcePath = Path.Combine(

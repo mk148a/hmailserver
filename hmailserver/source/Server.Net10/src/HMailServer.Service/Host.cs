@@ -762,7 +762,11 @@ public static class Host
         new SqlServerImapMessageMutationStore(
             serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
             serviceProvider.GetRequiredService<MessageFilePathResolver>(),
-            AccountAdministrationRuntimeHost.InvalidateAccountSize));
+            AccountAdministrationRuntimeHost.InvalidateAccountSize,
+            new Func<CancellationToken, ValueTask<IDisposable>>(
+                serviceProvider
+                    .GetRequiredService<DeliveryQueuePauseDrainGate>()
+                    .EnterWorkerAsync)));
     builder.Services.AddSingleton<IImapMessageCopyStore>(static serviceProvider =>
         new SqlServerImapMessageCopyStore(
             serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),
