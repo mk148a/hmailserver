@@ -37,6 +37,12 @@ Parity correction: legacy `hMailServer.idl:628` defines DISPID 76 as
 DISPID 76. Treat Application `ServerState` lifecycle wiring and registered
 COM/SCM evidence as separate open slices.
 
+Code/test commit `ff14fac73` implements authenticated `Application.Start()`
+and `Stop()` delegation through ordered service lifecycle participants. Focused
+coverage is `33 passed`; full Debug Net10 is `2700 passed, 94 skipped, 0
+failed`. Next code slice: wire `Application.ServerState` to bootstrap,
+readiness, and shutdown transitions without changing COM identity.
+
 ## Historical Authoritative Continuation (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap. Legacy

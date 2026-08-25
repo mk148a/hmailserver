@@ -26,6 +26,11 @@ Contract note: legacy DISPID 76 is `IInterfaceSettings::SetAdministratorPassword
 not an Application member. The Application lifecycle gap is `ServerState`
 transition wiring plus registered/out-of-process COM and SCM evidence.
 
+Authenticated `Application.Start()`/`Stop()` delegation is now implemented and
+tested; the next code slice is wiring `ServerState` transitions to bootstrap,
+readiness, and shutdown. Registered COM/SCM and SEC-18 evidence remain
+environment-gated.
+
 ## Historical parity gate (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.
