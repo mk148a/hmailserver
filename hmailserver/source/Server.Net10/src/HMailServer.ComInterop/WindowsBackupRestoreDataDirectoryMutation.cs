@@ -50,14 +50,14 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
             throw new ArgumentException("The restore directory move paths are invalid.");
         }
 
-        using var sourceHandle = OpenDirectory(
+        using var sourceHandle = WindowsHandleRelativeDirectoryCopier.OpenExistingDirectoryPath(
             fullSourcePath,
-            Delete,
-            "The restore source directory could not be opened for a bounded move.");
-        using var destinationParentHandle = OpenDirectory(
+            "The restore source directory could not be opened for a bounded move.",
+            Delete | FileReadAttributes | Synchronize);
+        using var destinationParentHandle = WindowsHandleRelativeDirectoryCopier.OpenExistingDirectoryPath(
             destinationParentPath,
-            FileAddSubdirectory,
-            "The restore destination parent directory could not be opened for a bounded move.");
+            "The restore destination parent directory could not be opened for a bounded move.",
+            FileAddSubdirectory | FileReadAttributes | Synchronize);
         var fileName = System.Text.Encoding.Unicode.GetBytes(destinationName);
         var fileNameLength = fileName.Length;
         const int rootDirectoryOffset = 8;
@@ -93,31 +93,6 @@ internal sealed class WindowsBackupRestoreDataDirectoryMutation : IBackupRestore
             Marshal.FreeHGlobal(information);
         }
     }
-
-    private static SafeFileHandle OpenDirectory(
-        string path,
-        uint desiredAccess,
-        string failureMessage)
-    {
-        var handle = CreateFileW(
-            path,
-            desiredAccess | FileReadAttributes | Synchronize,
-            FileShareRead | FileShareWrite | FileShareDelete,
-            IntPtr.Zero,
-            OpenExisting,
-            FileFlagBackupSemantics,
-            IntPtr.Zero);
-        if (handle.IsInvalid)
-        {
-            handle.Dispose();
-            throw CreateWindowsIoException(failureMessage);
-        }
-
-        return handle;
-    }
-
-    private static IOException CreateWindowsIoException(string message) =>
-        new(message, new Win32Exception(Marshal.GetLastWin32Error()));
 
     private static IOException CreateNtStatusIoException(string message, int status) =>
         new(message, new Win32Exception(unchecked((int)RtlNtStatusToDosError(status))));

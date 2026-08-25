@@ -70,6 +70,61 @@ internal static class WindowsHandleRelativeDirectoryCopier
         using var directory = OpenOrCreateDirectoryPath(Path.GetFullPath(path), "destination");
     }
 
+    internal static SafeFileHandle OpenExistingDirectoryPath(
+        string path,
+        string description,
+        uint finalDesiredAccess)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException(
+                "The handle-relative directory opener is supported only on Windows.");
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        var fullPath = Path.GetFullPath(path);
+        var rootPath = Path.GetPathRoot(fullPath);
+        if (rootPath is null)
+        {
+            throw new IOException($"The {description} directory path has no root.");
+        }
+
+        var components = fullPath[rootPath.Length..]
+            .Split(
+                new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
+                StringSplitOptions.RemoveEmptyEntries);
+        if (components.Length == 0)
+        {
+            return OpenDirectoryPath(rootPath, $"{description} root", finalDesiredAccess);
+        }
+
+        var current = OpenDirectoryPath(rootPath, $"{description} root");
+        try
+        {
+            for (var index = 0; index < components.Length; index++)
+            {
+                var next = OpenExistingDirectory(
+                    current,
+                    components[index],
+                    index == components.Length - 1
+                        ? finalDesiredAccess
+                        : DirectoryTraversalAccess,
+                    description);
+                current.Dispose();
+                current = next;
+            }
+
+            var result = current;
+            current = null!;
+            return result;
+        }
+        finally
+        {
+            current?.Dispose();
+        }
+    }
+
     internal static string ComputeSha256(string path)
     {
         if (!OperatingSystem.IsWindows())

@@ -494,6 +494,49 @@ public sealed class BackupRestoreDataDirectoryRuntimeTests
     }
 
     [TestMethod]
+    public void WindowsFilesystemMutation_RejectsDestinationAncestorReparsePoint()
+    {
+        using var fixture = new DataDirectoryFixture();
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.ThrowsExactly<PlatformNotSupportedException>(
+                () => new WindowsBackupRestoreDataDirectoryMutation()
+                    .MoveDirectory(fixture.TargetPath, Path.Combine(fixture.RootPath, "destination")));
+            return;
+        }
+
+        var outside = Path.Combine(fixture.RootPath, "outside");
+        var ancestor = Path.Combine(fixture.RootPath, "destination-ancestor");
+        var destination = Path.Combine(ancestor, "destination");
+        Directory.CreateDirectory(outside);
+        try
+        {
+            Directory.CreateSymbolicLink(ancestor, outside);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            Assert.Inconclusive("The test host does not allow creating a disposable directory reparse point: " + exception.Message);
+            return;
+        }
+
+        try
+        {
+            Assert.ThrowsExactly<IOException>(
+                () => new WindowsBackupRestoreDataDirectoryMutation()
+                    .MoveDirectory(fixture.TargetPath, destination));
+            Assert.IsTrue(Directory.Exists(fixture.TargetPath));
+            Assert.IsFalse(Directory.Exists(Path.Combine(outside, "destination")));
+        }
+        finally
+        {
+            if (Directory.Exists(ancestor))
+            {
+                Directory.Delete(ancestor);
+            }
+        }
+    }
+
+    [TestMethod]
     public void WindowsFilesystemMutation_UsesNativeRelativeRename()
     {
         using var fixture = new DataDirectoryFixture();
