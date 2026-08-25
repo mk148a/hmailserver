@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, INI SETTINGS LEASE PARITY)
+
+Code/test commit `fcacafeb6` adds generation-bound authorization leases around
+the existing INI writers for `Settings.UserInterfaceLanguage` and
+`Settings.RewriteEnvelopeFromWhenForwarding`. Legacy references are
+`InterfaceSettings::put_UserInterfaceLanguage` in
+`hmailserver/source/Server/COM/InterfaceSettings.cpp` (DISPID 42) and
+`InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding` (DISPID 107); both
+require the legacy authenticated `config_` boundary and write through
+`IniFileSettings`.
+
+Focused lease coverage is `2/2`; it proves the lease is held during each
+writer and that unavailable leases fail before the writer runs. Full opt-in
+Debug is `2794 passed, 16 skipped, 0 failed`. No COM identity, SQL schema,
+SMTP behavior, or live reconfiguration was changed. The remaining release
+blockers are unchanged: atomic backup quiescence, cloned rollback,
+registered COM/SEC-18, PHP plaintext session removal, paired C++ performance,
+and soak evidence.
+
 ## Current Authoritative Continuation (2026-08-25, BACKUP COMPLETION DISPATCH EVIDENCE)
 
 Code/test commit `7c5fc783d` extends the real backup round-trip acceptance

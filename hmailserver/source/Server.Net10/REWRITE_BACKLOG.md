@@ -8427,3 +8427,19 @@ durability, or crash-consistent restore. Release remains **RED**. Next
 independent slice: complete backup quiescence only when all protocol/message
 writers participate; otherwise proceed to cloned installer/service/Data
 rollback acceptance.
+## Current authoritative status (2026-08-25, INI settings lease parity)
+
+Code/test commit `fcacafeb6` adds generation-bound authorization leases around
+the existing INI writers for `UserInterfaceLanguage` and
+`RewriteEnvelopeFromWhenForwarding`. Legacy references are
+`InterfaceSettings::put_UserInterfaceLanguage` (DISPID 42) and
+`InterfaceSettings::put_RewriteEnvelopeFromWhenForwarding` (DISPID 107) in
+`hmailserver/source/Server/COM/InterfaceSettings.cpp`; both use the
+authenticated `config_` boundary and `IniFileSettings` writes.
+
+Focused lease tests pass `2/2`, and full opt-in Debug passes `2794/16/0`.
+The lease is held during each writer and an unavailable lease fails before any
+INI mutation. COM identity, SQL schema, SMTP behavior, and live reconfiguration
+remain unchanged. Release remains **RED**; atomic backup quiescence, cloned
+rollback, registered COM/SEC-18, PHP session cutover, paired C++ performance,
+and soak evidence remain open.
