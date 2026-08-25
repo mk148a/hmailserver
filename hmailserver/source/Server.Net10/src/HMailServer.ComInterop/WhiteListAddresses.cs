@@ -97,6 +97,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
     private readonly Func<long, bool>? _delete;
     private readonly Action? _clear;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public WhiteListAddresses()
     {
@@ -109,7 +110,8 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         Action<WhiteListAddressAdministrationSnapshot>? update,
         Func<long, bool>? delete,
         Action? clear,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _addresses = addresses.ToArray();
         _reload = reload;
@@ -118,6 +120,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         _delete = delete;
         _clear = clear;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetAddresses().Count;
@@ -221,6 +224,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
 
         try
         {
+            using var authorizationLease = AcquireAuthorizationLease();
             _clear();
             Volatile.Write(ref _addresses, []);
         }
@@ -247,6 +251,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
 
         try
         {
+            using var authorizationLease = AcquireAuthorizationLease();
             if (address.Id == 0)
             {
                 if (_insert is null)
@@ -289,10 +294,19 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
         Action<WhiteListAddressAdministrationSnapshot>? update = null,
         Func<long, bool>? delete = null,
         Action? clear = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(addresses);
-        return new WhiteListAddresses(addresses, reload, insert, update, delete, clear, isServerAdministrator);
+        return new WhiteListAddresses(
+            addresses,
+            reload,
+            insert,
+            update,
+            delete,
+            clear,
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 
     private WhiteListAddress CreateAddress(WhiteListAddressAdministrationSnapshot address) =>
@@ -318,6 +332,7 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
 
         try
         {
+            using var authorizationLease = AcquireAuthorizationLease();
             if (!_delete(databaseId))
             {
                 throw new InvalidOperationException("The whitelist delete did not affect the selected database row.");
@@ -355,6 +370,21 @@ public sealed class WhiteListAddresses : IInterfaceWhiteListAddresses
                 "WhiteListAddresses access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Whitelist mutation requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private void Unavailable()
@@ -507,7 +537,9 @@ public static class WhiteListAddressAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static WhiteListAddresses CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static WhiteListAddresses CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -551,6 +583,7 @@ public static class WhiteListAddressAdministrationRuntimeHost
             UpdateAddress,
             DeleteAddress,
             ClearAddresses,
-            isServerAdministrator);
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 }

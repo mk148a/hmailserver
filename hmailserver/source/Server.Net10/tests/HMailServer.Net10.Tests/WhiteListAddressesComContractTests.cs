@@ -517,6 +517,79 @@ public sealed class WhiteListAddressesComContractTests
         Assert.AreEqual(2, whiteListStore.ReadCount);
     }
 
+    [TestMethod]
+    public void CollectionMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var leaseFactory = new Func<CancellationToken, ValueTask<IDisposable?>>(_ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+            {
+                activeLeases--;
+                disposedLeases++;
+            }));
+        });
+
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[] { Snapshot(10, "192.0.2.1", "192.0.2.1", "first@example.test", "First") },
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                return 20;
+            },
+            update: _ => Assert.AreEqual(1, activeLeases),
+            delete: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                return true;
+            },
+            clear: () => Assert.AreEqual(1, activeLeases),
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+
+        var draft = addresses.Add();
+        draft.Save();
+        var existing = addresses.get_ItemByDBID(10);
+        existing.Description = "Updated";
+        existing.Save();
+        existing.Delete();
+        addresses.Clear();
+
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(4, disposedLeases);
+    }
+
+    [TestMethod]
+    public void CollectionMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var stores = 0;
+        IInterfaceWhiteListAddresses addresses = WhiteListAddresses.CreateAuthorized(
+            new[] { Snapshot(10, "192.0.2.1", "192.0.2.1", "first@example.test", "First") },
+            insert: _ =>
+            {
+                stores++;
+                return 20;
+            },
+            update: _ => stores++,
+            delete: _ =>
+            {
+                stores++;
+                return true;
+            },
+            clear: () => stores++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => addresses.Add().Save()).ErrorCode);
+        var existing = addresses.get_ItemByDBID(10);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => existing.Save()).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => existing.Delete()).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(addresses.Clear).ErrorCode);
+        Assert.AreEqual(0, stores);
+    }
+
     private static WhiteListAddressAdministrationSnapshot Snapshot(
         long id,
         string lowerIpAddress,
@@ -538,6 +611,11 @@ public sealed class WhiteListAddressesComContractTests
         Assert.AreEqual(upperIpAddress, address.UpperIPAddress);
         Assert.AreEqual(emailAddress, address.EmailAddress);
         Assert.AreEqual(description, address.Description);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)

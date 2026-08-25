@@ -389,7 +389,9 @@ public sealed class AntiSpam : IInterfaceAntiSpam
         get
         {
             _ = Snapshot;
-            return WhiteListAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
+            return WhiteListAddressAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
         }
     }
 
