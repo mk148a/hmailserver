@@ -1,5 +1,22 @@
 
 
+## Current authoritative status (2026-08-25, script override null-hash parity)
+
+Code/test commit `2ba259c83` closes a legacy ordering gap in
+`SqlServerAccountPasswordVerifier.Verify`. Legacy
+`PasswordValidator::ValidatePassword` at
+`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:105-164` fires
+`OnClientValidatePassword` before empty-password, AD, or hash checks. Net10
+now carries nullable `accountpassword` and `accountpwencryption` through the
+script decision; absent an accepted script result, validation still fails
+closed. Active-account and active-domain SQL admission remains enforced.
+
+Focused verifier tests pass `3`, skip `1`; full Debug Net10 passes `2709`,
+skips `95`, and fails `0`. Real WSH override execution and AD/SSPI credential
+evidence remain separate release gaps. Release remains **RED**. Next slice:
+isolated non-secret script override accept/reject/throw evidence, or atomic
+backup quiescence review.
+
 ## Current authoritative status (2026-08-25, active domain password denial)
 
 Code/test commit `a4d144ffd` extends the legacy password admission boundary to

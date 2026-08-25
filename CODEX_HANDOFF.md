@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, SCRIPT OVERRIDE NULL-HASH PARITY)
+
+Code/test commit `2ba259c83` closes a legacy ordering gap in
+`SqlServerAccountPasswordVerifier.Verify`. Legacy
+`PasswordValidator::ValidatePassword` (`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:105-164`)
+fires `OnClientValidatePassword` before empty-password, AD, or hash checks.
+Net10 no longer rejects nullable `accountpassword` or
+`accountpwencryption` before the script decision; without an accepted script
+decision it still fails closed. The lookup remains restricted to active
+accounts and active domains. Focused verifier tests pass `3`, skip `1`; full
+Debug Net10 passes `2709`, skips `95`, and fails `0`.
+
+The focused test proves SQL shape and fail-closed behavior, but real WSH event
+execution and AD/SSPI credentials remain unproven. No COM identity, SMTP
+trust, production SQL/Data, service, or registration state changed. Release
+remains **RED**.
+
+Next slice: isolated non-secret script override accept/reject/throw evidence,
+or continue atomic backup quiescence review.
+
 ## Current Authoritative Continuation (2026-08-25, ACTIVE DOMAIN PASSWORD DENIAL)
 
 Code/test commit `a4d144ffd` extends the legacy password admission boundary
