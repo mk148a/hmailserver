@@ -1,4 +1,5 @@
 using System.Text;
+using HMailServer.Delivery;
 using HMailServer.Core.Abstractions;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
@@ -206,6 +207,46 @@ public sealed class SqlServerSmtpMessageReceiverTests
         Assert.AreEqual(1, durableWriter.Requests.Count);
         Assert.AreEqual("sender@example.test", durableWriter.Requests.Single().MailFrom);
         Assert.AreEqual(1, wakeSignal.SignalCount);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_HoldsWriterAdmissionAcrossQueuePersistenceAndReleasesIt()
+    {
+        var admission = new RecordingWriterAdmission();
+        var queueWriter = new RecordingSmtpQueueWriter
+        {
+            OnEnqueue = () => Assert.IsTrue(admission.IsHeld)
+        };
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            queueWriter: queueWriter,
+            enterWriter: admission.EnterAsync);
+
+        Assert.IsTrue((await receiver.ReceiveAsync(
+            CreateRequest("Subject: Admission\r\n\r\nBody\r\n"u8.ToArray()),
+            CancellationToken.None)).Accepted);
+
+        Assert.IsTrue(admission.WasEntered);
+        Assert.IsTrue(admission.WasReleased);
+        Assert.IsFalse(admission.IsHeld);
+    }
+
+    [TestMethod]
+    public async Task ReceiveAsync_ExternalFetchSkipsNestedAdmissionBecauseBatchOwnsTheLease()
+    {
+        var admission = new RecordingWriterAdmission();
+        var receiver = new SqlServerSmtpMessageReceiver(
+            new SqlServerConnectionFactory("Server=localhost;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            queueWriter: new RecordingSmtpQueueWriter(),
+            enterWriter: admission.EnterAsync);
+
+        Assert.IsTrue((await receiver.ReceiveAsync(
+            CreateRequest("Subject: External\r\n\r\nBody\r\n"u8.ToArray()) with { IsExternalFetch = true },
+            CancellationToken.None)).Accepted);
+
+        Assert.IsFalse(admission.WasEntered);
     }
 
     [TestMethod]
@@ -1177,14 +1218,34 @@ public sealed class SqlServerSmtpMessageReceiverTests
     private sealed class RecordingSmtpQueueWriter : ISmtpQueueWriter
     {
         public List<SmtpQueueWriteRequest> Requests { get; } = [];
+        public Action? OnEnqueue { get; init; }
 
         public ValueTask EnqueueAsync(
             SmtpQueueWriteRequest request,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            OnEnqueue?.Invoke();
             Requests.Add(request);
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingWriterAdmission
+    {
+        public bool WasEntered { get; private set; }
+        public bool WasReleased { get; private set; }
+        public bool IsHeld => WasEntered && !WasReleased;
+
+        public ValueTask<IDisposable> EnterAsync(CancellationToken cancellationToken)
+        {
+            WasEntered = true;
+            return ValueTask.FromResult<IDisposable>(new Lease(this));
+        }
+
+        private sealed class Lease(RecordingWriterAdmission owner) : IDisposable
+        {
+            public void Dispose() => owner.WasReleased = true;
         }
     }
 

@@ -810,7 +810,13 @@ public static class Host
             serviceProvider.GetRequiredService<SqlServerSmtpQueueWriter>(),
             serviceProvider.GetRequiredService<IDeliveryQueueWakeSignal>()));
     builder.Services.AddSingleton<ISmtpGlobalWhitelistEvaluator, SqlServerSmtpGlobalWhitelistEvaluator>();
-    builder.Services.AddSingleton<ISmtpMessageReceiver, SqlServerSmtpMessageReceiver>();
+    builder.Services.AddSingleton<ISmtpMessageReceiver>(serviceProvider =>
+        ActivatorUtilities.CreateInstance<SqlServerSmtpMessageReceiver>(
+            serviceProvider,
+            new Func<CancellationToken, ValueTask<IDisposable>>(
+                serviceProvider
+                    .GetRequiredService<DeliveryQueuePauseDrainGate>()
+                    .EnterWorkerAsync)));
     builder.Services.AddSingleton<ISmtpRecipientValidator, SqlServerSmtpRecipientValidator>();
     builder.Services.AddSingleton<IDeliveryQueueLeaseStore, SqlServerDeliveryQueueLeaseStore>();
     builder.Services.AddSingleton<IDeliveryQueueAdministrationStore, SqlServerDeliveryQueueAdministrationStore>();

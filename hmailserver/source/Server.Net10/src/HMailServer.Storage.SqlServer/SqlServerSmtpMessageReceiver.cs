@@ -28,6 +28,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
     private readonly ISmtpUrlBlockListChecker? _urlBlockListChecker;
     private readonly ISmtpGlobalWhitelistEvaluator? _globalWhitelistEvaluator;
     private readonly ServerStatusRuntimeState? _statusRuntimeState;
+    private readonly Func<CancellationToken, ValueTask<IDisposable>>? _enterWriter;
 
     public SqlServerSmtpMessageReceiver(
         SqlServerConnectionFactory connectionFactory,
@@ -49,7 +50,8 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         SmtpGreylistingOptions? greylistingOptions = null,
         ISmtpUrlBlockListChecker? urlBlockListChecker = null,
         ServerStatusRuntimeState? statusRuntimeState = null,
-        ISmtpGlobalWhitelistEvaluator? globalWhitelistEvaluator = null)
+        ISmtpGlobalWhitelistEvaluator? globalWhitelistEvaluator = null,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter = null)
     {
         _queueWriter = queueWriter ?? new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
         _ruleProcessor = ruleProcessor;
@@ -69,6 +71,7 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         _urlBlockListChecker = urlBlockListChecker;
         _globalWhitelistEvaluator = globalWhitelistEvaluator;
         _statusRuntimeState = statusRuntimeState;
+        _enterWriter = enterWriter;
     }
 
     public async ValueTask<SmtpReceiveResult> ReceiveAsync(
@@ -76,6 +79,12 @@ public sealed class SqlServerSmtpMessageReceiver : ISmtpMessageReceiver
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
+
+        // External-fetch batches already hold the shared writer lease around
+        // this receiver and the subsequent UID/account mutations.
+        using var writerLease = request.IsExternalFetch || _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
 
         if (request.Recipients.Count == 0)
         {
