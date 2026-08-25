@@ -611,6 +611,13 @@ public sealed class BackupArchiveRuntimeTests
                 File.Exists(Path.Combine(dataBackupPath, "accounts", "alice", "message.eml")));
             Assert.IsFalse(File.Exists(Path.Combine(dataBackupPath, "server.dat")));
 
+            File.WriteAllText(
+                Path.Combine(sourceDirectory, "accounts", "alice", "message.eml"),
+                "changed after staging");
+            Assert.AreEqual(
+                "message body",
+                File.ReadAllText(Path.Combine(dataBackupPath, "accounts", "alice", "message.eml")));
+
             var metadata = XDocument.Parse(await ReadMetadataXmlAsync(sevenZipPath, archivePath));
             var dataFiles = metadata.Root!.Element("BackupInformation")!.Element("DataFiles")!;
             Assert.AreEqual("Raw", dataFiles.Attribute("Format")?.Value);

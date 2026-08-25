@@ -268,7 +268,7 @@ public sealed class SevenZipBackupArchiveRuntime
                 "The configured data directory is not accessible: " + sourceDirectory);
         }
 
-        WindowsHandleRelativeDirectoryCopier.Copy(sourceDirectory, dataBackupPath);
+        _ = BackupDataDirectoryIdentity.CopyStableSnapshot(sourceDirectory, dataBackupPath);
         foreach (var file in Directory.EnumerateFiles(dataBackupPath))
         {
             File.Delete(file);
