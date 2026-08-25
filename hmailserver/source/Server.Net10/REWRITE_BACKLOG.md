@@ -8998,3 +8998,23 @@ publish only successful owner snapshots, and hold the authorization lease.
 `GroupMembersComContractTests` cover mutation, failure retention, stale-owner
 denial, direct activation, and reauthentication. Live SQL/ACL acceptance
 remains a separate release gate; do not restart this stale item.
+
+## Current authoritative status (2026-08-25, domain/account child mutation stale-item audit)
+
+Older read-only/E_NOTIMPL entries for the core Administrator collections are
+stale in the current tree. `Domains` now has authenticated new/existing Save
+and Delete paths; `Accounts` has Add/Save/Delete plus the contained message
+deletion path; `Domain -> Aliases` has owner-scoped Add/Save/Delete; and
+`Domain -> DistributionLists` has owner-scoped Add/Save/Delete with recipient
+snapshot invalidation. Their Net10 adapters use the configured SQL stores,
+publish only successful owner snapshots, enforce direct activation and live
+authorization boundaries, and preserve installed COM identities.
+
+Legacy anchors are the matching `InterfaceDomains`, `InterfaceDomain`,
+`InterfaceAccounts`, `InterfaceAccount`, `InterfaceAliases`,
+`InterfaceDistributionLists`, and `Persistent*` classes under
+`hmailserver/source/Server/COM` and `hmailserver/source/Server/Common/Persistence`.
+Current contract tests cover Add/new Save, existing Save, Delete, failure
+retention, owner scoping, stale-object behavior, and reauthentication for the
+implemented surfaces. Do not restart these old collection entries; live SQL,
+child-graph, protocol, and service acceptance remain separate release gates.

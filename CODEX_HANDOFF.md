@@ -8845,3 +8845,14 @@ reauthentication. Legacy anchors are `InterfaceGroupMembers.cpp:87-134`,
 `InterfaceGroupMember.cpp:18-165`, and `PersistentGroupMember`. Focused
 GroupMembers tests cover success, failure retention, stale-owner denial, and
 authorization. Live SQL/ACL/service acceptance remains separate.
+
+## Current authoritative status (2026-08-25, domain/account child mutation stale-item audit)
+
+The older read-only/E_NOTIMPL claims for `Domains`, `Accounts`, `Aliases`, and
+`DistributionLists` mutations are stale. Current Net10 code implements the
+bounded Add/new Save, existing Save, Delete, owner-scoped SQL, snapshot
+publication, failure retention, and reauthentication paths covered by their
+contract tests. Legacy anchors are the corresponding `Interface*` and
+`Persistent*` classes under `hmailserver/source/Server/COM` and
+`hmailserver/source/Server/Common/Persistence`. Remaining live SQL,
+child-graph, protocol, and service evidence is still required.
