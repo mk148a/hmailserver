@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, PASSWORD SCRIPT ORDERING)
+
+Test commit `beb060b28` adds disposable SQL-backed verifier coverage for the
+legacy `PasswordValidator::ValidatePassword` order at
+`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:105-164`.
+The test proves: script Accept succeeds even with a null stored hash; script
+Reject prevents a valid legacy hash from being accepted; and a script
+executor exception falls through to legacy hash verification. Focused SQL
+integration is `5 passed, 0 skipped, 0 failed`; full opt-in Debug is `2790
+passed, 16 skipped, 0 failed`. This is not real WSH or AD credential evidence,
+so the security/release gate remains **RED**. No production service, SQL/Data,
+COM registration, DCOM, IIS, or firewall state changed.
+
+Next independent slice: complete backup quiescence only if every SMTP/IMAP/
+POP3/message writer can participate; otherwise proceed to cloned installer
+rollback acceptance.
+
 ## Current Authoritative Continuation (2026-08-25, NET10 STARTUP AND PAIRED PREFLIGHT)
 
 Code/test commit `209c2f8e8` registers `WindowsScriptRuleExecutor` as a

@@ -8327,3 +8327,17 @@ may be claimed. Full opt-in Debug Net10: `2789 passed, 16 skipped, 0 failed`.
 Next slice: complete backup writer quiescence only when all owning runtime
 hooks can be covered, otherwise proceed to cloned installer/service/Data
 rollback acceptance.
+## Current Authoritative Status (2026-08-25, PASSWORD SCRIPT ORDERING)
+
+Test commit `beb060b28` adds isolated SQL-backed coverage for the legacy
+`PasswordValidator::ValidatePassword` ordering at
+`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:105-164`:
+Accept precedes hash validation, Reject prevents hash fallback, and executor
+exceptions continue to legacy hash validation. Focused SQL integration passes
+`5/5`; full opt-in Debug passes `2790`, skips `16`, fails `0`.
+
+This closes only the verifier decision-order contract. Real WSH event
+execution, AD/SSPI credentials, and registered COM remain environment-gated;
+the release gate remains **RED**. Next slice: complete backup quiescence only
+with all protocol/message writer hooks, otherwise cloned installer rollback
+acceptance.
