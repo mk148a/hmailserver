@@ -1,6 +1,18 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, physical Data quiescence audit)
+
+The quiescence audit found that `DeliveryQueuePauseDrainGate` only gates the
+delivery queue worker (`hmailserver/source/Server.Net10/src/HMailServer.Delivery/DeliveryQueuePauseDrainGate.cs`),
+while `SevenZipBackupArchiveRuntime.StageDataDirectory` still snapshots the
+configured Data root without a shared admission boundary. No coordinator spans
+SMTP, IMAP, POP3, external-fetch, import, message, and COM writers. A partial
+lock would not establish legacy-safe backup consistency, so no production code
+change was made. This remains a release blocker; the next implementation must
+introduce and prove a complete writer admission contract or use isolated cloned
+rollback testing instead. Release remains **RED**.
+
 ## Current authoritative status (2026-08-25, DB-only message snapshot parity)
 
 Code/test commit `50e95294c` extends the domain-only snapshot to the legacy

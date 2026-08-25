@@ -1,5 +1,15 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, PHYSICAL DATA QUIESCENCE AUDIT)
+
+`DeliveryQueuePauseDrainGate` only covers the delivery queue worker;
+`SevenZipBackupArchiveRuntime.StageDataDirectory` has no shared admission
+contract with SMTP, IMAP, POP3, external-fetch, import, message, or COM
+writers. A partial gate would create a false backup-consistency claim. No
+production code was changed in this audit. Next work requires a complete writer
+admission design with protocol/lifecycle tests, or isolated cloned rollback
+acceptance; release remains RED.
+
 ## Current Authoritative Continuation (2026-08-25, DB-ONLY MESSAGE SNAPSHOT PARITY)
 
 Code/test commit `50e95294c` adds transaction-scoped folder and DB message

@@ -8598,3 +8598,12 @@ Focused tests are `3/3`; full standard Debug is `2729/96/0`. Physical
 DataBackup staging, Data quiescence, settings-wide consistency, and crash
 consistency remain open. Next slice: physical Data rollback/quiescence only
 with isolated writer coordination, otherwise cloned installer rollback.
+## Current authoritative status (2026-08-25, physical Data quiescence audit)
+
+The audit found that `DeliveryQueuePauseDrainGate` only gates delivery queue
+workers, while `SevenZipBackupArchiveRuntime.StageDataDirectory` has no shared
+admission contract with SMTP, IMAP, POP3, external-fetch, import, message, or
+COM writers. A partial lock would not prove legacy-safe backup consistency, so
+no production code change was made. Next implementation requires a complete
+writer admission contract with protocol/lifecycle tests, or isolated cloned
+rollback acceptance. Release remains **RED**.
