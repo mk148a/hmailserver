@@ -1,3 +1,4 @@
+using HMailServer.Core.Abstractions;
 using HMailServer.Storage.SqlServer;
 
 namespace HMailServer.Net10.Tests;
@@ -211,5 +212,42 @@ public sealed class SqlServerMessageAdministrationStoreTests
         StringAssert.Contains(clearSql, "messageaccountid = @AccountID");
         StringAssert.Contains(clearSql, "messagefolderid = @FolderID");
         Assert.IsFalse(clearSql.Contains("messageid =", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
+    public async Task DeleteMessage_HoldsWriterAdmissionAndReleasesItOnCancellation()
+    {
+        var admission = new RecordingWriterAdmission();
+        var store = new SqlServerMessageAdministrationStore(
+            new SqlServerConnectionFactory("Server=invalid;Database=unused;Integrated Security=true;TrustServerCertificate=true"),
+            admission.EnterAsync);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(() => store.DeleteMessageAsync(
+            accountId: 10,
+            folderId: 20,
+            messageId: 30,
+            new CancellationToken(canceled: true)).AsTask());
+
+        Assert.IsTrue(admission.WasEntered);
+        Assert.IsTrue(admission.WasReleased);
+        Assert.IsFalse(admission.IsHeld);
+    }
+
+    private sealed class RecordingWriterAdmission
+    {
+        public bool WasEntered { get; private set; }
+        public bool WasReleased { get; private set; }
+        public bool IsHeld => WasEntered && !WasReleased;
+
+        public ValueTask<IDisposable> EnterAsync(CancellationToken cancellationToken)
+        {
+            WasEntered = true;
+            return ValueTask.FromResult<IDisposable>(new Lease(this));
+        }
+
+        private sealed class Lease(RecordingWriterAdmission owner) : IDisposable
+        {
+            public void Dispose() => owner.WasReleased = true;
+        }
     }
 }

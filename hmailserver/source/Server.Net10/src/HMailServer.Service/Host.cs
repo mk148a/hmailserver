@@ -1003,7 +1003,13 @@ public static class Host
         serviceProvider => serviceProvider.GetRequiredService<SqlServerAccountAdministrationStore>());
     builder.Services.AddSingleton<IBackupAccountAdministrationStore>(
         serviceProvider => serviceProvider.GetRequiredService<SqlServerAccountAdministrationStore>());
-    builder.Services.AddSingleton<IMessageAdministrationStore, SqlServerMessageAdministrationStore>();
+    builder.Services.AddSingleton<IMessageAdministrationStore>(serviceProvider =>
+        ActivatorUtilities.CreateInstance<SqlServerMessageAdministrationStore>(
+            serviceProvider,
+            new Func<CancellationToken, ValueTask<IDisposable>>(
+                serviceProvider
+                    .GetRequiredService<DeliveryQueuePauseDrainGate>()
+                    .EnterWorkerAsync)));
     builder.Services.AddSingleton<IMessageAdministrationContentSource, SqlServerMessageAdministrationContentSource>();
     builder.Services.AddSingleton<IFetchAccountAdministrationStore, SqlServerFetchAccountAdministrationStore>();
     builder.Services.AddSingleton<IBackupFetchAccountAdministrationStore, SqlServerBackupFetchAccountAdministrationStore>();

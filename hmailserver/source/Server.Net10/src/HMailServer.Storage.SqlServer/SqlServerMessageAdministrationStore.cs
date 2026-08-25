@@ -159,11 +159,15 @@ WHERE EXISTS
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
+    private readonly Func<CancellationToken, ValueTask<IDisposable>>? _enterWriter;
 
-    public SqlServerMessageAdministrationStore(SqlServerConnectionFactory connectionFactory)
+    public SqlServerMessageAdministrationStore(
+        SqlServerConnectionFactory connectionFactory,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter = null)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+        _enterWriter = enterWriter;
     }
 
     internal SqlServerMessageAdministrationStore(SqlServerBackupRestoreTransactionContext transactionContext)
@@ -217,6 +221,10 @@ WHERE EXISTS
         long messageId,
         CancellationToken cancellationToken)
     {
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
+
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(DeleteMessageSql, connection);
         command.Parameters.Add("@MessageID", SqlDbType.BigInt).Value = messageId;
@@ -231,6 +239,10 @@ WHERE EXISTS
         int folderId,
         CancellationToken cancellationToken)
     {
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
+
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(ClearMessagesSql, connection);
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
@@ -245,6 +257,10 @@ WHERE EXISTS
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
+
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateMessageSql, connection);
         command.Parameters.Add("@MessageID", SqlDbType.BigInt).Value = snapshot.Id;
@@ -266,6 +282,10 @@ WHERE EXISTS
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
+
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = (SqlTransaction)await connection
             .BeginTransactionAsync(cancellationToken)
