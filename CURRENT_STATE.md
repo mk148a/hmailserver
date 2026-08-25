@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: `2026-08-25T19:45:00Z` / `2026-08-25T22:45:00+03:00`
+- UTC/local timestamp: `2026-08-25T20:10:00Z` / `2026-08-25T23:10:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD at last content update: `d03f58046`; this documentation-only refresh is the subsequent state update.
+- Current HEAD at last content update: `9d3af07e4`; this documentation-only refresh is the subsequent state update.
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: BackupManager/BackupArchive filter `90 passed, 5 skipped, 0 failed`; `FetchAccountsComContractTests` remains `37 passed, 0 skipped, 0 failed`; `SqlServerImapMessageMutationStoreTests` remains `8 passed, 0 skipped, 0 failed`.
 - Latest full Net10 result: standard Debug `2739 passed, 96 skipped, 0 failed` (`2835` total); opt-in Debug remains unavailable because required environment variables are absent; prerequisites passed with .NET 10 SDK 10.0.301 and MSBuild 17.x
