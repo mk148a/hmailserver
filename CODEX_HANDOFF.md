@@ -8612,3 +8612,17 @@ external-fetch, COM message mutations, and lifecycle writers remain outside a
 shared admission barrier; release remains **RED** and no full atomic SQL/Data
 claim is made. Next work is another explicitly covered writer integration or
 cloned installer/service/Data rollback acceptance.
+
+## Current authoritative continuation (2026-08-25, external-fetch backup admission)
+
+Code/test commit `26b2d38fd` extends the existing backup admission callback to
+`ExternalFetchProcessor.RunBatchAsync`. External-fetch account leasing,
+remote download, SQL message acceptance, UID mutation, and completion are now
+covered by the same gate as delivery queue work. Focused tests are `35/35`;
+full standard Debug is `2732/96/0`.
+
+This still coordinates only delivery queue and external-fetch writers. SMTP,
+IMAP, POP3, import, message COM, and lifecycle writers are not yet admitted
+through the gate, so release remains **RED** and no full atomic SQL/Data claim
+is made. Next work is another explicit writer integration or cloned rollback
+acceptance.

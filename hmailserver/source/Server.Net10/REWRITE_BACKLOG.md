@@ -8373,6 +8373,23 @@ the release gate remains **RED**. Next slice: complete backup quiescence only
 with all protocol/message writer hooks, otherwise cloned installer rollback
 acceptance.
 
+## Current authoritative status (2026-08-25, external-fetch backup admission)
+
+Code/test commit `26b2d38fd` extends the shared backup admission gate to the
+external-fetch processor. Each external-fetch batch now holds the same
+`DeliveryQueuePauseDrainGate` writer lease for account leasing, remote fetch,
+message acceptance, UID updates, and completion. Focused coverage proves the
+lease spans the entire batch and is released afterward.
+
+The coordinated writer families are now delivery queue and external-fetch.
+SMTP, IMAP, POP3, import, message COM mutations, and service lifecycle writers
+remain outside the barrier. No full atomic SQL/Data, crash-consistency, or
+power-loss claim is valid. Focused external-fetch tests pass `35/35`; standard
+full Debug passes `2732 passed, 96 skipped, 0 failed` (`2828` total). Release
+remains **RED**. Next slice: integrate one more writer family only with the
+same explicit barrier and negative/rollback coverage, or proceed to cloned
+installer/service/Data rollback acceptance.
+
 ## Current Authoritative Status (2026-08-25, SHORT SOAK ACCEPTANCE CONTRACT)
 
 Benchmark commit `4fe899b27` removes the short-soak false PASS path where the
