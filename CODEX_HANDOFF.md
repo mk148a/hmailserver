@@ -8565,3 +8565,23 @@ Legacy references are `InterfaceSURBLServer::Save/Delete`
 coverage is `17/17` COM and `6/6` SQL; standard full Debug is `2726/96/0`.
 The next code slice remains the new read-only SQL backup projection snapshot
 contract, excluding physical Data-file quiescence.
+
+## Current authoritative continuation (2026-08-25, backup settings snapshot)
+
+Code/test commit `4ac8c9297` adds settings reads to the existing transaction-
+scoped backup projection. `SqlServerSettingsAdministrationStore` has an
+internal snapshot constructor used only for `GetSettingsAsync` and
+`GetBackupSettingsPropertiesAsync`; mutation methods remain on the normal
+connection-backed instance. `BackupXmlPayloadRuntime` now uses the shared
+snapshot for settings plus domain backups when message files are not part of
+the selection, including DB-only message metadata.
+
+Legacy evidence is `Configuration::XMLStore` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:687` and the
+existing raw settings SQL excludes `smtprelayerpassword`. Focused tests are
+`BackupDomainProjectionSnapshotContractTests` `4/4`; full standard Debug is
+`2730/96/0`. The implementation still makes no physical Data quiescence or
+crash-consistency claim. Release remains **RED**. Next independent work is a
+complete writer barrier with protocol/lifecycle tests, or cloned installer/
+service/Data rollback acceptance if the barrier is not independently
+available.

@@ -8607,3 +8607,29 @@ COM writers. A partial lock would not prove legacy-safe backup consistency, so
 no production code change was made. Next implementation requires a complete
 writer admission contract with protocol/lifecycle tests, or isolated cloned
 rollback acceptance. Release remains **RED**.
+
+## Current authoritative status (2026-08-25, backup settings snapshot parity)
+
+Code/test commit `4ac8c9297` extends the read-only SQL backup projection
+snapshot to settings selected together with domains. The snapshot now exposes
+the existing `ISettingsAdministrationStore` read and
+`IBackupSettingsPropertyStore` read through the same `IsolationLevel.Snapshot`
+transaction context. `BackupXmlPayloadRuntime` uses that scope for
+`Settings + Domains`, `Settings + Domains + DB-only Messages`, and the existing
+domain-only combinations; physical Data files and writer quiescence remain
+outside this slice.
+
+The legacy anchor is `Configuration::XMLStore` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:687`, which
+serializes settings as part of the legacy backup. The raw settings projection
+continues to omit `smtprelayerpassword`, matching the existing
+`GetBackupSettingsPropertiesSql` contract. No COM identity, SQL schema,
+SMTP/IMAP/POP3 behavior, or live reconfiguration changed.
+
+Focused snapshot contract tests pass `4/4`; standard full Debug passes
+`2730 passed, 96 skipped, 0 failed` (`2826` total). This does not prove one
+atomic SQL/Data backup, crash consistency, power-loss recovery, or shared
+writer quiescence. Next slice: complete writer admission only when all
+SMTP/IMAP/POP3/queue/message/import/fetch/COM writers can join one tested
+barrier; otherwise proceed to cloned installer/service/Data rollback
+acceptance.
