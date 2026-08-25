@@ -179,6 +179,30 @@ public sealed class DirectoriesComContractTests
         }
     }
 
+    [TestMethod]
+    public void AuthorizedRuntime_DataDirectorySetterPersistsWithoutLiveReconfiguration()
+    {
+        var iniPath = Path.Combine(Path.GetTempPath(), $"hmailserver-{Guid.NewGuid():N}.ini");
+        try
+        {
+            File.WriteAllText(iniPath, "[Directories]\r\nDataFolder=C:\\hMailServer\\Data\r\nProgramFolder=C:\\hMailServer\\\r\n");
+            DirectoryAdministrationRuntimeHost.Configure(new LegacyDirectoryAdministrationStore(iniPath));
+            var directories = Settings.CreateAuthorized().Directories;
+
+            directories.DataDirectory = @"D:\Data";
+
+            Assert.AreEqual(@"D:\Data", directories.DataDirectory);
+            StringAssert.Contains(File.ReadAllText(iniPath), "DataFolder=D:\\Data");
+        }
+        finally
+        {
+            if (File.Exists(iniPath))
+            {
+                File.Delete(iniPath);
+            }
+        }
+    }
+
     private static void AssertMutationPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);

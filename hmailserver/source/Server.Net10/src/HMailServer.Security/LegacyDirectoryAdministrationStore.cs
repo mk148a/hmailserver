@@ -52,6 +52,15 @@ public sealed class LegacyDirectoryAdministrationStore : IDirectoryAdministratio
         return ValueTask.FromResult(LegacyInitializationFile.SaveTempDirectory(_initializationFile, tempDirectory));
     }
 
+    public ValueTask<bool> UpdateDataDirectoryAsync(
+        string dataDirectory,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(dataDirectory);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(LegacyInitializationFile.SaveDataDirectory(_initializationFile, dataDirectory));
+    }
+
     private static string ReadDirectorySetting(IConfiguration configuration, string name) =>
         configuration[$"Directories:{name}"] ?? string.Empty;
 

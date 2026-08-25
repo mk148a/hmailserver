@@ -13,4 +13,9 @@ public interface IDirectoryAdministrationStore
         string tempDirectory,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Temp directory updates are not implemented by this store.");
+
+    ValueTask<bool> UpdateDataDirectoryAsync(
+        string dataDirectory,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Data directory updates are not implemented by this store.");
 }
