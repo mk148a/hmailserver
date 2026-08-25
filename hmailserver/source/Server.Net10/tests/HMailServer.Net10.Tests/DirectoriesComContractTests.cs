@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
+using HMailServer.Security;
 
 namespace HMailServer.Net10.Tests;
 
@@ -128,6 +129,30 @@ public sealed class DirectoriesComContractTests
         Assert.AreEqual(@"E:\hMailServer\", directories.ProgramDirectory);
         Assert.AreEqual(@"E:\hMailServer\Data", directories.DataDirectory);
         Assert.AreEqual(@"E:\hMailServer\DBScripts", directories.DBScriptDirectory);
+    }
+
+    [TestMethod]
+    public void AuthorizedRuntime_LogDirectorySetterPersistsAndRefreshesRetainedObject()
+    {
+        var iniPath = Path.Combine(Path.GetTempPath(), $"hmailserver-{Guid.NewGuid():N}.ini");
+        try
+        {
+            File.WriteAllText(iniPath, "[Directories]\r\nLogFolder=C:\\hMailServer\\Logs\r\nProgramFolder=C:\\hMailServer\\\r\n");
+            DirectoryAdministrationRuntimeHost.Configure(new LegacyDirectoryAdministrationStore(iniPath));
+            var directories = Settings.CreateAuthorized().Directories;
+
+            directories.LogDirectory = @"D:\Logs";
+
+            Assert.AreEqual(@"D:\Logs", directories.LogDirectory);
+            StringAssert.Contains(File.ReadAllText(iniPath), "LogFolder=D:\\Logs");
+        }
+        finally
+        {
+            if (File.Exists(iniPath))
+            {
+                File.Delete(iniPath);
+            }
+        }
     }
 
     private static void AssertMutationPending(Action action)

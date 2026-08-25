@@ -254,6 +254,18 @@ public static class LegacyInitializationFile
             Path.GetFullPath(path));
     }
 
+    public static bool SaveLogDirectory(string path, string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArgumentNullException.ThrowIfNull(value);
+
+        return WritePrivateProfileString(
+            "Directories",
+            "LogFolder",
+            value,
+            Path.GetFullPath(path));
+    }
+
     public static bool LoadBackupMessagesDbOnly(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);

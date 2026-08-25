@@ -34,6 +34,15 @@ public sealed class LegacyDirectoryAdministrationStore : IDirectoryAdministratio
                 DBScriptDirectory: EnsureTrailingBackslash(programFolder) + "DBScripts"));
     }
 
+    public ValueTask<bool> UpdateLogDirectoryAsync(
+        string logDirectory,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(logDirectory);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ValueTask.FromResult(LegacyInitializationFile.SaveLogDirectory(_initializationFile, logDirectory));
+    }
+
     private static string ReadDirectorySetting(IConfiguration configuration, string name) =>
         configuration[$"Directories:{name}"] ?? string.Empty;
 

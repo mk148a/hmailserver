@@ -41,15 +41,19 @@ public sealed class Directories : IInterfaceDirectories
     private const int EAccessDenied = unchecked((int)0x80070005);
     private const int ENotImplemented = unchecked((int)0x80004001);
 
-    private readonly DirectoryAdministrationSnapshot? _snapshot;
+    private DirectoryAdministrationSnapshot? _snapshot;
+    private readonly Func<string, bool>? _updateLogDirectory;
 
     public Directories()
     {
     }
 
-    private Directories(DirectoryAdministrationSnapshot snapshot)
+    private Directories(
+        DirectoryAdministrationSnapshot snapshot,
+        Func<string, bool>? updateLogDirectory)
     {
         _snapshot = snapshot;
+        _updateLogDirectory = updateLogDirectory;
     }
 
     public string ProgramDirectory { get => Snapshot.ProgramDirectory; set => Unavailable(); }
@@ -58,7 +62,29 @@ public sealed class Directories : IInterfaceDirectories
 
     public string DataDirectory { get => Snapshot.DataDirectory; set => Unavailable(); }
 
-    public string LogDirectory { get => Snapshot.LogDirectory; set => Unavailable(); }
+    public string LogDirectory
+    {
+        get => Snapshot.LogDirectory;
+        set
+        {
+            _ = Snapshot;
+            var updateLogDirectory = _updateLogDirectory;
+            if (updateLogDirectory is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            if (!updateLogDirectory(value))
+            {
+                throw new COMException(
+                    "The log directory update could not be persisted.",
+                    unchecked((int)0x80004005));
+            }
+
+            _snapshot = Snapshot with { LogDirectory = value };
+        }
+    }
 
     public string TempDirectory { get => Snapshot.TempDirectory; set => Unavailable(); }
 
@@ -66,10 +92,12 @@ public sealed class Directories : IInterfaceDirectories
 
     public string DBScriptDirectory => Snapshot.DBScriptDirectory;
 
-    internal static Directories CreateAuthorized(DirectoryAdministrationSnapshot snapshot)
+    internal static Directories CreateAuthorized(
+        DirectoryAdministrationSnapshot snapshot,
+        Func<string, bool>? updateLogDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Directories(snapshot);
+        return new Directories(snapshot, updateLogDirectory);
     }
 
     private DirectoryAdministrationSnapshot Snapshot =>
@@ -112,6 +140,11 @@ public static class DirectoryAdministrationRuntimeHost
             .GetAwaiter()
             .GetResult();
 
-        return Directories.CreateAuthorized(snapshot);
+        return Directories.CreateAuthorized(
+            snapshot,
+            value => store
+                .UpdateLogDirectoryAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult());
     }
 }
