@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, SHORT SOAK ACCEPTANCE CONTRACT)
+
+Benchmark commit `4fe899b27` fixes a release-gate false PASS in
+`ShortSoakBenchmark.Run`: `Correct` and `ThresholdPassed` now require
+`AttemptedCycles == RequestedCycles` and `CompletedCycles == RequestedCycles`.
+An injectable `TimeProvider` makes the timeout path deterministic in
+`ShortSoakBenchmarkTests.Run_FailsCorrectnessWhenDurationStopsBeforeRequestedCycles`.
+Focused benchmark tests pass `4`; full opt-in Debug passes `2791`, skips `16`,
+fails `0`. This improves the offline acceptance contract but does not convert
+the benchmark-process resource deltas into service/COM/24-hour leak evidence.
+Release remains **RED**.
+
+The Release CLI rerun produced 100,000-message offline SEARCH/SORT evidence
+with `Correct=true`, `ThresholdPassed=true`, p50/p95/p99 `8.919/9.910/9.978 ms`
+and approximately `995,050 messages/s` at commit
+`889036d587b4233234c17ecd90b4310e7660c4d9`. This is still a Net10-only
+diagnostic and is not a C++ comparison or service leak acceptance.
+
+Next independent slice: complete backup quiescence only when all
+protocol/message writers participate, otherwise continue cloned installer
+rollback acceptance.
+
 ## Current Authoritative Continuation (2026-08-25, PASSWORD SCRIPT ORDERING)
 
 Test commit `beb060b28` adds disposable SQL-backed verifier coverage for the

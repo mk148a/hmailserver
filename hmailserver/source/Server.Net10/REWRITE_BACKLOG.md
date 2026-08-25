@@ -8341,3 +8341,21 @@ execution, AD/SSPI credentials, and registered COM remain environment-gated;
 the release gate remains **RED**. Next slice: complete backup quiescence only
 with all protocol/message writer hooks, otherwise cloned installer rollback
 acceptance.
+## Current Authoritative Status (2026-08-25, SHORT SOAK ACCEPTANCE CONTRACT)
+
+Benchmark commit `4fe899b27` removes the short-soak false PASS path where the
+duration limit could stop the run before all requested cycles while
+`Correct=true`. The runner now requires every requested cycle to be attempted
+and completed; a deterministic injected-clock test covers the timeout case.
+Focused benchmark tests pass `4/4`; full opt-in Debug passes `2791`, skips `16`,
+fails `0`.
+
+This is only an offline benchmark acceptance correction. It is not evidence of
+service-process resource attribution or a 24-hour leak-free soak. The release
+gate remains **RED**. Next slice: complete backup quiescence with all writer
+hooks, or cloned installer rollback acceptance.
+
+The Release CLI also passed the 100,000-message offline gate at p50/p95/p99
+`8.919/9.910/9.978 ms` and approximately `995,050 messages/s`. This remains
+Net10-only diagnostic evidence; no C++ speed-up or release performance winner
+is valid.

@@ -1,5 +1,14 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Short-soak gate correction (2026-08-25)
+
+`ShortSoakBenchmark.Run` now requires all requested cycles to be attempted and
+completed before returning `Correct=true` or `ThresholdPassed=true`. The prior
+time-limited implementation could report a clean partial run as a pass. The
+regression is covered by `ShortSoakBenchmarkTests` with an injected clock.
+This only strengthens the offline diagnostic gate; it does not provide
+service-process attribution, a C++ baseline, or 24-hour soak evidence.
+
 ## Latest paired-fixture attempt (2026-08-25)
 
 The disposable fixture `C:\hmail-perf-pair-codex-20260825_1600` was provisioned
