@@ -8643,3 +8643,22 @@ coordinated; SMTP, IMAP, POP3, message COM, and lifecycle writers remain
 outside the barrier. Release remains **RED**. Next work is one protocol writer
 admission integration with rollback coverage or cloned installer/service/Data
 rollback acceptance.
+
+## Current authoritative continuation (2026-08-25, SMTP message backup admission)
+
+Code/test commit `1b1493be5` wires `DeliveryQueuePauseDrainGate.EnterWorkerAsync`
+into normal `SqlServerSmtpMessageReceiver.ReceiveAsync` calls. The lease spans
+SMTP policy processing and queue persistence. External-fetch requests skip
+nested acquisition because `ExternalFetchProcessor.RunBatchAsync` already owns
+the batch lease through receiver and UID/account mutation.
+
+Legacy references are `SMTPConnection::OnPreAcceptTransfer_`,
+`PersistentMessage::SaveObject`, and `Application::SubmitPendingEmail` at
+`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1120-1141`.
+
+Focused SMTP tests pass `36/36`; standard full Debug passes `2735/96/0`
+(`2831` total). Delivery queue, external-fetch, import, and normal SMTP are
+coordinated; IMAP, POP3, message COM, and lifecycle writers remain outside the
+barrier. Release remains **RED**. Next work is one IMAP or POP3 writer
+admission integration with rollback coverage or cloned installer/service/Data
+rollback acceptance.
