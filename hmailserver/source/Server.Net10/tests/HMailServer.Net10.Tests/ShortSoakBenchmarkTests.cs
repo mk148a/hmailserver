@@ -52,6 +52,33 @@ public sealed class ShortSoakBenchmarkTests
     }
 
     [TestMethod]
+    public void Run_FailsCorrectnessWhenDurationStopsBeforeRequestedCycles()
+    {
+        var dataset = SyntheticImapSearchSortBenchmark.CreateDataset(100, 5700);
+        var clock = new AdvancingTimeProvider(
+            DateTimeOffset.UtcNow,
+            TimeSpan.FromSeconds(2));
+
+        var report = ShortSoakBenchmark.Run(
+            dataset,
+            new ShortSoakBenchmarkOptions(
+                MessageCount: dataset.Count,
+                Cycles: 2,
+                MaxDurationSeconds: 1,
+                P95ThresholdMilliseconds: double.MaxValue,
+                MaxPrivateMemoryGrowthBytes: long.MaxValue,
+                MaxHandleGrowth: int.MaxValue,
+                MaxThreadGrowth: int.MaxValue,
+                MaxTcpConnectionGrowth: int.MaxValue,
+                Clock: clock));
+
+        Assert.AreEqual(1, report.AttemptedCycles);
+        Assert.AreEqual(1, report.CompletedCycles);
+        Assert.IsFalse(report.Correct);
+        Assert.IsFalse(report.ThresholdPassed);
+    }
+
+    [TestMethod]
     public void Writer_EmitsJsonCsvAndMarkdownWithLeakMetrics()
     {
         var dataset = SyntheticImapSearchSortBenchmark.CreateDataset(100, 5700);
@@ -81,6 +108,22 @@ public sealed class ShortSoakBenchmarkTests
         {
             if (Directory.Exists(outputDirectory))
                 Directory.Delete(outputDirectory, recursive: true);
+        }
+    }
+
+    private sealed class AdvancingTimeProvider(
+        DateTimeOffset current,
+        TimeSpan advancePerRead) : TimeProvider
+    {
+        private DateTimeOffset _current = current;
+        private int _reads;
+
+        public override DateTimeOffset GetUtcNow()
+        {
+            var value = _current;
+            if (Interlocked.Increment(ref _reads) > 1)
+                _current += advancePerRead;
+            return value;
         }
     }
 }

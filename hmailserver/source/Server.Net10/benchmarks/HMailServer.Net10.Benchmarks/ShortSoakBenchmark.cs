@@ -16,7 +16,8 @@ public sealed record ShortSoakBenchmarkOptions(
     int MaxHandleGrowth = 100,
     int MaxThreadGrowth = 20,
     int MaxTcpConnectionGrowth = 50,
-    string GitCommit = "unknown");
+    string GitCommit = "unknown",
+    TimeProvider? Clock = null);
 
 public sealed record ShortSoakProcessSnapshot(
     long PrivateMemoryBytes,
@@ -77,7 +78,8 @@ public static class ShortSoakBenchmark
         if (options.Cycles < 1 || options.MaxDurationSeconds < 1)
             throw new ArgumentOutOfRangeException(nameof(options), "Soak cycle and duration limits must be positive.");
 
-        var startedUtc = DateTimeOffset.UtcNow;
+        var clock = options.Clock ?? TimeProvider.System;
+        var startedUtc = clock.GetUtcNow();
         var startProcess = CaptureProcessSnapshot();
         var latencies = new List<double>(options.Cycles);
         var attempted = 0;
@@ -85,7 +87,7 @@ public static class ShortSoakBenchmark
 
         for (; attempted < options.Cycles; attempted++)
         {
-            if (DateTimeOffset.UtcNow - startedUtc >= TimeSpan.FromSeconds(options.MaxDurationSeconds))
+            if (clock.GetUtcNow() - startedUtc >= TimeSpan.FromSeconds(options.MaxDurationSeconds))
                 break;
 
             try
@@ -113,7 +115,7 @@ public static class ShortSoakBenchmark
             }
         }
 
-        var endedUtc = DateTimeOffset.UtcNow;
+        var endedUtc = clock.GetUtcNow();
         var endProcess = CaptureProcessSnapshot();
         var p50 = Percentile(latencies, 0.50);
         var p95 = Percentile(latencies, 0.95);
@@ -126,7 +128,9 @@ public static class ShortSoakBenchmark
         var gen0Growth = endProcess.Gen0Collections - startProcess.Gen0Collections;
         var gen1Growth = endProcess.Gen1Collections - startProcess.Gen1Collections;
         var gen2Growth = endProcess.Gen2Collections - startProcess.Gen2Collections;
-        var correct = errors == 0 && latencies.Count == attempted && attempted > 0;
+        var correct = errors == 0
+            && attempted == options.Cycles
+            && latencies.Count == options.Cycles;
         var thresholdPassed = correct
             && p95 <= options.P95ThresholdMilliseconds
             && privateMemoryGrowth <= options.MaxPrivateMemoryGrowthBytes
