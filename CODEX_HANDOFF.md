@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, NET10 STARTUP AND PAIRED PREFLIGHT)
+
+Code/test commit `209c2f8e8` registers `WindowsScriptRuleExecutor` as a
+concrete singleton even when scripting is disabled. This fixes the observed
+disposable Net10 service startup exception in `Program.cs:135` and is covered
+by `ProductionHostCompositionTests.HostBuild_ResolvesScriptExecutorWhenScriptingIsDisabled`.
+The exact paired disposable fixture at
+`C:\hmail-perf-pair-codex-20260825_1600` contains 1,000 messages and matching
+Data copies. Net10 passed 10/10 SMTP, 10/10 IMAP, and 10/10 POP3 iterations on
+127.0.0.1 ports 2525/1143/25110. C++ was not started: the mandatory isolation
+preflight rejected the copied binary because the existing 32-bit
+`HKLM\SOFTWARE\hMailServer` install path is `C:\hMailServer57-Test\Bin`, not
+the disposable target. No registry, COM, service, production SQL, or
+production Data state was changed. The performance release gate remains
+**RED** and no speed-up ratio is valid.
+
+Full opt-in Debug Net10 is `2789 passed, 16 skipped, 0 failed`. The next
+independent work remains complete backup quiescence or cloned rollback
+acceptance; C++ paired load is environment-blocked until an isolated registry
+or disposable VM is available.
+
 ## Current Authoritative Continuation (2026-08-25, ENVIRONMENT RECHECK)
 
 The current Codex process remains non-elevated (`Administrator=False`); Hyper-V

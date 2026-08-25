@@ -1,5 +1,28 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Latest paired-fixture attempt (2026-08-25)
+
+The disposable fixture `C:\hmail-perf-pair-codex-20260825_1600` was provisioned
+from `pair-fixture.bak` with 1,000 messages and copied Data roots for both
+implementations. After the Net10 startup registration fix in code/test commit
+`209c2f8e8`, the Net10 listener-only protocol run passed all 30 iterations on
+loopback SMTP `2525`, IMAP `1143`, and POP3 `25110`:
+
+| Scenario | Iterations | Successes | p50 ms | p95 ms | p99 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| SMTP | 10 | 10 | 1.068 | 13.214 | 20.622 |
+| IMAP | 10 | 10 | 15.230 | 118.678 | 185.742 |
+| POP3 | 10 | 10 | 18.763 | 35.120 | 38.138 |
+
+The C++ side was not launched. `Get-CppIsolationPreflight` rejected the
+copied binary because the existing 32-bit `HKLM\SOFTWARE\hMailServer` install
+path is `C:\hMailServer57-Test\Bin`, not the disposable fixture path. No
+registry, COM, service, production SQL, or production Data state was changed.
+This is Net10-only listener evidence; it does not support a C++/.NET 10 ratio,
+winner, or performance superiority claim. The performance release gate
+remains **RED** until the legacy side can run under an independently isolated
+registration/configuration boundary.
+
 ## Current authoritative fixture/FTS status (2026-08-11)
 
 Tool commit `7e58324d7` added shared-baseline v2 evidence to

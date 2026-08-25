@@ -8307,3 +8307,23 @@ This slice does not close atomic source quiescence or crash-consistent
 filesystem snapshot requirements. Release remains **RED** for those gates,
 cloned installer rollback, SEC-18, paired C++/.NET performance, protocol
 thresholds, and 24-hour soak. Next slice: atomic snapshot/quiescence review.
+## Current Authoritative Status (2026-08-25, NET10 STARTUP AND PAIRED PREFLIGHT)
+
+Code/test commit `209c2f8e8` fixes the real disposable Net10 listener startup
+failure caused by resolving `WindowsScriptRuleExecutor` while scripting was
+disabled. The concrete executor is now always registered; script interface
+adapters remain conditional. Host composition coverage passes, and the exact
+1,000-message disposable fixture at
+`C:\hmail-perf-pair-codex-20260825_1600` passes 10 SMTP, 10 IMAP, and 10 POP3
+iterations on loopback ports 2525/1143/25110.
+
+The C++ run remains intentionally blocked by `Get-CppIsolationPreflight`:
+the installed 32-bit hMailServer registration points to
+`C:\hMailServer57-Test\Bin`, not the copied disposable binary. Changing that
+registry/COM identity is outside this slice and was not done. Therefore the
+performance release gate remains **RED**; no C++/.NET 10 speed-up or winner
+may be claimed. Full opt-in Debug Net10: `2789 passed, 16 skipped, 0 failed`.
+
+Next slice: complete backup writer quiescence only when all owning runtime
+hooks can be covered, otherwise proceed to cloned installer/service/Data
+rollback acceptance.
