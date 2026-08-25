@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using HMailServer.Core.Abstractions;
@@ -2604,6 +2605,27 @@ function OnDeliveryFailed(message, recipient, errorMessage) {
         {
             TryDeleteDirectory(eventDirectory);
         }
+    }
+
+    [TestMethod]
+    public void ExternalAccountFetchSeedsDoNotEmbedTheStoredPasswordInRunnerSource()
+    {
+        var account = CreateExternalFetchAccount();
+        var binding = BindingFlags.NonPublic | BindingFlags.Static;
+        var vbMethod = typeof(WindowsScriptRuleExecutor).GetMethod(
+            "CreateVbScriptFetchAccountSeed",
+            binding);
+        var jsMethod = typeof(WindowsScriptRuleExecutor).GetMethod(
+            "CreateJScriptFetchAccountObject",
+            binding);
+
+        var vbSource = (string)vbMethod!.Invoke(null, [account])!;
+        var jsSource = (string)jsMethod!.Invoke(null, [account])!;
+
+        Assert.IsFalse(vbSource.Contains(account.Password, StringComparison.Ordinal));
+        Assert.IsFalse(jsSource.Contains(account.Password, StringComparison.Ordinal));
+        StringAssert.Contains(vbSource, "HMailServerDecodePassword(WScript.StdIn.ReadLine)");
+        StringAssert.Contains(jsSource, "HMailServerDecodePassword(WScript.StdIn.ReadLine())");
     }
 
     [TestMethod]

@@ -381,7 +381,10 @@ public sealed partial class WindowsScriptRuleExecutor :
                         spec.BackupFailureReason),
                 Encoding.Unicode);
 
-            var processResult = RunScript(runnerPath, cancellationToken);
+            var standardInput = spec.FetchAccount is null
+                ? null
+                : Convert.ToBase64String(Encoding.Unicode.GetBytes(spec.FetchAccount.Password));
+            var processResult = RunScript(runnerPath, cancellationToken, standardInput);
             ApplyEventLogOperations(eventLogOperationPath);
             if (!processResult.Succeeded)
             {
@@ -1248,6 +1251,7 @@ hMailServerRuleStatusFile.Close();
         var currentMimeDate = CreateCurrentMimeDate();
         return $$"""
 {{CreateVbScriptEventLogFacade(eventLogOperationPath)}}
+{{(fetchAccount is null ? string.Empty : CreateVbScriptFetchAccountPasswordDecoder())}}
 ExecuteGlobal CreateObject("Scripting.FileSystemObject").OpenTextFile("{{EscapeVbScript(scriptPath)}}", 1, False).ReadAll
 
 Class HMailServerRuleClient
@@ -2452,6 +2456,7 @@ hMailServerRuleStatusFile.Close
         return $$"""
 var hMailServerRuleFileSystem = new ActiveXObject("Scripting.FileSystemObject");
 {{CreateJScriptEventLogFacade("hMailServerRuleFileSystem", eventLogOperationPath)}}
+{{(fetchAccount is null ? string.Empty : CreateJScriptFetchAccountPasswordDecoder())}}
 
 function hMailServerRuleReadAllText(path) {
   if (!hMailServerRuleFileSystem.FileExists(path)) {
@@ -3238,7 +3243,14 @@ hMailServerRuleStatusFile.Close();
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Port", account?.ServerPort ?? 0);
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "ServerType", (int)(account?.ServerType ?? ExternalFetchServerType.Pop3));
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Username", account?.Username ?? string.Empty);
-        AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Password", account?.Password ?? string.Empty);
+        if (account is null)
+        {
+            AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Password", string.Empty);
+        }
+        else
+        {
+            builder.AppendLine("HMAILSERVER_FETCHACCOUNT.Password = HMailServerDecodePassword(WScript.StdIn.ReadLine)");
+        }
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "MinutesBetweenFetch", account?.MinutesBetweenFetch ?? 0);
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "DaysToKeepMessages", account?.DaysToKeep ?? 0);
         AppendVbScriptObjectAssignment(builder, "HMAILSERVER_FETCHACCOUNT", "Enabled", account is not null);
@@ -3258,6 +3270,9 @@ hMailServerRuleStatusFile.Close();
     private static string CreateJScriptFetchAccountObject(ExternalFetchAccountLease? account)
     {
         var connectionSecurity = account?.ConnectionSecurity ?? ExternalFetchConnectionSecurity.None;
+        var passwordExpression = account is null
+            ? "\"\""
+            : "HMailServerDecodePassword(WScript.StdIn.ReadLine())";
         string[] properties =
         [
             $"  ID: {ToInvariant(account?.FetchAccountId ?? 0)}",
@@ -3267,7 +3282,7 @@ hMailServerRuleStatusFile.Close();
             $"  Port: {ToInvariant(account?.ServerPort ?? 0)}",
             $"  ServerType: {ToInvariant((int)(account?.ServerType ?? ExternalFetchServerType.Pop3))}",
             $"  Username: \"{EscapeJScript(account?.Username ?? string.Empty)}\"",
-            $"  Password: \"{EscapeJScript(account?.Password ?? string.Empty)}\"",
+            $"  Password: {passwordExpression}",
             $"  MinutesBetweenFetch: {ToInvariant(account?.MinutesBetweenFetch ?? 0)}",
             $"  DaysToKeepMessages: {ToInvariant(account?.DaysToKeep ?? 0)}",
             $"  Enabled: {(account is not null ? "true" : "false")}",
@@ -3287,6 +3302,46 @@ hMailServerRuleStatusFile.Close();
             string.Join("," + Environment.NewLine, properties) +
             Environment.NewLine + "}";
     }
+
+    private static string CreateVbScriptFetchAccountPasswordDecoder() =>
+        """
+Function HMailServerDecodePassword(value)
+   Dim xml, node, stream
+   Set xml = CreateObject("Msxml2.DOMDocument.6.0")
+   Set node = xml.createElement("base64")
+   node.dataType = "bin.base64"
+   node.text = value
+   Set stream = CreateObject("ADODB.Stream")
+   stream.Type = 1
+   stream.Open
+   stream.Write node.nodeTypedValue
+   stream.Position = 0
+   stream.Type = 2
+   stream.Charset = "unicode"
+   HMailServerDecodePassword = stream.ReadText
+   stream.Close
+End Function
+""";
+
+    private static string CreateJScriptFetchAccountPasswordDecoder() =>
+        """
+function HMailServerDecodePassword(value) {
+  var xml = new ActiveXObject("Msxml2.DOMDocument.6.0");
+  var node = xml.createElement("base64");
+  node.dataType = "bin.base64";
+  node.text = value;
+  var stream = new ActiveXObject("ADODB.Stream");
+  stream.Type = 1;
+  stream.Open();
+  stream.Write(node.nodeTypedValue);
+  stream.Position = 0;
+  stream.Type = 2;
+  stream.Charset = "unicode";
+  var decoded = stream.ReadText();
+  stream.Close();
+  return decoded;
+}
+""";
 
     private static string CreateVbScriptClientSeed(SmtpEventScriptClient? client)
     {
