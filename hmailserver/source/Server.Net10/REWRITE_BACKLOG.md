@@ -8937,3 +8937,19 @@ legacy read-only projection.
 This does not prove live restart semantics, target-identity filesystem safety,
 or production Data/Database relocation. Those remain release blockers, but the
 COM setter implementation itself must not be restarted as a new slice.
+
+## Current authoritative status (2026-08-25, StartBackup production wiring stale-item closure)
+
+Older entries that describe `BackupManager.StartBackup` as unimplemented are
+stale for the production composition. Legacy `InterfaceBackupManager::StartBackup`
+queues `BackupTask(true)` through `BackupManager::StartBackup` and
+`BackupTask::DoWork`; Net10 `Program.cs` configures `BackupManagerRuntimeHost`
+with `BackupOperationRuntime`, `BackupTaskHostedService`, the real
+`SevenZipBackupArchiveRuntime`, backup plan/XML payload runtimes, and the
+restore/reinitialization callbacks. `BackupManagerComContractTests`,
+`BackupManagerMode7RoundTripTests`, and backup archive/runtime coverage verify
+the dispatch and contained failure boundary.
+
+The static runtime-less fallback remains intentionally `E_NOTIMPL`; it is not
+the production path. Live filesystem/SQL/WSH event execution, crash/power-loss
+consistency, and isolated service/COM acceptance remain release blockers.
