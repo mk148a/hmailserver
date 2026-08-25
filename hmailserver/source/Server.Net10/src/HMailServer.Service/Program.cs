@@ -84,7 +84,10 @@ BackupManagerRuntimeHost.Configure(
                      .GetRequiredService<IBackupDomainProjectionSnapshotFactory>())
                 .GetPayloadAsync,
              dataDirectory: dataDirectory,
-             restoreReinitializer: reinitializationCoordinator.ReinitializeAsync)
+             restoreReinitializer: reinitializationCoordinator.ReinitializeAsync,
+             pauseDeliveryQueue: host.Services
+                 .GetRequiredService<DeliveryQueuePauseDrainGate>()
+                 .PauseAndDrainAsync)
              .CreateAsync));
 if (host.Services.GetService<IBackupEventScriptExecutor>() is { } backupEventExecutor)
 {

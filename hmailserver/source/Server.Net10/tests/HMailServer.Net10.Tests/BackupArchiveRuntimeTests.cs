@@ -243,6 +243,67 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public async Task BackupAcquiresAndReleasesDeliveryQueueAdmission()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+        Assert.IsTrue(File.Exists(sevenZipPath), sevenZipPath);
+        var destination = Path.Combine(Path.GetTempPath(), $"hmailserver-backup-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(destination);
+        var leaseHeld = false;
+        var leaseDisposed = false;
+
+        try
+        {
+            var runtime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-B0",
+                payloadProvider: (_, _) =>
+                {
+                    Assert.IsTrue(leaseHeld);
+                    return ValueTask.FromResult(
+                        new BackupArchiveXmlPayload(
+                            Settings: new SettingsAdministrationSnapshot(
+                                "host",
+                                "smtp",
+                                "pop3",
+                                "imap"),
+                            Domains: Array.Empty<DomainAdministrationSnapshot>()));
+                },
+                pauseDeliveryQueue: _ =>
+                {
+                    leaseHeld = true;
+                    return ValueTask.FromResult<IDisposable>(
+                        new DelegateDisposable(() =>
+                        {
+                            leaseHeld = false;
+                            leaseDisposed = true;
+                        }));
+                });
+
+            await runtime.CreateAsync(
+                new BackupStartPlanEvidence(
+                    destination,
+                    BackupStartPlan.BackupSettingsFlag,
+                    false,
+                    true,
+                    true),
+                CancellationToken.None);
+
+            Assert.IsFalse(leaseHeld);
+            Assert.IsTrue(leaseDisposed);
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+        }
+    }
+
+    [TestMethod]
     [DataRow(1)]
     [DataRow(2)]
     [DataRow(3)]
@@ -3396,6 +3457,11 @@ public sealed class BackupArchiveRuntimeTests
         Assert.IsTrue(
             process.ExitCode is 0 or 1,
             $"7za archive extraction failed: {output}\n{error}");
+    }
+
+    private sealed class DelegateDisposable(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
     }
 
     private static FetchAccountAdministrationSnapshot CreateFetchAccountSnapshot(

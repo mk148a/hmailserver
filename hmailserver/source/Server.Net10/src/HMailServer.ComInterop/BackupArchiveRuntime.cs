@@ -20,6 +20,7 @@ public sealed class SevenZipBackupArchiveRuntime
     private readonly Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? _payloadProvider;
     private readonly string? _dataDirectory;
     private readonly Func<ProcessStartInfo, Process?> _processStarter;
+    private readonly Func<CancellationToken, ValueTask<IDisposable>>? _pauseDeliveryQueue;
 
     public SevenZipBackupArchiveRuntime(
         string sevenZipExecutablePath,
@@ -28,7 +29,8 @@ public sealed class SevenZipBackupArchiveRuntime
         Func<BackupStartPlanEvidence, CancellationToken, ValueTask<BackupArchiveXmlPayload>>? payloadProvider = null,
         string? dataDirectory = null,
         Func<CancellationToken, ValueTask>? restoreReinitializer = null,
-        Func<ProcessStartInfo, Process?>? processStarter = null)
+        Func<ProcessStartInfo, Process?>? processStarter = null,
+        Func<CancellationToken, ValueTask<IDisposable>>? pauseDeliveryQueue = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sevenZipExecutablePath);
         ArgumentNullException.ThrowIfNull(applicationVersion);
@@ -39,6 +41,7 @@ public sealed class SevenZipBackupArchiveRuntime
         _payloadProvider = payloadProvider;
         _dataDirectory = dataDirectory;
         _processStarter = processStarter ?? Process.Start;
+        _pauseDeliveryQueue = pauseDeliveryQueue;
         if (_dataDirectory is not null
             && _payloadProvider?.Target is BackupXmlPayloadRuntime payloadRuntime)
         {
@@ -54,6 +57,10 @@ public sealed class SevenZipBackupArchiveRuntime
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(evidence);
+
+        using var deliveryQueueLease = _pauseDeliveryQueue is null
+            ? null
+            : await _pauseDeliveryQueue(cancellationToken).ConfigureAwait(false);
 
         var includesMessages =
             (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
