@@ -8125,3 +8125,12 @@ installer/service/Data rollback, paired C++/.NET load, protocol thresholds,
 and 24-hour soak. Next independent slice is isolated registered COM/SEC-18
 evidence when the environment is available; otherwise continue a legacy-first
 installer or protocol audit without production state changes.
+## Environment update (2026-08-25, SEC-18 evidence)
+
+`build/test-sec18-worker-token-evidence.ps1`,
+`build/test-sec18-installed-application-graph-evidence.ps1`, and
+`build/test-sec18-denial-evidence-attestation.ps1` pass. These are collector
+self-tests only. Live SEC-18 evidence remains blocked because the current
+Codex token is not elevated (`Administrator=False`) and `Get-VM`/`Get-VMHost`
+return access denied. Do not infer worker SID, COM caller-token, registration,
+or DCOM evidence from these self-tests. Release remains **RED**.

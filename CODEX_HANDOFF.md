@@ -1,5 +1,16 @@
 # CODEX_HANDOFF.md
 
+## Environment Evidence Update (2026-08-25, SEC-18)
+
+SEC-18 collector self-tests pass: worker-token collector, installed
+Application-graph evidence, and denial-evidence attestation. Live collection
+was not attempted beyond the bounded capability check because the current
+Codex token reports `Administrator=False`; `Get-VM` and `Get-VMHost` both return
+access denied. No worker SID, COM caller token, registration, DCOM ACL, IIS,
+service, database, or Data-directory evidence is being inferred from those
+self-tests. The SEC-18 release gate remains **RED** until an elevated isolated
+host or disposable VM is available.
+
 ## Current Authoritative Continuation (2026-08-25, DIRECTORIES REVIEW)
 
 The legacy-first review is complete for `Settings.Directories`. The six

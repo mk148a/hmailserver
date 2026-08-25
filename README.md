@@ -1,6 +1,15 @@
 hMailServer
 ===========
 
+## Environment evidence (2026-08-25, SEC-18)
+
+SEC-18 collector self-tests pass, but live evidence remains unavailable. The
+current Codex token is not elevated (`Administrator=False`), and Hyper-V
+`Get-VM`/`Get-VMHost` access is denied. No worker SID, registered COM caller,
+DCOM permission, IIS, service, database, or Data-directory claim is made from
+the self-tests. The SEC-18 gate remains **RED** pending an elevated isolated
+host or disposable VM.
+
 ## Current parity gate (2026-08-25, Directories review)
 
 The six writable legacy `Settings.Directories` properties now have focused
