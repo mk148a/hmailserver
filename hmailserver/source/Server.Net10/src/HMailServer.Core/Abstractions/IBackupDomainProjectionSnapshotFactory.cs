@@ -8,6 +8,10 @@ public interface IBackupDomainProjectionSnapshotFactory
 
 public interface IBackupDomainProjectionSnapshot : IAsyncDisposable
 {
+    ISettingsAdministrationStore SettingsStore { get; }
+
+    IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; }
+
     IDomainAdministrationStore DomainStore { get; }
 
     IAccountAdministrationStore AccountStore { get; }

@@ -876,6 +876,7 @@ WHERE settingname IN
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public const string GetBackupSettingsPropertiesSql = """
 SELECT settingname, settinginteger, settingstring
@@ -887,6 +888,14 @@ WHERE settingname <> N'smtprelayerpassword'
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         _connectionFactory = connectionFactory;
+    }
+
+    internal SqlServerSettingsAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
     }
 
     public async ValueTask<bool> UpdateUseScriptServerAsync(
@@ -2110,9 +2119,12 @@ WHERE settingname <> N'smtprelayerpassword'
     public async ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetSettingsSql, connection);
-        await using var reader = await command.ExecuteReaderAsync(
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetSettingsSql,
+            cancellationToken).ConfigureAwait(false);
+        await using var reader = await commandLease.Command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess | CommandBehavior.SingleRow,
             cancellationToken).ConfigureAwait(false);
 
@@ -2235,11 +2247,12 @@ WHERE settingname <> N'smtprelayerpassword'
     public async ValueTask<IReadOnlyList<BackupSettingsPropertySnapshot>>
         GetBackupSettingsPropertiesAsync(CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory
-            .OpenAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await using var command = new SqlCommand(GetBackupSettingsPropertiesSql, connection);
-        await using var reader = await command.ExecuteReaderAsync(
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetBackupSettingsPropertiesSql,
+            cancellationToken).ConfigureAwait(false);
+        await using var reader = await commandLease.Command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);
 

@@ -20,6 +20,8 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             new[]
             {
                 typeof(IDomainAdministrationStore),
+                typeof(ISettingsAdministrationStore),
+                typeof(IBackupSettingsPropertyStore),
                 typeof(IAccountAdministrationStore),
                 typeof(IBackupAccountAdministrationStore),
                 typeof(IBackupFetchAccountAdministrationStore),
@@ -86,7 +88,47 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         Assert.IsNotNull(payload.FolderMessages);
     }
 
-    private sealed class RecordingSnapshotFactory : IBackupDomainProjectionSnapshotFactory
+    [TestMethod]
+    public async Task SettingsAndDomainsPayloadUsesTheSameProjectionSnapshot()
+    {
+        var factory = new RecordingSnapshotFactory(
+            new FixedSettingsStore(new SettingsAdministrationSnapshot(
+                "snapshot-host",
+                "smtp",
+                "pop3",
+                "imap")),
+            new FixedBackupSettingsPropertyStore(
+                new BackupSettingsPropertySnapshot("defaultdomain", 0, "snapshot.example")));
+        var runtime = new BackupXmlPayloadRuntime(
+            new EmptySettingsStore(),
+            new ThrowingDomainStore(),
+            new EmptyDomainAliasStore(),
+            new EmptyAccountStore(),
+            new EmptyAliasStore(),
+            new EmptyDistributionListStore(),
+            new EmptyRecipientStore(),
+            domainProjectionSnapshotFactory: factory);
+
+        var payload = await runtime.GetPayloadAsync(
+            new BackupStartPlanEvidence(
+                "unused",
+                BackupStartPlan.BackupSettingsFlag | BackupStartPlan.BackupDomainsFlag,
+                false,
+                true,
+                true),
+            CancellationToken.None);
+
+        Assert.AreEqual(1, factory.BeginCount);
+        Assert.AreEqual(1, factory.DisposeCount);
+        Assert.AreEqual("snapshot-host", payload.Settings!.HostName);
+        Assert.AreEqual("defaultdomain", payload.SettingsProperties![0].Name);
+        Assert.AreEqual("snapshot.example", payload.SettingsProperties[0].StringValue);
+    }
+
+    private sealed class RecordingSnapshotFactory(
+        ISettingsAdministrationStore? settingsStore = null,
+        IBackupSettingsPropertyStore? backupSettingsPropertyStore = null)
+        : IBackupDomainProjectionSnapshotFactory
     {
         public int BeginCount { get; private set; }
         public int DisposeCount { get; private set; }
@@ -95,14 +137,22 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         {
             BeginCount++;
             return ValueTask.FromResult<IBackupDomainProjectionSnapshot>(
-                new RecordingSnapshot(this));
+                new RecordingSnapshot(
+                    this,
+                    settingsStore ?? new EmptySettingsStore(),
+                    backupSettingsPropertyStore ?? new EmptyBackupSettingsPropertyStore()));
         }
 
-        private sealed class RecordingSnapshot(RecordingSnapshotFactory owner)
+        private sealed class RecordingSnapshot(
+            RecordingSnapshotFactory owner,
+            ISettingsAdministrationStore settingsStore,
+            IBackupSettingsPropertyStore backupSettingsPropertyStore)
             : IBackupDomainProjectionSnapshot
         {
             public IDomainAdministrationStore DomainStore { get; } =
                 new FixedDomainStore(new DomainAdministrationSnapshot(7, "snapshot.example", true));
+            public ISettingsAdministrationStore SettingsStore { get; } = settingsStore;
+            public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; } = backupSettingsPropertyStore;
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
             public IBackupAccountAdministrationStore BackupAccountStore { get; } =
                 new FixedBackupAccountStore();
@@ -133,6 +183,28 @@ public sealed class BackupDomainProjectionSnapshotContractTests
     {
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(CancellationToken cancellationToken) =>
             throw new AssertFailedException("The domain-only snapshot path must not read settings.");
+    }
+
+    private sealed class EmptyBackupSettingsPropertyStore : IBackupSettingsPropertyStore
+    {
+        public ValueTask<IReadOnlyList<BackupSettingsPropertySnapshot>>
+            GetBackupSettingsPropertiesAsync(CancellationToken cancellationToken) =>
+            throw new AssertFailedException("The domain-only snapshot path must not read settings.");
+    }
+
+    private sealed class FixedSettingsStore(SettingsAdministrationSnapshot snapshot)
+        : ISettingsAdministrationStore
+    {
+        public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(
+            CancellationToken cancellationToken) => ValueTask.FromResult(snapshot);
+    }
+
+    private sealed class FixedBackupSettingsPropertyStore(BackupSettingsPropertySnapshot property)
+        : IBackupSettingsPropertyStore
+    {
+        public ValueTask<IReadOnlyList<BackupSettingsPropertySnapshot>>
+            GetBackupSettingsPropertiesAsync(CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<BackupSettingsPropertySnapshot>>(new[] { property });
     }
 
     private sealed class ThrowingDomainStore : IDomainAdministrationStore

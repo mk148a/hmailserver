@@ -1396,14 +1396,16 @@ public sealed class BackupXmlPayloadRuntime
 
         var includesDomainMessages =
             (evidence.BackupOptions & BackupStartPlan.BackupMessagesFlag) != 0;
+        var includesSettings =
+            (evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0;
         var canSnapshotMessages = !includesDomainMessages || evidence.BackupMessagesDbOnly;
         if (_domainProjectionSnapshotFactory is not null
             && (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
-            && (evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) == 0
             && canSnapshotMessages)
         {
             return await GetDomainOnlyPayloadFromSnapshotAsync(
                 includesDomainMessages,
+                includesSettings,
                 cancellationToken).ConfigureAwait(false);
         }
 
@@ -1684,6 +1686,7 @@ public sealed class BackupXmlPayloadRuntime
 
     private async ValueTask<BackupArchiveXmlPayload> GetDomainOnlyPayloadFromSnapshotAsync(
         bool includeMessages,
+        bool includeSettings,
         CancellationToken cancellationToken)
     {
         await using var snapshot = await _domainProjectionSnapshotFactory!
@@ -1693,6 +1696,16 @@ public sealed class BackupXmlPayloadRuntime
         var domains = await snapshot.DomainStore
             .GetDomainsAsync(cancellationToken)
             .ConfigureAwait(false);
+        var settings = includeSettings
+            ? await snapshot.SettingsStore
+                .GetSettingsAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : null;
+        var settingsProperties = includeSettings
+            ? await snapshot.BackupSettingsPropertyStore
+                .GetBackupSettingsPropertiesAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : null;
         var domainAliases = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
         var accounts = new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>();
         var backupAccounts = new Dictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>();
@@ -1771,8 +1784,9 @@ public sealed class BackupXmlPayloadRuntime
         }
 
         return new BackupArchiveXmlPayload(
-            Settings: null,
+            Settings: settings,
             Domains: domains,
+            SettingsProperties: settingsProperties,
             DomainAliases: domainAliases,
             Accounts: accounts,
             Aliases: aliases,

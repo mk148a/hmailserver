@@ -48,6 +48,9 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         _connection = connection;
         _transaction = transaction;
         var context = new SqlServerBackupRestoreTransactionContext(connection, transaction);
+        var settingsStore = new SqlServerSettingsAdministrationStore(context);
+        SettingsStore = settingsStore;
+        BackupSettingsPropertyStore = settingsStore;
         DomainStore = new SqlServerDomainAdministrationStore(context);
         var accountStore = new SqlServerAccountAdministrationStore(context);
         AccountStore = accountStore;
@@ -64,6 +67,10 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         DistributionListStore = new SqlServerDistributionListAdministrationStore(context);
         RecipientStore = new SqlServerDistributionListRecipientAdministrationStore(context);
     }
+
+    public ISettingsAdministrationStore SettingsStore { get; }
+
+    public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; }
 
     public IDomainAdministrationStore DomainStore { get; }
 
