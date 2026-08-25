@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-25T15:00:00Z` / `2026-08-25T18:00:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `20e8f3d1828e0a1684453b723a6fd19af8d1694b`
+- Current HEAD: `c12468be1274386778c6358302ba4dc29f163c16`
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: Application.ServerState lifecycle tests `30 passed, 0 skipped, 0 failed`; authenticated Application lifecycle tests `33 passed, 0 skipped, 0 failed`; offline 100k SEARCH/SORT benchmark passed (`p50 13.78 ms`, `p95 25.328 ms`, `p99 27.317 ms`, `correct=True`); disposable Full-Text SQL/Data acceptance `32 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: default Debug `2701 passed, 94 skipped, 0 failed` (`2795` total)
