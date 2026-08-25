@@ -8516,3 +8516,19 @@ The next slice is a read-only SQL backup projection snapshot factory using one
 transaction context for every compatible projection store. It must fail closed
 or explicitly report unsupported projections; it must not claim physical Data
 directory quiescence or crash consistency.
+## Current authoritative status (2026-08-25, security-range mutation leases)
+
+Security-range mutation authorization is complete in code/test commit
+`d373cb3d9`. The generation-bound lease is forwarded from `Settings.SecurityRanges`
+and held through `SecurityRange.Save`, collection/item deletion, and
+`SetDefault` store callbacks. Legacy anchors are
+`InterfaceSecurityRange::Save/Delete`
+(`hmailserver/source/Server/COM/InterfaceSecurityRange.cpp:36,759`) and
+`InterfaceSecurityRanges::Delete/DeleteByDBID/Add/SetDefault`
+(`hmailserver/source/Server/COM/InterfaceSecurityRanges.cpp:43,60,158,219`).
+Focused tests: `28/28`; standard full Debug: `2724/96/0`.
+
+The next independent slice is the transaction-scoped read-only SQL backup
+projection snapshot. It must not claim physical Data-directory quiescence or
+crash consistency, and unsupported projections must fail closed rather than
+fall back silently to independent connections.

@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, security-range mutation leases)
+
+The latest bounded COM/Admin slice carries the generation-bound authorization
+lease through `Settings.SecurityRanges` into security-range insert, update,
+delete, and `SetDefault` store callbacks. Legacy anchors are
+`InterfaceSecurityRange::Save/Delete`
+(`source/Server/COM/InterfaceSecurityRange.cpp:36,759`) and
+`InterfaceSecurityRanges::Delete/DeleteByDBID/Add/SetDefault`
+(`source/Server/COM/InterfaceSecurityRanges.cpp:43,60,158,219`). Focused
+`SecurityRangesComContractTests` pass `28/28`; standard full Debug passes
+`2724`, skips `96`, and fails `0` (`2820` total). COM identity and direct
+activation denial remain unchanged.
+
+Release remains **RED**; backup consistency, rollback, SEC-18, registered COM,
+credential, paired performance, and long-soak gates remain open.
+
 ## Current authoritative status (2026-08-25, whitelist mutation leases)
 
 The latest bounded COM/Admin slice carries the generation-bound authorization

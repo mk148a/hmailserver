@@ -8470,3 +8470,16 @@ Focused COM coverage is `19/19`, related SQL store coverage is `11/11`, and
 standard full Debug is `2722/96/0`. No COM identity or direct activation
 boundary changed. The next code slice is the read-only SQL backup projection
 snapshot factory; physical Data-file quiescence remains explicitly excluded.
+## Current authoritative status (2026-08-25, security-range mutation leases)
+
+Code/test commit `d373cb3d9` adds generation-bound authorization leases to
+authenticated `SecurityRanges` insert/update/delete and `SetDefault` paths,
+forwarded from `Settings` without changing the installed COM contract. Legacy
+references are `InterfaceSecurityRange::Save/Delete`
+(`hmailserver/source/Server/COM/InterfaceSecurityRange.cpp:36,759`) and
+`InterfaceSecurityRanges::Delete/DeleteByDBID/Add/SetDefault`
+(`hmailserver/source/Server/COM/InterfaceSecurityRanges.cpp:43,60,158,219`).
+Focused coverage is `28/28`; standard full Debug is `2724/96/0`. Lease denial
+is preserved as `E_ACCESSDENIED` instead of being remapped to store `E_FAIL`.
+The next code slice remains the read-only SQL backup projection snapshot
+factory, excluding physical Data-file quiescence.
