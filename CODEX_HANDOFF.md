@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, ENVIRONMENT RECHECK)
+
+The latest repository state is documentation commit `9f0145abf`, following
+the private backup-binding hardening code commit `053a590af`. The legacy-first
+review of `SecurityRanges.SetDefault()` found no remaining gap: the .NET
+implementation already performs the legacy refresh, reverse-order deletion,
+two default inserts, and final refresh, covered by
+`SecurityRangesComContractTests.AuthorizedSettings_SecurityRangesSetDefaultUsesLegacySequenceAndExactDefaults`.
+
+The current Codex process is still not elevated (`Administrator=False`,
+`Integrity=None`); `Get-VM` and `Get-VMHost` are denied, and no SQL service is
+discoverable in this user context. No SEC-18, VM, registered-COM, installer,
+or production-state evidence was inferred. Release remains **RED**.
+
+Next independent work is the atomic backup snapshot/quiescence review; cloned
+installer rollback and live SEC-18 evidence remain environment-gated.
+
 ## Current Authoritative Continuation (2026-08-25, PRIVATE BINDING REPARSE SAFETY)
 
 Code/test commit `053a590af` changes `BackupArchiveBinding` to create its

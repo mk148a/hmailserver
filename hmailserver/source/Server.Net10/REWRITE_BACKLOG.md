@@ -1,5 +1,24 @@
 
 
+## Current authoritative status (2026-08-25, environment recheck)
+
+The legacy-first review of `Settings.SecurityRanges.SetDefault()` found no
+remaining implementation gap. Legacy behavior is anchored at
+`hmailserver/source/Server/COM/InterfaceSecurityRanges.cpp:219-237`, with the
+collection implementation performing the default replacement. Net10 already
+matches the observed sequence in
+`HMailServer.ComInterop/SecurityRanges.cs:462-509`, including administrator
+authorization, refresh, reverse-order deletion, exact default rows, and final
+refresh; focused coverage is
+`SecurityRangesComContractTests.AuthorizedSettings_SecurityRangesSetDefaultUsesLegacySequenceAndExactDefaults`.
+
+The current process is still not elevated (`Administrator=False`,
+`Integrity=None`); Hyper-V inventory is denied and no SQL service is
+discoverable in this user context. No environment evidence was fabricated.
+Release remains **RED**. Next slice: atomic backup snapshot/quiescence review;
+cloned installer rollback and live SEC-18 caller evidence remain environment-
+gated.
+
 ## Current authoritative next slice (2026-08-25, INI replacement durability metadata complete)
 
 Code/test commit `f8e040154` closes the directory-metadata durability gap in
