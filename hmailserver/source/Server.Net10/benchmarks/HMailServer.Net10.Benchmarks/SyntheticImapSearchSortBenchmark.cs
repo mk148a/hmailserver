@@ -121,7 +121,7 @@ public static class SyntheticImapSearchSortBenchmark
             throw new ArgumentOutOfRangeException(nameof(options), "Iteration counts are invalid.");
         }
 
-        var expected = Execute(messages);
+        var expected = ExecuteReference(messages);
         var samples = new List<double>(options.MeasuredIterations);
         var allocations = new List<long>(options.MeasuredIterations);
         var gen0Collections = new List<long>(options.MeasuredIterations);
@@ -214,6 +214,32 @@ public static class SyntheticImapSearchSortBenchmark
             .OrderByDescending(static message => message.SentUtc)
             .ThenBy(static message => message.Uid)
             .ToArray();
+
+    // Keep the acceptance oracle structurally independent from the measured LINQ query.
+    private static SyntheticImapMessage[] ExecuteReference(
+        IReadOnlyList<SyntheticImapMessage> messages)
+    {
+        var matches = new List<SyntheticImapMessage>();
+        foreach (var message in messages)
+        {
+            if (message.Subject.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)
+                || message.Body.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)
+                || message.From.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase)
+                || message.To.Contains(SearchTerm, StringComparison.OrdinalIgnoreCase))
+            {
+                matches.Add(message);
+            }
+        }
+
+        matches.Sort(static (left, right) =>
+        {
+            var sentComparison = right.SentUtc.CompareTo(left.SentUtc);
+            return sentComparison != 0
+                ? sentComparison
+                : left.Uid.CompareTo(right.Uid);
+        });
+        return matches.ToArray();
+    }
 
     private static bool MatchesExpected(
         IReadOnlyList<SyntheticImapMessage> actual,
