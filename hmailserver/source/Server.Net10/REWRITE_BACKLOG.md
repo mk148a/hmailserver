@@ -1,5 +1,21 @@
 
 
+## Current authoritative status (2026-08-25, active domain password denial)
+
+Code/test commit `a4d144ffd` extends the legacy password admission boundary to
+the owning domain. Legacy `PasswordValidator::ValidatePassword` at
+`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:40-75` rejects
+inactive accounts and inactive domains before password validation. Net10
+`SqlServerAccountPasswordVerifier.AccountPasswordLookupSql` now joins
+`hm_domains` and requires `accountactive <> 0` and `domainactive <> 0`; the
+isolated fixture covers an active account attached to an inactive domain.
+
+Focused verifier tests pass `3`, skip `1` because the disposable SQL target is
+not configured; full Debug Net10 passes `2709`, skips `95`, and fails `0`.
+Script override ordering and AD/SSPI verification remain separate gaps.
+Release remains **RED**. Next slice: non-secret script override ordering and
+failure containment, or atomic backup quiescence review.
+
 ## Current authoritative status (2026-08-25, inactive account password denial)
 
 Code/test commit `d21480b09` closes the legacy inactive-account branch in
