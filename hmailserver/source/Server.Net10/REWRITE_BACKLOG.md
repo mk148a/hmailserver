@@ -8477,3 +8477,20 @@ boundary. Current Net10 has no such cross-writer contract; do not add a
 partial gate or claim atomicity. Otherwise proceed to cloned installer/
 service/Data rollback acceptance. Registered COM/SEC-18, paired C++ load, and
 long-soak gates remain environment-blocked.
+# Current Next Slice (2026-08-25)
+
+Completed code/test commit `51e46c4bb`: generation-bound authorization leases
+now cover TCP/IP port insert, update, delete, and `SetDefault` store
+mutations, with forwarding through Settings and the SQL runtime adapter.
+Focused tests pass `25/25`; standard full Debug passes `2720/96/0`.
+
+Legacy references: `InterfaceTCPIPPort::Save` in
+`hmailserver/source/Server/COM/InterfaceTCPIPPort.cpp:33`, and
+`InterfaceTCPIPPorts::DeleteByDBID/Add` in
+`hmailserver/source/Server/COM/InterfaceTCPIPPorts.cpp:101,148`.
+
+Next smallest safe slice: DB-only backup consistency using one transaction-
+scoped SQL snapshot, explicitly excluding physical Data files and writer
+quiescence. Full backup quiescence is not currently implementable because
+SMTP, IMAP, POP3, delivery, import, external-fetch, and COM writers lack a
+shared admission coordinator. Do not add a partial gate or claim atomicity.

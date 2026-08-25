@@ -8415,3 +8415,26 @@ backup quiescence only if all SMTP/IMAP/POP3/queue/message writers can join a
 single barrier; otherwise proceed to cloned installer/service/Data rollback
 acceptance. No production service, SQL/Data directory, COM registration,
 DCOM ACL, IIS, or firewall state was changed.
+# Current Authoritative Continuation (2026-08-25, TCP/IP PORT MUTATION LEASE PARITY)
+
+Code/test commit `51e46c4bb43621a0cba046d67a5de28303909c44` adds the
+generation-bound authorization lease to TCP/IP port insert, update, delete,
+and `SetDefault` store mutations. The lease is forwarded through
+`Settings.TCPIPPorts` and `TcpIpPortAdministrationRuntimeHost`. Read-only
+`Refresh` remains unleased. COM identity, IID/vtable/DISPID order, direct
+activation denial, SQL schema, SMTP/IMAP/POP3 runtime behavior, and live
+reconfiguration were unchanged.
+
+Legacy references are `InterfaceTCPIPPort::Save` in
+`hmailserver/source/Server/COM/InterfaceTCPIPPort.cpp:33` and
+`InterfaceTCPIPPorts::DeleteByDBID/Add` in
+`hmailserver/source/Server/COM/InterfaceTCPIPPorts.cpp:101,148`.
+Focused coverage is `TcpIpPortsComContractTests` `25/25`, including
+lease-held callbacks and unavailable-lease denial. The current standard full
+Debug suite is `2720 passed, 96 skipped, 0 failed`; opt-in environment
+variables are absent in the current shell.
+
+Release remains **RED**. The next independent slice is writer-participating
+backup quiescence only if all protocol and message writers can join one
+boundary; the parity explorer found no such current hook. Otherwise proceed
+to cloned installer/service/Data rollback acceptance.

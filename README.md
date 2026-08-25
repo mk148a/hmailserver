@@ -1,6 +1,21 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, TCP/IP port mutation leases)
+
+The latest bounded COM/Admin slice guards TCP/IP port insert, update, delete,
+and `SetDefault` store mutations with the generation-bound authorization
+lease. Legacy anchors are `InterfaceTCPIPPort::Save`
+(`source/Server/COM/InterfaceTCPIPPort.cpp:33`) and
+`InterfaceTCPIPPorts::DeleteByDBID/Add`
+(`source/Server/COM/InterfaceTCPIPPorts.cpp:101,148`). Focused
+`TcpIpPortsComContractTests` pass `25/25`. The standard full Debug suite
+passes `2720`, skips `96`, and fails `0` (`2816` total).
+
+Release remains **RED**. Backup writer quiescence, cloned rollback,
+registered COM/SEC-18, PHP credential removal, paired C++/.NET load, protocol
+thresholds, and long-soak evidence remain open.
+
 ## Current authoritative status (2026-08-25, SSL certificate mutation leases)
 
 The latest bounded COM/Admin slice guards SSL certificate collection
