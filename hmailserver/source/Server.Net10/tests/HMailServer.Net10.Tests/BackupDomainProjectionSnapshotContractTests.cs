@@ -21,6 +21,8 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             {
                 typeof(IDomainAdministrationStore),
                 typeof(IAccountAdministrationStore),
+                typeof(IBackupAccountAdministrationStore),
+                typeof(IBackupFetchAccountAdministrationStore),
                 typeof(IDomainAliasAdministrationStore),
                 typeof(IAliasAdministrationStore),
                 typeof(IDistributionListAdministrationStore),
@@ -64,6 +66,9 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         Assert.AreEqual(1, factory.DisposeCount);
         Assert.AreEqual(1, payload.Domains!.Count);
         Assert.AreEqual("snapshot.example", payload.Domains[0].Name);
+        Assert.AreEqual("encrypted", payload.BackupAccounts![7][0].Password);
+        Assert.AreEqual(2, payload.BackupAccounts[7][0].PasswordEncryption);
+        Assert.AreEqual("fetch-encrypted", payload.BackupFetchAccounts![9][0].Password);
     }
 
     private sealed class RecordingSnapshotFactory : IBackupDomainProjectionSnapshotFactory
@@ -84,6 +89,10 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             public IDomainAdministrationStore DomainStore { get; } =
                 new FixedDomainStore(new DomainAdministrationSnapshot(7, "snapshot.example", true));
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
+            public IBackupAccountAdministrationStore BackupAccountStore { get; } =
+                new FixedBackupAccountStore();
+            public IBackupFetchAccountAdministrationStore BackupFetchAccountStore { get; } =
+                new FixedBackupFetchAccountStore();
             public IDomainAliasAdministrationStore DomainAliasStore { get; } = new EmptyDomainAliasStore();
             public IAliasAdministrationStore AliasStore { get; } = new EmptyAliasStore();
             public IDistributionListAdministrationStore DistributionListStore { get; } = new EmptyDistributionListStore();
@@ -128,6 +137,60 @@ public sealed class BackupDomainProjectionSnapshotContractTests
 
         public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(int accountId, CancellationToken cancellationToken) =>
             ValueTask.FromResult<AccountAdministrationSnapshot?>(null);
+    }
+
+    private sealed class FixedBackupAccountStore : IBackupAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountBackupAdministrationSnapshot>> GetBackupAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountBackupAdministrationSnapshot>>(
+                new[]
+                {
+                    new AccountBackupAdministrationSnapshot(
+                        new AccountAdministrationSnapshot(9, domainId, "user@snapshot.example", true, 0),
+                        "encrypted",
+                        2)
+                });
+    }
+
+    private sealed class FixedBackupFetchAccountStore : IBackupFetchAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<FetchAccountBackupAdministrationSnapshot>> GetBackupFetchAccountsAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>(
+                new[]
+                {
+                    new FetchAccountBackupAdministrationSnapshot(
+                        new FetchAccountAdministrationSnapshot(
+                            12,
+                            accountId,
+                            "fetch",
+                            "imap.example",
+                            993,
+                            1,
+                            "user",
+                            5,
+                            7,
+                            true,
+                            false,
+                            false,
+                            2,
+                            false,
+                            false,
+                            false,
+                            "",
+                            "",
+                            false),
+                        "fetch-encrypted",
+                        new[]
+                        {
+                            new FetchAccountUidBackupAdministrationSnapshot(
+                                "uid",
+                                "2026-08-25 00:00:00")
+                        })
+                });
     }
 
     private sealed class EmptyAliasStore : IAliasAdministrationStore

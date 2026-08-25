@@ -49,7 +49,10 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         _transaction = transaction;
         var context = new SqlServerBackupRestoreTransactionContext(connection, transaction);
         DomainStore = new SqlServerDomainAdministrationStore(context);
-        AccountStore = new SqlServerAccountAdministrationStore(context);
+        var accountStore = new SqlServerAccountAdministrationStore(context);
+        AccountStore = accountStore;
+        BackupAccountStore = accountStore;
+        BackupFetchAccountStore = new SqlServerBackupFetchAccountAdministrationStore(context);
         DomainAliasStore = new SqlServerDomainAliasAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
         DistributionListStore = new SqlServerDistributionListAdministrationStore(context);
@@ -59,6 +62,10 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
     public IDomainAdministrationStore DomainStore { get; }
 
     public IAccountAdministrationStore AccountStore { get; }
+
+    public IBackupAccountAdministrationStore BackupAccountStore { get; }
+
+    public IBackupFetchAccountAdministrationStore BackupFetchAccountStore { get; }
 
     public IDomainAliasAdministrationStore DomainAliasStore { get; }
 

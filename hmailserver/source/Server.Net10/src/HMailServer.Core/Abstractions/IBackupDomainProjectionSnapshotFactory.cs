@@ -12,6 +12,10 @@ public interface IBackupDomainProjectionSnapshot : IAsyncDisposable
 
     IAccountAdministrationStore AccountStore { get; }
 
+    IBackupAccountAdministrationStore BackupAccountStore { get; }
+
+    IBackupFetchAccountAdministrationStore BackupFetchAccountStore { get; }
+
     IDomainAliasAdministrationStore DomainAliasStore { get; }
 
     IAliasAdministrationStore AliasStore { get; }

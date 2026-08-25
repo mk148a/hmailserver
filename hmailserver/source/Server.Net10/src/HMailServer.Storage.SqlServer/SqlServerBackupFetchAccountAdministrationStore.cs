@@ -42,7 +42,8 @@ FROM hm_fetchaccounts_uids
 WHERE uidfaid = @FetchAccountID;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerBackupFetchAccountAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -50,12 +51,23 @@ WHERE uidfaid = @FetchAccountID;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerBackupFetchAccountAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<FetchAccountBackupAdministrationSnapshot>> GetBackupFetchAccountsAsync(
         int accountId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetBackupFetchAccountsSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetBackupFetchAccountsSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
 
         var rows = new List<(FetchAccountAdministrationSnapshot Account, string Password)>();
@@ -76,18 +88,28 @@ WHERE uidfaid = @FetchAccountID;
                 new FetchAccountBackupAdministrationSnapshot(
                     row.Account,
                     row.Password,
-                    await ReadUidsAsync(connection, row.Account.Id, cancellationToken).ConfigureAwait(false)));
+                    await ReadUidsAsync(
+                        _connectionFactory,
+                        _transactionContext,
+                        row.Account.Id,
+                        cancellationToken).ConfigureAwait(false)));
         }
 
         return accounts;
     }
 
     private static async ValueTask<IReadOnlyList<FetchAccountUidBackupAdministrationSnapshot>> ReadUidsAsync(
-        SqlConnection connection,
+        SqlServerConnectionFactory? connectionFactory,
+        SqlServerBackupRestoreTransactionContext? transactionContext,
         int fetchAccountId,
         CancellationToken cancellationToken)
     {
-        await using var command = new SqlCommand(GetBackupFetchAccountUidsSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            connectionFactory,
+            transactionContext,
+            GetBackupFetchAccountUidsSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@FetchAccountID", SqlDbType.Int).Value = fetchAccountId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,

@@ -1690,6 +1690,8 @@ public sealed class BackupXmlPayloadRuntime
             .ConfigureAwait(false);
         var domainAliases = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
         var accounts = new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>();
+        var backupAccounts = new Dictionary<int, IReadOnlyList<AccountBackupAdministrationSnapshot>>();
+        var backupFetchAccounts = new Dictionary<int, IReadOnlyList<FetchAccountBackupAdministrationSnapshot>>();
         var aliases = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
         var distributionLists = new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>();
         var recipients = new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>();
@@ -1699,9 +1701,19 @@ public sealed class BackupXmlPayloadRuntime
             domainAliases[domain.Id] = await snapshot.DomainAliasStore
                 .GetDomainAliasesAsync(domain.Id, cancellationToken)
                 .ConfigureAwait(false);
-            accounts[domain.Id] = await snapshot.AccountStore
-                .GetAccountsAsync(domain.Id, cancellationToken)
+            var domainBackupAccounts = await snapshot.BackupAccountStore
+                .GetBackupAccountsAsync(domain.Id, cancellationToken)
                 .ConfigureAwait(false);
+            backupAccounts[domain.Id] = domainBackupAccounts;
+            accounts[domain.Id] = domainBackupAccounts
+                .Select(static account => account.Account)
+                .ToArray();
+            foreach (var account in accounts[domain.Id])
+            {
+                backupFetchAccounts[account.Id] = await snapshot.BackupFetchAccountStore
+                    .GetBackupFetchAccountsAsync(account.Id, cancellationToken)
+                    .ConfigureAwait(false);
+            }
             aliases[domain.Id] = await snapshot.AliasStore
                 .GetAliasesAsync(domain.Id, cancellationToken)
                 .ConfigureAwait(false);
@@ -1724,7 +1736,9 @@ public sealed class BackupXmlPayloadRuntime
             Accounts: accounts,
             Aliases: aliases,
             DistributionLists: distributionLists,
-            DistributionListRecipients: recipients);
+            DistributionListRecipients: recipients,
+            BackupAccounts: backupAccounts,
+            BackupFetchAccounts: backupFetchAccounts);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(
