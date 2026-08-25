@@ -1,5 +1,18 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, ENVIRONMENT RECHECK)
+
+The current Codex process remains non-elevated (`Administrator=False`); Hyper-V
+inventory is denied and no SQL service is discoverable in this user context.
+The last code/test commit is `2ba259c83` and the last docs/state commit is
+`552c5fe46`. Script override ordering and nullable hash handling are covered
+offline, but live WSH override, AD/SSPI credentials, registered COM, cloned
+rollback, and VM-backed release evidence were not inferred. Release remains
+**RED**.
+
+Next independent slice: continue the atomic backup quiescence design review;
+environment-gated script/AD and SEC-18 evidence must not be fabricated.
+
 ## Current Authoritative Continuation (2026-08-25, SCRIPT OVERRIDE NULL-HASH PARITY)
 
 Code/test commit `2ba259c83` closes a legacy ordering gap in

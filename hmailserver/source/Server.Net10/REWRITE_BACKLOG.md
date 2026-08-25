@@ -1,5 +1,18 @@
 
 
+## Current authoritative status (2026-08-25, environment recheck)
+
+The current Codex process remains non-elevated (`Administrator=False`);
+Hyper-V inventory is denied and no SQL service is discoverable in this user
+context. The last code/test commit is `2ba259c83`; the last docs/state commit
+is `552c5fe46`. Offline script-order and nullable-hash checks pass, but live
+WSH override, AD/SSPI, registered COM, cloned rollback, and VM-backed release
+evidence remain unproven. No production state was touched. Release remains
+**RED**.
+
+Next independent slice: atomic backup quiescence design review; do not infer
+environment-gated credential or COM evidence.
+
 ## Current authoritative status (2026-08-25, script override null-hash parity)
 
 Code/test commit `2ba259c83` closes a legacy ordering gap in
