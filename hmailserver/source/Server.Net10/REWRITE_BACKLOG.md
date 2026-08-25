@@ -8359,3 +8359,15 @@ The Release CLI also passed the 100,000-message offline gate at p50/p95/p99
 `8.919/9.910/9.978 ms` and approximately `995,050 messages/s`. This remains
 Net10-only diagnostic evidence; no C++ speed-up or release performance winner
 is valid.
+## Current Authoritative Status (2026-08-25, INDEPENDENT SEARCH ORACLE)
+
+Benchmark commit `ada3a16a3` replaces the offline SEARCH/SORT benchmark’s
+self-referential expected result with an independent imperative reference
+filter/sort implementation. The measured LINQ path is still the path timed;
+only acceptance correctness is independently computed. Synthetic tests pass
+`3/3`; full opt-in Debug passes `2791`, skips `16`, fails `0`.
+
+The post-oracle 100k CLI rerun passed with p50/p95/p99
+`9.253/12.450/13.239 ms` and approximately `923,109 messages/s` at commit
+`df2ce7d4d`. This remains Net10-only diagnostic evidence; the performance gate
+remains **RED** without paired C++ and live service/soak evidence.

@@ -1,5 +1,15 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Independent offline correctness oracle (2026-08-25)
+
+Commit `ada3a16a3` separates the expected SEARCH/SORT result from the timed
+LINQ query. The benchmark now uses an imperative reference filter and sort for
+expected matches and ordering, while the measured query remains unchanged.
+The post-change 100k CLI rerun passed with p50/p95/p99
+`9.253/12.450/13.239 ms` and approximately `923,109 messages/s` at commit
+`df2ce7d4d`. This still does not provide a C++ baseline, live service
+attribution, or 24-hour leak evidence.
+
 ## Short-soak gate correction (2026-08-25)
 
 `ShortSoakBenchmark.Run` now requires all requested cycles to be attempted and
