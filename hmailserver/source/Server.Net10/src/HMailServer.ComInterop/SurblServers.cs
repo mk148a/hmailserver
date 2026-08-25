@@ -94,6 +94,7 @@ public sealed class SURBLServers : IInterfaceSURBLServers
     private readonly Action<SurblServerAdministrationSnapshot>? _append;
     private readonly Action<SurblServerAdministrationSnapshot>? _replace;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public SURBLServers()
     {
@@ -105,7 +106,8 @@ public sealed class SURBLServers : IInterfaceSURBLServers
         Func<SurblServerAdministrationSnapshot, int>? insert,
         Func<SurblServerAdministrationSnapshot, bool>? update,
         Func<int, bool>? delete,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _servers = servers.ToArray();
         _reload = reload;
@@ -113,6 +115,7 @@ public sealed class SURBLServers : IInterfaceSURBLServers
         _update = update;
         _delete = delete;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
         _append = Append;
         _replace = Replace;
     }
@@ -134,7 +137,8 @@ public sealed class SURBLServers : IInterfaceSURBLServers
                 update: _update,
                 delete: _delete is null ? null : DeleteByDBID,
                 replace: _replace,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
         }
     }
 
@@ -153,6 +157,7 @@ public sealed class SURBLServers : IInterfaceSURBLServers
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             if (!_delete(databaseId))
@@ -191,7 +196,8 @@ public sealed class SURBLServers : IInterfaceSURBLServers
             insert: _insert,
             delete: _delete is null ? null : DeleteByDBID,
             append: _append,
-            isServerAdministrator: _isServerAdministrator);
+            isServerAdministrator: _isServerAdministrator,
+            authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public IInterfaceSURBLServer get_ItemByDBID(int databaseId)
@@ -205,7 +211,8 @@ public sealed class SURBLServers : IInterfaceSURBLServers
                 update: _update,
                 delete: _delete is null ? null : DeleteByDBID,
                 replace: _replace,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     public void Refresh()
@@ -243,7 +250,8 @@ public sealed class SURBLServers : IInterfaceSURBLServers
                 update: _update,
                 delete: _delete is null ? null : DeleteByDBID,
                 replace: _replace,
-                isServerAdministrator: _isServerAdministrator);
+                isServerAdministrator: _isServerAdministrator,
+                authorizationLeaseFactory: _authorizationLeaseFactory);
     }
 
     internal static SURBLServers CreateAuthorized(
@@ -252,10 +260,11 @@ public sealed class SURBLServers : IInterfaceSURBLServers
         Func<SurblServerAdministrationSnapshot, int>? insert = null,
         Func<SurblServerAdministrationSnapshot, bool>? update = null,
         Func<int, bool>? delete = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(servers);
-        return new SURBLServers(servers, reload, insert, update, delete, isServerAdministrator);
+        return new SURBLServers(servers, reload, insert, update, delete, isServerAdministrator, authorizationLeaseFactory);
     }
 
     private IReadOnlyList<SurblServerAdministrationSnapshot> GetServers()
@@ -288,6 +297,21 @@ public sealed class SURBLServers : IInterfaceSURBLServers
                 "SURBLServers access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "SURBL mutation requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private void Unavailable()
@@ -323,6 +347,7 @@ public sealed class SURBLServer : IInterfaceSURBLServer
     private readonly Action<SurblServerAdministrationSnapshot>? _append;
     private readonly Action<SurblServerAdministrationSnapshot>? _replace;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public SURBLServer()
     {
@@ -340,7 +365,8 @@ public sealed class SURBLServer : IInterfaceSURBLServer
         Action<int>? delete,
         Action<SurblServerAdministrationSnapshot>? append,
         Action<SurblServerAdministrationSnapshot>? replace,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _server = server;
         _insert = insert;
@@ -349,6 +375,7 @@ public sealed class SURBLServer : IInterfaceSURBLServer
         _append = append;
         _replace = replace;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public bool Active { get => Snapshot.Active; set => Mutate(snapshot => snapshot with { Active = value }); }
@@ -368,6 +395,7 @@ public sealed class SURBLServer : IInterfaceSURBLServer
             return;
         }
 
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             if (Snapshot.Id == 0)
@@ -424,8 +452,9 @@ public sealed class SURBLServer : IInterfaceSURBLServer
         Action<int>? delete = null,
         Action<SurblServerAdministrationSnapshot>? append = null,
         Action<SurblServerAdministrationSnapshot>? replace = null,
-        Func<bool>? isServerAdministrator = null) =>
-        new(server, insert, update, delete, append, replace, isServerAdministrator);
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null) =>
+        new(server, insert, update, delete, append, replace, isServerAdministrator, authorizationLeaseFactory);
 
     private SurblServerAdministrationSnapshot Snapshot =>
         _server ?? throw new COMException(
@@ -454,6 +483,21 @@ public sealed class SURBLServer : IInterfaceSURBLServer
         }
     }
 
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "SURBL mutation requires an authenticated server administrator.",
+                EAccessDenied);
+    }
+
     private void Unavailable()
     {
         _ = Snapshot;
@@ -476,7 +520,9 @@ public static class SurblServerAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static SURBLServers CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static SURBLServers CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -513,6 +559,7 @@ public static class SurblServerAdministrationRuntimeHost
             InsertServer,
             UpdateServer,
             DeleteServer,
-            isServerAdministrator);
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 }

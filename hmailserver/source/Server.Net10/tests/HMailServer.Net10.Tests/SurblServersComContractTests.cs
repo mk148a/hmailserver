@@ -414,6 +414,89 @@ public sealed class SurblServersComContractTests
             Assert.ThrowsExactly<COMException>(() => _ = servers.get_ItemByDBID(10)).ErrorCode);
     }
 
+    [TestMethod]
+    public void CollectionMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var leaseFactory = new Func<CancellationToken, ValueTask<IDisposable?>>(_ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+            {
+                activeLeases--;
+                disposedLeases++;
+            }));
+        });
+
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[] { Snapshot(10, true, "multi.surbl.org", "Rejected", 4) },
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                return 20;
+            },
+            update: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                return true;
+            },
+            delete: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+
+        var draft = servers.Add();
+        draft.DNSHost = "example.surbl.test";
+        draft.Save();
+        var existing = servers.get_ItemByDBID(10);
+        existing.RejectMessage = "Updated";
+        existing.Save();
+        existing.Delete();
+
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(3, disposedLeases);
+    }
+
+    [TestMethod]
+    public void CollectionMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var stores = 0;
+        IInterfaceSURBLServers servers = SURBLServers.CreateAuthorized(
+            new[] { Snapshot(10, true, "multi.surbl.org", "Rejected", 4) },
+            insert: _ =>
+            {
+                stores++;
+                return 20;
+            },
+            update: _ =>
+            {
+                stores++;
+                return true;
+            },
+            delete: _ =>
+            {
+                stores++;
+                return true;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ => ValueTask.FromResult<IDisposable?>(null));
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(() => servers.Add().Save()).ErrorCode);
+        var existing = servers.get_ItemByDBID(10);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(existing.Save).ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(existing.Delete).ErrorCode);
+        Assert.AreEqual(0, stores);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
+    }
+
     private static SurblServerAdministrationSnapshot Snapshot(
         int id,
         bool active,
