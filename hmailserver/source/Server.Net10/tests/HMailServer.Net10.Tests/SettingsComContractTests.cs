@@ -2190,6 +2190,87 @@ public sealed class SettingsComContractTests
     }
 
     [TestMethod]
+    public void AuthorizedSettings_IniWritersHoldAuthorizationLeaseDuringMutation()
+    {
+        TrackingAuthorizationLease? activeLease = null;
+        var language = "English";
+        var rewriteEnvelope = true;
+        var languageLeaseHeld = false;
+        var rewriteLeaseHeld = false;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                UserInterfaceLanguage: language,
+                UserInterfaceLanguageWriter: value =>
+                {
+                    languageLeaseHeld = activeLease is not null && !activeLease.Disposed;
+                    language = value;
+                },
+                RewriteEnvelopeFromWhenForwarding: rewriteEnvelope,
+                RewriteEnvelopeFromWhenForwardingWriter: value =>
+                {
+                    rewriteLeaseHeld = activeLease is not null && !activeLease.Disposed;
+                    rewriteEnvelope = value;
+                }),
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                activeLease = new TrackingAuthorizationLease();
+                return ValueTask.FromResult<IDisposable?>(activeLease);
+            });
+
+        settings.UserInterfaceLanguage = "Turkish";
+        settings.RewriteEnvelopeFromWhenForwarding = false;
+
+        Assert.IsTrue(languageLeaseHeld);
+        Assert.IsTrue(rewriteLeaseHeld);
+        Assert.AreEqual("Turkish", language);
+        Assert.IsFalse(rewriteEnvelope);
+        Assert.IsTrue(activeLease!.Disposed);
+    }
+
+    [TestMethod]
+    public void AuthorizedSettings_IniWritersFailClosedWhenAuthorizationLeaseUnavailable()
+    {
+        var language = "English";
+        var rewriteEnvelope = true;
+        var writeCount = 0;
+        IInterfaceSettings settings = Settings.CreateAuthorized(
+            new SettingsAdministrationSnapshot(
+                HostName: string.Empty,
+                WelcomeSmtp: string.Empty,
+                WelcomePop3: string.Empty,
+                WelcomeImap: string.Empty),
+            runtimeConfiguration: new SettingsRuntimeConfiguration(
+                UserInterfaceLanguage: language,
+                UserInterfaceLanguageWriter: value =>
+                {
+                    writeCount++;
+                    language = value;
+                },
+                RewriteEnvelopeFromWhenForwarding: rewriteEnvelope,
+                RewriteEnvelopeFromWhenForwardingWriter: value =>
+                {
+                    writeCount++;
+                    rewriteEnvelope = value;
+                }),
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: static _ => ValueTask.FromResult<IDisposable?>(null));
+
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(
+            () => settings.UserInterfaceLanguage = "Turkish").ErrorCode);
+        Assert.AreEqual(EAccessDenied, Assert.ThrowsExactly<COMException>(
+            () => settings.RewriteEnvelopeFromWhenForwarding = false).ErrorCode);
+        Assert.AreEqual(0, writeCount);
+        Assert.AreEqual("English", language);
+        Assert.IsTrue(rewriteEnvelope);
+    }
+
+    [TestMethod]
     public void AuthorizedSettings_TlsVersion10SetterPreservesOtherBitsAndRechecksAdministrator()
     {
         var isServerAdministrator = true;

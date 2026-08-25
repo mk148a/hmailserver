@@ -481,6 +481,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 return;
             }
 
+            using var authorizationLease = AcquireAuthorizationLease();
             _runtimeConfiguration.UserInterfaceLanguageWriter(value);
             _userInterfaceLanguage = value;
         }
@@ -503,6 +504,7 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
                 return;
             }
 
+            using var authorizationLease = AcquireAuthorizationLease();
             _runtimeConfiguration.RewriteEnvelopeFromWhenForwardingWriter(value);
             _rewriteEnvelopeFromWhenForwarding = value;
         }
