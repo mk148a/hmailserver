@@ -8445,3 +8445,14 @@ context through every production projection store. The current
 `IBackupRestoreMetadataTransaction` is restore-only and the production backup
 payload stores use independent connections, so no SQL snapshot claim is made
 until that factory and wiring exist.
+## Current authoritative status (2026-08-25, TCP/IP lease slice)
+
+The latest verified code slice is `51e46c4bb`, covering authenticated
+generation-bound leases for TCP/IP port insert, update, delete, and
+`SetDefault`, with focused `25/25` and standard full Debug `2720/96/0`.
+The current documentation head is `1cd29faaa`; refresh `CURRENT_STATE.md` after
+any further documentation commit. Cache `Clear` was audited against legacy
+`InterfaceCache::Clear` but is not safely implementable yet because the .NET 10
+rewrite has no real cache-container/backend abstraction; do not invent one.
+The next code slice remains the read-only SQL backup projection snapshot
+factory, explicitly excluding physical Data-file quiescence.

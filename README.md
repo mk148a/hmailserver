@@ -10,7 +10,9 @@ lease. Legacy anchors are `InterfaceTCPIPPort::Save`
 `InterfaceTCPIPPorts::DeleteByDBID/Add`
 (`source/Server/COM/InterfaceTCPIPPorts.cpp:101,148`). Focused
 `TcpIpPortsComContractTests` pass `25/25`. The standard full Debug suite
-passes `2720`, skips `96`, and fails `0` (`2816` total).
+passes `2720`, skips `96`, and fails `0` (`2816` total). Cache `Clear` remains
+an explicit backend blocker: the .NET 10 runtime has no real cache-container
+abstraction, so the existing optional seam is not being presented as parity.
 
 Release remains **RED**. Backup writer quiescence, cloned rollback,
 registered COM/SEC-18, PHP credential removal, paired C++/.NET load, protocol
