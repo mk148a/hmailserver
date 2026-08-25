@@ -21,6 +21,16 @@ The Settings scalar audit found no additional qualifying missing lease guard;
 only the already documented `UserInterfaceLanguage` and
 `RewriteEnvelopeFromWhenForwarding` INI-writer cases remain.
 
+## Current authoritative status (2026-08-25, native restore rename recheck)
+
+The current Windows host passes
+`BackupRestoreDataDirectoryRuntimeTests.WindowsFilesystemMutation_UsesNativeRelativeRename`
+(`1/1`), and the surrounding Data-directory runtime group passes `23` with
+`1` reparse-point capability skip. The older `ERROR_INVALID_PARAMETER (87)`
+result is historical, not current evidence; no absolute-path fallback was
+added. Atomic SQL/Data quiescence, crash consistency, and production rollback
+gates remain open.
+
 ## Current authoritative status (2026-08-25, environment recheck)
 
 The current Codex process remains non-elevated (`Administrator=False`);

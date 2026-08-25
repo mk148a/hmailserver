@@ -19,6 +19,14 @@ are unavailable, proceed to cloned installer/service/Data rollback acceptance.
 The parallel Settings scalar audit found no additional qualifying lease gap;
 only the already documented INI-writer cases remain outside this result.
 
+## Current Authoritative Continuation (2026-08-25, NATIVE RESTORE RENAME RECHECK)
+
+The current Windows host recheck passes
+`BackupRestoreDataDirectoryRuntimeTests.WindowsFilesystemMutation_UsesNativeRelativeRename`
+(`1/1`). The surrounding Data-directory runtime group passes `23` with `1`
+reparse-point capability skip. The older `ERROR_INVALID_PARAMETER (87)` result
+is historical and is not current evidence; no absolute-path fallback was added.
+
 ## Current Authoritative Continuation (2026-08-25, BACKUP EVENT ORDERING RECHECK)
 
 Legacy `BackupExecuter::StartBackup` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-193`)
