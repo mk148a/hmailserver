@@ -8764,3 +8764,17 @@ explicit skips. Live SQL/WSH/AD execution evidence is still unavailable and
 remains a release blocker. Cache remains fenced because the .NET runtime seam
 has no real typed-cache backend or lifecycle registration equivalent to legacy
 `CacheContainer`.
+
+## Current authoritative status (2026-08-25, AntiSpam collection mutation stale-item audit)
+
+The older read-only claims for `DNSBlackLists`, `SURBLServers`,
+`GreyListingWhiteAddresses`, and `WhiteListAddresses` are stale. Their current
+Net10 adapters already have authenticated SQL-backed Add/Save/Delete/Refresh
+paths as applicable, owning-snapshot containment, retained-object
+reauthentication, direct activation denial, and legacy COM identity coverage.
+The production stores are registered by `Host.cs` and runtime hosts are wired
+by `Program.cs`. Legacy references are the matching `Interface*` and
+`Persistent*` classes in `hmailserver/source/Server/COM` and
+`hmailserver/source/Server/Common/Persistence`. Focused tests cover the
+mutation/failure/authorization matrix. Do not restart those stale entries;
+live SQL and SMTP policy acceptance remain separate release gates.

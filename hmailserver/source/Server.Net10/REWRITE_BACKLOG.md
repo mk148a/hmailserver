@@ -8863,3 +8863,24 @@ process-wide typed caches and lifecycle invalidation, while the .NET
 registration or real cache backend. Cache `Clear`, setters, and statistics
 must remain fenced until that backend and lifecycle contract are designed.
 Release remains **RED**.
+
+## Current authoritative status (2026-08-25, AntiSpam collection mutation stale-item audit)
+
+Older audit entries that describe `DNSBlackLists`, `SURBLServers`,
+`GreyListingWhiteAddresses`, or `WhiteListAddresses` as read-only are stale in
+the current tree. Legacy collection/item persistence is anchored by
+`InterfaceDNSBlackLists`/`InterfaceDNSBlackList` plus
+`PersistentDNSBlacklist`, `InterfaceSURBLServers`/`InterfaceSURBLServer` plus
+`PersistentSURBLServer`, and the corresponding greylisting/whitelist COM and
+persistence classes under `hmailserver/source/Server/COM` and
+`hmailserver/source/Server/Common/Persistence`.
+
+The .NET production composition registers all four SQL administration stores
+in `HMailServer.Service/Host.cs` and configures their runtime hosts in
+`HMailServer.Service/Program.cs`. Current focused contract tests cover
+authenticated Add/new-item Save, existing Save, Delete/DeleteByDBID or Clear
+where present, Refresh, owner-snapshot containment, live administrator
+rechecks, failure retention, direct activation denial, and installed COM
+identity. Do not restart these stale read-only items; remaining risk is live
+SQL/SMTP policy acceptance, not missing COM mutation plumbing. Release remains
+**RED**.
