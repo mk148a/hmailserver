@@ -38,7 +38,12 @@ WHERE dadomainid = @OwningDomainID
   AND daid = @AliasID;
 """;
 
-    private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerConnectionFactory? _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
+
+    private SqlServerConnectionFactory ConnectionFactory =>
+        _connectionFactory ?? throw new NotSupportedException(
+            "Domain-alias mutation is not supported from a backup snapshot scope.");
 
     public SqlServerDomainAliasAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -46,12 +51,23 @@ WHERE dadomainid = @OwningDomainID
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerDomainAliasAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<DomainAliasAdministrationSnapshot>> GetDomainAliasesAsync(
         int domainId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetDomainAliasesSql, connection);
+        await using var lease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetDomainAliasesSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = lease.Command;
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = domainId;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
@@ -76,7 +92,7 @@ WHERE dadomainid = @OwningDomainID
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(alias);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await ConnectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(InsertDomainAliasSql, connection);
         command.Parameters.Add("@DomainID", SqlDbType.Int).Value = owningDomainId;
         command.Parameters.Add("@AliasName", SqlDbType.NVarChar, 255).Value = alias.AliasName;
@@ -90,7 +106,7 @@ WHERE dadomainid = @OwningDomainID
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(alias);
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await ConnectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(UpdateDomainAliasSql, connection);
         command.Parameters.Add("@OwningDomainID", SqlDbType.Int).Value = owningDomainId;
         command.Parameters.Add("@AliasID", SqlDbType.Int).Value = alias.Id;
@@ -109,7 +125,7 @@ WHERE dadomainid = @OwningDomainID
         int aliasId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await ConnectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
         await using var command = new SqlCommand(DeleteDomainAliasSql, connection);
         command.Parameters.Add("@OwningDomainID", SqlDbType.Int).Value = owningDomainId;
         command.Parameters.Add("@AliasID", SqlDbType.Int).Value = aliasId;
