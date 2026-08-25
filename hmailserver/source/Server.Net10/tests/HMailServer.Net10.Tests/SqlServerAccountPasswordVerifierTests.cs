@@ -29,6 +29,7 @@ public sealed class SqlServerAccountPasswordVerifierTests
         StringAssert.Contains(sql, "@AccountID");
         StringAssert.Contains(sql, "FROM hm_accounts");
         StringAssert.Contains(sql, "accountactive");
+        Assert.IsFalse(sql.Contains("accountpassword IS NOT NULL", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));

@@ -62,17 +62,17 @@ public sealed class SqlServerAccountPasswordVerifier
             if (!reader.Read()
                 || reader.IsDBNull(0)
                 || reader.IsDBNull(1)
-                || reader.IsDBNull(2)
-                || reader.IsDBNull(3)
-                || reader.IsDBNull(4))
+                || reader.IsDBNull(2))
             {
                 return false;
             }
 
             var storedAccountId = reader.GetInt32(0);
             var accountIsAd = Convert.ToInt32(reader.GetValue(2));
-            var storedPassword = reader.GetString(3);
-            var encryptionType = (LegacyPasswordEncryptionType)reader.GetByte(4);
+            var storedPassword = reader.IsDBNull(3) ? null : reader.GetString(3);
+            var encryptionType = reader.IsDBNull(4)
+                ? null
+                : (LegacyPasswordEncryptionType?)reader.GetByte(4);
 
             if (storedAccountId != accountId)
             {
@@ -84,7 +84,11 @@ public sealed class SqlServerAccountPasswordVerifier
                 .AsTask()
                 .GetAwaiter()
                 .GetResult();
-            var scriptDecision = RunScript(account, accountIsAd != 0, storedPassword, password);
+            var scriptDecision = RunScript(
+                account,
+                accountIsAd != 0,
+                storedPassword ?? string.Empty,
+                password);
             if (scriptDecision == ClientPasswordValidationScriptDecision.Accept)
             {
                 return true;
@@ -105,7 +109,9 @@ public sealed class SqlServerAccountPasswordVerifier
                         password);
             }
 
-            return LegacyPasswordVerifier.Verify(password, storedPassword, encryptionType);
+            return storedPassword is not null
+                && encryptionType is not null
+                && LegacyPasswordVerifier.Verify(password, storedPassword, encryptionType.Value);
         }
         catch (Exception)
         {
