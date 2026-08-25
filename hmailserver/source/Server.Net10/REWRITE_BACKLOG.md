@@ -8904,6 +8904,22 @@ This closure does not claim that plaintext credential exposure is acceptable:
 live secret-free WSH/COM/log/session evidence and external-fetch acceptance
 remain release blockers. Do not restart the stale E_NOTIMPL item.
 
+## Current authoritative status (2026-08-25, restore runtime wiring stale-item closure)
+
+Older entries that say `BackupArchiveRuntime.ConfigureRestoreRuntime` is not
+connected are stale. The current `BackupArchiveRuntime` configures
+`BackupRestoreRuntimeHost` with the restore executor; `BackupManager.LoadBackup`
+creates the bounded archive binding and `Backup.StartRestore` dispatches through
+the service-owned backup operation runtime. Current coverage includes
+`BackupRestoreExecutionTests`, `BackupRestoreRoundTripIntegrationTests`,
+`BackupManagerComContractTests`, `BackupManagerMode7RoundTripTests`, and
+`BackupArchiveRuntimeTests`.
+
+This proves code-level dispatch and test-injected/disposable paths only. It
+does not close populated live SQL/Data restore, service/out-of-process COM,
+crash or power-loss recovery, reparse-race, or installer rollback gates.
+Do not restart the stale callback-wiring item; release remains **RED**.
+
 ## Current authoritative status (2026-08-25, Directories setter stale-item closure)
 
 Older entries that list `Settings.Directories.TempDirectory`,

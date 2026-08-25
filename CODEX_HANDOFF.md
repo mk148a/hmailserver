@@ -8792,6 +8792,16 @@ cross-owner denial, reauthentication, failure cleanup, and update staging.
 This is not a plaintext-credential release approval; live secret-free
 WSH/COM/log/session evidence remains required.
 
+## Current authoritative status (2026-08-25, restore runtime wiring stale-item closure)
+
+The older callback-wiring item is stale. `BackupArchiveRuntime` now configures
+`BackupRestoreRuntimeHost`; `BackupManager.LoadBackup` creates the bounded
+archive binding and `Backup.StartRestore` dispatches through the service-owned
+operation runtime. Restore execution, round-trip, COM contract, mode-7, and
+runtime tests cover this path. Remaining gaps are live disposable SQL/Data
+restore, service/out-of-process COM, crash/power-loss recovery, reparse-race,
+and installer rollback evidence; those remain release gates.
+
 ## Current authoritative status (2026-08-25, Directories setter stale-item closure)
 
 The older next-slice entries for `Settings.Directories` setters are stale.
