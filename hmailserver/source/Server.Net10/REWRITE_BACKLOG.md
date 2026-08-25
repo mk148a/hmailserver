@@ -29,6 +29,12 @@ The offline 100k SEARCH/SORT benchmark also passed in Release (`p50 13.78 ms`,
 evidence: the expected result uses the same implementation, and no C++
 comparison, live protocol load, or service leak claim is valid.
 
+Contract correction: legacy `hMailServer.idl:628` assigns DISPID 76 to
+`IInterfaceSettings::SetAdministratorPassword`; `IInterfaceApplication` has
+no DISPID 76 member. The remaining Application-side lifecycle gap is
+`ServerState` transition wiring and real registered/out-of-process COM/SCM
+evidence, which must remain separate bounded slices.
+
 ## Historical authoritative next slice (2026-08-22, legacy POP3 PASS before USER complete)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.

@@ -22,6 +22,10 @@ The safe offline 100k SEARCH/SORT benchmark passed in Release (`p50 13.78 ms`,
 `p95 25.328 ms`, `p99 27.317 ms`). This is Net10-only diagnostic evidence,
 not a C++ speed comparison or service soak result.
 
+Contract note: legacy DISPID 76 is `IInterfaceSettings::SetAdministratorPassword`,
+not an Application member. The Application lifecycle gap is `ServerState`
+transition wiring plus registered/out-of-process COM and SCM evidence.
+
 ## Historical parity gate (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.

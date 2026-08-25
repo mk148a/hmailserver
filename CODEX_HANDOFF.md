@@ -32,6 +32,11 @@ The safe offline 100k SEARCH/SORT benchmark then passed in Release (`p50
 result is produced by the same implementation, so it is diagnostic only and
 does not close the paired C++/Net10 performance gate or the service soak gate.
 
+Parity correction: legacy `hMailServer.idl:628` defines DISPID 76 as
+`IInterfaceSettings::SetAdministratorPassword`; there is no Application
+DISPID 76. Treat Application `ServerState` lifecycle wiring and registered
+COM/SCM evidence as separate open slices.
+
 ## Historical Authoritative Continuation (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap. Legacy
