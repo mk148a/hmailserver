@@ -1,6 +1,19 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-25, external-fetch runner secret transport)
+## Current Authoritative Continuation (2026-08-25, INI replacement durability metadata)
+
+Code/test commit `f8e040154` adds a containing-directory flush after the
+atomic administrator-password INI replacement. Legacy behavior is
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1014-1032` through
+`IniFileSettings::SetAdministratorPassword`; Net10 now preserves the file
+replacement result and durably finalizes directory metadata. Focused tests pass
+`12/12`; full Debug Net10 passes `2703`, skips `94`, and fails `0`. This does
+not prove process-kill, reboot, or power-loss recovery. Release remains
+**RED** for SEC-18/registered COM, PHP session reauthentication, rollback,
+paired C++ performance, protocol thresholds, and soak. Next: isolated
+registered COM/SEC-18 caller evidence.
+
+Older entries are historical.
 
 Code/test commit `54a793740` removes stored external-fetch account passwords
 from generated VBScript/JScript runner files. Legacy

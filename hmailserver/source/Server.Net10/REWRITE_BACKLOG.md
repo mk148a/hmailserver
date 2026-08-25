@@ -1,6 +1,19 @@
 
 
-## Current authoritative next slice (2026-08-25, external-fetch runner secret transport complete)
+## Current authoritative next slice (2026-08-25, INI replacement durability metadata complete)
+
+Code/test commit `f8e040154` closes the directory-metadata durability gap in
+the legacy administrator-password update. Legacy
+`hmailserver/source/Server/COM/InterfaceSettings.cpp:1014-1032` delegates to
+`IniFileSettings::SetAdministratorPassword`, which rewrites the INI value.
+Net10 `LegacyInitializationFile.SaveAdministratorPasswordHash` now flushes
+the containing directory after `File.Replace`/`File.Move`; an injected flush
+callback proves ordering in `LegacyInitializationFileTests`. Focused tests
+pass `12/12`; full Debug Net10 passes `2703`, skips `94`, and fails `0`.
+Process-kill, reboot, and power-loss survival remain unproven. Release remains
+**RED**. Next slice: isolated registered COM/SEC-18 caller evidence.
+
+## Historical authoritative next slice (2026-08-25, external-fetch runner secret transport complete)
 
 Code/test commit `54a793740` closes the bounded external-fetch runner-file
 secret gap. Legacy `hmailserver/source/Server/Common/Scripting/Events.cpp:209-248`
