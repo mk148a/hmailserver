@@ -8101,3 +8101,10 @@ Code/test commit `1ccef4ba5` implements the bounded `Settings.Directories.EventD
 Focused `DirectoriesComContractTests` pass `10/10`; full Debug Net10 passes `2708`, skips `94`, and fails `0` (`2802` total). No production or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
 
 Next slice: authenticated `Settings.Directories.DatabaseDirectory` mutation parity, with database-path and restart-time semantics explicitly preserved.
+## Current authoritative next slice (2026-08-25, authenticated DatabaseDirectory mutation)
+
+Code/test commit `71fdbe18a` implements the bounded `Settings.Directories.DatabaseDirectory` mutation slice. Legacy `InterfaceDirectories::put_DatabaseDirectory` in `hmailserver/source/Server/COM/InterfaceDirectories.cpp:58-76` delegates to `IniFileSettings::SetDatabaseDirectory`, which writes `[Directories] DatabaseFolder`. Net10 now exposes the setter only through the authenticated directory store path, preserves direct activation denial, refreshes a retained authorized facade after success, and reports persistence failure when the INI write fails. This is persistence-only parity and does not change the active SQL connection or move database files.
+
+Focused `DirectoriesComContractTests` pass `11/11`; full Debug Net10 passes `2709`, skips `94`, and fails `0` (`2803` total). No production, SQL, or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
+
+Next slice: review the remaining `Directories` mutation surface and then move to the highest-priority independent release gate; `DBScriptDirectory` remains legacy read-only.

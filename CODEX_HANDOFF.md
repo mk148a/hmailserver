@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, DATABASE DIRECTORY MUTATION)
+
+Code/test commit `71fdbe18a` closes the legacy `Settings.Directories.DatabaseDirectory`
+mutation gap. Legacy `InterfaceDirectories::put_DatabaseDirectory` at
+`hmailserver/source/Server/COM/InterfaceDirectories.cpp:58-76` calls
+`IniFileSettings::SetDatabaseDirectory`, persisting `[Directories] DatabaseFolder`.
+The authenticated .NET 10 facade now uses the configured directory store,
+refreshes retained-object state after success, and preserves direct activation
+access denial. The slice is persistence-only: it does not alter the active SQL
+connection or move database files. COM identity and dispatch order are unchanged.
+
+Focused tests: `DirectoriesComContractTests` `11/11`. Full Debug Net10:
+`2709 passed, 94 skipped, 0 failed` (`2803` total). No production, SQL, or
+machine-wide state was changed.
+
+Next bounded slice: review the remaining `Directories` mutation surface, then
+select the highest-priority independent release gate. `DBScriptDirectory`
+remains legacy read-only.
+
+
 ## Current Authoritative Continuation (2026-08-25, EVENT DIRECTORY MUTATION)
 
 Code/test commit `1ccef4ba5` closes the legacy `Settings.Directories.EventDirectory`
