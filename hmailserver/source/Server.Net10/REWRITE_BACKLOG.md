@@ -8459,3 +8459,21 @@ Next smallest safe slice: complete backup snapshot/quiescence only if all SMTP,
 IMAP, POP3, queue, and message writers can participate; otherwise proceed to
 cloned installer/service/Data rollback acceptance. Registered out-of-process
 COM, SEC-18, paired C++ load, and long-soak gates remain environment-blocked.
+# Current Next Slice (2026-08-25)
+
+Completed code/test commit `3449c3bbf`: generation-bound authorization leases
+now cover SSL certificate collection `DeleteByDBID`, `Clear`, and item Save
+store callbacks, with lease forwarding through Settings and the SQL runtime
+adapter. Focused tests pass `14/14`; standard full Debug passes `2718/96/0`.
+
+Legacy references: `InterfaceSSLCertificate::Save/Delete` in
+`hmailserver/source/Server/COM/InterfaceSSLCertificate.cpp:14,38`, and
+`InterfaceSSLCertificates::DeleteByDBID/Add` in
+`hmailserver/source/Server/COM/InterfaceSSLCertificates.cpp:122,169`.
+
+Next smallest safe slice: complete backup snapshot/quiescence only when all
+SMTP, IMAP, POP3, queue, and message writers participate in one proven
+boundary. Current Net10 has no such cross-writer contract; do not add a
+partial gate or claim atomicity. Otherwise proceed to cloned installer/
+service/Data rollback acceptance. Registered COM/SEC-18, paired C++ load, and
+long-soak gates remain environment-blocked.

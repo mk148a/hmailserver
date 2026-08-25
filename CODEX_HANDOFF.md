@@ -8390,3 +8390,28 @@ mutation feature parity, because refresh/read and SQL behavior are existing
 bounded paths; it only closes authorization freshness at mutation time. Next
 independent slice is writer-participating backup quiescence, or cloned
 installer/service/Data rollback acceptance if all writer hooks are unavailable.
+# Current Authoritative Continuation (2026-08-25, SSL CERTIFICATE MUTATION LEASE PARITY)
+
+Code/test commit `3449c3bbf` adds the generation-bound authorization lease to
+the configured SSL certificate collection's `DeleteByDBID`, `Clear`, and item
+Save store callbacks. The lease is forwarded through `Settings.SSLCertificates`
+and `SslCertificateAdministrationRuntimeHost`; retained collection mutations
+now fail closed after administrator reauthentication failure. COM identity,
+IID/vtable/DISPID order, direct activation denial, SQL schema, SMTP behavior,
+and live reconfiguration were unchanged.
+
+Legacy references are `InterfaceSSLCertificate::Save/Delete` in
+`hmailserver/source/Server/COM/InterfaceSSLCertificate.cpp:14,38` and
+`InterfaceSSLCertificates::DeleteByDBID/Add` in
+`hmailserver/source/Server/COM/InterfaceSSLCertificates.cpp:122,169`.
+Focused coverage is `SslCertificatesComContractTests` `14/14`, including
+lease-held callbacks and unavailable-lease denial. The current standard full
+Debug suite is `2718 passed, 96 skipped, 0 failed`; the prior opt-in
+`2797/16/0` run predates this slice and required environment variables are not
+present in the current shell.
+
+Release remains **RED**. The next independent slice is writer-participating
+backup quiescence only if all SMTP/IMAP/POP3/queue/message writers can join a
+single barrier; otherwise proceed to cloned installer/service/Data rollback
+acceptance. No production service, SQL/Data directory, COM registration,
+DCOM ACL, IIS, or firewall state was changed.

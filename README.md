@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, SSL certificate mutation leases)
+
+The latest bounded COM/Admin slice guards SSL certificate collection
+`DeleteByDBID`, `Clear`, and item `Save` paths with the generation-bound
+authorization lease. Legacy anchors are
+`InterfaceSSLCertificate::Save/Delete` in
+`source/Server/COM/InterfaceSSLCertificate.cpp:14,38` and collection
+`DeleteByDBID/Add` in `source/Server/COM/InterfaceSSLCertificates.cpp:122,169`.
+Focused `SslCertificatesComContractTests` pass `14/14`. The latest standard
+full Debug suite passes `2718`, skips `96`, and fails `0`; the prior opt-in
+environment run was `2797/16/0` before this slice and was not rerun because
+the required opt-in environment variables are absent in the current shell.
+
+Release remains **RED**. Atomic backup quiescence, cloned installer/service/
+Data rollback, registered COM and SEC-18 evidence, PHP credential removal,
+paired C++/.NET load, protocol thresholds, and 24-hour soak remain open.
+
 ## Current parity gate (2026-08-25, private binding reparse safety)
 
 Private backup binding snapshot-root and staging-directory creation now uses
