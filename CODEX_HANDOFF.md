@@ -8662,3 +8662,19 @@ coordinated; IMAP, POP3, message COM, and lifecycle writers remain outside the
 barrier. Release remains **RED**. Next work is one IMAP or POP3 writer
 admission integration with rollback coverage or cloned installer/service/Data
 rollback acceptance.
+
+## Current authoritative continuation (2026-08-25, POP3 deletion backup admission)
+
+Code/test commit `c62ae81f5` wires `DeliveryQueuePauseDrainGate.EnterWorkerAsync`
+into `SqlServerPop3MailboxStore.DeleteMessagesAsync`. The lease covers the
+POP3 QUIT account-scoped delete transaction and message-file cleanup, and is
+released on cancellation. Legacy references are `POP3Connection::QUIT` and
+`FolderManager::DeleteInboxMessages` at
+`hmailserver/source/Server/POP3/POP3Connection.cpp:918-928`.
+
+Focused POP3 tests pass `5/5`; standard full Debug passes `2736/96/0`
+(`2832` total). Delivery queue, external-fetch, import, SMTP, and POP3
+deletion are coordinated; IMAP, message COM, and lifecycle writers remain
+outside the barrier. Release remains **RED**. Next work is one IMAP writer
+admission integration with authorization/rollback coverage or cloned
+installer/service/Data rollback acceptance.
