@@ -5,7 +5,7 @@
 The current Codex process remains non-elevated (`Administrator=False`);
 Hyper-V inventory is denied and no SQL service is discoverable in this user
 context. The last code/test commit is `2ba259c83`; the latest docs/state commit
-is `b5e6e5804`. Offline script-order and nullable-hash checks pass. The latest
+is `71cabb96c`. Offline script-order and nullable-hash checks pass. The latest
 backup/restore filter passes `102`, skips `4`; the full Debug suite passes
 `2709`, skips `95`, and fails `0`. Live WSH override, AD/SSPI, registered COM,
 cloned rollback, and VM-backed release evidence remain unproven. No
