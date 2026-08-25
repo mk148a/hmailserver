@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, domain backup account/fetch snapshot parity)
+
+Code/test commit `8157fb1da` extends the domain-only SQL snapshot with the
+legacy `Account::XMLStore` child projections: encrypted account credentials,
+`FetchAccount::XMLStore`, and `FetchAccountUID::XMLStore`. Legacy anchors are
+`hmailserver/source/Server/Common/BO/Account.cpp:280-327`,
+`FetchAccount.cpp:55-79`, and `FetchAccountUID.cpp:42-49`. The snapshot now
+uses transaction-scoped `IBackupAccountAdministrationStore` and
+`IBackupFetchAccountAdministrationStore`; payload tests cover account password
+encryption metadata and fetch credential projection. Focused tests pass `3/3`;
+full Debug Net10 passes `2729`, skips `96`, and fails `0` (`2825` total).
+
+This remains limited to domain-only metadata. Settings, rules, folders,
+messages, physical Data quiescence, and cross-writer crash consistency remain
+open; no full backup release claim is made. Release remains **RED**.
+
 ## Current authoritative status (2026-08-25, read-only SQL backup snapshot scope)
 
 Code/test commits `e28c767f6` and `503d4b724` add the bounded

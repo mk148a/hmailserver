@@ -8565,3 +8565,16 @@ fetch accounts, folders, physical Data quiescence, and cross-writer coordination
 remain separate blockers; no full atomic SQL/Data or crash-consistency claim is
 valid. Next slice: extend only complete read-only projection contexts or proceed
 to cloned installer/service/Data rollback acceptance.
+## Current authoritative status (2026-08-25, domain account/fetch snapshot parity)
+
+Code/test commit `8157fb1da` extends the domain-only SQL snapshot with
+transaction-scoped encrypted account and FetchAccount/UID projections through
+`IBackupAccountAdministrationStore` and
+`IBackupFetchAccountAdministrationStore`. Legacy anchors are
+`Account::XMLStore` (`hmailserver/source/Server/Common/BO/Account.cpp:280-327`),
+`FetchAccount::XMLStore` (`.../FetchAccount.cpp:55-79`), and
+`FetchAccountUID::XMLStore` (`.../FetchAccountUID.cpp:42-49`). Focused tests are
+`3/3`; full standard Debug is `2729/96/0`. Disposable SQL snapshot integration
+remains unavailable. Settings, rules, folders, messages, physical Data
+quiescence, and crash consistency remain open. Next slice: another complete
+transaction-compatible projection or cloned installer/service/Data rollback.

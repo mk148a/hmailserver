@@ -1,5 +1,22 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, DOMAIN ACCOUNT/FETCH SNAPSHOT PARITY)
+
+Code/test commit `8157fb1da` extends the domain-only snapshot with
+`IBackupAccountAdministrationStore` and
+`IBackupFetchAccountAdministrationStore`. This matches the legacy
+`Account::XMLStore`/`FetchAccount::XMLStore`/`FetchAccountUID::XMLStore` path at
+`hmailserver/source/Server/Common/BO/Account.cpp:280-327`,
+`FetchAccount.cpp:55-79`, and `FetchAccountUID.cpp:42-49`, including encrypted
+account/fetch credentials and UID children. The SQL backup fetch store now
+accepts the existing transaction context and uses transaction-bound commands.
+
+Focused contract/payload coverage is `3/3`; full standard Debug is `2729
+passed, 96 skipped, 0 failed`. Disposable SQL snapshot integration is not run
+because the required isolated opt-in database evidence is unavailable. Next
+slice: add only the next complete transaction-compatible projection, or move to
+cloned installer/service/Data rollback acceptance.
+
 ## Current Authoritative Continuation (2026-08-25, READ-ONLY SQL BACKUP SNAPSHOT SCOPE)
 
 Code/test commits `e28c767f6` and `503d4b724` add
