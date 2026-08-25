@@ -49,7 +49,9 @@ internal sealed class ComLocalServerHostedService : IHostedService, IDisposable
                     serviceDependencyRuntime,
                     emailAllAccountsRuntime,
                     importMessageFromFileRuntime,
-                    reinitializeAsync: reinitializationCoordinator.ReinitializeAsync)),
+                    reinitializeAsync: reinitializationCoordinator.ReinitializeAsync,
+                    startAsync: reinitializationCoordinator.StartServersAsync,
+                    stopAsync: reinitializationCoordinator.StopServersAsync)),
             new ComLocalServerRegistration(
                 typeof(Database).GUID,
                 static () => new Database()),

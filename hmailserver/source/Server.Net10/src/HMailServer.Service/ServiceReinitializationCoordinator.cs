@@ -110,6 +110,74 @@ public sealed class ServiceReinitializationCoordinator
         }
     }
 
+    internal async ValueTask StartServersAsync(CancellationToken cancellationToken)
+    {
+        await _reinitializeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var participants = GetParticipants();
+            var started = new List<Participant>(participants.Length);
+            try
+            {
+                foreach (var participant in participants)
+                {
+                    await participant.StartAsync(CancellationToken.None).ConfigureAwait(false);
+                    started.Add(participant);
+                }
+            }
+            catch (Exception startException)
+            {
+                await CompensateStopsAsync(started, startException).ConfigureAwait(false);
+                throw;
+            }
+        }
+        finally
+        {
+            _reinitializeGate.Release();
+        }
+    }
+
+    internal async ValueTask StopServersAsync(CancellationToken cancellationToken)
+    {
+        await _reinitializeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var participants = GetParticipants();
+            var stopped = new List<Participant>(participants.Length);
+            try
+            {
+                for (var index = participants.Length - 1; index >= 0; index--)
+                {
+                    await participants[index].StopAsync(CancellationToken.None).ConfigureAwait(false);
+                    stopped.Add(participants[index]);
+                }
+            }
+            catch (Exception stopException)
+            {
+                await CompensateStartsAsync(stopped, stopException).ConfigureAwait(false);
+                throw;
+            }
+        }
+        finally
+        {
+            _reinitializeGate.Release();
+        }
+    }
+
+    private Participant[] GetParticipants()
+    {
+        lock (_gate)
+        {
+            if (_participants.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "Service lifecycle is not configured with any participants.");
+            }
+
+            return _participants.ToArray();
+        }
+    }
+
     private static async ValueTask CompensateStartsAsync(
         List<Participant> stopped,
         Exception originalException)

@@ -27,6 +27,8 @@ public sealed class Application : IInterfaceApplication
     private readonly IEmailAllAccountsRuntime? _emailAllAccountsRuntime;
     private readonly IImportMessageFromFileRuntime? _importMessageFromFileRuntime;
     private readonly Func<CancellationToken, ValueTask>? _reinitializeAsync;
+    private readonly Func<CancellationToken, ValueTask>? _startAsync;
+    private readonly Func<CancellationToken, ValueTask>? _stopAsync;
     private readonly ApplicationAuthorizationAuthority _authorizationAuthority = new();
 
     public Application()
@@ -44,7 +46,9 @@ public sealed class Application : IInterfaceApplication
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
         IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
         IImportMessageFromFileRuntime? importMessageFromFileRuntime = null,
-        Func<CancellationToken, ValueTask>? reinitializeAsync = null)
+        Func<CancellationToken, ValueTask>? reinitializeAsync = null,
+        Func<CancellationToken, ValueTask>? startAsync = null,
+        Func<CancellationToken, ValueTask>? stopAsync = null)
     {
         ArgumentNullException.ThrowIfNull(authenticationProvider);
         _authenticationProvider = authenticationProvider;
@@ -58,6 +62,8 @@ public sealed class Application : IInterfaceApplication
         _emailAllAccountsRuntime = emailAllAccountsRuntime;
         _importMessageFromFileRuntime = importMessageFromFileRuntime;
         _reinitializeAsync = reinitializeAsync;
+        _startAsync = startAsync;
+        _stopAsync = stopAsync;
     }
 
     [ComVisible(false)]
@@ -71,7 +77,9 @@ public sealed class Application : IInterfaceApplication
         IServiceDependencyRuntime? serviceDependencyRuntime = null,
         IEmailAllAccountsRuntime? emailAllAccountsRuntime = null,
         IImportMessageFromFileRuntime? importMessageFromFileRuntime = null,
-        Func<CancellationToken, ValueTask>? reinitializeAsync = null) =>
+        Func<CancellationToken, ValueTask>? reinitializeAsync = null,
+        Func<CancellationToken, ValueTask>? startAsync = null,
+        Func<CancellationToken, ValueTask>? stopAsync = null) =>
         new(
             authenticationProvider,
             legacyBlowfishCipher: legacyBlowfishCipher,
@@ -82,7 +90,9 @@ public sealed class Application : IInterfaceApplication
             serviceDependencyRuntime: serviceDependencyRuntime,
             emailAllAccountsRuntime: emailAllAccountsRuntime,
             importMessageFromFileRuntime: importMessageFromFileRuntime,
-            reinitializeAsync: reinitializeAsync);
+            reinitializeAsync: reinitializeAsync,
+            startAsync: startAsync,
+            stopAsync: stopAsync);
 
     public IInterfaceSettings Settings
     {
@@ -213,13 +223,13 @@ public sealed class Application : IInterfaceApplication
     public void Start()
     {
         EnsureServerAdministrator();
-        NotImplemented();
+        InvokeLifecycle(_startAsync, "start");
     }
 
     public void Stop()
     {
         EnsureServerAdministrator();
-        NotImplemented();
+        InvokeLifecycle(_stopAsync, "stop");
     }
 
     public void SubmitEMail()
@@ -321,6 +331,42 @@ public sealed class Application : IInterfaceApplication
 
     private static void NotImplemented() =>
         throw new COMException("This legacy COM member has not been implemented by the .NET 10 rewrite.", ENotImplemented);
+
+    private void InvokeLifecycle(
+        Func<CancellationToken, ValueTask>? lifecycle,
+        string operation)
+    {
+        var generation = _authorizationAuthority.CurrentGeneration;
+        using var authorizationLease = _authorizationAuthority
+            .AcquireLeaseAsync(generation, CancellationToken.None)
+            .AsTask()
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "You do not have access to this property / method. Ensure that hMailServer.Application.Authenticate() is called with proper login credentials.",
+                EAccessDenied);
+
+        if (lifecycle is null)
+        {
+            NotImplemented();
+            return;
+        }
+
+        try
+        {
+            lifecycle(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+        }
+        catch (COMException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            throw new COMException(
+                $"It was not possible to {operation} the hMailServer service.",
+                EFail);
+        }
+    }
 
     private static T NotImplemented<T>() =>
         throw new COMException("This legacy COM member has not been implemented by the .NET 10 rewrite.", ENotImplemented);

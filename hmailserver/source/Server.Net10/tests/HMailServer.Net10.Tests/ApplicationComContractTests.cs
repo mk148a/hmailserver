@@ -338,7 +338,7 @@ public sealed class ApplicationComContractTests
     }
 
     [TestMethod]
-    public void Application_ServiceControlOperationsRemainExplicitlyPending()
+    public void Application_StartAndStopRemainNotImplementedWhenLifecycleRuntimeIsUnconfigured()
     {
         var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
         Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
@@ -346,6 +346,39 @@ public sealed class ApplicationComContractTests
         AssertOperationPending(application.Start);
         AssertOperationPending(application.Stop);
         AssertOperationPending(application.Reinitialize);
+    }
+
+    [TestMethod]
+    public void Application_AuthenticatedStartAndStopInvokeLifecycleDelegates()
+    {
+        var calls = new List<string>();
+        var application = Application.CreateForRuntime(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            startAsync: _ => RecordLifecycleAsync(calls, "start"),
+            stopAsync: _ => RecordLifecycleAsync(calls, "stop"));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+        application.Start();
+        application.Stop();
+
+        CollectionAssert.AreEqual(new[] { "start", "stop" }, calls);
+    }
+
+    [TestMethod]
+    public void Application_StartAndStopMapLifecycleDelegateFailuresToEFail()
+    {
+        var application = Application.CreateForRuntime(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            startAsync: static _ => ValueTask.FromException(new InvalidOperationException("start failed")),
+            stopAsync: static _ => ValueTask.FromException(new InvalidOperationException("stop failed")));
+
+        Assert.IsNotNull(application.Authenticate("Administrator", "secret"));
+
+        var startFailure = Assert.ThrowsExactly<COMException>(application.Start);
+        var stopFailure = Assert.ThrowsExactly<COMException>(application.Stop);
+
+        Assert.AreEqual(EFail, startFailure.ErrorCode);
+        Assert.AreEqual(EFail, stopFailure.ErrorCode);
     }
 
     [TestMethod]
@@ -400,13 +433,18 @@ public sealed class ApplicationComContractTests
     [TestMethod]
     public void Application_ServiceControlOperationsRequireAdministratorBeforePendingPath()
     {
-        var application = new Application(new RecordingAdministratorAuthenticationProvider("secret"));
+        var calls = new List<string>();
+        var application = Application.CreateForRuntime(
+            new RecordingAdministratorAuthenticationProvider("secret"),
+            startAsync: _ => RecordLifecycleAsync(calls, "start"),
+            stopAsync: _ => RecordLifecycleAsync(calls, "stop"));
 
         var startDenied = Assert.ThrowsExactly<COMException>(application.Start);
         var stopDenied = Assert.ThrowsExactly<COMException>(application.Stop);
 
         Assert.AreEqual(EAccessDenied, startDenied.ErrorCode);
         Assert.AreEqual(EAccessDenied, stopDenied.ErrorCode);
+        CollectionAssert.AreEqual(Array.Empty<string>(), calls);
     }
 
     [TestMethod]
@@ -606,6 +644,12 @@ public sealed class ApplicationComContractTests
         var error = Assert.ThrowsExactly<COMException>(action);
 
         Assert.AreEqual(ENotImplemented, error.ErrorCode);
+    }
+
+    private static ValueTask RecordLifecycleAsync(List<string> calls, string operation)
+    {
+        calls.Add(operation);
+        return ValueTask.CompletedTask;
     }
 
     private sealed class RecordingAdministratorAuthenticationProvider(string password)

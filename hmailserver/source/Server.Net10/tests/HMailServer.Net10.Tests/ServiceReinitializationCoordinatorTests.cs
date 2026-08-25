@@ -21,6 +21,22 @@ public sealed class ServiceReinitializationCoordinatorTests
     }
 
     [TestMethod]
+    public async Task StartAndStopServersAsync_UseForwardAndReverseParticipantOrder()
+    {
+        var calls = new List<string>();
+        var coordinator = new ServiceReinitializationCoordinator();
+        coordinator.Register("bootstrap", _ => RecordAsync(calls, "stop-bootstrap"), _ => RecordAsync(calls, "start-bootstrap"));
+        coordinator.Register("listeners", _ => RecordAsync(calls, "stop-listeners"), _ => RecordAsync(calls, "start-listeners"));
+
+        await coordinator.StartServersAsync(CancellationToken.None);
+        await coordinator.StopServersAsync(CancellationToken.None);
+
+        CollectionAssert.AreEqual(
+            new[] { "start-bootstrap", "start-listeners", "stop-listeners", "stop-bootstrap" },
+            calls);
+    }
+
+    [TestMethod]
     public async Task ReinitializeAsync_HoldsReadinessUntilAllParticipantsRestart()
     {
         var signal = new ServerReadinessSignal();
