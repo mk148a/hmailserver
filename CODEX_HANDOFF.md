@@ -1,5 +1,17 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, DOMAIN RULE SNAPSHOT PARITY)
+
+Code/test commit `b60432724` adds transaction-scoped Rules, Criteria, and
+Actions projections to the domain-only backup snapshot. This follows legacy
+`Account::XMLStore` ordering at
+`hmailserver/source/Server/Common/BO/Account.cpp:318-322` and uses the existing
+SQL rule-store transaction constructors. Focused snapshot/payload coverage is
+`3/3`; full standard Debug is `2729 passed, 96 skipped, 0 failed`. The next
+projection is folder/message metadata only with a complete transaction context;
+otherwise proceed to cloned installer/service/Data rollback. No full SQL/Data
+quiescence or crash consistency claim is valid.
+
 ## Current Authoritative Continuation (2026-08-25, DOMAIN ACCOUNT/FETCH SNAPSHOT PARITY)
 
 Code/test commit `8157fb1da` extends the domain-only snapshot with

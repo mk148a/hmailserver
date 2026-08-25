@@ -1,6 +1,19 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-25, domain backup rule snapshot parity)
+
+Code/test commit `b60432724` extends the domain-only SQL snapshot with the
+legacy `Account::XMLStore` Rules, Criteria, and Actions child projections.
+Legacy ordering is anchored at `hmailserver/source/Server/Common/BO/Account.cpp:318-322`;
+the SQL rule stores use the existing transaction context. Focused snapshot and
+payload tests pass `3/3`; full Debug Net10 passes `2729`, skips `96`, and fails
+`0` (`2825` total).
+
+This remains domain-only metadata parity. Folders/messages, physical Data
+quiescence, settings-wide consistency, and crash consistency remain open.
+Release remains **RED**.
+
 ## Current authoritative status (2026-08-25, domain backup account/fetch snapshot parity)
 
 Code/test commit `8157fb1da` extends the domain-only SQL snapshot with the

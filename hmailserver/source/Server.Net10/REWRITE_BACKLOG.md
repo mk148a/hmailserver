@@ -8578,3 +8578,13 @@ transaction-scoped encrypted account and FetchAccount/UID projections through
 remains unavailable. Settings, rules, folders, messages, physical Data
 quiescence, and crash consistency remain open. Next slice: another complete
 transaction-compatible projection or cloned installer/service/Data rollback.
+## Current authoritative status (2026-08-25, domain rule snapshot parity)
+
+Code/test commit `b60432724` extends the domain-only SQL snapshot with
+transaction-scoped Rules, Criteria, and Actions projections. Legacy ordering is
+anchored at `hmailserver/source/Server/Common/BO/Account.cpp:318-322`; the
+existing SQL rule stores use the shared snapshot transaction context. Focused
+tests are `3/3`; full standard Debug is `2729/96/0`. Folder/message metadata,
+physical Data quiescence, settings-wide consistency, and crash consistency
+remain open. Next slice: complete folder/message projection only with a full
+transaction context, otherwise cloned installer/service/Data rollback.
