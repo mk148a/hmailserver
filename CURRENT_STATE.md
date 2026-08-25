@@ -1,7 +1,7 @@
 # Current State
 - UTC/local timestamp: `2026-08-25T16:18:00Z` / `2026-08-25T19:18:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD: `12bb54e12`
+- Current HEAD at last content update: `4fd556d2c`; this documentation-only refresh is the subsequent state update.
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: `TcpIpPortsComContractTests` `25 passed, 0 skipped, 0 failed`; `SslCertificatesComContractTests` `14 passed, 0 skipped, 0 failed`; `BlockedAttachmentsComContractTests` `17 passed, 0 skipped, 0 failed`; backup/restore event and cleanup tests `26 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: standard Debug `2720 passed, 96 skipped, 0 failed` (`2816` total); prior opt-in Debug `2797 passed, 16 skipped, 0 failed` predates the SSL and TCP/IP slices and was not rerun because required opt-in environment variables are absent; prerequisites passed with .NET 10 SDK 10.0.301 and MSBuild 17.x
