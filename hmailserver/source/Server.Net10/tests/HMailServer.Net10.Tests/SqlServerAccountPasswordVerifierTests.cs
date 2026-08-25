@@ -76,6 +76,44 @@ public sealed class SqlServerAccountPasswordVerifierTests
     }
 
     [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task Verify_ScriptDecisionPrecedesHashAndFailsThroughOnExecutorError()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_password_script_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+
+            var accepted = new SqlServerAccountPasswordVerifier(
+                new SqlServerConnectionFactory(testConnectionString),
+                new FixedAccountStore(),
+                new DelegateScriptExecutor(_ => ClientPasswordValidationScriptResult.Accept()));
+            Assert.IsTrue(accepted.Verify(4, "script-only"));
+
+            var rejected = new SqlServerAccountPasswordVerifier(
+                new SqlServerConnectionFactory(testConnectionString),
+                new FixedAccountStore(),
+                new DelegateScriptExecutor(_ => ClientPasswordValidationScriptResult.Reject()));
+            Assert.IsFalse(rejected.Verify(1, "secret"));
+
+            var throwing = new SqlServerAccountPasswordVerifier(
+                new SqlServerConnectionFactory(testConnectionString),
+                new FixedAccountStore(),
+                new DelegateScriptExecutor(_ => throw new InvalidOperationException("script failure")));
+            Assert.IsTrue(throwing.Verify(1, "secret"));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
+    [TestMethod]
     public void ValidatePassword_DirectActivationStillRequiresAttachment()
     {
         var error = Assert.ThrowsExactly<System.Runtime.InteropServices.COMException>(
@@ -176,5 +214,33 @@ public sealed class SqlServerAccountPasswordVerifierTests
             $"ALTER DATABASE [{databaseName}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [{databaseName}];",
             connection);
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private sealed class FixedAccountStore : IAccountAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<AccountAdministrationSnapshot>> GetAccountsAsync(
+            int domainId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<AccountAdministrationSnapshot>>([]);
+
+        public ValueTask<AccountAdministrationSnapshot?> GetAccountByIdAsync(
+            int accountId,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<AccountAdministrationSnapshot?>(
+                new AccountAdministrationSnapshot(
+                    accountId,
+                    10,
+                    "test@perf.test",
+                    Active: true,
+                    AdminLevel: 0));
+    }
+
+    private sealed class DelegateScriptExecutor(
+        Func<ClientPasswordValidationScriptRequest, ClientPasswordValidationScriptResult> execute)
+        : IClientPasswordValidationScriptExecutor
+    {
+        public ClientPasswordValidationScriptResult Execute(
+            ClientPasswordValidationScriptRequest request,
+            CancellationToken cancellationToken) => execute(request);
     }
 }
