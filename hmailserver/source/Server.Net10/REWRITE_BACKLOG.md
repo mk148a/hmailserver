@@ -1,6 +1,22 @@
 
 
-## Current authoritative next slice (2026-08-22, legacy POP3 PASS before USER complete)
+## Current authoritative next slice (2026-08-25, Full-Text SQL/Data acceptance complete)
+
+The disposable Full-Text SQL/Data slice is complete for the currently
+available local test host. `build/test-net10-sql-migration.ps1 -SqlServerInstance
+localhost -AllowIsolatedSqlServer` passed with Full-Text installed and created
+and removed disposable 5708/6000 databases. The opt-in
+`BackupRestoreRoundTripIntegrationTests` passed `25/25`, and
+`SqlServerDatabaseAdministrationStoreIntegrationTests` passed `7/7`, with no
+database leftovers. The disposable Data root had explicit ACL and write/read
+probe evidence. The full Debug Net10 suite passed `2697`, skipped `94`, and
+failed `0` (`2791` total). This proves the local SQL/Data harness, not an
+independent VM or production cutover. Release remains **RED**. Next slice:
+isolated registered COM/SEC-18 caller evidence.
+
+Older entries are historical.
+
+## Historical authoritative next slice (2026-08-22, legacy POP3 PASS before USER complete)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.
 Legacy `source/Server/POP3/POP3Connection.cpp:443-496` routes the empty

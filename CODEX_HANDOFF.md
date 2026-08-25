@@ -1,6 +1,25 @@
 # CODEX_HANDOFF.md
 
-## Current Authoritative Continuation (2026-08-22, legacy POP3 PASS before USER)
+## Current Authoritative Continuation (2026-08-25, Full-Text SQL/Data acceptance)
+
+The disposable Full-Text SQL/Data acceptance is complete on the available
+local SQL Server Developer instance. `build/test-net10-sql-migration.ps1`
+passed against `localhost`, including Full-Text catalog/index creation and
+cleanup. `BackupRestoreRoundTripIntegrationTests` passed `25/25` and
+`SqlServerDatabaseAdministrationStoreIntegrationTests` passed `7/7`; no
+disposable database leftovers remained. The dedicated Data root had explicit
+ACL and a successful write/read probe. The full Debug Net10 suite passed
+`2697`, skipped `94`, and failed `0` (`2791` total). This is local disposable
+SQL/Data evidence, not independent VM/production evidence. No production
+service, database, Data directory, COM registration, DCOM ACL, IIS, firewall,
+or source code was changed. Release remains **RED** for power-loss INI
+durability, native crash semantics, installed/out-of-process COM, SEC-18,
+installer/service/Data rollback, paired C++ performance, protocol thresholds,
+and 24-hour soak. Next: isolated registered COM/SEC-18 caller evidence.
+
+Older entries are historical.
+
+## Historical Authoritative Continuation (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap. Legacy
 `hmailserver/source/Server/POP3/POP3Connection.cpp:443-496` routes the empty

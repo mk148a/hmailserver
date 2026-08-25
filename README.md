@@ -1,7 +1,18 @@
 hMailServer
 ===========
 
-## Current parity gate (2026-08-22, legacy POP3 PASS before USER)
+## Current parity gate (2026-08-25, Full-Text SQL/Data acceptance)
+
+The disposable Full-Text SQL/Data acceptance passed: `25/25` backup/restore
+round-trip tests and `7/7` SQL database-administration tests. The full Debug
+Net10 suite passes `2697`, skips `94`, and fails `0` (`2791` total). This is
+local disposable SQL Server evidence, not independent VM or production
+evidence. Release remains **RED** for installed/out-of-process COM, SEC-18,
+installer/service/Data rollback, power-loss durability, paired C++ performance,
+protocol thresholds, and long-soak acceptance. Next slice: isolated registered
+COM/SEC-18 caller evidence.
+
+## Historical parity gate (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap.
 Legacy `ProtocolPASS_` at `source/Server/POP3/POP3Connection.cpp:443-496`
