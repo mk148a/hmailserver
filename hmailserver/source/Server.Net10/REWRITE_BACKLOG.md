@@ -8108,3 +8108,20 @@ Code/test commit `71fdbe18a` implements the bounded `Settings.Directories.Databa
 Focused `DirectoriesComContractTests` pass `11/11`; full Debug Net10 passes `2709`, skips `94`, and fails `0` (`2803` total). No production, SQL, or machine-wide state was changed. Release remains **RED** for registered COM/SEC-18 evidence, installer/restore rollback, paired C++/.NET performance, protocol acceptance, AD/master-user, DKIM/DMARC/SPF, and long-soak evidence.
 
 Next slice: review the remaining `Directories` mutation surface and then move to the highest-priority independent release gate; `DBScriptDirectory` remains legacy read-only.
+## Current authoritative status (2026-08-25, Directories mutation review)
+
+The legacy-first review found no remaining writable `Settings.Directories`
+property gap. `InterfaceDirectories::put_ProgramDirectory`,
+`put_DatabaseDirectory`, `put_DataDirectory`, `put_LogDirectory`,
+`put_TempDirectory`, and `put_EventDirectory` are covered by authenticated
+store-backed Net10 setters. `DBScriptDirectory` remains read-only and keeps
+the legacy cached-path behavior. Anchors: `hmailserver/source/Server/COM/
+InterfaceDirectories.cpp:30-204` and `IniFileSettings::Set*Directory`.
+
+Focused `DirectoriesComContractTests`: `11/11`. Full Debug Net10: `2709
+passed, 94 skipped, 0 failed` (`2803` total). Release remains **RED** for
+registered/out-of-process COM and SEC-18 worker-token evidence,
+installer/service/Data rollback, paired C++/.NET load, protocol thresholds,
+and 24-hour soak. Next independent slice is isolated registered COM/SEC-18
+evidence when the environment is available; otherwise continue a legacy-first
+installer or protocol audit without production state changes.

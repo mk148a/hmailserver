@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, DIRECTORIES REVIEW)
+
+The legacy-first review is complete for `Settings.Directories`. The six
+writable properties are implemented through the authenticated directory store:
+`ProgramDirectory`, `DatabaseDirectory`, `DataDirectory`, `LogDirectory`,
+`TempDirectory`, and `EventDirectory`. Legacy anchors are
+`hmailserver/source/Server/COM/InterfaceDirectories.cpp:30-204` and the
+corresponding `IniFileSettings::Set*Directory` methods. `DBScriptDirectory` is
+legacy read-only and remains cached from the original program directory.
+
+Focused `DirectoriesComContractTests` pass `11/11`; full Debug Net10 passes
+`2709`, skips `94`, and fails `0` (`2803` total). No production, SQL,
+registration, DCOM, IIS, service, Data directory, or firewall state changed.
+Release remains **RED** for registered/out-of-process COM and SEC-18 caller
+evidence, installer/service/Data rollback, paired C++/.NET load, protocol
+acceptance thresholds, and 24-hour soak evidence.
+
+Next independent work: obtain the isolated registered COM/SEC-18 evidence when
+the worker-token environment is available; otherwise continue the installer or
+protocol parity audit without touching production state.
+
 ## Current Authoritative Continuation (2026-08-25, DATABASE DIRECTORY MUTATION)
 
 Code/test commit `71fdbe18a` closes the legacy `Settings.Directories.DatabaseDirectory`

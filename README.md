@@ -1,6 +1,17 @@
 hMailServer
 ===========
 
+## Current parity gate (2026-08-25, Directories review)
+
+The six writable legacy `Settings.Directories` properties now have focused
+authenticated mutation coverage and preserve the installed COM identity and
+direct-activation boundary. `DBScriptDirectory` remains read-only with the
+legacy cached-path behavior. Focused `DirectoriesComContractTests` pass
+`11/11`; the full Debug Net10 suite passes `2709`, skips `94`, and fails `0`
+(`2803` total). Release remains **RED** because registered/out-of-process COM
+and SEC-18 caller evidence, installer/restore rollback, paired C++/.NET load,
+protocol thresholds, and long-soak evidence are still unavailable.
+
 ## Current parity gate (2026-08-25, INI replacement durability)
 
 The administrator-password INI replacement now flushes the containing
