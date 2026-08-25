@@ -91,6 +91,7 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
     private readonly Action<SslCertificateAdministrationSnapshot>? _save;
     private readonly Func<SslCertificateAdministrationSnapshot, int>? _insert;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public SSLCertificates()
     {
@@ -103,7 +104,8 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         Action<int>? deleteById,
         Action<SslCertificateAdministrationSnapshot>? save,
         Func<SslCertificateAdministrationSnapshot, int>? insert,
-        Func<bool>? isServerAdministrator)
+        Func<bool>? isServerAdministrator,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _certificates = certificates.ToArray();
         _reload = reload;
@@ -112,6 +114,7 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         _save = save;
         _insert = insert;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetCertificates().Count;
@@ -123,10 +126,19 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         Action<int>? deleteById = null,
         Action<SslCertificateAdministrationSnapshot>? save = null,
         Func<SslCertificateAdministrationSnapshot, int>? insert = null,
-        Func<bool>? isServerAdministrator = null)
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(certificates);
-        return new SSLCertificates(certificates, reload, clear, deleteById, save, insert, isServerAdministrator);
+        return new SSLCertificates(
+            certificates,
+            reload,
+            clear,
+            deleteById,
+            save,
+            insert,
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 
     public IInterfaceSSLCertificate this[int index]
@@ -168,6 +180,8 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
             return;
         }
 
+        EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _deleteById(databaseId);
@@ -212,6 +226,8 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
             return certificate;
         }
 
+        EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             if (certificate.Id == 0)
@@ -269,6 +285,8 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
             return;
         }
 
+        EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _clear();
@@ -313,6 +331,31 @@ public sealed class SSLCertificates : IInterfaceSSLCertificates
         throw new COMException(
             "This SSLCertificates member is not implemented by the .NET 10 rewrite yet.",
             ENotImplemented);
+    }
+
+    private void EnsureServerAdministrator()
+    {
+        if (_isServerAdministrator is not null && !_isServerAdministrator())
+        {
+            throw new COMException(
+                "SSL certificate access requires an authenticated server administrator.",
+                EAccessDenied);
+        }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "SSL certificate mutation requires an authenticated server administrator.",
+                EAccessDenied);
     }
 }
 
@@ -442,7 +485,9 @@ public static class SslCertificateAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static SSLCertificates CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static SSLCertificates CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -486,6 +531,7 @@ public static class SslCertificateAdministrationRuntimeHost
             DeleteCertificateById,
             SaveCertificate,
             InsertCertificate,
-            isServerAdministrator);
+            isServerAdministrator,
+            authorizationLeaseFactory);
     }
 }

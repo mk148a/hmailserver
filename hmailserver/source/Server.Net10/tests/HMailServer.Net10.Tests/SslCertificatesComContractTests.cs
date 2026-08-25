@@ -107,7 +107,7 @@ public sealed class SslCertificatesComContractTests
     }
 
     [TestMethod]
-    public void FailedReauthentication_RevokesSettingsSslCertificateAccessAndItemPersistenceOnly()
+    public void FailedReauthentication_RevokesSettingsSslCertificateMutationAccess()
     {
         var store = new MutableSslCertificateAdministrationStore(
             new[]
@@ -160,16 +160,118 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(0, store.SavedCertificates.Count);
         Assert.AreEqual(0, store.InsertedCertificates.Count);
 
-        certificates.DeleteByDBID(20);
+        var collectionDeleteError = Assert.ThrowsExactly<COMException>(() => certificates.DeleteByDBID(20));
         certificates.Refresh();
-        certificates.Clear();
+        var clearError = Assert.ThrowsExactly<COMException>(certificates.Clear);
 
-        CollectionAssert.AreEqual(new[] { 20 }, store.DeletedIds);
+        Assert.AreEqual(EAccessDenied, collectionDeleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, clearError.ErrorCode);
+        CollectionAssert.AreEqual(Array.Empty<int>(), store.DeletedIds);
         Assert.AreEqual(2, store.ReadCount);
-        Assert.AreEqual(1, store.ClearCount);
+        Assert.AreEqual(0, store.ClearCount);
         Assert.AreEqual(0, store.SavedCertificates.Count);
         Assert.AreEqual(0, store.InsertedCertificates.Count);
-        Assert.AreEqual(0, certificates.Count);
+        Assert.AreEqual(2, certificates.Count);
+    }
+
+    [TestMethod]
+    public void CollectionMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var clearCount = 0;
+        var deleteCount = 0;
+        var saveCount = 0;
+        var insertCount = 0;
+
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+            {
+                activeLeases--;
+                disposedLeases++;
+            }));
+        };
+
+        IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
+            new[] { Snapshot(10, "Alpha", "alpha.crt", "alpha.key") },
+            clear: () =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                clearCount++;
+            },
+            deleteById: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                deleteCount++;
+            },
+            save: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                saveCount++;
+            },
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                insertCount++;
+                return 20;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+
+        var existing = certificates[0];
+        existing.Name = "Updated";
+        existing.Save();
+        var added = certificates.Add();
+        added.Save();
+        existing.Delete();
+        certificates.Clear();
+
+        Assert.AreEqual(1, saveCount);
+        Assert.AreEqual(1, insertCount);
+        Assert.AreEqual(1, deleteCount);
+        Assert.AreEqual(1, clearCount);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(4, disposedLeases);
+    }
+
+    [TestMethod]
+    public void CollectionMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var leaseRequests = 0;
+        var stores = 0;
+        IInterfaceSSLCertificates certificates = SSLCertificates.CreateAuthorized(
+            new[] { Snapshot(10, "Alpha", "alpha.crt", "alpha.key") },
+            clear: () => stores++,
+            deleteById: _ => stores++,
+            save: _ => stores++,
+            insert: _ =>
+            {
+                stores++;
+                return 20;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+
+        var existing = certificates[0];
+        existing.Name = "Denied";
+        var saveError = Assert.ThrowsExactly<COMException>(existing.Save);
+        var added = certificates.Add();
+        var insertError = Assert.ThrowsExactly<COMException>(added.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(() => certificates.DeleteByDBID(10));
+        var clearError = Assert.ThrowsExactly<COMException>(certificates.Clear);
+
+        Assert.AreEqual(EAccessDenied, saveError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, insertError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, clearError.ErrorCode);
+        Assert.AreEqual(0, stores);
+        Assert.AreEqual(4, leaseRequests);
     }
 
     [TestMethod]
@@ -686,6 +788,11 @@ public sealed class SslCertificatesComContractTests
         Assert.AreEqual(name, certificate.Name);
         Assert.AreEqual(certificateFile, certificate.CertificateFile);
         Assert.AreEqual(privateKeyFile, certificate.PrivateKeyFile);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private static void AssertContract(Type contract, string interfaceId, string[] methodNames)

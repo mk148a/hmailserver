@@ -3652,7 +3652,9 @@ public sealed class Settings : SettingsComAdapter, ISettingsAuthorizationBoundar
         {
             EnsureAuthorized();
             EnsureServerAdministrator();
-            return SslCertificateAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
+            return SslCertificateAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
         }
     }
 
