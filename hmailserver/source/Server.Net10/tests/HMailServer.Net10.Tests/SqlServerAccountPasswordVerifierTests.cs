@@ -19,7 +19,8 @@ public sealed class SqlServerAccountPasswordVerifierTests
 
         foreach (var column in new[]
         {
-            "accountid", "accountactive", "accountisad", "accountpassword", "accountpwencryption"
+            "accountid", "accountactive", "accountisad", "accountpassword", "accountpwencryption",
+            "domainactive"
         })
         {
             StringAssert.Contains(sql, column);
@@ -64,6 +65,7 @@ public sealed class SqlServerAccountPasswordVerifierTests
             Assert.IsFalse(verifier.Verify(3, "secret"));
             Assert.IsFalse(verifier.Verify(4, "secret"));
             Assert.IsFalse(verifier.Verify(5, "secret"));
+            Assert.IsFalse(verifier.Verify(6, "secret"));
         }
         finally
         {
@@ -137,18 +139,26 @@ public sealed class SqlServerAccountPasswordVerifierTests
         const string sql = """
             CREATE TABLE dbo.hm_accounts (
                 accountid int NOT NULL PRIMARY KEY,
+                accountdomainid int NOT NULL,
                 accountactive tinyint NULL,
                 accountisad tinyint NULL,
                 accountpassword nvarchar(255) NULL,
                 accountpwencryption tinyint NULL
             );
-            INSERT INTO dbo.hm_accounts (accountid, accountactive, accountisad, accountpassword, accountpwencryption)
+            CREATE TABLE dbo.hm_domains (
+                domainid int NOT NULL PRIMARY KEY,
+                domainactive tinyint NOT NULL
+            );
+            INSERT INTO dbo.hm_domains (domainid, domainactive)
+            VALUES (10, 1), (20, 0);
+            INSERT INTO dbo.hm_accounts (accountid, accountdomainid, accountactive, accountisad, accountpassword, accountpwencryption)
             VALUES
-                (1, 1, 0, N'secret', 0),
-                (2, 0, 0, N'secret', 0),
-                (3, 1, 1, N'secret', 0),
-                (4, 1, 0, NULL, 0),
-                (5, 1, 0, N'secret', 99);
+                (1, 10, 1, 0, N'secret', 0),
+                (2, 10, 0, 0, N'secret', 0),
+                (3, 10, 1, 1, N'secret', 0),
+                (4, 10, 1, 0, NULL, 0),
+                (5, 10, 1, 0, N'secret', 99),
+                (6, 20, 1, 0, N'secret', 0);
             """;
 
         await using var connection = new SqlConnection(connectionString);
