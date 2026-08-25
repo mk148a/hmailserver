@@ -216,7 +216,8 @@ ORDER BY messageuid ASC;
         int folderId,
         CancellationToken cancellationToken)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(accountId);
+        // Public folders use the legacy account-zero storage scope.
+        ArgumentOutOfRangeException.ThrowIfNegative(accountId);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(folderId);
 
         using var writerLease = _enterWriter is null
