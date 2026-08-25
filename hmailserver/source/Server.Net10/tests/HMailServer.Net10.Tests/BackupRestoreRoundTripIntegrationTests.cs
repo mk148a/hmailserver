@@ -604,7 +604,9 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                     queue,
                     NullLogger<BackupTaskHostedService>.Instance,
                     readiness);
-                var dispatcher = new RecordingBackupEventDispatcher();
+                var archivePath = Path.Combine(destination, "HMBackup 2026-08-11 040507.7z");
+                var dispatcher = new RecordingBackupEventDispatcher(
+                    completedProbe: () => File.Exists(archivePath));
                 var evidence = new BackupStartPlanEvidence(
                     Destination: destination,
                     BackupOptions: 1 | 2 | 4,
@@ -647,8 +649,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
                 manager.StartBackup();
                 await dispatcher.Completed.Task.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false);
 
-                var archivePath = Path.Combine(destination, "HMBackup 2026-08-11 040507.7z");
                 Assert.IsTrue(File.Exists(archivePath), archivePath);
+                Assert.IsTrue(dispatcher.CompletedArchiveExistsAtDispatch);
                 Assert.IsTrue(File.Exists(Path.Combine(destination, "DataBackup", "roundtrip.example", "user", "ne", "generated.eml")));
 
                 var backup = (Backup)manager.LoadBackup(archivePath);
@@ -1953,7 +1955,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             Directory.Move(sourcePath, destinationPath);
     }
 
-    private sealed class RecordingBackupEventDispatcher : IBackupEventDispatcher
+    private sealed class RecordingBackupEventDispatcher(
+        Func<bool>? completedProbe = null) : IBackupEventDispatcher
     {
         private int _completedCount;
 
@@ -1969,8 +1972,11 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         internal TaskCompletionSource<string> Failed { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        internal bool CompletedArchiveExistsAtDispatch { get; private set; }
+
         public void OnBackupCompleted()
         {
+            CompletedArchiveExistsAtDispatch = completedProbe?.Invoke() ?? false;
             switch (Interlocked.Increment(ref _completedCount))
             {
                 case 1:
