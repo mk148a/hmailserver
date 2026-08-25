@@ -8649,3 +8649,26 @@ Focused snapshot contract tests remain `4/4`; standard full Debug remains
 writer quiescence, crash consistency, and power-loss recovery remain outside
 scope. Release remains **RED**. Next slice is a complete tested writer barrier
 or cloned installer/service/Data rollback acceptance.
+
+## Current authoritative status (2026-08-25, delivery queue backup admission)
+
+Code/test commit `cc081eef4` wires the existing
+`DeliveryQueuePauseDrainGate.PauseAndDrainAsync` into
+`SevenZipBackupArchiveRuntime.CreateAsync`. The delivery queue worker is now
+paused and drained for the complete backup operation, including SQL payload
+reads, physical DataBackup staging, metadata creation, and archive commit; a
+focused test proves acquisition before payload work and release after success.
+
+Legacy backup anchors remain `BackupExecuter::StartBackup` and
+`BackupTask::DoWork` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57` and
+`hmailserver/source/Server/Common/Application/BackupTask.cpp:27`. This is only
+one writer family: SMTP, IMAP, POP3, import, external-fetch, message COM
+mutations, and service lifecycle writers still have no shared admission
+contract. No full atomic SQL/Data or crash-consistency claim is valid.
+
+Focused `BackupArchiveRuntimeTests` pass `60 passed, 1 skipped`; standard full
+Debug passes `2731 passed, 96 skipped, 0 failed` (`2827` total). Release
+remains **RED**. Next slice: add the next writer only with an explicit shared
+barrier and protocol/lifecycle regression coverage, or proceed to cloned
+installer/service/Data rollback acceptance.

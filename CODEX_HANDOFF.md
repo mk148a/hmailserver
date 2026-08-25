@@ -8598,3 +8598,17 @@ Focused snapshot tests remain `4/4`; standard full Debug remains `2730/96/0`.
 No physical Data quiescence or crash-consistency claim is made. Release
 remains **RED**; next work is a complete writer barrier or cloned rollback
 acceptance.
+
+## Current authoritative continuation (2026-08-25, delivery queue backup admission)
+
+Code/test commit `cc081eef4` passes the existing delivery queue pause/drain
+callback into `SevenZipBackupArchiveRuntime`. Backup holds that lease across
+payload reads, DataBackup staging, metadata creation, and archive commit, then
+releases it on success or failure. Focused backup runtime coverage is `60/1`
+and full standard Debug is `2731/96/0`.
+
+This closes only the delivery queue writer family. SMTP, IMAP, POP3, import,
+external-fetch, COM message mutations, and lifecycle writers remain outside a
+shared admission barrier; release remains **RED** and no full atomic SQL/Data
+claim is made. Next work is another explicitly covered writer integration or
+cloned installer/service/Data rollback acceptance.
