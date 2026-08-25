@@ -11,6 +11,7 @@ public sealed class ServerBootstrapper : BackgroundService
     private readonly IMessageSearchIndex _messageSearchIndex;
     private readonly DatabaseVersionStartupGuard _databaseVersionStartupGuard;
     private readonly ServerReadinessSignal _serverReadinessSignal;
+    private readonly ServerStatusRuntimeState _serverStatusRuntimeState;
     private readonly ILogger<ServerBootstrapper> _logger;
 
     public ServerBootstrapper(
@@ -18,17 +19,20 @@ public sealed class ServerBootstrapper : BackgroundService
         IMessageSearchIndex messageSearchIndex,
         DatabaseVersionStartupGuard databaseVersionStartupGuard,
         ServerReadinessSignal serverReadinessSignal,
+        ServerStatusRuntimeState serverStatusRuntimeState,
         ILogger<ServerBootstrapper> logger)
     {
         _fullTextSearchHealthCheck = fullTextSearchHealthCheck;
         _messageSearchIndex = messageSearchIndex;
         _databaseVersionStartupGuard = databaseVersionStartupGuard;
         _serverReadinessSignal = serverReadinessSignal;
+        _serverStatusRuntimeState = serverStatusRuntimeState;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _serverStatusRuntimeState.SetServerState(2);
         try
         {
             await _databaseVersionStartupGuard
@@ -59,11 +63,13 @@ public sealed class ServerBootstrapper : BackgroundService
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
+            _serverStatusRuntimeState.SetServerState(1);
             _serverReadinessSignal.SetCanceled(stoppingToken);
             throw;
         }
         catch (Exception exception)
         {
+            _serverStatusRuntimeState.SetServerState(1);
             _serverReadinessSignal.SetFailure(exception);
             throw;
         }

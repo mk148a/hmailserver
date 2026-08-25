@@ -1,3 +1,4 @@
+using HMailServer.Core.Abstractions;
 using HMailServer.Service;
 
 namespace HMailServer.Net10.Tests;
@@ -9,9 +10,10 @@ public sealed class ServerStartupCoordinatorTests
     public async Task StartAsync_WaitsForBootstrapAndEveryEnabledListener()
     {
         var signal = new ServerReadinessSignal();
+        var state = new ServerStatusRuntimeState();
         var listenerStarted = new TaskCompletionSource<object?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var coordinator = new ServerStartupCoordinator(signal, [listenerStarted.Task]);
+        var coordinator = new ServerStartupCoordinator(signal, [listenerStarted.Task], state);
 
         var startTask = coordinator.StartAsync(CancellationToken.None);
 
@@ -26,28 +28,32 @@ public sealed class ServerStartupCoordinatorTests
 
         await startTask;
         await signal.WaitAsync(CancellationToken.None);
+        Assert.AreEqual(3, state.Capture().ServerState);
     }
 
     [TestMethod]
     public async Task StartAsync_TreatsDisabledListenersAsReadyWithoutAwaitingAListenerTask()
     {
         var signal = new ServerReadinessSignal();
-        var coordinator = new ServerStartupCoordinator(signal, []);
+        var state = new ServerStatusRuntimeState();
+        var coordinator = new ServerStartupCoordinator(signal, [], state);
 
         signal.SetBootstrapComplete();
 
         await coordinator.StartAsync(CancellationToken.None);
         await signal.WaitAsync(CancellationToken.None);
+        Assert.AreEqual(3, state.Capture().ServerState);
     }
 
     [TestMethod]
     public async Task StartAsync_PropagatesListenerStartupFailureToReadiness()
     {
         var signal = new ServerReadinessSignal();
+        var state = new ServerStatusRuntimeState();
         var expected = new InvalidOperationException("IMAP bind failed.");
         var listenerStarted = new TaskCompletionSource<object?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var coordinator = new ServerStartupCoordinator(signal, [listenerStarted.Task]);
+        var coordinator = new ServerStartupCoordinator(signal, [listenerStarted.Task], state);
 
         signal.SetBootstrapComplete();
         var startTask = coordinator.StartAsync(CancellationToken.None);
@@ -58,15 +64,17 @@ public sealed class ServerStartupCoordinatorTests
             () => signal.WaitAsync(CancellationToken.None));
 
         Assert.AreSame(expected, actual);
+        Assert.AreEqual(1, state.Capture().ServerState);
     }
 
     [TestMethod]
     public async Task StartAsync_PropagatesCancellationToReadiness()
     {
         var signal = new ServerReadinessSignal();
+        var state = new ServerStatusRuntimeState();
         var listenerStarted = new TaskCompletionSource<object?>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        var coordinator = new ServerStartupCoordinator(signal, [listenerStarted.Task]);
+        var coordinator = new ServerStartupCoordinator(signal, [listenerStarted.Task], state);
         using var cancellation = new CancellationTokenSource();
 
         signal.SetBootstrapComplete();
@@ -77,5 +85,20 @@ public sealed class ServerStartupCoordinatorTests
         await Assert.ThrowsExactlyAsync<TaskCanceledException>(() => startTask);
         await Assert.ThrowsExactlyAsync<TaskCanceledException>(
             () => signal.WaitAsync(CancellationToken.None));
+        Assert.AreEqual(1, state.Capture().ServerState);
+    }
+
+    [TestMethod]
+    public async Task StopAsync_TransitionsServerToStopping()
+    {
+        var state = new ServerStatusRuntimeState();
+        var coordinator = new ServerStartupCoordinator(
+            new ServerReadinessSignal(),
+            [],
+            state);
+
+        await coordinator.StopAsync(CancellationToken.None);
+
+        Assert.AreEqual(4, state.Capture().ServerState);
     }
 }
