@@ -16,10 +16,11 @@ isolated registered COM/SEC-18 caller evidence.
 
 Older entries are historical.
 
-The next code slice is the environment-independent `Application.ServerState`
-lifecycle transition bridge. The current `Application.Start`/`Stop` slice is
-complete in code/test commit `ff14fac73`; it preserves the legacy COM contract
-and delegates authenticated calls through ordered coordinator participants.
+The `Application.ServerState` lifecycle transition bridge is complete in
+code/test commit `20e8f3d18`; it maps legacy `Stopped=1`, `Starting=2`,
+`Running=3`, and `Stopping=4` across bootstrap/readiness/failure and host
+shutdown paths without changing the COM contract. The next code slice is
+isolated registered COM/SEC-18 caller evidence; it remains environment-gated.
 
 Offline follow-up evidence: the focused SEC-18/COM boundary set passed `47`
 tests with `1` registry opt-in skipped, and installer/registration/rollback

@@ -43,6 +43,12 @@ coverage is `33 passed`; full Debug Net10 is `2700 passed, 94 skipped, 0
 failed`. Next code slice: wire `Application.ServerState` to bootstrap,
 readiness, and shutdown transitions without changing COM identity.
 
+Code/test commit `20e8f3d18` completes that state bridge. Legacy states
+`Stopped=1`, `Starting=2`, `Running=3`, and `Stopping=4` are now wired to
+bootstrap, readiness, failure/cancellation, and host shutdown. Focused
+coverage is `30 passed`; full Debug Net10 is `2701 passed, 94 skipped, 0
+failed`. Next: isolated registered COM/SEC-18 caller evidence.
+
 ## Historical Authoritative Continuation (2026-08-22, legacy POP3 PASS before USER)
 
 Code/test commit `3d2e96724` closes the legacy POP3 PASS-before-USER gap. Legacy

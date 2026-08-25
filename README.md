@@ -18,6 +18,12 @@ skipped`. These do not replace registered out-of-process COM, IIS worker
 identity, service mutation, or disposable rollback evidence; release remains
 RED.
 
+`Application.ServerState` now receives the legacy `Stopped=1`, `Starting=2`,
+`Running=3`, and `Stopping=4` lifecycle transitions across bootstrap,
+readiness, failure, and shutdown. Focused coverage is `30 passed`; full Debug
+Net10 is `2701 passed, 94 skipped, 0 failed`. The next slice is isolated
+registered COM/SEC-18 caller evidence.
+
 The safe offline 100k SEARCH/SORT benchmark passed in Release (`p50 13.78 ms`,
 `p95 25.328 ms`, `p99 27.317 ms`). This is Net10-only diagnostic evidence,
 not a C++ speed comparison or service soak result.
