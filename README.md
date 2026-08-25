@@ -1,6 +1,18 @@
 hMailServer
 ===========
 
+## Current parity gate (2026-08-25, restore ancestor containment)
+
+Restore directory moves now open the source and destination-parent paths
+component-by-component from pinned Windows handles and reject ancestor reparse
+points before the native rename. The legacy anchor is
+`source/Server/Common/Application/BackupExecuter.cpp:195-217`; this closes the
+destination-ancestor TOCTOU slice without changing the archive layout or
+production paths. Focused restore tests pass `23`, skip `1`, and fail `0`; the
+full Debug Net10 suite passes `2709`, skips `95`, and fails `0` (`2804` total).
+Atomic filesystem snapshot/quiescence, registered COM/SEC-18, rollback,
+paired-load, protocol-threshold, and soak gates remain open.
+
 ## Environment evidence (2026-08-25, SEC-18)
 
 SEC-18 collector self-tests pass, but live evidence remains unavailable. The

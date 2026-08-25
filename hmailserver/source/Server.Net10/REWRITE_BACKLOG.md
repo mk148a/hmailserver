@@ -8134,3 +8134,20 @@ self-tests only. Live SEC-18 evidence remains blocked because the current
 Codex token is not elevated (`Administrator=False`) and `Get-VM`/`Get-VMHost`
 return access denied. Do not infer worker SID, COM caller-token, registration,
 or DCOM evidence from these self-tests. Release remains **RED**.
+## Current authoritative status (2026-08-25, restore ancestor containment)
+
+Code/test commit `c7a48e687` closes the destination-parent ancestor reparse
+TOCTOU slice. `WindowsHandleRelativeDirectoryCopier` now opens existing path
+components relative to pinned handles and rejects reparses before
+`WindowsBackupRestoreDataDirectoryMutation` performs the native rename. The
+legacy anchor is `hmailserver/source/Server/Common/Application/
+BackupExecuter.cpp:195-217`. No archive layout, COM identity, SQL schema,
+service, or production path changed.
+
+Focused `BackupRestoreDataDirectoryRuntimeTests`: `23 passed, 1 skipped, 0
+failed`; full Debug Net10: `2709 passed, 95 skipped, 0 failed` (`2804` total).
+The privilege-dependent reparse test remains skipped. Atomic snapshot/
+quiescence and crash/power-loss recovery remain open, as do registered COM/
+SEC-18, installer rollback, paired performance, protocol thresholds, and
+24-hour soak. Next slice: atomic snapshot/quiescence review without production
+state changes.

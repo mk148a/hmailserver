@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-25, RESTORE ANCESTOR CONTAINMENT)
+
+Code/test commit `c7a48e687` closes the destination-ancestor reparse/TOCTOU
+slice for non-DB restore directory moves. `WindowsHandleRelativeDirectoryCopier`
+now walks existing source and destination-parent components from pinned
+handles, rejects each reparse point, and does not create missing ancestors for
+the move operation. `WindowsBackupRestoreDataDirectoryMutation` uses those
+handles for the native rename. Legacy behavior remains anchored at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:195-217`.
+
+Focused `BackupRestoreDataDirectoryRuntimeTests`: `23 passed, 1 skipped, 0
+failed`. Full Debug Net10: `2709 passed, 95 skipped, 0 failed` (`2804` total).
+The one skip is privilege-dependent disposable reparse-point creation. Atomic
+filesystem snapshot/quiescence, process-kill/power-loss recovery, SEC-18,
+installer rollback, paired C++/.NET load, and 24-hour soak remain RED.
+
+Next independent slice: atomic snapshot/quiescence review, or the next
+environment-independent installer/protocol blocker; do not touch production
+service, SQL/Data, COM registration, DCOM ACLs, IIS, or firewall state.
+
 ## Environment Evidence Update (2026-08-25, SEC-18)
 
 SEC-18 collector self-tests pass: worker-token collector, installed
