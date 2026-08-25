@@ -8735,6 +8735,30 @@ valid. Release remains **RED**. Next slice: one IMAP persistence writer with
 explicit authorization/negative/rollback coverage, or cloned
 installer/service/Data rollback acceptance.
 
+## Current authoritative status (2026-08-25, IMAP message mutation backup admission)
+
+Code/test commit `e1f06e1e7` wires the existing
+`DeliveryQueuePauseDrainGate.EnterWorkerAsync` into both
+`SqlServerImapMessageMutationStore.StoreFlagsAsync` and
+`ExpungeDeletedAsync`. The lease spans account/folder-scoped message lookup,
+transactional flag or deletion mutations, account-size invalidation, and
+message-file cleanup. Existing three-argument construction remains available;
+the gate is supplied only by the production Host composition.
+
+Legacy references are `IMAPStore::DoAction` and
+`IMAPCommandEXPUNGE::ExecuteCommand` at
+`hmailserver/source/Server/IMAP/IMAPStore.cpp:26-115` and
+`hmailserver/source/Server/IMAP/IMAPCommandExpunge.cpp:24-96`. Focused IMAP
+mutation tests pass `7/7`; standard full Debug passes `2737 passed, 96
+skipped, 0 failed` (`2833` total).
+
+Delivery queue, external-fetch, import, SMTP, POP3 deletion, and IMAP message
+mutations are now coordinated. Message COM and lifecycle writers remain
+outside the barrier. No full atomic SQL/Data, crash-consistency, or power-loss
+claim is valid. Release remains **RED**. Next slice: message COM mutation
+admission with direct-activation/authorization and rollback coverage, or cloned
+installer/service/Data rollback acceptance.
+
 ## Current authoritative status (2026-08-25, import message backup admission)
 
 Code/test commit `200aad565` wires the existing
