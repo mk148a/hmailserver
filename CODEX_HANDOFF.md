@@ -8739,3 +8739,13 @@ external-fetch wake path. `FetchAccountsComContractTests` passes `37/37`.
 No code change was made for this stale item. The remaining `FetchAccount`
 password/credential boundary requires separate secret-handling and runtime
 evidence; it is not folded into retry-now parity. Release remains **RED**.
+## Current authoritative status (2026-08-25, backup event runtime wiring review)
+
+The older claim that backup event dispatch has only an injectable seam is stale
+for the current production composition. `WindowsScriptRuleExecutor` implements
+`IBackupEventScriptExecutor`; `Host.Build` registers it and `Program.cs`
+configures `BackupEventDispatcherRuntimeHost` with that service. The dispatcher
+invokes the legacy event names `OnBackupCompleted` and `OnBackupFailed` after
+durable task callbacks. Focused BackupManager/BackupArchive tests pass `90`
+with `5` explicit environment skips. This does not prove live WSH execution,
+registered COM, or isolated backup/restore acceptance. Release remains **RED**.

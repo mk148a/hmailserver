@@ -8831,3 +8831,14 @@ calls `PersistentFetchAccount::SetRetryNow`, while .NET
 `FetchAccountsComContractTests` pass `37/37`. No code change was made. The
 remaining FetchAccount password/credential handling is a separate security
 slice requiring secret-free runtime evidence. Release remains **RED**.
+## Current authoritative status (2026-08-25, backup event runtime wiring review)
+
+The older backlog claim that the backup ScriptServer event adapter remains
+unimplemented is stale for the current production composition.
+`WindowsScriptRuleExecutor` implements `IBackupEventScriptExecutor`; `Host.Build`
+registers it and `Program.cs` configures `BackupEventDispatcherRuntimeHost`.
+`ScriptBackupEventDispatcher` invokes the legacy `OnBackupCompleted` and
+`OnBackupFailed` names after the durable task callbacks. Focused
+BackupManager/BackupArchive coverage passes `90`, with `5` explicit
+environment skips. Live WSH, registered COM, and isolated backup/restore
+acceptance remain unproven. Release remains **RED**.
