@@ -20,6 +20,7 @@ public sealed class ExternalFetchProcessor
     private readonly IMessageAntivirusScanner? _antivirusScanner;
     private readonly ISmtpRecipientValidator? _recipientValidator;
     private readonly TimeProvider _timeProvider;
+    private readonly Func<CancellationToken, ValueTask<IDisposable>>? _enterWriter;
 
     public ExternalFetchProcessor(
         IExternalFetchAccountStore accountStore,
@@ -28,7 +29,8 @@ public sealed class ExternalFetchProcessor
         IExternalAccountDownloadScriptExecutor? scriptExecutor = null,
         IMessageAntivirusScanner? antivirusScanner = null,
         ISmtpRecipientValidator? recipientValidator = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter = null)
     {
         _accountStore = accountStore;
         _sessionFactory = sessionFactory;
@@ -37,6 +39,7 @@ public sealed class ExternalFetchProcessor
         _antivirusScanner = antivirusScanner;
         _recipientValidator = recipientValidator;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _enterWriter = enterWriter;
     }
 
     public async ValueTask<ExternalFetchProcessorResult> RunBatchAsync(
@@ -46,6 +49,10 @@ public sealed class ExternalFetchProcessor
         ArgumentNullException.ThrowIfNull(options);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.BatchSize);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(options.MaxMessagesPerAccount);
+
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
 
         var deferredInactiveAccounts = await _accountStore
             .DeferInactiveAccountsAsync(cancellationToken)

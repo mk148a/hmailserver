@@ -907,7 +907,10 @@ public static class Host
             serviceProvider.GetRequiredService<ISmtpMessageReceiver>(),
             serviceProvider.GetService<IExternalAccountDownloadScriptExecutor>(),
             serviceProvider.GetService<IMessageAntivirusScanner>(),
-            serviceProvider.GetService<ISmtpRecipientValidator>()));
+            serviceProvider.GetService<ISmtpRecipientValidator>(),
+            enterWriter: serviceProvider
+                .GetRequiredService<DeliveryQueuePauseDrainGate>()
+                .EnterWorkerAsync));
     builder.Services.AddSingleton<IImapConnectionStreamFactory, PlainImapConnectionStreamFactory>();
     builder.Services.AddSingleton<IPop3ConnectionStreamFactory>(_ =>
         pop3TlsCertificate is null

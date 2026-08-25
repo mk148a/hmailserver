@@ -58,6 +58,39 @@ public sealed class ExternalFetchProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_HoldsWriterAdmissionForEntireBatch()
+    {
+        var account = CreateAccount();
+        var store = new FakeExternalFetchAccountStore(account);
+        var session = new FakeExternalFetchSession(
+            new ExternalFetchRemoteMessage(1, "uid-admission", Size: 0),
+            []);
+        var held = false;
+        var disposed = false;
+        var processor = CreateProcessor(
+            store,
+            session,
+            new FakeSmtpMessageReceiver(),
+            enterWriter: _ =>
+            {
+                held = true;
+                return ValueTask.FromResult<IDisposable>(new DelegateDisposable(() =>
+                {
+                    held = false;
+                    disposed = true;
+                }));
+            });
+
+        var result = await processor.RunBatchAsync(
+            ExternalFetchProcessorOptions.Default,
+            CancellationToken.None);
+
+        Assert.AreEqual(1, result.AccountsCompleted);
+        Assert.IsFalse(held);
+        Assert.IsTrue(disposed);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_IgnoresSenderAboveLegacyLengthLimit()
     {
         var invalidSender = $"{new string('a', 242)}@example.test";
@@ -1078,7 +1111,8 @@ public sealed class ExternalFetchProcessorTests
         IMessageAntivirusScanner? antivirusScanner = null,
         ISmtpRecipientValidator? recipientValidator = null,
         TimeProvider? timeProvider = null,
-        Exception? connectionException = null) =>
+        Exception? connectionException = null,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter = null) =>
         new(
             store,
             new FakeExternalFetchSessionFactory(session, connectionException),
@@ -1086,7 +1120,8 @@ public sealed class ExternalFetchProcessorTests
             scriptExecutor,
             antivirusScanner,
             recipientValidator,
-            timeProvider: timeProvider ?? new FixedTimeProvider(DateTimeOffset.Parse("2026-01-10T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)));
+            timeProvider: timeProvider ?? new FixedTimeProvider(DateTimeOffset.Parse("2026-01-10T00:00:00Z", System.Globalization.CultureInfo.InvariantCulture)),
+            enterWriter: enterWriter);
 
     private static ExternalFetchAccountLease CreateAccount(
         int daysToKeep = 7,
@@ -1120,6 +1155,11 @@ public sealed class ExternalFetchProcessorTests
 
     private static byte[] ToAsciiBytes(string value) =>
         Encoding.ASCII.GetBytes(value);
+
+    private sealed class DelegateDisposable(Action dispose) : IDisposable
+    {
+        public void Dispose() => dispose();
+    }
 
     private sealed class FakeExternalFetchAccountStore : IExternalFetchAccountStore
     {
