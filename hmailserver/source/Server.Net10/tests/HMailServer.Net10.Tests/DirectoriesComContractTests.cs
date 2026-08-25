@@ -228,6 +228,30 @@ public sealed class DirectoriesComContractTests
         }
     }
 
+    [TestMethod]
+    public void AuthorizedRuntime_EventDirectorySetterPersistsAndRefreshesRetainedObject()
+    {
+        var iniPath = Path.Combine(Path.GetTempPath(), $"hmailserver-{Guid.NewGuid():N}.ini");
+        try
+        {
+            File.WriteAllText(iniPath, "[Directories]\r\nEventFolder=C:\\hMailServer\\Events\r\nProgramFolder=C:\\hMailServer\\\r\n");
+            DirectoryAdministrationRuntimeHost.Configure(new LegacyDirectoryAdministrationStore(iniPath));
+            var directories = Settings.CreateAuthorized().Directories;
+
+            directories.EventDirectory = @"D:\Events";
+
+            Assert.AreEqual(@"D:\Events", directories.EventDirectory);
+            StringAssert.Contains(File.ReadAllText(iniPath), "EventFolder=D:\\Events");
+        }
+        finally
+        {
+            if (File.Exists(iniPath))
+            {
+                File.Delete(iniPath);
+            }
+        }
+    }
+
     private static void AssertMutationPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
