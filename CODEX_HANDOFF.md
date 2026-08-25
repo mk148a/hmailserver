@@ -8873,3 +8873,13 @@ SMTP trust, or production state was changed. Out-of-process COM wake, listener
 readiness, installer rollback, crash consistency, and physical Data quiescence
 remain unproven. Next independent slice: cloned installer/service/Data rollback
 acceptance when an approved disposable target is available.
+
+## Current authoritative verification (2026-08-25, lifecycle admission cancellation)
+
+Test-only commit `7664bb49d` covers cancellation while waiting for the shared
+writer admission and proves the coordinator can execute the next lifecycle
+operation afterward. Focused lifecycle tests pass `11/11`; full standard Debug
+passes `2741/96/0`. No production behavior or machine state changed. The next
+independent release gate remains cloned installer/service/Data rollback on an
+approved disposable target; registered COM/SEC-18 and paired C++ performance
+remain environment-blocked.

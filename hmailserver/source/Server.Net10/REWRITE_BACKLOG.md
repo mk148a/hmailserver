@@ -9034,3 +9034,13 @@ This proves only the in-process admission boundary. Registered out-of-process
 COM/SCM wake, listener readiness, installer/service rollback, physical Data
 quiescence, crash consistency, and paired C++ load remain open. The next
 independent slice is cloned installer/service/Data rollback acceptance.
+
+## Current authoritative verification (2026-08-25, lifecycle admission cancellation)
+
+Test-only commit `7664bb49d` proves that cancellation while waiting for the
+shared writer admission releases the lifecycle coordinator for the next
+operation. `ServiceReinitializationCoordinatorTests` now pass `11/11`; the
+full standard Debug suite passes `2741/96/0`. This strengthens the existing
+`19c0973fd` lifecycle admission slice without changing production behavior.
+The next independent release gate remains cloned installer/service/Data
+rollback acceptance on an approved disposable target.
