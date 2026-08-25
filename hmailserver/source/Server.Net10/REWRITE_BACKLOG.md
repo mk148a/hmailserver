@@ -8443,3 +8443,19 @@ INI mutation. COM identity, SQL schema, SMTP behavior, and live reconfiguration
 remain unchanged. Release remains **RED**; atomic backup quiescence, cloned
 rollback, registered COM/SEC-18, PHP session cutover, paired C++ performance,
 and soak evidence remain open.
+# Current Next Slice (2026-08-25)
+
+Completed slice `01a1e1676c26214e84c2c7c11a83dbceec75daa2`: guarded the
+configured `BlockedAttachments` insert/update/delete store callbacks with the
+generation-bound authorization lease and covered the AntiVirus adapter path.
+Focused tests pass `17/17`; full opt-in Debug passes `2797/16/0`.
+
+Legacy references: `InterfaceBlockedAttachment::Save` and `Delete` in
+`hmailserver/source/Server/COM/InterfaceBlockedAttachment.cpp:15,122`, and
+`InterfaceBlockedAttachments::DeleteByDBID` and `Add` in
+`hmailserver/source/Server/COM/InterfaceBlockedAttachments.cpp:76,123`.
+
+Next smallest safe slice: complete backup snapshot/quiescence only if all SMTP,
+IMAP, POP3, queue, and message writers can participate; otherwise proceed to
+cloned installer/service/Data rollback acceptance. Registered out-of-process
+COM, SEC-18, paired C++ load, and long-soak gates remain environment-blocked.

@@ -8368,3 +8368,25 @@ handles and rerun native restore acceptance. Do not stage pre-existing
 `artifacts/` evidence or dirty `AGENTS.md`.
 
 ## Historical Authoritative Continuation (2026-08-22, restore rename containment)
+# Current Authoritative Continuation (2026-08-25, BLOCKED ATTACHMENT MUTATION LEASE PARITY)
+
+Code/test commit `01a1e1676c26214e84c2c7c11a83dbceec75daa2` adds the existing
+generation-bound authorization lease to the configured `BlockedAttachments`
+insert, update, and delete store callbacks, including the `AntiVirus` runtime
+adapter path. COM identity, IID/vtable/DISPID order, direct activation denial,
+SMTP trust behavior, and live reconfiguration were unchanged.
+
+Legacy behavior is anchored at `InterfaceBlockedAttachment::Save` and
+`InterfaceBlockedAttachment::Delete` in
+`hmailserver/source/Server/COM/InterfaceBlockedAttachment.cpp:15,122`, plus
+`InterfaceBlockedAttachments::DeleteByDBID` and `Add` in
+`hmailserver/source/Server/COM/InterfaceBlockedAttachments.cpp:76,123`.
+Focused coverage is `BlockedAttachmentsComContractTests` `17/17`, including
+lease-held insert/update/delete callbacks and fail-closed unavailable leases.
+The full opt-in Debug suite is `2797 passed, 16 skipped, 0 failed`.
+
+Release remains **RED**. This slice does not complete blocked-attachment
+mutation feature parity, because refresh/read and SQL behavior are existing
+bounded paths; it only closes authorization freshness at mutation time. Next
+independent slice is writer-participating backup quiescence, or cloned
+installer/service/Data rollback acceptance if all writer hooks are unavailable.
