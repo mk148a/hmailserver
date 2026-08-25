@@ -8953,3 +8953,19 @@ the dispatch and contained failure boundary.
 The static runtime-less fallback remains intentionally `E_NOTIMPL`; it is not
 the production path. Live filesystem/SQL/WSH event execution, crash/power-loss
 consistency, and isolated service/COM acceptance remain release blockers.
+
+## Current authoritative status (2026-08-25, Application lifecycle wiring stale-item closure)
+
+Older entries that keep `Application.Start`, `Stop`, or `Reinitialize` as
+production `E_NOTIMPL` are stale. Legacy `InterfaceApplication::Start/Stop/
+Reinitialize` enforce server-administrator authentication and delegate to the
+server lifecycle. Net10 `ComLocalServerHostedService` constructs the hosted
+Application with `ServiceReinitializationCoordinator.StartServersAsync`,
+`StopServersAsync`, and `ReinitializeAsync`; `ApplicationComClass` preserves
+the authentication boundary, failure mapping, and authorization lease.
+`ApplicationComContractTests`, `ServiceReinitializationCoordinatorTests`, and
+`ServerStartupCoordinatorTests` cover the code-level lifecycle contract.
+
+Runtime-less direct construction remains intentionally unavailable. Registered
+out-of-process COM/SCM wake, listener readiness, service restart, and rollback
+acceptance remain release gates and are not implied by this closure.

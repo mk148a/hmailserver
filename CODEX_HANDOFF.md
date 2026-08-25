@@ -8779,6 +8779,16 @@ by `Program.cs`. Legacy references are the matching `Interface*` and
 mutation/failure/authorization matrix. Do not restart those stale entries;
 live SQL and SMTP policy acceptance remain separate release gates.
 
+## Current authoritative status (2026-08-25, Application lifecycle wiring stale-item closure)
+
+The older production `E_NOTIMPL` claim for `Application.Start`, `Stop`, and
+`Reinitialize` is stale. `ComLocalServerHostedService` supplies the three
+`ServiceReinitializationCoordinator` callbacks to the hosted Application, and
+the COM class preserves the legacy server-admin check, error mapping, and
+authorization lease. Focused lifecycle/application tests cover delegation and
+rollback behavior. This does not prove registered out-of-process COM/SCM,
+listener readiness, restart, or installer rollback; those remain release gates.
+
 ## Current authoritative status (2026-08-25, FetchAccount password stale-item closure)
 
 The previous `FetchAccount.Password` `E_NOTIMPL` claim is stale. Legacy
