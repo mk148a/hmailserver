@@ -8713,3 +8713,15 @@ POP3 deletion, IMAP, and normal Message COM persistence are coordinated;
 lifecycle writers remain outside the barrier. Release remains **RED**. Next
 work is lifecycle writer admission with restart/rollback coverage or cloned
 installer/service/Data rollback acceptance.
+## Current authoritative status (2026-08-25, public-folder IMAP EXPUNGE account scope)
+
+Code/test commit `45d87e85d` preserves legacy public-folder EXPUNGE storage
+scope by allowing account `0` through `SqlServerImapMessageMutationStore`.
+`SqlServerImapMailboxStore.SelectMailboxAsync` already returns the selected
+folder's `FolderAccountId`, so public folders reach EXPUNGE with account `0`.
+Legacy anchors are `IMAPCommandEXPUNGE::ExecuteCommand`,
+`Messages::DeleteMessages`, and `PersistentMessage::DeleteObject`. Focused
+mutation tests pass `8/8`, including account-zero cancellation and lease
+release; standard full Debug passes `2739/96/0` (`2835` total). Release remains **RED**. Next slice: service lifecycle writer
+admission with restart/rollback coverage, or cloned installer/service/Data
+rollback acceptance.

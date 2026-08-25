@@ -8806,3 +8806,16 @@ outside the barrier. No full atomic SQL/Data, crash-consistency, or power-loss
 claim is valid. Release remains **RED**. Next slice: one protocol writer
 admission integration with negative/rollback coverage, or cloned
 installer/service/Data rollback acceptance.
+## Current authoritative status (2026-08-25, public-folder IMAP EXPUNGE account scope)
+
+Code/test commit `45d87e85d` preserves legacy public-folder EXPUNGE account
+scope. `SqlServerImapMailboxStore.SelectMailboxAsync` returns the selected
+folder's `FolderAccountId`; public folders therefore pass account `0` to
+`SqlServerImapMessageMutationStore.ExpungeDeletedAsync`. The store now accepts
+non-negative account IDs while retaining the folder and message predicates.
+Legacy anchors are `IMAPCommandEXPUNGE::ExecuteCommand`,
+`Messages::DeleteMessages`, and `PersistentMessage::DeleteObject`. Focused
+coverage is `8/8`; standard full Debug passes `2739/96/0` (`2835` total);
+live SQL public-folder acceptance remains unavailable. Release remains **RED**. Next slice: service lifecycle writer admission with
+restart/rollback coverage, or cloned installer/service/Data rollback
+acceptance.
