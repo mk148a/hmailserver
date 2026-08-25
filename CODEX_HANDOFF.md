@@ -6,8 +6,8 @@ Benchmark commit `ada3a16a3` separates the offline SEARCH/SORT acceptance
 oracle from the measured LINQ query. `SyntheticImapSearchSortBenchmark.Run`
 now computes expected matches and `DATE DESC, UID ASC` ordering with a separate
 imperative reference path, while measured iterations continue to use the
-production-shaped query path. Synthetic focused tests pass `3`; full opt-in
-Debug passes `2791`, skips `16`, fails `0`. The post-change 100k CLI rerun
+production-shaped query path. Synthetic focused tests pass `4`; full opt-in
+Debug passes `2792`, skips `16`, fails `0`. The post-change 100k CLI rerun
 passed with p50/p95/p99 `9.253/12.450/13.239 ms` and approximately `923,109
 messages/s` at commit `df2ce7d4d`. This does not establish SQL FTS, C++
 equivalence, live service attribution, or 24-hour soak; release remains
@@ -15,7 +15,7 @@ equivalence, live service attribution, or 24-hour soak; release remains
 
 Follow-up test commit `3a4ee775f` locks case-insensitive matching and the UID
 ascending tie-break with a focused custom corpus; the synthetic benchmark
-tests now pass `4/4`.
+tests now pass `4/4`, and the final full suite is `2792/16/0`.
 
 Next independent slice: complete backup quiescence with all writer hooks, or
 cloned installer rollback acceptance.

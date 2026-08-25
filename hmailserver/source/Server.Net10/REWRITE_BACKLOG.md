@@ -8377,7 +8377,7 @@ Code/test commits `ada3a16a3` and `3a4ee775f` replace the offline
 SEARCH/SORT benchmark’s self-referential expected result with an independent
 imperative reference filter/sort implementation and add a custom-corpus
 case-insensitive/tie-break regression. Synthetic tests pass `4/4`; full
-opt-in Debug remains `2791` passed, `16` skipped, `0` failed.
+opt-in Debug now passes `2792`, skips `16`, fails `0`.
 
 The post-oracle 100k CLI passed at p50/p95/p99 `9.253/12.450/13.239 ms` and
 approximately `923,109 messages/s` on commit `df2ce7d4d`. This remains
