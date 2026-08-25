@@ -47,6 +47,7 @@ public sealed class Directories : IInterfaceDirectories
     private readonly Func<string, bool>? _updateDataDirectory;
     private readonly Func<string, bool>? _updateProgramDirectory;
     private readonly Func<string, bool>? _updateEventDirectory;
+    private readonly Func<string, bool>? _updateDatabaseDirectory;
 
     public Directories()
     {
@@ -58,7 +59,8 @@ public sealed class Directories : IInterfaceDirectories
         Func<string, bool>? updateTempDirectory,
         Func<string, bool>? updateDataDirectory,
         Func<string, bool>? updateProgramDirectory,
-        Func<string, bool>? updateEventDirectory)
+        Func<string, bool>? updateEventDirectory,
+        Func<string, bool>? updateDatabaseDirectory)
     {
         _snapshot = snapshot;
         _updateLogDirectory = updateLogDirectory;
@@ -66,6 +68,7 @@ public sealed class Directories : IInterfaceDirectories
         _updateDataDirectory = updateDataDirectory;
         _updateProgramDirectory = updateProgramDirectory;
         _updateEventDirectory = updateEventDirectory;
+        _updateDatabaseDirectory = updateDatabaseDirectory;
     }
 
     public string ProgramDirectory
@@ -93,7 +96,29 @@ public sealed class Directories : IInterfaceDirectories
         }
     }
 
-    public string DatabaseDirectory { get => Snapshot.DatabaseDirectory; set => Unavailable(); }
+    public string DatabaseDirectory
+    {
+        get => Snapshot.DatabaseDirectory;
+        set
+        {
+            _ = Snapshot;
+            var updateDatabaseDirectory = _updateDatabaseDirectory;
+            if (updateDatabaseDirectory is null)
+            {
+                Unavailable();
+                return;
+            }
+
+            if (!updateDatabaseDirectory(value))
+            {
+                throw new COMException(
+                    "The database directory update could not be persisted.",
+                    unchecked((int)0x80004005));
+            }
+
+            _snapshot = Snapshot with { DatabaseDirectory = value };
+        }
+    }
 
     public string DataDirectory
     {
@@ -199,10 +224,11 @@ public sealed class Directories : IInterfaceDirectories
         Func<string, bool>? updateTempDirectory = null,
         Func<string, bool>? updateDataDirectory = null,
         Func<string, bool>? updateProgramDirectory = null,
-        Func<string, bool>? updateEventDirectory = null)
+        Func<string, bool>? updateEventDirectory = null,
+        Func<string, bool>? updateDatabaseDirectory = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        return new Directories(snapshot, updateLogDirectory, updateTempDirectory, updateDataDirectory, updateProgramDirectory, updateEventDirectory);
+        return new Directories(snapshot, updateLogDirectory, updateTempDirectory, updateDataDirectory, updateProgramDirectory, updateEventDirectory, updateDatabaseDirectory);
     }
 
     private DirectoryAdministrationSnapshot Snapshot =>
@@ -265,6 +291,10 @@ public static class DirectoryAdministrationRuntimeHost
                 .GetResult(),
             value => store
                 .UpdateEventDirectoryAsync(value, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult(),
+            value => store
+                .UpdateDatabaseDirectoryAsync(value, CancellationToken.None)
                 .GetAwaiter()
                 .GetResult());
     }

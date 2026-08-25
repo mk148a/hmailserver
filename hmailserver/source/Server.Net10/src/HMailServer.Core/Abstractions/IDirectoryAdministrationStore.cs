@@ -28,4 +28,9 @@ public interface IDirectoryAdministrationStore
         string eventDirectory,
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Event directory updates are not implemented by this store.");
+
+    ValueTask<bool> UpdateDatabaseDirectoryAsync(
+        string databaseDirectory,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException("Database directory updates are not implemented by this store.");
 }

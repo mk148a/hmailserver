@@ -252,6 +252,30 @@ public sealed class DirectoriesComContractTests
         }
     }
 
+    [TestMethod]
+    public void AuthorizedRuntime_DatabaseDirectorySetterPersistsWithoutChangingSqlConnection()
+    {
+        var iniPath = Path.Combine(Path.GetTempPath(), $"hmailserver-{Guid.NewGuid():N}.ini");
+        try
+        {
+            File.WriteAllText(iniPath, "[Directories]\r\nDatabaseFolder=C:\\hMailServer\\Database\r\nProgramFolder=C:\\hMailServer\\\r\n");
+            DirectoryAdministrationRuntimeHost.Configure(new LegacyDirectoryAdministrationStore(iniPath));
+            var directories = Settings.CreateAuthorized().Directories;
+
+            directories.DatabaseDirectory = @"D:\Database";
+
+            Assert.AreEqual(@"D:\Database", directories.DatabaseDirectory);
+            StringAssert.Contains(File.ReadAllText(iniPath), "DatabaseFolder=D:\\Database");
+        }
+        finally
+        {
+            if (File.Exists(iniPath))
+            {
+                File.Delete(iniPath);
+            }
+        }
+    }
+
     private static void AssertMutationPending(Action action)
     {
         var error = Assert.ThrowsExactly<COMException>(action);
