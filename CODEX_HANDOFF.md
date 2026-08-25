@@ -8835,3 +8835,13 @@ the INI settings boundary; Net10 wires the authenticated
 Focused directory contract/store tests cover the setter paths and retained
 snapshot/failure behavior. Live restart, filesystem identity, and production
 Data/Database relocation acceptance remain separate release gates.
+
+## Current authoritative status (2026-08-25, GroupMembers mutation stale-item closure)
+
+The prior `Group.Members` read-only/E_NOTIMPL claim is stale. Net10 already
+implements owner-scoped Add/new Save, existing Save, Delete/DeleteByDBID,
+GroupID containment, SQL owner predicates, snapshot publication, leases, and
+reauthentication. Legacy anchors are `InterfaceGroupMembers.cpp:87-134`,
+`InterfaceGroupMember.cpp:18-165`, and `PersistentGroupMember`. Focused
+GroupMembers tests cover success, failure retention, stale-owner denial, and
+authorization. Live SQL/ACL/service acceptance remains separate.

@@ -8984,3 +8984,17 @@ uses the matching group/ACL transaction boundary. `GroupsComContractTests`
 cover new/existing Save, failure retention, Delete/DeleteByDBID, stale IDs,
 and reauthentication. Do not restart the stale Groups mutation item; live SQL,
 ACL, and service acceptance remain separate release gates.
+
+## Current authoritative status (2026-08-25, GroupMembers mutation stale-item closure)
+
+Older entries that describe `Group.Members` Add, Save, or Delete as
+`E_NOTIMPL` are stale. Legacy `InterfaceGroupMembers::Add/DeleteByDBID` and
+`InterfaceGroupMember::Save/Delete` are anchored at
+`hmailserver/source/Server/COM/InterfaceGroupMembers.cpp:87-134` and
+`hmailserver/source/Server/COM/InterfaceGroupMember.cpp:18-165`; persistence
+is `PersistentGroupMember`. Net10 `GroupMembers` and `GroupMember` already
+enforce the owning group on Add, setters, Save, Delete, and SQL predicates,
+publish only successful owner snapshots, and hold the authorization lease.
+`GroupMembersComContractTests` cover mutation, failure retention, stale-owner
+denial, direct activation, and reauthentication. Live SQL/ACL acceptance
+remains a separate release gate; do not restart this stale item.
