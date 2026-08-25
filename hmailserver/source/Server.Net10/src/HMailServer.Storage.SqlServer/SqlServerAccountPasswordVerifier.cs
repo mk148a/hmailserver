@@ -67,11 +67,12 @@ public sealed class SqlServerAccountPasswordVerifier
             }
 
             var storedAccountId = reader.GetInt32(0);
+            var accountActive = Convert.ToInt32(reader.GetValue(1));
             var accountIsAd = Convert.ToInt32(reader.GetValue(2));
             var storedPassword = reader.GetString(3);
             var encryptionType = (LegacyPasswordEncryptionType)reader.GetByte(4);
 
-            if (storedAccountId != accountId)
+            if (storedAccountId != accountId || accountActive == 0)
             {
                 return false;
             }
