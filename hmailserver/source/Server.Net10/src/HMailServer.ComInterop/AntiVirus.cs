@@ -612,7 +612,9 @@ public sealed class AntiVirus : IInterfaceAntiVirus
         get
         {
             _ = Snapshot;
-            return BlockedAttachmentAdministrationRuntimeHost.CreateAuthorizedAdapter(_isServerAdministrator);
+            return BlockedAttachmentAdministrationRuntimeHost.CreateAuthorizedAdapter(
+                _isServerAdministrator,
+                _authorizationLeaseFactory);
         }
     }
 

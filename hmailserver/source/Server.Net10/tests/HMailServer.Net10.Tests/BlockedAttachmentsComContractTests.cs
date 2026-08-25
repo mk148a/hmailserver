@@ -421,6 +421,102 @@ public sealed class BlockedAttachmentsComContractTests
         Assert.AreEqual(1, attachments.Count);
     }
 
+    [TestMethod]
+    public void CollectionMutations_HoldAuthorizationLeaseAcrossStoreCallbacks()
+    {
+        var activeLeases = 0;
+        var disposedLeases = 0;
+        var inserts = 0;
+        var updates = 0;
+        var deletes = 0;
+
+        Func<CancellationToken, ValueTask<IDisposable?>> leaseFactory = _ =>
+        {
+            activeLeases++;
+            return ValueTask.FromResult<IDisposable?>(new TrackingLease(() =>
+            {
+                activeLeases--;
+                disposedLeases++;
+            }));
+        };
+
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            insert: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                inserts++;
+                return 20;
+            },
+            update: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                updates++;
+            },
+            deleteById: _ =>
+            {
+                Assert.AreEqual(1, activeLeases);
+                deletes++;
+            },
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: leaseFactory);
+
+        var draft = attachments.Add();
+        draft.Wildcard = "*.cmd";
+        draft.Save();
+        var existing = attachments[0];
+        existing.Description = "Command file";
+        existing.Save();
+        existing.Delete();
+
+        Assert.AreEqual(1, inserts);
+        Assert.AreEqual(1, updates);
+        Assert.AreEqual(1, deletes);
+        Assert.AreEqual(0, activeLeases);
+        Assert.AreEqual(3, disposedLeases);
+    }
+
+    [TestMethod]
+    public void CollectionMutations_DenyBeforeStoreWhenAuthorizationLeaseIsUnavailable()
+    {
+        var inserts = 0;
+        var updates = 0;
+        var deletes = 0;
+        var leaseRequests = 0;
+
+        IInterfaceBlockedAttachments attachments = BlockedAttachments.CreateAuthorized(
+            new[] { Snapshot(10, "*.bat", "Batch file") },
+            insert: _ =>
+            {
+                inserts++;
+                return 20;
+            },
+            update: _ => updates++,
+            deleteById: _ => deletes++,
+            isServerAdministrator: static () => true,
+            authorizationLeaseFactory: _ =>
+            {
+                leaseRequests++;
+                return ValueTask.FromResult<IDisposable?>(null);
+            });
+
+        var draft = attachments.Add();
+        draft.Wildcard = "*.cmd";
+        var insertError = Assert.ThrowsExactly<COMException>(draft.Save);
+        var existing = attachments[0];
+        existing.Description = "Denied";
+        var updateError = Assert.ThrowsExactly<COMException>(existing.Save);
+        var deleteError = Assert.ThrowsExactly<COMException>(() => attachments.DeleteByDBID(10));
+
+        Assert.AreEqual(EAccessDenied, insertError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, updateError.ErrorCode);
+        Assert.AreEqual(EAccessDenied, deleteError.ErrorCode);
+        Assert.AreEqual(0, inserts);
+        Assert.AreEqual(0, updates);
+        Assert.AreEqual(0, deletes);
+        Assert.AreEqual(3, leaseRequests);
+    }
+
     private static BlockedAttachmentAdministrationSnapshot Snapshot(
         int id,
         string wildcard,
@@ -436,6 +532,11 @@ public sealed class BlockedAttachmentsComContractTests
         Assert.AreEqual(id, attachment.ID);
         Assert.AreEqual(wildcard, attachment.Wildcard);
         Assert.AreEqual(description, attachment.Description);
+    }
+
+    private sealed class TrackingLease(Action onDispose) : IDisposable
+    {
+        public void Dispose() => onDispose();
     }
 
     private static void AssertAccessDenied(Action action)

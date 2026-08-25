@@ -78,6 +78,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
     private readonly Func<BlockedAttachmentAdministrationSnapshot, int>? _insert;
     private readonly Action<BlockedAttachmentAdministrationSnapshot>? _update;
     private readonly Func<bool>? _isServerAdministrator;
+    private readonly Func<CancellationToken, ValueTask<IDisposable?>>? _authorizationLeaseFactory;
 
     public BlockedAttachments()
     {
@@ -89,7 +90,8 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         Func<BlockedAttachmentAdministrationSnapshot, int>? insert,
         Action<BlockedAttachmentAdministrationSnapshot>? update,
         Func<bool>? isServerAdministrator,
-        Action<int>? deleteById)
+        Action<int>? deleteById,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory)
     {
         _blockedAttachments = blockedAttachments.ToArray();
         _reload = reload;
@@ -97,6 +99,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         _insert = insert;
         _update = update;
         _isServerAdministrator = isServerAdministrator;
+        _authorizationLeaseFactory = authorizationLeaseFactory;
     }
 
     public int Count => GetBlockedAttachments().Count;
@@ -133,6 +136,8 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
             return;
         }
 
+        EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         try
         {
             _deleteById(databaseId);
@@ -205,7 +210,8 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         Func<BlockedAttachmentAdministrationSnapshot, int>? insert = null,
         Func<bool>? isServerAdministrator = null,
         Action<BlockedAttachmentAdministrationSnapshot>? update = null,
-        Action<int>? deleteById = null)
+        Action<int>? deleteById = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         ArgumentNullException.ThrowIfNull(blockedAttachments);
         return new BlockedAttachments(
@@ -214,13 +220,15 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
             insert,
             update,
             isServerAdministrator,
-            deleteById);
+            deleteById,
+            authorizationLeaseFactory);
     }
 
     private BlockedAttachmentAdministrationSnapshot SaveNewAttachment(
         BlockedAttachmentAdministrationSnapshot attachment)
     {
         EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         var attachments = GetBlockedAttachments();
         if (_insert is null)
         {
@@ -256,6 +264,7 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
         BlockedAttachmentAdministrationSnapshot attachment)
     {
         EnsureServerAdministrator();
+        using var authorizationLease = AcquireAuthorizationLease();
         var attachments = GetBlockedAttachments();
         if (_update is null)
         {
@@ -309,6 +318,21 @@ public sealed class BlockedAttachments : IInterfaceBlockedAttachments
                 "Blocked attachment access requires an authenticated server administrator.",
                 EAccessDenied);
         }
+    }
+
+    private IDisposable? AcquireAuthorizationLease()
+    {
+        if (_authorizationLeaseFactory is null)
+        {
+            return null;
+        }
+
+        return _authorizationLeaseFactory(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult()
+            ?? throw new COMException(
+                "Blocked attachment access requires an authenticated server administrator.",
+                EAccessDenied);
     }
 
     private T Unavailable<T>()
@@ -436,7 +460,9 @@ public static class BlockedAttachmentAdministrationRuntimeHost
         Volatile.Write(ref _store, store);
     }
 
-    internal static BlockedAttachments CreateAuthorizedAdapter(Func<bool>? isServerAdministrator = null)
+    internal static BlockedAttachments CreateAuthorizedAdapter(
+        Func<bool>? isServerAdministrator = null,
+        Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory = null)
     {
         var store = Volatile.Read(ref _store)
             ?? throw new COMException(
@@ -461,7 +487,8 @@ public static class BlockedAttachmentAdministrationRuntimeHost
             InsertBlockedAttachment,
             isServerAdministrator: isServerAdministrator,
             update: UpdateBlockedAttachment,
-            deleteById: DeleteBlockedAttachment);
+            deleteById: DeleteBlockedAttachment,
+            authorizationLeaseFactory: authorizationLeaseFactory);
 
         void UpdateBlockedAttachment(BlockedAttachmentAdministrationSnapshot attachment) => store
             .UpdateBlockedAttachmentAsync(attachment, CancellationToken.None)
