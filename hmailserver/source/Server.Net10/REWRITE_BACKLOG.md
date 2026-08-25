@@ -28,6 +28,15 @@ boundary across protocol writers, SQL metadata, and Data-file staging once the
 owning runtime hooks are available; do not infer environment-gated credential
 or COM evidence.
 
+Live SQL/Data diagnostics are now executable on the existing disposable
+benchmark fixtures. Exact 1000-message Net10 fixtures passed `6/6` for
+Full-Text backfill/search, POP3 authentication/mailbox load, SMTP host
+receiver, queue-writer cleanup, and delivery local/retry. A stale 1025-message
+fixture was rejected by its expected-count assertions and was not repaired by
+manual deletion. The clean run left zero `live-*` marker rows and no running
+hMailServer process. This is Net10 diagnostic evidence only; paired C++ load,
+same-state performance ratios, and release acceptance remain open.
+
 ## Current authoritative status (2026-08-25, script override null-hash parity)
 
 Code/test commit `2ba259c83` closes a legacy ordering gap in

@@ -27,6 +27,14 @@ boundary spanning protocol writers, SQL metadata, and Data-file staging when
 the owning runtime hooks are available; environment-gated script/AD and
 SEC-18 evidence must not be fabricated.
 
+The exact 1000-message live SQL/Data fixtures then passed `6/6`: Full-Text
+backfill/search, POP3 authentication/mailbox load, SMTP host receiver, queue
+writer cleanup, and delivery local/retry. The first run against a stale 1025
+message fixture was rejected by its own expected-count assertions; no manual
+rows were deleted. The clean fixture run left zero `live-*` marker rows and no
+hMailServer process running. This is Net10 diagnostic evidence, not a paired
+C++ performance result or release gate.
+
 ## Current Authoritative Continuation (2026-08-25, SCRIPT OVERRIDE NULL-HASH PARITY)
 
 Code/test commit `2ba259c83` closes a legacy ordering gap in
