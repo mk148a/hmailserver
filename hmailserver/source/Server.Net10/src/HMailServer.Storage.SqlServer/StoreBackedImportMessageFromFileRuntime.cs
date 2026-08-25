@@ -19,6 +19,7 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
     private readonly string _hierarchyDelimiter;
     private readonly string _publicFolderName;
     private readonly bool _useAcl;
+    private readonly Func<CancellationToken, ValueTask<IDisposable>>? _enterWriter;
 
     public StoreBackedImportMessageFromFileRuntime(
         IImportMessageFromFileStore store,
@@ -27,7 +28,8 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
         string dataDirectory,
         TimeProvider? timeProvider = null,
         SqlServerImapMailboxStoreOptions? mailboxOptions = null,
-        IImapAclStore? aclStore = null)
+        IImapAclStore? aclStore = null,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(recipientValidator);
@@ -42,6 +44,7 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
         _hierarchyDelimiter = mailboxOptions?.HierarchyDelimiter ?? ".";
         _publicFolderName = mailboxOptions?.PublicFolderName ?? PublicFolderDiskName;
         _useAcl = mailboxOptions?.UseAcl ?? true;
+        _enterWriter = enterWriter;
     }
 
     public async ValueTask<bool> ImportMessageFromFileAsync(
@@ -71,6 +74,10 @@ public sealed class StoreBackedImportMessageFromFileRuntime : IImportMessageFrom
         string? imapFolder,
         CancellationToken cancellationToken)
     {
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
+
         try
         {
             if (accountId < 0 || string.IsNullOrWhiteSpace(fileName))

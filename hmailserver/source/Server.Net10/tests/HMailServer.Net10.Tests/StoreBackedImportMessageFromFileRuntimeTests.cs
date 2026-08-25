@@ -62,6 +62,33 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
     }
 
     [TestMethod]
+    public async Task ImportMessage_HoldsWriterAdmissionAcrossPersistenceAndReleasesItAfterward()
+    {
+        using var directory = new TemporaryDirectory();
+        var sourcePath = directory.Write("queue.eml", ValidMessage("local@example.test"));
+        var admission = new RecordingWriterAdmission();
+        var store = new RecordingStore
+        {
+            OnQueueImport = () => Assert.IsTrue(admission.IsHeld)
+        };
+        var runtime = CreateRuntime(
+            directory.Path,
+            store,
+            new RecordingRecipientValidator(),
+            new RecordingWakeSignal(),
+            enterWriter: admission.EnterAsync);
+
+        Assert.IsTrue(await runtime.ImportMessageFromFileAsync(
+            sourcePath,
+            accountId: 0,
+            CancellationToken.None));
+
+        Assert.IsTrue(admission.WasEntered);
+        Assert.IsTrue(admission.WasReleased);
+        Assert.IsFalse(admission.IsHeld);
+    }
+
+    [TestMethod]
     public async Task ImportAccountMessage_MovesMisplacedFileToLegacyGuidBucketAndPersistsInboxShape()
     {
         using var directory = new TemporaryDirectory();
@@ -367,7 +394,8 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         RecordingRecipientValidator validator,
         RecordingWakeSignal wakeSignal,
         SqlServerImapMailboxStoreOptions? mailboxOptions = null,
-        IImapAclStore? aclStore = null) =>
+        IImapAclStore? aclStore = null,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter = null) =>
         new(
             store,
             validator,
@@ -375,7 +403,8 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
             dataDirectory,
             new FixedTimeProvider(FixedNow),
             mailboxOptions,
-            aclStore);
+            aclStore,
+            enterWriter);
 
     private static string ValidMessage(string recipient) =>
         $"From: sender@example.test\r\nTo: {recipient}\r\nSubject: Test\r\n\r\nBody\r\n";
@@ -390,6 +419,7 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
         public List<(long MessageId, string FileName)> UpdateCalls { get; } = [];
         public List<ImportedDeliveredMessage> DeliveredImports { get; } = [];
         public List<ImportedQueuedMessage> QueueImports { get; } = [];
+        public Action? OnQueueImport { get; init; }
 
         public ValueTask<ImportedMessageReference?> FindExistingMessageAsync(
             string? partialFileName,
@@ -450,6 +480,7 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
             CancellationToken cancellationToken)
         {
             ThrowIfConfigured();
+            OnQueueImport?.Invoke();
             QueueImports.Add(message);
             return ValueTask.CompletedTask;
         }
@@ -460,6 +491,24 @@ public sealed class StoreBackedImportMessageFromFileRuntimeTests
             {
                 throw Exception;
             }
+        }
+    }
+
+    private sealed class RecordingWriterAdmission
+    {
+        public bool WasEntered { get; private set; }
+        public bool WasReleased { get; private set; }
+        public bool IsHeld => WasEntered && !WasReleased;
+
+        public ValueTask<IDisposable> EnterAsync(CancellationToken cancellationToken)
+        {
+            WasEntered = true;
+            return ValueTask.FromResult<IDisposable>(new Lease(this));
+        }
+
+        private sealed class Lease(RecordingWriterAdmission owner) : IDisposable
+        {
+            public void Dispose() => owner.WasReleased = true;
         }
     }
 

@@ -953,7 +953,10 @@ public static class Host
             serviceProvider.GetRequiredService<IDeliveryQueueWakeSignal>(),
             dataDirectory,
             mailboxOptions: mailboxOptions,
-            aclStore: serviceProvider.GetRequiredService<IImapAclStore>()));
+            aclStore: serviceProvider.GetRequiredService<IImapAclStore>(),
+            enterWriter: serviceProvider
+                .GetRequiredService<DeliveryQueuePauseDrainGate>()
+                .EnterWorkerAsync));
     builder.Services.AddSingleton<ServerStatusRuntimeState>();
     builder.Services.AddSingleton<IApplicationRuntimeStore>(
         serviceProvider => new ServerApplicationRuntimeStore(
