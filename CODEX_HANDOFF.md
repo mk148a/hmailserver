@@ -9,7 +9,7 @@ cleanup. `BackupRestoreRoundTripIntegrationTests` passed `25/25` and
 `SqlServerDatabaseAdministrationStoreIntegrationTests` passed `7/7`; no
 disposable database leftovers remained. The dedicated Data root had explicit
 ACL and a successful write/read probe. The full Debug Net10 suite passed
-`2697`, skipped `94`, and failed `0` (`2791` total). This is local disposable
+`2701`, skipped `94`, and failed `0` (`2795` total). This is local disposable
 SQL/Data evidence, not independent VM/production evidence. No production
 service, database, Data directory, COM registration, DCOM ACL, IIS, firewall,
 or source code was changed. Release remains **RED** for power-loss INI

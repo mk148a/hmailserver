@@ -5,7 +5,7 @@ hMailServer
 
 The disposable Full-Text SQL/Data acceptance passed: `25/25` backup/restore
 round-trip tests and `7/7` SQL database-administration tests. The full Debug
-Net10 suite passes `2697`, skips `94`, and fails `0` (`2791` total). This is
+Net10 suite passes `2701`, skips `94`, and fails `0` (`2795` total). This is
 local disposable SQL Server evidence, not independent VM or production
 evidence. Release remains **RED** for installed/out-of-process COM, SEC-18,
 installer/service/Data rollback, power-loss durability, paired C++ performance,

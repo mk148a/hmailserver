@@ -9,8 +9,8 @@ and removed disposable 5708/6000 databases. The opt-in
 `BackupRestoreRoundTripIntegrationTests` passed `25/25`, and
 `SqlServerDatabaseAdministrationStoreIntegrationTests` passed `7/7`, with no
 database leftovers. The disposable Data root had explicit ACL and write/read
-probe evidence. The full Debug Net10 suite passed `2697`, skipped `94`, and
-failed `0` (`2791` total). This proves the local SQL/Data harness, not an
+probe evidence. The full Debug Net10 suite passed `2701`, skipped `94`, and
+failed `0` (`2795` total). This proves the local SQL/Data harness, not an
 independent VM or production cutover. Release remains **RED**. Next slice:
 isolated registered COM/SEC-18 caller evidence.
 
