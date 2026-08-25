@@ -1300,6 +1300,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly IDistributionListRecipientAdministrationStore? _distributionListRecipientStore;
     private readonly IGroupAdministrationStore? _groupStore;
     private readonly IGroupMemberAdministrationStore? _groupMemberStore;
+    private readonly IBackupDomainProjectionSnapshotFactory? _domainProjectionSnapshotFactory;
     private readonly IBackupRestoreMetadataTransactionFactory? _metadataTransactionFactory;
     private readonly bool _requireSqlTransaction;
 
@@ -1354,7 +1355,8 @@ public sealed class BackupXmlPayloadRuntime
         IBackupRestoreMetadataTransactionFactory? metadataTransactionFactory = null,
         bool requireSqlTransaction = false,
         IGroupAdministrationStore? groupStore = null,
-        IGroupMemberAdministrationStore? groupMemberStore = null)
+        IGroupMemberAdministrationStore? groupMemberStore = null,
+        IBackupDomainProjectionSnapshotFactory? domainProjectionSnapshotFactory = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -1381,6 +1383,7 @@ public sealed class BackupXmlPayloadRuntime
         _distributionListRecipientStore = distributionListRecipientStore;
         _groupStore = groupStore;
         _groupMemberStore = groupMemberStore;
+        _domainProjectionSnapshotFactory = domainProjectionSnapshotFactory;
         _metadataTransactionFactory = metadataTransactionFactory;
         _requireSqlTransaction = requireSqlTransaction;
     }
@@ -1390,6 +1393,15 @@ public sealed class BackupXmlPayloadRuntime
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(evidence);
+
+        var nonDomainProjectionOptions = BackupStartPlan.BackupSettingsFlag
+            | BackupStartPlan.BackupMessagesFlag;
+        if (_domainProjectionSnapshotFactory is not null
+            && (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
+            && (evidence.BackupOptions & nonDomainProjectionOptions) == 0)
+        {
+            return await GetDomainOnlyPayloadFromSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        }
 
         var settings = (evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0
             ? evidence.Settings
@@ -1664,6 +1676,55 @@ public sealed class BackupXmlPayloadRuntime
             folderMessages,
             publicFolders,
             backupGroups);
+    }
+
+    private async ValueTask<BackupArchiveXmlPayload> GetDomainOnlyPayloadFromSnapshotAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var snapshot = await _domainProjectionSnapshotFactory!
+            .BeginAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var domains = await snapshot.DomainStore
+            .GetDomainsAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var domainAliases = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
+        var accounts = new Dictionary<int, IReadOnlyList<AccountAdministrationSnapshot>>();
+        var aliases = new Dictionary<int, IReadOnlyList<AliasAdministrationSnapshot>>();
+        var distributionLists = new Dictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>>();
+        var recipients = new Dictionary<int, IReadOnlyList<DistributionListRecipientAdministrationSnapshot>>();
+
+        foreach (var domain in domains)
+        {
+            domainAliases[domain.Id] = await snapshot.DomainAliasStore
+                .GetDomainAliasesAsync(domain.Id, cancellationToken)
+                .ConfigureAwait(false);
+            accounts[domain.Id] = await snapshot.AccountStore
+                .GetAccountsAsync(domain.Id, cancellationToken)
+                .ConfigureAwait(false);
+            aliases[domain.Id] = await snapshot.AliasStore
+                .GetAliasesAsync(domain.Id, cancellationToken)
+                .ConfigureAwait(false);
+            var domainLists = await snapshot.DistributionListStore
+                .GetDistributionListsAsync(domain.Id, cancellationToken)
+                .ConfigureAwait(false);
+            distributionLists[domain.Id] = domainLists;
+            foreach (var distributionList in domainLists)
+            {
+                recipients[distributionList.Id] = await snapshot.RecipientStore
+                    .GetRecipientsAsync(distributionList.Id, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        return new BackupArchiveXmlPayload(
+            Settings: null,
+            Domains: domains,
+            DomainAliases: domainAliases,
+            Accounts: accounts,
+            Aliases: aliases,
+            DistributionLists: distributionLists,
+            DistributionListRecipients: recipients);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(
