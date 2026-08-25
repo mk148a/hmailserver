@@ -1318,8 +1318,7 @@ ORDER BY messageid;
             Assert.AreEqual(ComConnectionSecurity.Tls, fetchAccounts[0].ConnectionSecurity);
             Assert.IsTrue(fetchAccounts[0].UseSSL);
             Assert.AreEqual("2026-07-01 02:03:04", fetchAccounts[0].NextDownloadTime);
-            var pendingSensitiveRead = Assert.ThrowsExactly<COMException>(() => _ = fetchAccounts[0].Password);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingSensitiveRead.ErrorCode);
+            Assert.AreEqual("fetch-secret", fetchAccounts[0].Password);
             var adminMessages = accounts[0].Messages;
             Assert.AreEqual(1, adminMessages.Count);
             Assert.AreEqual(3000L, adminMessages[0].ID);
@@ -2294,9 +2293,8 @@ ORDER BY messageid;
 
             var outsideAccountLookup = Assert.ThrowsExactly<COMException>(
                 () => _ = adminFetchAccounts.get_ItemByDBID(2000));
-            var pendingPasswordRead = Assert.ThrowsExactly<COMException>(() => _ = adminFetchAccounts[0].Password);
             Assert.AreEqual(unchecked((int)0x8002000B), outsideAccountLookup.ErrorCode);
-            Assert.AreEqual(unchecked((int)0x80004001), pendingPasswordRead.ErrorCode);
+            Assert.AreEqual("fetch-secret", adminFetchAccounts[0].Password);
 
             var userFetchAccounts = accounts.get_ItemByDBID(20).FetchAccounts;
             Assert.AreEqual(1, userFetchAccounts.Count);
@@ -3688,10 +3686,10 @@ INSERT INTO dbo.hm_fetchaccounts
      fauseantispam, fauseantivirus, faenablerouterecipients, famimerecipientheaders)
 VALUES
     (1000, 1, 10, N'External POP3', N'pop3.example.test', 995,
-     0, N'external-user', N'not-exposed', 15, CONVERT(datetime, '2026-07-01T02:03:04', 126), 14,
+     0, N'external-user', N'765e0669877fe89cceba3d98489a5002', 15, CONVERT(datetime, '2026-07-01T02:03:04', 126), 14,
      1, 1, 1, 1, 1, 1, 1, N'To,CC,X-RCPT-TO'),
     (2000, 1, 20, N'User POP3', N'pop3-user.example.test', 110,
-     0, N'user-external', N'not-exposed', 30, CONVERT(datetime, '2026-07-02T02:03:04', 126), 7,
+     0, N'user-external', N'331e9a122ba9884563d4601933dc1d64', 30, CONVERT(datetime, '2026-07-02T02:03:04', 126), 7,
      0, 0, 0, 0, 0, 0, 0, N'To,CC');
 
 INSERT INTO dbo.hm_rules

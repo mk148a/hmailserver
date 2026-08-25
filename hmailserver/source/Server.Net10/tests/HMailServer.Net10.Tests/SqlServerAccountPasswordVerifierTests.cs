@@ -62,7 +62,7 @@ public sealed class SqlServerAccountPasswordVerifierTests
 
             Assert.IsTrue(verifier.Verify(1, "secret"));
             Assert.IsFalse(verifier.Verify(1, "wrong"));
-            Assert.IsTrue(verifier.Verify(2, "secret"));
+            Assert.IsFalse(verifier.Verify(2, "secret"));
             Assert.IsFalse(verifier.Verify(3, "secret"));
             Assert.IsFalse(verifier.Verify(4, "secret"));
             Assert.IsFalse(verifier.Verify(5, "secret"));
