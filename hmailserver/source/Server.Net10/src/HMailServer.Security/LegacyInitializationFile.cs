@@ -1,4 +1,7 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Win32.SafeHandles;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 namespace HMailServer.Security;
 
@@ -26,7 +29,13 @@ public static class LegacyInitializationFile
         return configuration["Security:AdministratorPassword"]?.Trim() ?? string.Empty;
     }
 
-    public static bool SaveAdministratorPasswordHash(string path, string hash)
+    public static bool SaveAdministratorPasswordHash(string path, string hash) =>
+        SaveAdministratorPasswordHash(path, hash, flushDirectory: null);
+
+    internal static bool SaveAdministratorPasswordHash(
+        string path,
+        string hash,
+        Action<string>? flushDirectory)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentNullException.ThrowIfNull(hash);
@@ -77,6 +86,10 @@ public static class LegacyInitializationFile
                 File.Move(temporaryPath, targetPath);
             }
 
+            var directoryPath = Path.GetDirectoryName(targetPath)
+                ?? throw new IOException("The initialization file has no containing directory.");
+            (flushDirectory ?? FlushDirectory)(directoryPath);
+
             return true;
         }
         catch (IOException)
@@ -104,6 +117,66 @@ public static class LegacyInitializationFile
             }
         }
     }
+
+    private static void FlushDirectory(string directoryPath)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            using var directoryHandle = File.OpenHandle(
+                directoryPath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            RandomAccess.FlushToDisk(directoryHandle);
+            return;
+        }
+
+        using var windowsDirectoryHandle = CreateFileW(
+            directoryPath,
+            GenericRead | GenericWrite,
+            FileShareRead | FileShareWrite | FileShareDelete,
+            IntPtr.Zero,
+            OpenExisting,
+            FileFlagBackupSemantics,
+            IntPtr.Zero);
+        if (windowsDirectoryHandle.IsInvalid)
+        {
+            throw new IOException(
+                "The initialization file directory could not be opened for durable finalization.",
+                new Win32Exception(Marshal.GetLastWin32Error()));
+        }
+
+        if (!FlushFileBuffers(windowsDirectoryHandle))
+        {
+            throw new IOException(
+                "The initialization file directory could not be flushed for durable finalization.",
+                new Win32Exception(Marshal.GetLastWin32Error()));
+        }
+    }
+
+    private const uint GenericRead = 0x80000000;
+    private const uint GenericWrite = 0x40000000;
+    private const uint FileShareRead = 0x00000001;
+    private const uint FileShareWrite = 0x00000002;
+    private const uint FileShareDelete = 0x00000004;
+    private const uint OpenExisting = 3;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, ExactSpelling = true, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern SafeFileHandle CreateFileW(
+        string fileName,
+        uint desiredAccess,
+        uint shareMode,
+        IntPtr securityAttributes,
+        uint creationDisposition,
+        uint flagsAndAttributes,
+        IntPtr templateFile);
+
+    [DllImport("kernel32.dll", ExactSpelling = true, SetLastError = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FlushFileBuffers(SafeFileHandle fileHandle);
 
     public static LegacyDatabaseConfiguration LoadDatabaseConfiguration(string path)
     {

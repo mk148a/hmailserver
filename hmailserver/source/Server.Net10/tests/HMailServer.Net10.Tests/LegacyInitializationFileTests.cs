@@ -113,6 +113,31 @@ public sealed class LegacyInitializationFileTests
     }
 
     [TestMethod]
+    public void SaveAdministratorPasswordHash_FlushesContainingDirectoryAfterReplacement()
+    {
+        var path = CreateTemporaryInitializationFile(
+            "[Security]\nAdministratorPassword=old-hash\n");
+        var flushedDirectories = new List<string>();
+
+        try
+        {
+            Assert.IsTrue(
+                LegacyInitializationFile.SaveAdministratorPasswordHash(
+                    path,
+                    "new-hash",
+                    flushedDirectories.Add));
+            CollectionAssert.AreEqual(
+                new[] { Path.GetDirectoryName(path)! },
+                flushedDirectories);
+            Assert.AreEqual("new-hash", LegacyInitializationFile.LoadAdministratorPasswordHash(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public void SaveUserInterfaceLanguage_WritesLegacySettingAndPreservesOtherSettings()
     {
         var path = CreateTemporaryInitializationFile(
