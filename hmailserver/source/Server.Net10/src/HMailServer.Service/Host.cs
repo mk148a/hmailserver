@@ -776,7 +776,13 @@ public static class Host
     builder.Services.AddSingleton<IImapIdleNotifier, PollingImapIdleNotifier>();
     builder.Services.AddSingleton<IImapQuotaStore, SqlServerImapQuotaStore>();
     builder.Services.AddSingleton<IImapRecentFlagStore, SqlServerImapRecentFlagStore>();
-    builder.Services.AddSingleton<IPop3MailboxStore, SqlServerPop3MailboxStore>();
+    builder.Services.AddSingleton<IPop3MailboxStore>(serviceProvider =>
+        ActivatorUtilities.CreateInstance<SqlServerPop3MailboxStore>(
+            serviceProvider,
+            new Func<CancellationToken, ValueTask<IDisposable>>(
+                serviceProvider
+                    .GetRequiredService<DeliveryQueuePauseDrainGate>()
+                    .EnterWorkerAsync)));
     builder.Services.AddSingleton<IPop3MailboxLockManager, InMemoryPop3MailboxLockManager>();
     builder.Services.AddSingleton<IExternalFetchAccountStore, SqlServerExternalFetchAccountStore>();
     builder.Services.AddSingleton<IExternalFetchSessionFactory>(static serviceProvider =>

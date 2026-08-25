@@ -97,13 +97,16 @@ WHERE
 
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly MessageFilePathResolver _pathResolver;
+    private readonly Func<CancellationToken, ValueTask<IDisposable>>? _enterWriter;
 
     public SqlServerPop3MailboxStore(
         SqlServerConnectionFactory connectionFactory,
-        MessageFilePathResolver pathResolver)
+        MessageFilePathResolver pathResolver,
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter = null)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
+        _enterWriter = enterWriter;
     }
 
     public async ValueTask<IReadOnlyList<Pop3MessageListing>> ListMessagesAsync(
@@ -172,6 +175,10 @@ WHERE
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(messageIds);
+
+        using var writerLease = _enterWriter is null
+            ? null
+            : await _enterWriter(cancellationToken).ConfigureAwait(false);
 
         if (messageIds.Count == 0)
         {

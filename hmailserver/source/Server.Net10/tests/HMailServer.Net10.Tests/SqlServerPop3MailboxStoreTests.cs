@@ -1,3 +1,5 @@
+using HMailServer.Core.Abstractions;
+using HMailServer.Delivery;
 using HMailServer.Storage.SqlServer;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -63,5 +65,43 @@ public sealed class SqlServerPop3MailboxStoreTests
         StringAssert.Contains(plan.CommandText, "messageid IN (@MessageId0, @MessageId1");
         Assert.AreEqual(44L, plan.Parameters["@MessageId0"]);
         Assert.AreEqual(55L, plan.Parameters["@MessageId1"]);
+    }
+
+    [TestMethod]
+    public async Task DeleteMessages_HoldsWriterAdmissionAndReleasesItOnCancellation()
+    {
+        var admission = new RecordingWriterAdmission();
+        var store = new SqlServerPop3MailboxStore(
+            new SqlServerConnectionFactory("Server=localhost,1;Database=unused;Integrated Security=true;Connect Timeout=1"),
+            new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(Path.GetTempPath())),
+            admission.EnterAsync);
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await store.DeleteMessagesAsync(
+                new ImapAuthenticatedAccount(42, "user@example.test"),
+                new long[] { 100 },
+                new CancellationToken(canceled: true)));
+
+        Assert.IsTrue(admission.WasEntered);
+        Assert.IsTrue(admission.WasReleased);
+        Assert.IsFalse(admission.IsHeld);
+    }
+
+    private sealed class RecordingWriterAdmission
+    {
+        public bool WasEntered { get; private set; }
+        public bool WasReleased { get; private set; }
+        public bool IsHeld => WasEntered && !WasReleased;
+
+        public ValueTask<IDisposable> EnterAsync(CancellationToken cancellationToken)
+        {
+            WasEntered = true;
+            return ValueTask.FromResult<IDisposable>(new Lease(this));
+        }
+
+        private sealed class Lease(RecordingWriterAdmission owner) : IDisposable
+        {
+            public void Dispose() => owner.WasReleased = true;
+        }
     }
 }
