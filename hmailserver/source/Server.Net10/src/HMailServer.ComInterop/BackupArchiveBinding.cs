@@ -72,10 +72,10 @@ internal sealed class BackupArchiveBinding : IDisposable
 
         try
         {
-            Directory.CreateDirectory(snapshotRoot);
+            WindowsHandleRelativeDirectoryCopier.EnsureDirectory(snapshotRoot);
             EnsureNotReparsePoint(snapshotRoot, "backup snapshot root");
             ProtectSnapshotDirectory(snapshotRoot);
-            Directory.CreateDirectory(stagingDirectory);
+            WindowsHandleRelativeDirectoryCopier.EnsureDirectory(stagingDirectory);
             ownsStagingDirectory = true;
             EnsureNotReparsePoint(stagingDirectory, "backup snapshot staging directory");
             ProtectSnapshotDirectory(stagingDirectory);
