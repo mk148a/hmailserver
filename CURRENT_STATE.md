@@ -1,7 +1,7 @@
 # Current State
-- UTC/local timestamp: `2026-08-26T05:35:00Z` / `2026-08-26T08:35:00+03:00`
+- UTC/local timestamp: `2026-08-26T05:47:00Z` / `2026-08-26T08:47:00+03:00`
 - Current branch and upstream: `net10-installer-rollback-guard` / no upstream
-- Current HEAD at last content update: `f945a2d6a` (`docs: refresh current state after verification`).
+- Current HEAD at last content update: `00a010ece` (`docs: record disposable SQL migration acceptance`).
 - Last successfully pushed commit: `5d89e85c4` on `origin/net10-modernization`
 - Latest focused-test result: disposable local MSSQL migration acceptance `PassedWithKnownLegacyTransactionLimitation` (Full-Text present; success `5708 -> 6000`; injected failure retained `5708`; cleanup errors `0`; production paths `0`; DCOM/registration changed `false`); offline synthetic 100k IMAP SEARCH/SORT benchmark `PASS` at HEAD (`9091/9091` correct, p50 `9.118 ms`, p95 `9.542 ms`, p99 `9.660 ms`); rollback archive preflight `PASS`; real staging PHP COM activation denial `E_ACCESSDENIED` with worker-token match and cleanup verified; `ServiceReinitializationCoordinatorTests` `11 passed, 0 skipped, 0 failed`; installer/upgrade guard filter `5 passed, 1 skipped, 0 failed`; Directories COM/store filter `13 passed, 0 skipped, 0 failed`; AntiSpam collection mutation/authorization filter `71 passed, 0 skipped, 0 failed`; account verifier plus Account COM filter `84 passed, 2 skipped, 0 failed`; BackupManager/BackupArchive filter `90 passed, 5 skipped, 0 failed`; `FetchAccountsComContractTests` `37 passed, 0 skipped, 0 failed`; `SqlServerImapMessageMutationStoreTests` `8 passed, 0 skipped, 0 failed`.
 - Latest full Net10 result: standard Debug `2747 passed, 90 skipped, 0 failed` (`2837` total); prerequisite check passed with .NET 10 SDK 10.0.301 and MSBuild 17.x; opt-in Debug remains environment-dependent and no new opt-in run was claimed
