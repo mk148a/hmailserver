@@ -9116,3 +9116,13 @@ and the configured p95 threshold passing. The artifact is under the local
 untracked benchmark evidence directory. It is diagnostic Net10-only evidence;
 it does not prove SQL Server FTS, live protocol latency, legacy C++ parity, or
 the performance release gate.
+
+## Current authoritative verification (2026-08-26, disposable SQL migration)
+
+The isolated SQL acceptance script completed against local `MSSQLSERVER` with
+Full-Text installed. Its success database migrated `5708 -> 6000`; its injected
+failure database remained at `5708`; cleanup errors were `0`, production paths
+were untouched, and registration/DCOM state was unchanged. The legacy
+transaction branch is reported as `BlockedByFullTextDdl`, while the explicit
+failure script proves rollback to the pre-migration schema. This does not prove
+a cloned legacy service/Data installation or installer rollback.

@@ -21,6 +21,12 @@ with `9091/9091` correct results, p50 `9.118 ms`, p95 `9.542 ms`, and p99
 `9.660 ms`. It remains diagnostic only and is not SQL FTS, live IMAP, or a C++
 comparison.
 
+Disposable SQL migration acceptance was rerun against local `MSSQLSERVER` using
+only GUID-scoped databases. Full-Text was available; success reached `6000`,
+the injected failure path remained at `5708`, cleanup errors were zero, and no
+production path or COM/DCOM state changed. The legacy transaction branch is
+explicitly `BlockedByFullTextDdl`.
+
 ## Current Authoritative Continuation (2026-08-25, PHYSICAL DATA QUIESCENCE AUDIT)
 
 `DeliveryQueuePauseDrainGate` only covers the delivery queue worker;

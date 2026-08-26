@@ -21,6 +21,13 @@ HEAD (`9091/9091` correct; p50 `9.118 ms`, p95 `9.542 ms`, p99 `9.660 ms`).
 This is diagnostic Net10-only evidence and does not establish SQL FTS, live
 IMAP, or legacy C++ performance parity.
 
+Disposable local SQL acceptance also completed against `localhost` using only
+GUID-scoped databases. Full-Text was present; the success database migrated
+from `5708` to `6000`, the injected failure database remained at `5708`, and
+cleanup reported zero errors with no production paths or COM/DCOM changes.
+The legacy transaction branch is recorded as `BlockedByFullTextDdl`, so this is
+not a claim of atomic legacy transaction equivalence.
+
 
 ## Current authoritative status (2026-08-25, physical Data quiescence audit)
 
