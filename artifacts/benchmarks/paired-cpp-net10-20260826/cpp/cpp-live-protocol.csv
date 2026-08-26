@@ -1,0 +1,4 @@
+scenario,iterations,successes,errors,p50_ms,p95_ms,p99_ms
+smtp,0,0,0,,,
+imap,0,0,0,,,
+pop3,0,0,0,,,

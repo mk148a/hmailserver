@@ -1,0 +1,588 @@
+﻿{
+    "schema":  "live-protocol-v1",
+    "implementation":  "net10",
+    "status":  "PASS",
+    "startedUtc":  "2026-08-26T11:11:09.1492753+00:00",
+    "endedUtc":  "2026-08-26T11:11:13.9794815+00:00",
+    "database":  "hmail_perf_pair_net10_20260825_143100",
+    "dataRoot":  "C:\\hmail-perf-pair-codex-20260825_1600\\net10\\Data",
+    "bind":  "127.0.0.1",
+    "ports":  "SMTP 2525, IMAP 1143, POP3 25110",
+    "messageCount":  1000,
+    "summary":  [
+                    {
+                        "scenario":  "smtp",
+                        "iterations":  25,
+                        "successes":  25,
+                        "errors":  0,
+                        "p50_ms":  0.733,
+                        "p95_ms":  16.928,
+                        "p99_ms":  50.8
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iterations":  25,
+                        "successes":  25,
+                        "errors":  0,
+                        "p50_ms":  11.745,
+                        "p95_ms":  17.691,
+                        "p99_ms":  157.739
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iterations":  25,
+                        "successes":  25,
+                        "errors":  0,
+                        "p50_ms":  13.243,
+                        "p95_ms":  16.67,
+                        "p99_ms":  25.124
+                    }
+                ],
+    "readinessFailures":  [
+
+                          ],
+    "shutdownFailures":  [
+
+                         ],
+    "processBefore":  {
+                          "threads":  23,
+                          "privateBytes":  21467136,
+                          "handles":  522
+                      },
+    "processAfter":  {
+                         "threads":  23,
+                         "privateBytes":  34795520,
+                         "handles":  518
+                     },
+    "isolationPreflight":  null,
+    "executableProvenance":  null,
+    "samples":  [
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  1,
+                        "ok":  true,
+                        "ms":  20.737,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  2,
+                        "ok":  true,
+                        "ms":  1.692,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  3,
+                        "ok":  true,
+                        "ms":  1.1,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  4,
+                        "ok":  true,
+                        "ms":  1.014,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  5,
+                        "ok":  true,
+                        "ms":  0.991,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  6,
+                        "ok":  true,
+                        "ms":  0.724,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  7,
+                        "ok":  true,
+                        "ms":  0.626,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  8,
+                        "ok":  true,
+                        "ms":  0.621,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  9,
+                        "ok":  true,
+                        "ms":  0.61,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  10,
+                        "ok":  true,
+                        "ms":  0.685,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  11,
+                        "ok":  true,
+                        "ms":  0.566,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  12,
+                        "ok":  true,
+                        "ms":  0.607,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  13,
+                        "ok":  true,
+                        "ms":  0.597,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  14,
+                        "ok":  true,
+                        "ms":  0.564,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  15,
+                        "ok":  true,
+                        "ms":  0.627,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  16,
+                        "ok":  true,
+                        "ms":  0.622,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  17,
+                        "ok":  true,
+                        "ms":  60.293,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  18,
+                        "ok":  true,
+                        "ms":  1.003,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  19,
+                        "ok":  true,
+                        "ms":  0.938,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  20,
+                        "ok":  true,
+                        "ms":  0.825,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  21,
+                        "ok":  true,
+                        "ms":  0.859,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  22,
+                        "ok":  true,
+                        "ms":  0.733,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  23,
+                        "ok":  true,
+                        "ms":  0.722,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  24,
+                        "ok":  true,
+                        "ms":  0.78,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "smtp",
+                        "iteration":  25,
+                        "ok":  true,
+                        "ms":  0.752,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  1,
+                        "ok":  true,
+                        "ms":  201.913,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  2,
+                        "ok":  true,
+                        "ms":  11.848,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  3,
+                        "ok":  true,
+                        "ms":  12.374,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  4,
+                        "ok":  true,
+                        "ms":  11.941,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  5,
+                        "ok":  true,
+                        "ms":  11.671,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  6,
+                        "ok":  true,
+                        "ms":  11.089,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  7,
+                        "ok":  true,
+                        "ms":  12.71,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  8,
+                        "ok":  true,
+                        "ms":  11.745,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  9,
+                        "ok":  true,
+                        "ms":  11.83,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  10,
+                        "ok":  true,
+                        "ms":  12.325,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  11,
+                        "ok":  true,
+                        "ms":  11.643,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  12,
+                        "ok":  true,
+                        "ms":  12.044,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  13,
+                        "ok":  true,
+                        "ms":  11.217,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  14,
+                        "ok":  true,
+                        "ms":  12.402,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  15,
+                        "ok":  true,
+                        "ms":  17.853,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  16,
+                        "ok":  true,
+                        "ms":  11.513,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  17,
+                        "ok":  true,
+                        "ms":  10.354,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  18,
+                        "ok":  true,
+                        "ms":  17.042,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  19,
+                        "ok":  true,
+                        "ms":  11.308,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  20,
+                        "ok":  true,
+                        "ms":  11.028,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  21,
+                        "ok":  true,
+                        "ms":  10.738,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  22,
+                        "ok":  true,
+                        "ms":  10.629,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  23,
+                        "ok":  true,
+                        "ms":  15.61,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  24,
+                        "ok":  true,
+                        "ms":  11.208,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "imap",
+                        "iteration":  25,
+                        "ok":  true,
+                        "ms":  10.522,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  1,
+                        "ok":  true,
+                        "ms":  27.752,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  2,
+                        "ok":  true,
+                        "ms":  13.6,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  3,
+                        "ok":  true,
+                        "ms":  14.32,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  4,
+                        "ok":  true,
+                        "ms":  13.243,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  5,
+                        "ok":  true,
+                        "ms":  16.075,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  6,
+                        "ok":  true,
+                        "ms":  12.992,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  7,
+                        "ok":  true,
+                        "ms":  13.543,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  8,
+                        "ok":  true,
+                        "ms":  13.764,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  9,
+                        "ok":  true,
+                        "ms":  14.532,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  10,
+                        "ok":  true,
+                        "ms":  14.528,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  11,
+                        "ok":  true,
+                        "ms":  16.801,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  12,
+                        "ok":  true,
+                        "ms":  12.766,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  13,
+                        "ok":  true,
+                        "ms":  12.798,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  14,
+                        "ok":  true,
+                        "ms":  13.144,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  15,
+                        "ok":  true,
+                        "ms":  13.09,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  16,
+                        "ok":  true,
+                        "ms":  13.133,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  17,
+                        "ok":  true,
+                        "ms":  12.83,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  18,
+                        "ok":  true,
+                        "ms":  12.811,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  19,
+                        "ok":  true,
+                        "ms":  12.658,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  20,
+                        "ok":  true,
+                        "ms":  12.559,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  21,
+                        "ok":  true,
+                        "ms":  12.972,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  22,
+                        "ok":  true,
+                        "ms":  12.846,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  23,
+                        "ok":  true,
+                        "ms":  13.657,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  24,
+                        "ok":  true,
+                        "ms":  14.302,
+                        "error":  ""
+                    },
+                    {
+                        "scenario":  "pop3",
+                        "iteration":  25,
+                        "ok":  true,
+                        "ms":  16.145,
+                        "error":  ""
+                    }
+                ],
+    "comHostedService":  "not started; installed AppID preserved",
+    "productionSafety":  "service stopped/disabled; production DB/Data not used"
+}

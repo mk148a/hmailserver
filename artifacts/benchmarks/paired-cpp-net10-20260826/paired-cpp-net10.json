@@ -1,0 +1,31 @@
+{
+  "schema": "live-cpp-net10-comparison-v1",
+  "status": "RED",
+  "decision": "No speed-up, regression percentage, or winner is valid because the C++ process did not become ready.",
+  "sameCorpus": true,
+  "sameSqlRowCounts": true,
+  "loopback": "127.0.0.1",
+  "ports": "SMTP 2525, IMAP 1143, POP3 25110",
+  "databaseFixture": {
+    "cpp": "hmail_perf_pair_cpp_20260825_143100",
+    "net10": "hmail_perf_pair_net10_20260825_143100",
+    "messageCount": 1000,
+    "cppDataRoot": "C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Data",
+    "net10DataRoot": "C:\\hmail-perf-pair-codex-20260825_1600\\net10\\Data"
+  },
+  "sourceReports": {
+    "cpp": "artifacts/benchmarks/paired-cpp-net10-20260826/cpp/cpp-live-protocol.json",
+    "net10": "artifacts/benchmarks/paired-cpp-net10-20260826/net10/net10-live-protocol.json"
+  },
+  "scenarios": [
+    { "scenario": "smtp", "net10_success": 25, "net10_errors": 0, "net10_p50_ms": 0.733, "net10_p95_ms": 16.928, "net10_p99_ms": 50.8, "cpp_success": 0, "cpp_errors": null, "cpp_p50_ms": null, "cpp_p95_ms": null, "cpp_p99_ms": null, "ratio_valid": false },
+    { "scenario": "imap", "net10_success": 25, "net10_errors": 0, "net10_p50_ms": 11.745, "net10_p95_ms": 17.691, "net10_p99_ms": 157.739, "cpp_success": 0, "cpp_errors": null, "cpp_p50_ms": null, "cpp_p95_ms": null, "cpp_p99_ms": null, "ratio_valid": false },
+    { "scenario": "pop3", "net10_success": 25, "net10_errors": 0, "net10_p50_ms": 13.243, "net10_p95_ms": 16.67, "net10_p99_ms": 25.124, "cpp_success": 0, "cpp_errors": null, "cpp_p50_ms": null, "cpp_p95_ms": null, "cpp_p99_ms": null, "ratio_valid": false }
+  ],
+  "blockers": [
+    "C++ readiness preflight failed because the stale Registry32 hMailServer install location points to C:\\hMailServer57-Test rather than the disposable fixture.",
+    "The bounded C++ startup probe opened zero target listeners and produced no protocol samples.",
+    "C++/Net10 speed-up and winner claims are invalid until both sides complete the same protocol matrix.",
+    "SMTP message acceptance, delivery queue, 1000-concurrent IMAP, 100k mailbox, and 24-hour soak comparison were not completed."
+  ]
+}

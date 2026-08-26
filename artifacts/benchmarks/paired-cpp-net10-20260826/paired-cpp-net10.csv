@@ -1,0 +1,4 @@
+scenario,net10_success,net10_errors,net10_p50_ms,net10_p95_ms,net10_p99_ms,cpp_success,cpp_errors,cpp_p50_ms,cpp_p95_ms,cpp_p99_ms,ratio_valid
+smtp,25,0,0.733,16.928,50.8,0,,,,,false
+imap,25,0,11.745,17.691,157.739,0,,,,,false
+pop3,25,0,13.243,16.67,25.124,0,,,,,false

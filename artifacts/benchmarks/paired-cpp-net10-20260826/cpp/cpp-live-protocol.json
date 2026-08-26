@@ -1,0 +1,42 @@
+{
+  "schema": "live-protocol-v1",
+  "implementation": "cpp",
+  "status": "FAIL",
+  "startedUtc": "2026-08-26T11:13:12.5942970+00:00",
+  "endedUtc": "2026-08-26T11:13:22.0000000+00:00",
+  "database": "hmail_perf_pair_cpp_20260825_143100",
+  "dataRoot": "C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Data",
+  "bind": "127.0.0.1",
+  "ports": "SMTP 2525, IMAP 1143, POP3 25110",
+  "messageCount": 1000,
+  "summary": [
+    { "scenario": "smtp", "iterations": 0, "successes": 0, "errors": 0, "p50_ms": null, "p95_ms": null, "p99_ms": null },
+    { "scenario": "imap", "iterations": 0, "successes": 0, "errors": 0, "p50_ms": null, "p95_ms": null, "p99_ms": null },
+    { "scenario": "pop3", "iterations": 0, "successes": 0, "errors": 0, "p50_ms": null, "p95_ms": null, "p99_ms": null }
+  ],
+  "readinessFailures": [
+    "C++ process remained alive during the bounded 8-second startup probe but opened zero listeners on 127.0.0.1:2525, :1143, and :25110."
+  ],
+  "shutdownFailures": [],
+  "processBefore": null,
+  "processAfter": null,
+  "isolationPreflight": {
+    "passed": false,
+    "targetExecutable": "C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Bin\\hMailServer.exe",
+    "registryInstallLocations": [
+      { "view": "Registry32", "installLocation": "C:\\hMailServer57-Test" }
+    ],
+    "serviceState": "missing",
+    "failures": [
+      "Registry32 HKLM hMailServer InstallLocation resolves to C:\\hMailServer57-Test\\Bin, not the disposable target C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Bin."
+    ]
+  },
+  "executableProvenance": {
+    "path": "C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Bin\\hMailServer.exe",
+    "sha256": "41816E05CEAF55BF0E8B6A5F82FDA49F503F263B3BFB2C208447569FF505D1D3",
+    "length": 6393344
+  },
+  "samples": [],
+  "comHostedService": "not started",
+  "productionSafety": "No hMailServer service was started; probe used only disposable C++ Bin/Data paths and was stopped after readiness failure."
+}
