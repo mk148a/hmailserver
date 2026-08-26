@@ -4,10 +4,10 @@
 
 The new disposable paired run used the same SQL/Data fixture, 1,000-message
 corpus, loopback address, and SMTP/IMAP/POP3 ports for both implementations.
-Net10 passed 25/25 protocol iterations per scenario. The C++ process remained
-alive during the bounded startup probe but opened zero target listeners, and
-the isolation preflight found the stale Registry32 install location
-`C:\hMailServer57-Test\Bin`. No registry value was changed. The comparison is
+Net10 passed 25/25 protocol iterations per scenario. The isolation preflight
+passed after stale test registration cleanup, but the C++ process opened zero
+target listeners; a separate exact-fixture service-mode start terminated
+unexpectedly and Windows SCM event `7034` was recorded. The comparison is
 therefore **RED** with all ratios invalid. See
 `artifacts/benchmarks/paired-cpp-net10-20260826/paired-cpp-net10.md` and its
 JSON/CSV files. Next performance slice: run the same matrix on an isolated

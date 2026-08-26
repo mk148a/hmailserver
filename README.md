@@ -11,9 +11,9 @@ regression claim is valid. The gate remains **RED**.
 
 The raw JSON/CSV and Mermaid-chart report are in
 `artifacts/benchmarks/paired-cpp-net10-20260826/paired-cpp-net10.md`.
-The C++ blocker is reproducible: the disposable binary's startup preflight
-found a stale Registry32 install-location value pointing to
-`C:\hMailServer57-Test\Bin`. That installed registration was not changed.
+The isolation preflight passed after stale test registration cleanup. The
+disposable C++ service-mode start then terminated unexpectedly with SCM event
+`7034` and opened no target listeners, so the comparison remains invalid.
 
 ## Current authoritative status (2026-08-26, disposable legacy registration)
 

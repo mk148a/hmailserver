@@ -15,21 +15,18 @@
     { "scenario": "pop3", "iterations": 0, "successes": 0, "errors": 0, "p50_ms": null, "p95_ms": null, "p99_ms": null }
   ],
   "readinessFailures": [
-    "C++ process remained alive during the bounded 8-second startup probe but opened zero listeners on 127.0.0.1:2525, :1143, and :25110."
+    "C++ /Debug opened zero listeners on 127.0.0.1:2525, :1143, and :25110.",
+    "A separate disposable service-mode start using the exact fixture binary and RunAsService path terminated unexpectedly; Windows Service Control Manager event 7034 was recorded."
   ],
   "shutdownFailures": [],
   "processBefore": null,
   "processAfter": null,
   "isolationPreflight": {
-    "passed": false,
+    "passed": true,
     "targetExecutable": "C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Bin\\hMailServer.exe",
-    "registryInstallLocations": [
-      { "view": "Registry32", "installLocation": "C:\\hMailServer57-Test" }
-    ],
+    "registryInstallLocations": [],
     "serviceState": "missing",
-    "failures": [
-      "Registry32 HKLM hMailServer InstallLocation resolves to C:\\hMailServer57-Test\\Bin, not the disposable target C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Bin."
-    ]
+    "failures": []
   },
   "executableProvenance": {
     "path": "C:\\hmail-perf-pair-codex-20260825_1600\\cpp\\Bin\\hMailServer.exe",
@@ -38,5 +35,5 @@
   },
   "samples": [],
   "comHostedService": "not started",
-  "productionSafety": "No hMailServer service was started; probe used only disposable C++ Bin/Data paths and was stopped after readiness failure. The probe path re-established stale 32-bit hMailServer registry values; cleanup must remove only the verified stale test values before any release claim."
+  "productionSafety": "The disposable hMailServer service was registered with an exact fixture path, started for readiness evidence, terminated unexpectedly, then unregistered. Service, CLSID, AppID, and stale install-location cleanup were verified afterward; production service, DB, and Data were not used."
 }
