@@ -51,7 +51,12 @@ The bounded `/Debug` startup probe kept the process alive for eight seconds but
 opened zero listeners on the three target ports. The isolation preflight also
 found a stale Registry32 install location at `C:\hMailServer57-Test\Bin`.
 That registry value was not changed because changing installed hMailServer
-registration would invalidate the isolation boundary.
+registration would invalidate the isolation boundary. The legacy `/Debug` startup
+path itself calls `RegisterAppID()`; after the probe, the host still has the
+verified stale 32-bit `HKLM\SOFTWARE\hMailServer\InstallLocation` and
+`HKCR\AppID\{5EDEC473-39E0-43F6-A234-1947071721C8}` values. The service and CLSID
+are absent. These stale test values must be removed by an explicitly authorized
+administrator cleanup before another host-level C++ attempt.
 
 ## Reproduction
 

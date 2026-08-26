@@ -24,6 +24,7 @@
   ],
   "blockers": [
     "C++ readiness preflight failed because the stale Registry32 hMailServer install location points to C:\\hMailServer57-Test rather than the disposable fixture.",
+    "The C++ /Debug probe re-established the stale 32-bit hMailServer AppID/LocalService registry value; cleanup is pending because registry mutation is blocked by the host safety policy.",
     "The bounded C++ startup probe opened zero target listeners and produced no protocol samples.",
     "C++/Net10 speed-up and winner claims are invalid until both sides complete the same protocol matrix.",
     "SMTP message acceptance, delivery queue, 1000-concurrent IMAP, 100k mailbox, and 24-hour soak comparison were not completed."

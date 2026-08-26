@@ -38,5 +38,5 @@
   },
   "samples": [],
   "comHostedService": "not started",
-  "productionSafety": "No hMailServer service was started; probe used only disposable C++ Bin/Data paths and was stopped after readiness failure."
+  "productionSafety": "No hMailServer service was started; probe used only disposable C++ Bin/Data paths and was stopped after readiness failure. The probe path re-established stale 32-bit hMailServer registry values; cleanup must remove only the verified stale test values before any release claim."
 }
