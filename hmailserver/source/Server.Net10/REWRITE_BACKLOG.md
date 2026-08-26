@@ -9144,3 +9144,13 @@ were rerun successfully: `2747 passed, 90 skipped, 0 failed` (`2837` total).
 This is verification only. It does not close the environment-blocked cloned
 legacy SQL/Data rollback, registered COM caller evidence, paired C++ load, or
 long-soak gates; release remains **RED**.
+## Current next slice: isolated paired C++/.NET 10 performance gate (2026-08-26)
+
+The 2026-08-26 disposable paired fixture proved equal SQL/Data inputs and
+completed 25/25 SMTP, IMAP, and POP3 protocol iterations for Net10. The legacy
+C++ process opened no target listeners, so the comparison remains RED and no
+performance ratio is valid. The next executable work is to run the identical
+fixture on an isolated legacy installation with a proven configuration boundary
+and then complete message acceptance, 1,000-concurrent IMAP, queue throughput,
+100k mailbox, and soak measurements. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260826/`.

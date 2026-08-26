@@ -1,6 +1,20 @@
 hMailServer
 ===========
 
+## Current performance gate (2026-08-26)
+
+The paired disposable fixture used identical SQL/Data copies, 1,000 message
+files, `127.0.0.1`, and SMTP `2525` / IMAP `1143` / POP3 `25110`. Net10
+completed 25/25 iterations for each protocol. The C++ process did not become
+ready and opened no target listeners; therefore no speed-up ratio, winner, or
+regression claim is valid. The gate remains **RED**.
+
+The raw JSON/CSV and Mermaid-chart report are in
+`artifacts/benchmarks/paired-cpp-net10-20260826/paired-cpp-net10.md`.
+The C++ blocker is reproducible: the disposable binary's startup preflight
+found a stale Registry32 install-location value pointing to
+`C:\hMailServer57-Test\Bin`. That installed registration was not changed.
+
 ## Current authoritative status (2026-08-26, disposable legacy registration)
 
 The legacy payload `hMailServer.exe /Register` was run only inside the approved
