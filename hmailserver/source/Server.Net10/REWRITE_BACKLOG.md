@@ -9067,3 +9067,16 @@ authentication changes, and production state remain untouched. The generated
 confirmed the dedicated site, pool, and staging root would be targeted without
 removing them. SEC-18 therefore remains RED pending a disposable guest with
 the legacy application and a separately launched caller path.
+## Current authoritative verification (2026-08-26, full Net10 rerun)
+
+At commit `957c30e4e5d47987fee5e5b3ef2c782da14ee2a4`, the prerequisite check
+passed with .NET 10 SDK `10.0.301` and MSBuild `17.x`. The standard Debug Net10
+suite passed `2747`, skipped `90`, and failed `0` (`2837` total). This is a
+verification update only; no production code or machine state changed.
+
+The release remains **RED**. The next executable repository slice remains the
+cloned installer/service/Data rollback acceptance design and tests; its live
+acceptance is still environment-blocked until a disposable installed
+hMailServer plus isolated SQL/Data clone is available. SEC-18 remains blocked
+by the missing registered Application graph and independent COM caller-token
+evidence in the isolated guest.
