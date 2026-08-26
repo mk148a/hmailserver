@@ -9080,3 +9080,17 @@ acceptance is still environment-blocked until a disposable installed
 hMailServer plus isolated SQL/Data clone is available. SEC-18 remains blocked
 by the missing registered Application graph and independent COM caller-token
 evidence in the isolated guest.
+## Current authoritative status (2026-08-26, disposable legacy registration)
+
+With explicit approval, the legacy payload `hMailServer.exe /Register` was run
+only in `HMailServer-SEC18-Disposable`. It returned exit code `0`; the created
+`hMailServer` service was immediately left `Stopped` and `Disabled`, and the
+existing Application AppID was observed by the staging collector. No host
+production registration, DCOM ACL, database, Data directory, or production
+service was changed.
+
+The refreshed collector still reports `Gate.Status=Incomplete` and
+`ReadyForBrokerRegistration=false`: the dedicated IIS pool, Application AppID,
+and service-safety checks pass, but independent PHP/FastCGI COM caller-token
+evidence is absent. Broker registration and DCOM ACL changes remain out of
+scope until that evidence exists.
