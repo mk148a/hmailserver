@@ -9127,6 +9127,16 @@ transaction branch is reported as `BlockedByFullTextDdl`, while the explicit
 failure script proves rollback to the pre-migration schema. This does not prove
 a cloned legacy service/Data installation or installer rollback.
 
+## Current authoritative verification (2026-08-26, post-cleanup COM test result)
+
+After the explicitly test-only `C:\hMailServer57-Test` installation and its
+legacy COM registration were removed, the standard Debug suite returned
+`2742 passed, 90 skipped, 5 failed`. The five failures are
+`ComLocalServerHostTests` activation checks returning
+`CO_E_WRONG_SERVER_IDENTITY`; the prior `2747/90/0` result remains the last
+green suite before cleanup. No production code was changed to mask this
+environment dependency. Release remains **RED**.
+
 ## Current authoritative verification (2026-08-26, full-suite rerun at latest HEAD)
 
 At HEAD `09fcb6f04`, the prerequisite check and standard Debug Net10 suite
