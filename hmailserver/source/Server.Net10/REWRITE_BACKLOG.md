@@ -9107,3 +9107,12 @@ the staging worker; it does not authorize the future broker.
 No existing Application DCOM ACL or machine default was changed. SEC-18 still
 requires a separately registered broker identity, broker-only ACL review, and
 method-level caller impersonation evidence before cutover.
+
+## Current authoritative verification (2026-08-26, offline 100k benchmark)
+
+The commandable synthetic IMAP SEARCH/SORT harness passes at HEAD with
+`9091/9091` correct matches, p50 `9.118 ms`, p95 `9.542 ms`, p99 `9.660 ms`,
+and the configured p95 threshold passing. The artifact is under the local
+untracked benchmark evidence directory. It is diagnostic Net10-only evidence;
+it does not prove SQL Server FTS, live protocol latency, legacy C++ parity, or
+the performance release gate.

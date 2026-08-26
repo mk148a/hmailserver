@@ -16,6 +16,11 @@ A bounded real PHP/FastCGI probe also confirmed that the existing
 worker identity. The service was stopped and disabled and the temporary probe
 was removed afterward; this is denial evidence, not broker authorization.
 
+The offline synthetic 100k-message IMAP SEARCH/SORT harness also passes at
+HEAD (`9091/9091` correct; p50 `9.118 ms`, p95 `9.542 ms`, p99 `9.660 ms`).
+This is diagnostic Net10-only evidence and does not establish SQL FTS, live
+IMAP, or legacy C++ performance parity.
+
 
 ## Current authoritative status (2026-08-25, physical Data quiescence audit)
 

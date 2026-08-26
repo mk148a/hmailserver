@@ -16,6 +16,11 @@ dedicated IIS worker token. The service was stopped/disabled and the temporary
 probe removed. This confirms the legacy Application denial boundary, not broker
 authorization or SEC-18 completion.
 
+The offline synthetic 100k-message IMAP SEARCH/SORT benchmark passes at HEAD
+with `9091/9091` correct results, p50 `9.118 ms`, p95 `9.542 ms`, and p99
+`9.660 ms`. It remains diagnostic only and is not SQL FTS, live IMAP, or a C++
+comparison.
+
 ## Current Authoritative Continuation (2026-08-25, PHYSICAL DATA QUIESCENCE AUDIT)
 
 `DeliveryQueuePauseDrainGate` only covers the delivery queue worker;
