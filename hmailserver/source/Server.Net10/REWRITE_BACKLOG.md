@@ -9044,3 +9044,26 @@ full standard Debug suite passes `2741/96/0`. This strengthens the existing
 `19c0973fd` lifecycle admission slice without changing production behavior.
 The next independent release gate remains cloned installer/service/Data
 rollback acceptance on an approved disposable target.
+
+## Current authoritative status (2026-08-26, isolated IIS staging inventory)
+
+The disposable VM `HMailServer-SEC18-Disposable` is now reachable through an
+elevated host PowerShell Direct session. Its pre-existing IIS features
+`IIS-WebServerRole`, `IIS-WebServer`, `IIS-WebServerManagementTools`,
+`IIS-ManagementConsole`, `IIS-ManagementScriptingTools`, and `IIS-CGI` were
+already enabled; no feature installation or host production change was made.
+The isolated site `HMailWebAdminBrokerStaging` is bound only to
+`127.0.0.1:8088`, uses `HMailWebAdminBrokerPool` with
+`ApplicationPoolIdentity`, and serves PHP 8.4.23 NTS x64 with `com_dotnet`.
+The local health request returned `200`, and actual `w3wp.exe`/`php-cgi.exe`
+worker token SID evidence is recorded in the untracked
+`artifacts/sec18-staging/` reports.
+
+The collector result is deliberately `Incomplete`: the guest has no existing
+hMailServer Application AppID or hMailServer service, and no independent COM
+caller-token evidence exists. Broker registration, DCOM ACL changes, PHP
+authentication changes, and production state remain untouched. The generated
+`rollback-sec18-staging.ps1` was syntax-checked and run with `-WhatIf`; it
+confirmed the dedicated site, pool, and staging root would be targeted without
+removing them. SEC-18 therefore remains RED pending a disposable guest with
+the legacy application and a separately launched caller path.

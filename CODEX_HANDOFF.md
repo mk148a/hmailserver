@@ -8883,3 +8883,24 @@ passes `2741/96/0`. No production behavior or machine state changed. The next
 independent release gate remains cloned installer/service/Data rollback on an
 approved disposable target; registered COM/SEC-18 and paired C++ performance
 remain environment-blocked.
+
+## Current authoritative continuation (2026-08-26, isolated IIS staging inventory)
+
+The disposable VM `HMailServer-SEC18-Disposable` is running and is accessible
+through elevated PowerShell Direct using its disposable Administrator account.
+Inside the guest, the isolated IIS site `HMailWebAdminBrokerStaging` is bound
+only to `127.0.0.1:8088`, maps to `C:\SEC18-Staging\WebAdmin`, and uses the
+dedicated `HMailWebAdminBrokerPool` with `ApplicationPoolIdentity`. PHP
+8.4.23 NTS x64 and `com_dotnet` are available; the local health request is
+`200 OK`. Actual `w3wp.exe` and `php-cgi.exe` workers were observed under the
+same application-pool SID. The exact JSON/Markdown evidence is in the
+untracked `artifacts/sec18-staging/` directory.
+
+The SEC-18 collector correctly returns `Incomplete`: the guest has no existing
+hMailServer Application AppID or hMailServer service, and no independently
+launched COM caller-token evidence. No broker registration, DCOM ACL, PHP
+authentication, production service, database, Data directory, host IIS, or
+firewall state changed. The generated staging rollback script passed syntax and
+non-destructive `-WhatIf` validation. Next gate: provision a disposable guest
+containing the legacy application/configuration, then collect independent
+caller evidence before any broker registration.
