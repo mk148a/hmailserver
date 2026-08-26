@@ -10,6 +10,12 @@ reports SEC-18 `Incomplete` because independent PHP/FastCGI COM caller-token
 evidence is absent. Broker registration and DCOM ACL changes remain blocked;
 production state was not changed.
 
+A bounded real PHP/FastCGI probe attempted existing `hMailServer.Application`
+activation and received `E_ACCESSDENIED`; the PHP process token matched the
+dedicated IIS worker token. The service was stopped/disabled and the temporary
+probe removed. This confirms the legacy Application denial boundary, not broker
+authorization or SEC-18 completion.
+
 ## Current Authoritative Continuation (2026-08-25, PHYSICAL DATA QUIESCENCE AUDIT)
 
 `DeliveryQueuePauseDrainGate` only covers the delivery queue worker;

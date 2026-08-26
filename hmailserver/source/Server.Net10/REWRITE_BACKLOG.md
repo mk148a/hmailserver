@@ -9094,3 +9094,16 @@ The refreshed collector still reports `Gate.Status=Incomplete` and
 and service-safety checks pass, but independent PHP/FastCGI COM caller-token
 evidence is absent. Broker registration and DCOM ACL changes remain out of
 scope until that evidence exists.
+## Current authoritative status (2026-08-26, real PHP COM denial evidence)
+
+On the disposable VM, the approved legacy service was started only for a
+bounded probe. A temporary PHP endpoint executed `new COM("hMailServer.Application")`
+through the actual FastCGI worker and received `E_ACCESSDENIED`; the PHP PID
+and IIS worker resolved to the same dedicated application-pool token. The
+legacy service was then stopped and disabled, the probe was deleted, and no
+process remained. This proves the existing Application DCOM boundary rejects
+the staging worker; it does not authorize the future broker.
+
+No existing Application DCOM ACL or machine default was changed. SEC-18 still
+requires a separately registered broker identity, broker-only ACL review, and
+method-level caller impersonation evidence before cutover.

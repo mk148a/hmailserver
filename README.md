@@ -11,6 +11,11 @@ Application AppID. The IIS staging health check remains `200 OK` on
 missing, so SEC-18 and the overall release gate remain **RED**. No production
 registration, DCOM ACL, database, Data directory, or service was changed.
 
+A bounded real PHP/FastCGI probe also confirmed that the existing
+`hMailServer.Application` activation returns `E_ACCESSDENIED` for the dedicated
+worker identity. The service was stopped and disabled and the temporary probe
+was removed afterward; this is denial evidence, not broker authorization.
+
 
 ## Current authoritative status (2026-08-25, physical Data quiescence audit)
 
