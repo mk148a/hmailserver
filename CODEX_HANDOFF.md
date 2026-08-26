@@ -1,5 +1,15 @@
 # CODEX_HANDOFF.md
 
+## Current Authoritative Continuation (2026-08-26, disposable legacy registration)
+
+With explicit approval, legacy `hMailServer.exe /Register` completed only in
+`HMailServer-SEC18-Disposable` with exit code `0`. The resulting service is
+`Stopped/Disabled`; the existing Application AppID is present in the guest and
+the staging site remains healthy on `127.0.0.1:8088`. The collector still
+reports SEC-18 `Incomplete` because independent PHP/FastCGI COM caller-token
+evidence is absent. Broker registration and DCOM ACL changes remain blocked;
+production state was not changed.
+
 ## Current Authoritative Continuation (2026-08-25, PHYSICAL DATA QUIESCENCE AUDIT)
 
 `DeliveryQueuePauseDrainGate` only covers the delivery queue worker;

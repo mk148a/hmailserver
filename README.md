@@ -1,6 +1,17 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-26, disposable legacy registration)
+
+The legacy payload `hMailServer.exe /Register` was run only inside the approved
+disposable `HMailServer-SEC18-Disposable` VM. It returned exit code `0`; its
+service is `Stopped/Disabled`, and the staging collector now sees the existing
+Application AppID. The IIS staging health check remains `200 OK` on
+`127.0.0.1:8088`. Independent PHP/FastCGI COM caller-token evidence is still
+missing, so SEC-18 and the overall release gate remain **RED**. No production
+registration, DCOM ACL, database, Data directory, or service was changed.
+
+
 ## Current authoritative status (2026-08-25, physical Data quiescence audit)
 
 The quiescence audit found that `DeliveryQueuePauseDrainGate` only gates the
