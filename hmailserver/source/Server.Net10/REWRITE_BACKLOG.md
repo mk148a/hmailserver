@@ -9126,3 +9126,11 @@ were untouched, and registration/DCOM state was unchanged. The legacy
 transaction branch is reported as `BlockedByFullTextDdl`, while the explicit
 failure script proves rollback to the pre-migration schema. This does not prove
 a cloned legacy service/Data installation or installer rollback.
+
+## Current authoritative verification (2026-08-26, full-suite rerun at latest HEAD)
+
+At HEAD `09fcb6f04`, the prerequisite check and standard Debug Net10 suite
+were rerun successfully: `2747 passed, 90 skipped, 0 failed` (`2837` total).
+This is verification only. It does not close the environment-blocked cloned
+legacy SQL/Data rollback, registered COM caller evidence, paired C++ load, or
+long-soak gates; release remains **RED**.
