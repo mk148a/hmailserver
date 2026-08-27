@@ -1,0 +1,9 @@
+category,scenario,load,metric,unit,cpp_value,cpp_status,net10_value,net10_status,net10_over_cpp_ratio,comparison
+protocol,smtp,200,p95_latency,ms,3.92,PASS,0.691,PASS,0.176276,Net10 5.67x faster
+protocol,imap,200,p95_latency,ms,159.645,PASS,17.427,PASS,0.109161,Net10 9.16x faster
+protocol,pop3,200,p95_latency,ms,2.742,PASS,23.017,PASS,8.394238,Net10 8.39x slower
+concurrent_imap,search_sort,100,p95_session_latency,ms,5541.646,PASS,1568.693,PASS,0.283073,Net10 3.53x faster
+concurrent_imap,search_sort,500,p95_session_latency,ms,24139.881,PASS,2604.835,PASS,0.107906,Net10 9.27x faster
+concurrent_imap,search_sort,1000,p95_session_latency,ms,34410.454,FAIL,4130.097,PASS,,N/A: one or both acceptance artifacts failed
+smtp_acceptance,500_messages,500,p95_latency,ms,8.156,PASS,5.174,PASS,0.63438,Net10 1.58x faster
+smtp_acceptance,500_messages,500,durable_throughput,messages/s,20.692,PASS,20.532,PASS,0.992268,Net10 1.01x lower

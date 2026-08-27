@@ -1,0 +1,179 @@
+{
+  "schema": "paired-cpp-net10-performance-v1",
+  "gate": "RED",
+  "gateReason": "The paired protocol/load slice is complete, but mandatory 24-hour soak, remote delivery, TLS/network, queue, restore, and installer lifecycle gates remain open.",
+  "source": {
+    "branch": "net10-installer-rollback-guard",
+    "commit": "a3c0cb86725a5dca693a233407e4e9e7a8ce324e",
+    "repositoryHeadAtGeneration": "8c7d5d79726638aac58b3b1597a88cd71e3aa51f",
+    "cpp": {
+      "configuration": "Release",
+      "platform": "x64",
+      "sha256": "2DE1AA51367268CECA019365B14AF7237EA00AAED1360C6793BA381879E3E9B1",
+      "bytes": 6519296,
+      "postBuildRegistrationDisabled": true
+    },
+    "net10": {
+      "configuration": "Release",
+      "platform": "x64",
+      "sha256": "0CBF729F8DB891ABA7320AC4B88BB40F54DCDBD2C010F7DB6CF6EA673EE5C004",
+      "bytes": 162304,
+      "sdk": "10.0.301"
+    }
+  },
+  "environment": {
+    "capturedUtc": "2026-08-27T08:04:43.2215636+00:00",
+    "osCaption": "Microsoft Windows 11 Pro",
+    "osVersion": "10.0.26200",
+    "osBuild": "26200",
+    "osArchitecture": "64 bit",
+    "cpu": "11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz",
+    "physicalCores": 8,
+    "logicalProcessors": 16,
+    "memoryGb": 15.71,
+    "sqlServer": "16.0.1190.2|RTM|Developer Edition (64-bit)",
+    "loopback": "127.0.0.1",
+    "ports": {
+      "smtp": 2525,
+      "imap": 1143,
+      "pop3": 25110
+    },
+    "powerPlan": "Balanced (381b4222-f694-41f0-9685-ff5bb260df2e)"
+  },
+  "fixture": {
+    "cppDatabaseVersion": 5708,
+    "net10DatabaseVersion": 6000,
+    "backupSha256": "864AC170933E62214DB189809975D0B58D8676BF2E11925AD43D5CAD62140603",
+    "upgradeScriptSha256": "7B0C7A56545912C8A1A85E361D52D52E5B56BDEC6B19E9BA95901CFA106E2FB2",
+    "dataParity": {
+      "fileCount": 1000,
+      "bytes": 209679.0,
+      "sha256": "45FA907CE0D3797C1E13EBB2F03F076A25656CCE27E801C18F745ACD3944FBBD",
+      "exact": true
+    },
+    "messageParity": {
+      "rowCount": 1000,
+      "sha256": "5136EEC556F9790732AE759EF52F77FE6172329EA55787A80300C4A824107E46",
+      "exact": true
+    }
+  },
+  "protocol": {
+    "iterationsPerScenario": 200,
+    "findings": [
+      {
+        "scenario": "smtp",
+        "cppP95Ms": 3.92,
+        "net10P95Ms": 0.691,
+        "cppOverNet10Ratio": 5.672938,
+        "comparison": "Net10 5.67x faster"
+      },
+      {
+        "scenario": "imap",
+        "cppP95Ms": 159.645,
+        "net10P95Ms": 17.427,
+        "cppOverNet10Ratio": 9.160785,
+        "comparison": "Net10 9.16x faster"
+      },
+      {
+        "scenario": "pop3",
+        "cppP95Ms": 2.742,
+        "net10P95Ms": 23.017,
+        "cppOverNet10Ratio": 0.119129,
+        "comparison": "Net10 8.39x slower"
+      }
+    ]
+  },
+  "concurrentImap": {
+    "settleSeconds": 5,
+    "timeoutMilliseconds": 30000,
+    "findings": [
+      {
+        "concurrency": 100,
+        "cppStatus": "PASS",
+        "cppSuccesses": 100,
+        "cppP95Ms": 5541.646,
+        "net10Status": "PASS",
+        "net10Successes": 100,
+        "net10P95Ms": 1568.693,
+        "cppOverNet10Ratio": 3.532652,
+        "comparison": "Net10 3.53x faster"
+      },
+      {
+        "concurrency": 500,
+        "cppStatus": "PASS",
+        "cppSuccesses": 500,
+        "cppP95Ms": 24139.881,
+        "net10Status": "PASS",
+        "net10Successes": 500,
+        "net10P95Ms": 2604.835,
+        "cppOverNet10Ratio": 9.267336,
+        "comparison": "Net10 9.27x faster"
+      },
+      {
+        "concurrency": 1000,
+        "cppStatus": "FAIL",
+        "cppSuccesses": 689,
+        "cppP95Ms": 34410.454,
+        "net10Status": "PASS",
+        "net10Successes": 1000,
+        "net10P95Ms": 4130.097,
+        "cppOverNet10Ratio": null,
+        "comparison": "N/A: one or both acceptance artifacts failed"
+      }
+    ]
+  },
+  "smtpAcceptance": {
+    "messages": 500,
+    "cpp": {
+      "accepted": 500,
+      "p50Ms": 6.388,
+      "p95Ms": 8.156,
+      "p99Ms": 14.666,
+      "throughputMessagesPerSecond": 20.692,
+      "messageRowDelta": 500,
+      "dataFileDelta": 500
+    },
+    "net10": {
+      "accepted": 500,
+      "p50Ms": 3.892,
+      "p95Ms": 5.174,
+      "p99Ms": 8.461,
+      "throughputMessagesPerSecond": 20.532,
+      "messageRowDelta": 500,
+      "dataFileDelta": 500
+    },
+    "p95LatencyCppOverNet10Ratio": 1.576343,
+    "throughputNet10OverCppRatio": 0.992268
+  },
+  "net10ShortSoak": {
+    "status": "PASS",
+    "waves": 20,
+    "sessions": 20000,
+    "errors": 0,
+    "p50Ms": 1922.592,
+    "p95Ms": 2701.651,
+    "p99Ms": 4266.801,
+    "baseline": {
+      "privateBytes": 18305024,
+      "handles": 516,
+      "threads": 24
+    },
+    "finalSettled": {
+      "privateBytes": 76640256,
+      "handles": 1494,
+      "threads": 54
+    },
+    "firstWaveSettled": {
+      "privateBytes": 117346304,
+      "handles": 1420,
+      "threads": 51
+    }
+  },
+  "limitations": [
+    "C++ requires schema 5708 while Net10 requires schema 6000; the logical message projection and Data bytes are exact, not the physical database files.",
+    "Runs were sequential on one Windows 11 laptop with the Balanced power plan and loopback networking.",
+    "The legacy C++ 1,000-session wave failed, so no 1,000-session latency or throughput ratio is valid.",
+    "The 20,000-session Net10 run is a short soak and does not replace the mandatory 24-hour leak test.",
+    "Remote DNS/TLS delivery, queue throughput, POP3 soak, external fetch, restore timing, installer/service lifecycle, and SQL wait baselines remain open."
+  ]
+}

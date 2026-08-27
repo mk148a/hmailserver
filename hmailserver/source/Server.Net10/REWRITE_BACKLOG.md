@@ -9154,3 +9154,45 @@ fixture on an isolated legacy installation with a proven configuration boundary
 and then complete message acceptance, 1,000-concurrent IMAP, queue throughput,
 100k mailbox, and soak measurements. Evidence is under
 `artifacts/benchmarks/paired-cpp-net10-20260826/`.
+## Current authoritative status (2026-08-27, paired C++/.NET 10 performance evidence)
+
+The former 2026-08-26 C++ startup record is historical and superseded. A clean
+x64 Release legacy build now starts the disposable server in `/Debug` listener
+mode without post-build COM registration. The legacy startup reference is
+`hmailserver/source/Server/hMailServer/hMailServer.cpp`: `WinMain` handles
+`/Debug` at lines 267-277, `StartServiceInitialization` is at lines 312-317,
+`ServiceMain` is at lines 338-379, and both paths call
+`HM::Application::Instance()->StartServers()` (lines 267 and 448). The shared
+listener lifecycle is `Application::StartServers`/`StopServers` in
+`hmailserver/source/Server/Common/Application/Application.cpp:290-424`.
+Protocol behavior remains anchored in `SMTPConnection.cpp`,
+`IMAPConnection.cpp`, and `POP3Connection.cpp` under
+`hmailserver/source/Server/{SMTP,IMAP,POP3}`.
+
+The paired fixture is deliberately asymmetric at the schema boundary: the C++
+copy stays at the legacy required database version 5708
+(`hmailserver/source/Server/Common/Application/Constants.h:139`,
+`hmailserver/source/DBScripts/CreateTablesMSSQL.sql:964`), while only the Net10
+copy is upgraded to 6000 by
+`hmailserver/source/DBScripts/Upgrade5708to6000MSSQL.sql:110`. Both sides use
+the same logical 1,000-message corpus, byte-identical Data manifests, the same
+loopback ports, credentials, and SQL instance. The reproducible build/fixture
+entry points are `build/build-disposable-legacy-server.ps1` and
+`build/provision-paired-benchmark-fixture.ps1`.
+
+The sanitized report is
+`artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md`.
+It records 200/200 protocol samples per implementation, 100/500-session
+concurrency passes for both sides, the C++ 1,000-session result as 689/1,000
+(gate failure) versus Net10 1,000/1,000, and 500/500 durable SMTP accepts on
+each side with exact +500 SQL rows and +500 Data files. Net10 also completed a
+20,000-session short IMAP soak with zero errors. The report publishes no ratio
+for the failed C++ 1,000-session load and explicitly records the Net10 POP3
+regression. The performance release gate remains **RED**: the mandatory
+24-hour leak soak, remote delivery and retry, queue throughput, TLS/network,
+restore, installer, COM lifecycle, and SEC-18 gates are not proven.
+
+The next independent performance slice is POP3 large-mailbox parity and
+regression acceptance, followed by the 24-hour multi-protocol/queue soak when
+the required isolated runner is available. Older `Current authoritative status`
+entries below are historical slice records; they are not the current next task.

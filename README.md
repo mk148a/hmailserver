@@ -1,19 +1,39 @@
 hMailServer
 ===========
 
-## Current performance gate (2026-08-26)
+## Current performance gate (2026-08-27)
 
-The paired disposable fixture used identical SQL/Data copies, 1,000 message
-files, `127.0.0.1`, and SMTP `2525` / IMAP `1143` / POP3 `25110`. Net10
-completed 25/25 iterations for each protocol. The C++ process did not become
-ready and opened no target listeners; therefore no speed-up ratio, winner, or
-regression claim is valid. The gate remains **RED**.
+The clean paired Release comparison is now executable. Legacy C++ and .NET 10
+used the same 1,000-message logical corpus, byte-identical Data copies,
+loopback ports, credentials, SQL instance, and protocol commands. C++ remains
+on schema 5708; only the Net10 copy was upgraded to schema 6000. The legacy
+binary was rebuilt from the repository source with post-build registration
+disabled.
 
-The raw JSON/CSV and Mermaid-chart report are in
-`artifacts/benchmarks/paired-cpp-net10-20260826/paired-cpp-net10.md`.
-The isolation preflight passed after stale test registration cleanup. The
-disposable C++ service-mode start then terminated unexpectedly with SCM event
-`7034` and opened no target listeners, so the comparison remains invalid.
+| Scenario | Legacy C++ p95 | .NET 10 p95 | Result |
+| --- | ---: | ---: | --- |
+| SMTP command | 3.92 ms | 0.69 ms | Net10 5.67x faster |
+| IMAP SEARCH/SORT | 159.65 ms | 17.43 ms | Net10 9.16x faster |
+| POP3 | 2.74 ms | 23.02 ms | Net10 8.39x slower |
+| IMAP at 1,000 sessions | 689/1,000 | 1,000/1,000 | Legacy C++ gate failed |
+| SMTP durable acceptance | 20.692 msg/s | 20.532 msg/s | Effectively tied |
+
+Both implementations accepted 500/500 SMTP messages with exact +500 SQL rows
+and +500 Data files. Net10 also completed a 20,000-session short soak with
+zero errors. The overall performance release gate remains **RED** because the
+mandatory 24-hour soak, remote delivery, queue, TLS/network, restore,
+installer, and lifecycle gates are still open. POP3 is a documented Net10
+regression; no production-readiness claim is made.
+
+The complete report, sanitized CSV/JSON summaries, and static charts are in
+[artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
+
+The lower dated status sections are retained as historical slice records. The
+2026-08-27 performance section above is the authoritative current status.
+
+![Protocol p95 latency](artifacts/benchmarks/paired-cpp-net10-20260827/protocol-p95.png)
+
+![Concurrent IMAP acceptance](artifacts/benchmarks/paired-cpp-net10-20260827/imap-concurrency.png)
 
 ## Current authoritative status (2026-08-26, disposable legacy registration)
 
