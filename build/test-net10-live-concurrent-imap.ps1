@@ -2,7 +2,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$InputDirectory,
     [ValidateRange(1, 5000)]
-    [int]$ExpectedConcurrency = 1000
+    [int]$ExpectedConcurrency = 1000,
+    [ValidateRange(1, 100)]
+    [int]$ExpectedWaves = 1
 )
 
 $ErrorActionPreference = "Stop"
@@ -38,11 +40,16 @@ if ($report.implementation -eq "cpp") {
 if ($report.concurrency -ne $ExpectedConcurrency) {
     throw "Expected concurrency $ExpectedConcurrency, got $($report.concurrency)."
 }
+$waves = if (@($report.PSObject.Properties.Name) -contains "waves") { [int]$report.waves } else { 1 }
+if ($waves -ne $ExpectedWaves) {
+    throw "Expected $ExpectedWaves wave(s), got $waves."
+}
+$expectedSessions = $ExpectedConcurrency * $ExpectedWaves
 if ($report.readinessFailures.Count -eq 0) {
-    if ($report.summary.completed -ne $ExpectedConcurrency) {
-        throw "Expected $ExpectedConcurrency completed samples, got $($report.summary.completed)."
+    if ($report.summary.completed -ne $expectedSessions) {
+        throw "Expected $expectedSessions completed samples, got $($report.summary.completed)."
     }
-    if (($report.summary.successes + $report.summary.errors) -ne $ExpectedConcurrency) {
+    if (($report.summary.successes + $report.summary.errors) -ne $expectedSessions) {
         throw "Success/error accounting does not equal the requested concurrency."
     }
 }
@@ -55,10 +62,10 @@ if ($report.messageCount -ne 1000) {
 if ($report.bind -ne "127.0.0.1" -or $report.port -ne 1143) {
     throw "Concurrent IMAP must run on 127.0.0.1:1143."
 }
-if ($report.database -notmatch '^hmail_perf_(cpp|net)_sql_') {
+if ($report.database -notmatch '^hmail_perf_[a-z0-9_]+$' -or $report.database -match '(?i)hmaildb_test5700|production') {
     throw "The report database is not an isolated benchmark database: $($report.database)"
 }
-if ($report.dataRoot -notmatch '^C:\\hmail-perf-(cpp|net10)-') {
+if ($report.dataRoot -notmatch '^C:\\hmail-perf-' -or $report.dataRoot -match '(?i)hmailserver57|production') {
     throw "The report Data root is not an isolated benchmark root: $($report.dataRoot)"
 }
 if ($report.ratioValid -ne $false) {
@@ -73,8 +80,46 @@ if ($report.status -eq "PASS" -and ($report.readinessFailures.Count -ne 0 -or $r
 if ($report.status -eq "PASS" -and $report.summary.errors -ne 0) {
     throw "A passing concurrent IMAP artifact cannot contain errors."
 }
+if ($report.status -eq "PASS") {
+    $workloadStart = [DateTimeOffset]$report.workloadStartedUtc
+    $workloadEnd = [DateTimeOffset]$report.workloadEndedUtc
+    if ($workloadEnd -le $workloadStart -or [double]$report.summary.workload_seconds -le 0) {
+        throw "A passing concurrent IMAP artifact must include a positive workload-only duration."
+    }
+    $exactWorkloadSeconds = if ($ExpectedWaves -eq 1 -or $null -eq $report.waveMetrics) {
+        ($workloadEnd - $workloadStart).TotalSeconds
+    } else {
+        $waveRows = @($report.waveMetrics)
+        if ($waveRows.Count -ne $ExpectedWaves) {
+            throw "Expected $ExpectedWaves wave metric rows, got $($waveRows.Count)."
+        }
+        ($waveRows | Measure-Object workloadSeconds -Sum).Sum
+    }
+    $expectedThroughput = [math]::Round([double]$report.summary.successes / $exactWorkloadSeconds, 3)
+    if ([math]::Abs($expectedThroughput - [double]$report.summary.throughput_sessions_per_second) -gt 0.01) {
+        throw "Concurrent IMAP throughput does not reconcile with the workload-only duration."
+    }
+}
+if ([int]$report.summary.completed -gt 0 -and (
+        $null -eq $report.processBefore -or
+        $null -eq $report.processAfterImmediate -or
+        $null -eq $report.processAfter -or
+        [long]$report.processBefore.privateBytes -le 0 -or
+        [long]$report.processAfterImmediate.privateBytes -le 0 -or
+        [long]$report.processAfter.privateBytes -le 0 -or
+        [int]$report.processBefore.handles -le 0 -or
+        [int]$report.processAfterImmediate.handles -le 0 -or
+        [int]$report.processAfter.handles -le 0 -or
+        [int]$report.processBefore.threads -le 0 -or
+        [int]$report.processAfterImmediate.threads -le 0 -or
+        [int]$report.processAfter.threads -le 0)) {
+    throw "Concurrent IMAP workload artifacts must include numeric process metric snapshots."
+}
+if ([int]$report.summary.completed -gt 0 -and [int]$report.postWorkloadSettleSeconds -lt 1) {
+    throw "Concurrent IMAP evidence must include a positive post-workload settle interval."
+}
 if ($report.status -notin @("PASS", "FAIL")) {
     throw "Unexpected concurrent IMAP report status: $($report.status)"
 }
 
-Write-Output "Validated $($report.implementation) concurrent IMAP artifact: $($report.summary.successes)/$ExpectedConcurrency success, $($report.summary.timeouts) timeouts, status $($report.status)."
+Write-Output "Validated $($report.implementation) concurrent IMAP artifact: $($report.summary.successes)/$expectedSessions success across $ExpectedWaves wave(s), $($report.summary.timeouts) timeouts, status $($report.status)."

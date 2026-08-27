@@ -3,10 +3,14 @@ param(
     [string]$Implementation = "net10",
     [ValidateRange(1, 5000)]
     [int]$Concurrency = 1000,
+    [ValidateRange(1, 100)]
+    [int]$Waves = 1,
     [ValidateRange(500, 30000)]
     [int]$TimeoutMilliseconds = 5000,
     [ValidateRange(1, 300)]
     [int]$ReadinessTimeoutSeconds = 60,
+    [ValidateRange(0, 60)]
+    [int]$PostWorkloadSettleSeconds = 5,
     [string]$OutputDirectory = "",
     [string]$BenchmarkStagingRoot = "",
     [string]$BenchmarkDatabase = "",
@@ -30,11 +34,9 @@ if ($Implementation -eq "cpp") {
     $argumentList = "/Debug"
 }
 
-if ($Implementation -eq "net10") {
-    if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
-    if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
-    if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
-}
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
 
 if ($database -notmatch '^hmail_perf_[a-z0-9_]+$') {
     throw "Refusing non-disposable benchmark database: $database"
@@ -393,12 +395,17 @@ if ($Implementation -eq "net10") {
 $process = $null
 $startUtc = [DateTimeOffset]::UtcNow
 $before = $null
+$afterImmediate = $null
 $after = $null
 $readinessFailures = @()
 $shutdownFailures = @()
-$results = @()
+$results = [System.Collections.Generic.List[object]]::new()
+$waveMetrics = [System.Collections.Generic.List[object]]::new()
 $preflight = $null
 $provenance = $null
+$workloadStartedUtc = $null
+$workloadEndedUtc = $null
+$workloadSeconds = 0.0
 
 if ($Implementation -eq "cpp") {
     $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
@@ -413,9 +420,68 @@ try {
     if ($null -ne $process) {
         $readinessFailures = @(Wait-ForReadiness $process.Id)
         if ($readinessFailures.Count -eq 0) {
-            $before = Get-Process -Id $process.Id
-            $results = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds))
-            $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            $metricProcess = Get-Process -Id $process.Id
+            $before = [pscustomobject]@{
+                privateBytes = [long]$metricProcess.PrivateMemorySize64
+                handles = [int]$metricProcess.Handles
+                threads = [int]$metricProcess.Threads.Count
+            }
+            for ($wave = 1; $wave -le $Waves; $wave++) {
+                $metricProcess = Get-Process -Id $process.Id
+                $waveBefore = [pscustomobject]@{
+                    privateBytes = [long]$metricProcess.PrivateMemorySize64
+                    handles = [int]$metricProcess.Handles
+                    threads = [int]$metricProcess.Threads.Count
+                }
+                $waveStartedUtc = [DateTimeOffset]::UtcNow
+                if ($null -eq $workloadStartedUtc) {
+                    $workloadStartedUtc = $waveStartedUtc
+                }
+                $waveResults = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds))
+                $waveEndedUtc = [DateTimeOffset]::UtcNow
+                $workloadEndedUtc = $waveEndedUtc
+                $workloadSeconds += ($waveEndedUtc - $waveStartedUtc).TotalSeconds
+                foreach ($waveResult in $waveResults) {
+                    $results.Add([pscustomobject]@{
+                        Wave = $wave
+                        Success = $waveResult.Success
+                        TimedOut = $waveResult.TimedOut
+                        Milliseconds = $waveResult.Milliseconds
+                        Error = $waveResult.Error
+                    })
+                }
+                $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+                $afterImmediate = if ($null -ne $metricProcess) {
+                    [pscustomobject]@{
+                        privateBytes = [long]$metricProcess.PrivateMemorySize64
+                        handles = [int]$metricProcess.Handles
+                        threads = [int]$metricProcess.Threads.Count
+                    }
+                } else { $null }
+                if ($PostWorkloadSettleSeconds -gt 0) {
+                    Start-Sleep -Seconds $PostWorkloadSettleSeconds
+                }
+                $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+                $after = if ($null -ne $metricProcess) {
+                    [pscustomobject]@{
+                        privateBytes = [long]$metricProcess.PrivateMemorySize64
+                        handles = [int]$metricProcess.Handles
+                        threads = [int]$metricProcess.Threads.Count
+                    }
+                } else { $null }
+                $waveSuccessful = @($waveResults | Where-Object Success)
+                $waveMetrics.Add([pscustomobject]@{
+                    wave = $wave
+                    startedUtc = $waveStartedUtc.ToString("o")
+                    endedUtc = $waveEndedUtc.ToString("o")
+                    workloadSeconds = [math]::Round(($waveEndedUtc - $waveStartedUtc).TotalSeconds, 6)
+                    successes = $waveSuccessful.Count
+                    errors = $waveResults.Count - $waveSuccessful.Count
+                    processBefore = $waveBefore
+                    processAfterImmediate = $afterImmediate
+                    processAfterSettle = $after
+                })
+            }
         }
     }
 }
@@ -432,9 +498,12 @@ $endUtc = [DateTimeOffset]::UtcNow
 $successful = @($results | Where-Object Success)
 $timedOut = @($results | Where-Object TimedOut)
 $errors = @($results | Where-Object { -not $_.Success })
+$requestedSessions = $Concurrency * $Waves
 $summary = [pscustomobject]@{
     scenario = "imap-concurrent"
     concurrency = $Concurrency
+    waves = $Waves
+    requested = $requestedSessions
     completed = $results.Count
     successes = $successful.Count
     errors = $errors.Count
@@ -442,31 +511,40 @@ $summary = [pscustomobject]@{
     p50_ms = Get-Percentile ($successful | ForEach-Object Milliseconds) 50
     p95_ms = Get-Percentile ($successful | ForEach-Object Milliseconds) 95
     p99_ms = Get-Percentile ($successful | ForEach-Object Milliseconds) 99
-    throughput_sessions_per_second = if (($endUtc - $startUtc).TotalSeconds -gt 0) { [math]::Round($successful.Count / ($endUtc - $startUtc).TotalSeconds, 3) } else { 0 }
+    workload_seconds = [math]::Round($workloadSeconds, 6)
+    throughput_sessions_per_second = if ($workloadSeconds -gt 0) { [math]::Round($successful.Count / $workloadSeconds, 3) } else { 0 }
 }
 
 $report = [pscustomobject]@{
     schema = "live-concurrent-imap-v1"
     implementation = $Implementation
-    status = if ($summary.errors -eq 0 -and $summary.completed -eq $Concurrency -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0) { "PASS" } else { "FAIL" }
+    status = if ($summary.errors -eq 0 -and $summary.completed -eq $requestedSessions -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
+    workloadStartedUtc = if ($null -ne $workloadStartedUtc) { $workloadStartedUtc.ToString("o") } else { $null }
+    workloadEndedUtc = if ($null -ne $workloadEndedUtc) { $workloadEndedUtc.ToString("o") } else { $null }
     database = $database
     dataRoot = Join-Path $stagingRoot "Data"
     bind = "127.0.0.1"
     port = 1143
     messageCount = 1000
     concurrency = $Concurrency
+    waves = $Waves
+    requestedSessions = $requestedSessions
     timeoutMilliseconds = $TimeoutMilliseconds
+    postWorkloadSettleSeconds = $PostWorkloadSettleSeconds
     summary = $summary
     readinessFailures = @($readinessFailures)
     shutdownFailures = @($shutdownFailures)
-    processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
-    processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
+    processBefore = $before
+    processAfterImmediate = $afterImmediate
+    processAfter = $after
+    waveMetrics = $waveMetrics
     isolationPreflight = $preflight
     executableProvenance = $provenance
     samples = @($results | ForEach-Object {
         [pscustomobject]@{
+            wave = $_.Wave
             ok = $_.Success
             timedOut = $_.TimedOut
             ms = $_.Milliseconds
@@ -493,11 +571,13 @@ $markdown = @(
     "Bind/port: $($report.bind):$($report.port)",
     "Corpus files: $($report.messageCount)",
     "Concurrency: $($report.concurrency)",
+    "Waves / requested sessions: $($report.waves) / $($report.requestedSessions)",
     "Timeout: $($report.timeoutMilliseconds) ms",
+    "Post-workload settle: $($report.postWorkloadSettleSeconds) seconds",
     "",
-    "| Scenario | Completed | Success | Errors | Timeouts | p50 ms | p95 ms | p99 ms | Throughput/s |",
-    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-    "| $($summary.scenario) | $($summary.completed) | $($summary.successes) | $($summary.errors) | $($summary.timeouts) | $($summary.p50_ms) | $($summary.p95_ms) | $($summary.p99_ms) | $($summary.throughput_sessions_per_second) |",
+    "| Scenario | Completed | Success | Errors | Timeouts | p50 ms | p95 ms | p99 ms | Workload s | Throughput/s |",
+    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    "| $($summary.scenario) | $($summary.completed) | $($summary.successes) | $($summary.errors) | $($summary.timeouts) | $($summary.p50_ms) | $($summary.p95_ms) | $($summary.p99_ms) | $($summary.workload_seconds) | $($summary.throughput_sessions_per_second) |",
     "",
     "No C++/.NET 10 ratio is calculated by this artifact. A paired performance claim requires both implementations to complete the same concurrency scenario successfully.",
     "COM registration was not started; the installed hMailServer.Application registration and DCOM permissions were not changed."

@@ -5,10 +5,13 @@ param(
     [string]$SourceDataRoot,
     [Parameter(Mandatory = $true)]
     [string]$OutputRoot,
+    [string]$LegacyBinPath = "",
+    [string]$UpgradeScriptPath = "",
     [string]$Stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd_HHmmss')
 )
 
 $ErrorActionPreference = 'Stop'
+$repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 
 function Assert-DisposableName {
     param([string]$Value, [string]$Label)
@@ -23,6 +26,69 @@ function Invoke-Sql {
     if ($LASTEXITCODE -ne 0) {
         throw "sqlcmd failed with exit code $LASTEXITCODE."
     }
+}
+
+function Invoke-SqlFile {
+    param([string]$Database, [string]$Path)
+    & sqlcmd.exe -S localhost -E -b -d $Database -i $Path
+    if ($LASTEXITCODE -ne 0) {
+        throw "sqlcmd failed to execute $Path against $Database with exit code $LASTEXITCODE."
+    }
+}
+
+function Get-DatabaseVersion {
+    param([string]$Database)
+    $value = (& sqlcmd.exe -S localhost -E -b -d $Database -h-1 -W -Q 'SET NOCOUNT ON; SELECT value FROM hm_dbversion;').Trim()
+    if ($LASTEXITCODE -ne 0 -or $value -notmatch '^\d+$') {
+        throw "Could not read hm_dbversion from $Database."
+    }
+    return [int]$value
+}
+
+function Get-DirectoryManifest {
+    param([string]$Root)
+    $fullRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+    $rows = foreach ($file in Get-ChildItem -LiteralPath $fullRoot -File -Recurse | Sort-Object FullName) {
+        $relative = $file.FullName.Substring($fullRoot.Length).TrimStart('\').Replace('/', '\')
+        "$relative|$($file.Length)|$((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash)"
+    }
+    $payload = [Text.Encoding]::UTF8.GetBytes(($rows -join "`n"))
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { $digest = ([BitConverter]::ToString($sha.ComputeHash($payload))).Replace('-', '') }
+    finally { $sha.Dispose() }
+    return [pscustomobject]@{
+        fileCount = @($rows).Count
+        bytes = (Get-ChildItem -LiteralPath $fullRoot -File -Recurse | Measure-Object Length -Sum).Sum
+        sha256 = $digest
+    }
+}
+
+function Get-MessageFingerprint {
+    param([string]$Database)
+    $query = @"
+SET NOCOUNT ON;
+DECLARE @payload nvarchar(max);
+SELECT @payload = STRING_AGG(CAST(CONCAT(
+    messageid, N'|', messageaccountid, N'|', messagefolderid, N'|',
+    CASE WHEN CHARINDEX(N'\Data\', messagefilename) > 0
+         THEN SUBSTRING(messagefilename, CHARINDEX(N'\Data\', messagefilename) + 6, 4000)
+         ELSE messagefilename END, N'|',
+    messagetype, N'|', COALESCE(messagefrom, N''), N'|', messagesize, N'|',
+    messagecurnooftries, N'|', CONVERT(nvarchar(33), messagenexttrytime, 126), N'|',
+    messageflags, N'|', CONVERT(nvarchar(33), messagecreatetime, 126), N'|',
+    messagelocked, N'|', messageuid, N'|', COALESCE(messageruleforcedrouteid, -1), N'|',
+    COALESCE(messagerulebindaddress, N'')) AS nvarchar(max)), NCHAR(10))
+    WITHIN GROUP (ORDER BY messageid)
+FROM hm_messages;
+SELECT CONCAT(COUNT_BIG(*), N'|', CONVERT(varchar(64), HASHBYTES('SHA2_256', COALESCE(@payload, N'')), 2))
+FROM hm_messages;
+"@
+    $value = (& sqlcmd.exe -S localhost -E -b -d $Database -h-1 -W -Q $query).Trim()
+    if ($LASTEXITCODE -ne 0 -or $value -notmatch '^\d+\|[0-9A-F]{64}$') {
+        throw "Could not calculate the logical message fingerprint for $Database."
+    }
+    $parts = $value.Split('|')
+    return [pscustomobject]@{ rowCount = [long]$parts[0]; sha256 = $parts[1] }
 }
 
 function Get-BackupLogicalFiles {
@@ -45,6 +111,20 @@ function Get-BackupLogicalFiles {
 
 if (-not (Test-Path -LiteralPath $BackupPath -PathType Leaf)) { throw "Backup does not exist: $BackupPath" }
 if (-not (Test-Path -LiteralPath $SourceDataRoot -PathType Container)) { throw "Source Data root does not exist: $SourceDataRoot" }
+if ([string]::IsNullOrWhiteSpace($LegacyBinPath)) {
+    $LegacyBinPath = Join-Path (Split-Path -Parent $SourceDataRoot) 'Bin'
+}
+$LegacyBinPath = [IO.Path]::GetFullPath($LegacyBinPath)
+if (-not (Test-Path -LiteralPath (Join-Path $LegacyBinPath 'hMailServer.exe') -PathType Leaf)) {
+    throw "Legacy C++ executable is missing under: $LegacyBinPath"
+}
+if ([string]::IsNullOrWhiteSpace($UpgradeScriptPath)) {
+    $UpgradeScriptPath = Join-Path $repoRoot 'hmailserver\source\DBScripts\Upgrade5708to6000MSSQL.sql'
+}
+$UpgradeScriptPath = [IO.Path]::GetFullPath($UpgradeScriptPath)
+if (-not (Test-Path -LiteralPath $UpgradeScriptPath -PathType Leaf)) {
+    throw "Net10 upgrade script is missing: $UpgradeScriptPath"
+}
 $fullOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 if ($fullOutputRoot -notmatch '(?i)^C:\\hmail-perf-pair-') { throw "Output root is not disposable: $fullOutputRoot" }
 if ($fullOutputRoot -match '(?i)hmailserver57|hmaildb_test5700') { throw "Output root resembles production: $fullOutputRoot" }
@@ -78,6 +158,19 @@ WITH MOVE N'$dataLogical' TO N'$($mdf.Replace("'", "''"))',
         Invoke-Sql $query
     }
 
+    $cppVersionBefore = Get-DatabaseVersion $cppDatabase
+    $net10VersionBefore = Get-DatabaseVersion $net10Database
+    if ($cppVersionBefore -ne 5708 -or $net10VersionBefore -ne 5708) {
+        throw "Paired provisioning requires a legacy 5708 backup; restored versions were C++=$cppVersionBefore and Net10=$net10VersionBefore."
+    }
+
+    Invoke-SqlFile -Database $net10Database -Path $UpgradeScriptPath
+    $cppVersionAfter = Get-DatabaseVersion $cppDatabase
+    $net10VersionAfter = Get-DatabaseVersion $net10Database
+    if ($cppVersionAfter -ne 5708 -or $net10VersionAfter -ne 6000) {
+        throw "Paired schema preparation failed; expected C++=5708 and Net10=6000, got C++=$cppVersionAfter and Net10=$net10VersionAfter."
+    }
+
     foreach ($database in @($cppDatabase, $net10Database)) {
         $side = if ($database -eq $cppDatabase) { 'cpp' } else { 'net10' }
         $dataRoot = Join-Path $fullOutputRoot "$side\Data"
@@ -96,11 +189,14 @@ WHERE CHARINDEX(N'\Data\', messagefilename) > 0;
 
     $cppBin = Join-Path $cppRoot 'Bin'
     New-Item -ItemType Directory -Force -Path $cppBin | Out-Null
-    $sourceBin = Join-Path (Split-Path -Parent $SourceDataRoot) 'Bin'
-    if (-not (Test-Path -LiteralPath $sourceBin -PathType Container)) {
-        throw "C++ Bin source is missing beside Data root: $sourceBin"
+    Copy-Item -Path (Join-Path $LegacyBinPath '*') -Destination $cppBin -Recurse -Force
+    $languageFile = Join-Path $cppBin 'Languages\english.ini'
+    if (-not (Test-Path -LiteralPath $languageFile -PathType Leaf)) {
+        $translation = Join-Path $repoRoot 'hmailserver\source\Translations\english.ini'
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $languageFile) | Out-Null
+        Copy-Item -LiteralPath $translation -Destination $languageFile -Force
     }
-    Copy-Item -Path (Join-Path $sourceBin '*') -Destination $cppBin -Recurse -Force
+    New-Item -ItemType Directory -Force -Path (Join-Path $cppRoot 'Database'), (Join-Path $cppRoot 'Logs'), (Join-Path $cppRoot 'Temp'), (Join-Path $cppRoot 'Events') | Out-Null
 
     $cppIni = @"
 [Directories]
@@ -140,17 +236,49 @@ DataFolder=$(Join-Path $net10Root 'Data')
 "@
     Set-Content -LiteralPath (Join-Path $net10Root 'hmailServer.ini') -Value $net10Ini -Encoding ASCII
 
-    [pscustomobject]@{
+    $cppDataManifest = Get-DirectoryManifest (Join-Path $cppRoot 'Data')
+    $net10DataManifest = Get-DirectoryManifest (Join-Path $net10Root 'Data')
+    if ($cppDataManifest.sha256 -ne $net10DataManifest.sha256 -or $cppDataManifest.fileCount -ne $net10DataManifest.fileCount) {
+        throw "Paired Data copies are not byte-for-byte equivalent."
+    }
+    $cppMessageFingerprint = Get-MessageFingerprint $cppDatabase
+    $net10MessageFingerprint = Get-MessageFingerprint $net10Database
+    if ($cppMessageFingerprint.sha256 -ne $net10MessageFingerprint.sha256 -or $cppMessageFingerprint.rowCount -ne $net10MessageFingerprint.rowCount) {
+        throw "Paired SQL message projections differ after the Net10 schema migration."
+    }
+
+    $fixtureReport = [pscustomobject]@{
+        schema = 'paired-benchmark-fixture-v2'
+        status = 'PASS'
         generatedUtc = [DateTime]::UtcNow.ToString('o')
         backupPath = [IO.Path]::GetFullPath($BackupPath)
+        backupSha256 = (Get-FileHash -LiteralPath $BackupPath -Algorithm SHA256).Hash
+        upgradeScriptPath = $UpgradeScriptPath
+        upgradeScriptSha256 = (Get-FileHash -LiteralPath $UpgradeScriptPath -Algorithm SHA256).Hash
         outputRoot = $fullOutputRoot
         cppDatabase = $cppDatabase
         net10Database = $net10Database
+        cppDatabaseVersion = $cppVersionAfter
+        net10DatabaseVersion = $net10VersionAfter
         cppDataRoot = [IO.Path]::GetFullPath((Join-Path $cppRoot 'Data'))
         net10DataRoot = [IO.Path]::GetFullPath((Join-Path $net10Root 'Data'))
         cppExecutable = [IO.Path]::GetFullPath((Join-Path $cppBin 'hMailServer.exe'))
-        sourceDataSha256 = (Get-FileHash -LiteralPath $BackupPath -Algorithm SHA256).Hash
-    } | ConvertTo-Json -Depth 4
+        cppExecutableSha256 = (Get-FileHash -LiteralPath (Join-Path $cppBin 'hMailServer.exe') -Algorithm SHA256).Hash
+        dataParity = [pscustomobject]@{
+            fileCount = $cppDataManifest.fileCount
+            bytes = $cppDataManifest.bytes
+            sha256 = $cppDataManifest.sha256
+            exact = $true
+        }
+        messageParity = [pscustomobject]@{
+            rowCount = $cppMessageFingerprint.rowCount
+            sha256 = $cppMessageFingerprint.sha256
+            exact = $true
+        }
+    }
+    $fixtureReportPath = Join-Path $fullOutputRoot 'paired-fixture.json'
+    $fixtureReport | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $fixtureReportPath -Encoding UTF8
+    $fixtureReport | ConvertTo-Json -Depth 6
 }
 catch {
     foreach ($database in @($cppDatabase, $net10Database)) {

@@ -5,6 +5,8 @@ param(
     [int]$ReadinessTimeoutSeconds = 60,
     [ValidateRange(1, 60)]
     [int]$PostAcceptanceTimeoutSeconds = 10,
+    [ValidateRange(0, 60)]
+    [int]$PostWorkloadSettleSeconds = 5,
     [string]$OutputDirectory = "",
     [string]$BenchmarkStagingRoot = "",
     [string]$BenchmarkDatabase = "",
@@ -28,11 +30,9 @@ if ($Implementation -eq "cpp") {
     $argumentList = "/Debug"
 }
 
-if ($Implementation -eq "net10") {
-    if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
-    if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
-    if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
-}
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260811\$Implementation-smtp-acceptance"
@@ -404,9 +404,12 @@ $shutdownFailures = @()
 $samples = [System.Collections.Generic.List[object]]::new()
 $acceptedStates = [System.Collections.Generic.List[object]]::new()
 $before = $null
+$afterImmediate = $null
 $after = $null
 $preflight = $null
 $provenance = $null
+$workloadStartedUtc = $null
+$workloadEndedUtc = $null
 
 $sqlBefore = Get-SqlFixtureSnapshot -Database $database -DataRoot $dataRoot
 $dataBefore = Get-DataFixtureSnapshot -Root $dataRoot
@@ -425,7 +428,13 @@ try {
     if ($null -ne $process) {
         $readinessFailures = @(Wait-ForReadiness $process.Id)
         if ($readinessFailures.Count -eq 0) {
-            $before = Get-Process -Id $process.Id
+            $metricProcess = Get-Process -Id $process.Id
+            $before = [pscustomobject]@{
+                privateBytes = [long]$metricProcess.PrivateMemorySize64
+                handles = [int]$metricProcess.Handles
+                threads = [int]$metricProcess.Threads.Count
+            }
+            $workloadStartedUtc = [DateTimeOffset]::UtcNow
             for ($sequence = 1; $sequence -le $MessageCount; $sequence++) {
                 $result = Invoke-SmtpAcceptance $sequence
                 if ($result.ok) {
@@ -440,7 +449,26 @@ try {
                     responses = $result.responses
                 })
             }
-            $after = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            $workloadEndedUtc = [DateTimeOffset]::UtcNow
+            $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            if ($null -ne $metricProcess) {
+                $afterImmediate = [pscustomobject]@{
+                    privateBytes = [long]$metricProcess.PrivateMemorySize64
+                    handles = [int]$metricProcess.Handles
+                    threads = [int]$metricProcess.Threads.Count
+                }
+            }
+            if ($PostWorkloadSettleSeconds -gt 0) {
+                Start-Sleep -Seconds $PostWorkloadSettleSeconds
+            }
+            $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            if ($null -ne $metricProcess) {
+                $after = [pscustomobject]@{
+                    privateBytes = [long]$metricProcess.PrivateMemorySize64
+                    handles = [int]$metricProcess.Handles
+                    threads = [int]$metricProcess.Threads.Count
+                }
+            }
         }
     }
 }
@@ -457,7 +485,11 @@ $sqlAfter = Get-SqlFixtureSnapshot -Database $database -DataRoot $dataRoot
 $dataAfter = Get-DataFixtureSnapshot -Root $dataRoot
 
 $successful = @($samples | Where-Object ok)
-$durationSeconds = ($endUtc - $startUtc).TotalSeconds
+$durationSeconds = if ($null -ne $workloadStartedUtc -and $null -ne $workloadEndedUtc) {
+    ($workloadEndedUtc - $workloadStartedUtc).TotalSeconds
+} else {
+    0
+}
 $postRunAccounting = [pscustomobject]@{
     sqlAvailable = $sqlBefore.available -and $sqlAfter.available
     dataAvailable = $dataBefore.available -and $dataAfter.available
@@ -476,6 +508,10 @@ $report = [pscustomobject]@{
     status = if ($readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $successful.Count -eq $MessageCount -and $postRunAccounting.valid) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
+    workloadStartedUtc = if ($null -ne $workloadStartedUtc) { $workloadStartedUtc.ToString("o") } else { $null }
+    workloadEndedUtc = if ($null -ne $workloadEndedUtc) { $workloadEndedUtc.ToString("o") } else { $null }
+    workloadSeconds = [math]::Round($durationSeconds, 6)
+    postWorkloadSettleSeconds = $PostWorkloadSettleSeconds
     database = $database
     dataRoot = $dataRoot
     bind = "127.0.0.1"
@@ -489,8 +525,9 @@ $report = [pscustomobject]@{
     throughput_messages_per_second = if ($durationSeconds -gt 0) { [math]::Round($successful.Count / $durationSeconds, 3) } else { 0 }
     readinessFailures = @($readinessFailures)
     shutdownFailures = @($shutdownFailures)
-    processBefore = if ($null -ne $before) { @{ privateBytes = $before.PrivateMemorySize64; handles = $before.Handles; threads = $before.Threads.Count } } else { $null }
-    processAfter = if ($null -ne $after) { @{ privateBytes = $after.PrivateMemorySize64; handles = $after.Handles; threads = $after.Threads.Count } } else { $null }
+    processBefore = $before
+    processAfterImmediate = $afterImmediate
+    processAfter = $after
     isolationPreflight = $preflight
     executableProvenance = $provenance
     fixture = [pscustomobject]@{
@@ -528,6 +565,7 @@ $markdown = @(
     "Requested/accepted: $($report.requestedMessages) / $($report.acceptedMessages)",
     "p50/p95/p99: $($report.p50_ms) / $($report.p95_ms) / $($report.p99_ms) ms",
     "Throughput: $($report.throughput_messages_per_second) messages/s",
+    "Post-workload settle: $($report.postWorkloadSettleSeconds) seconds",
     "Fixture identity: $($report.fixture.identity)",
     "Fixture valid before/after: $($report.fixture.before.sql.fixtureValid) / $($report.fixture.after.sql.fixtureValid)",
     "Post-run accounting: $($report.postRunAccounting.valid); message/data deltas $($report.postRunAccounting.messageRowDelta) / $($report.postRunAccounting.dataFileDelta)",

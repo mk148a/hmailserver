@@ -17,6 +17,12 @@ if ($report.schema -ne "live-smtp-message-acceptance-v1") {
 if ($report.implementation -notin @("net10", "cpp")) {
     throw "Unexpected implementation: $($report.implementation)"
 }
+if ($report.database -notmatch '^hmail_perf_[a-z0-9_]+$' -or $report.database -match '(?i)hmaildb_test5700|production') {
+    throw "The report database is not an isolated benchmark database: $($report.database)"
+}
+if ($report.dataRoot -notmatch '^C:\\hmail-perf-' -or $report.dataRoot -match '(?i)hmailserver57|production') {
+    throw "The report Data root is not an isolated benchmark root: $($report.dataRoot)"
+}
 if ($report.implementation -eq "cpp") {
     if ($null -eq $report.isolationPreflight) {
         throw "C++ acceptance reports must include the legacy registry/config isolation preflight."
@@ -67,6 +73,36 @@ if ($report.status -eq "PASS" -and (
         @($report.readinessFailures).Count -ne 0 -or
         @($report.shutdownFailures).Count -ne 0)) {
     throw "A PASS report must have complete acceptance and clean readiness/shutdown."
+}
+if ($report.status -eq "PASS") {
+    $workloadStart = [DateTimeOffset]$report.workloadStartedUtc
+    $workloadEnd = [DateTimeOffset]$report.workloadEndedUtc
+    $exactWorkloadSeconds = ($workloadEnd - $workloadStart).TotalSeconds
+    if ($exactWorkloadSeconds -le 0 -or [double]$report.workloadSeconds -le 0) {
+        throw "A passing SMTP acceptance report must include a positive workload-only duration."
+    }
+    $expectedThroughput = [math]::Round([double]$report.acceptedMessages / $exactWorkloadSeconds, 3)
+    if ([math]::Abs($expectedThroughput - [double]$report.throughput_messages_per_second) -gt 0.01) {
+        throw "SMTP acceptance throughput does not reconcile with the workload-only duration."
+    }
+}
+if (@($report.samples).Count -gt 0 -and (
+        $null -eq $report.processBefore -or
+        $null -eq $report.processAfterImmediate -or
+        $null -eq $report.processAfter -or
+        [long]$report.processBefore.privateBytes -le 0 -or
+        [long]$report.processAfterImmediate.privateBytes -le 0 -or
+        [long]$report.processAfter.privateBytes -le 0 -or
+        [int]$report.processBefore.handles -le 0 -or
+        [int]$report.processAfterImmediate.handles -le 0 -or
+        [int]$report.processAfter.handles -le 0 -or
+        [int]$report.processBefore.threads -le 0 -or
+        [int]$report.processAfterImmediate.threads -le 0 -or
+        [int]$report.processAfter.threads -le 0)) {
+    throw "SMTP acceptance workload artifacts must include numeric process metric snapshots."
+}
+if (@($report.samples).Count -gt 0 -and [int]$report.postWorkloadSettleSeconds -lt 1) {
+    throw "SMTP acceptance evidence must include a positive post-workload settle interval."
 }
 if ($report.status -notin @("PASS", "FAIL")) {
     throw "Unexpected report status: $($report.status)"

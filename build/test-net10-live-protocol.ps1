@@ -24,12 +24,10 @@ if ($report.ports -notmatch "SMTP 2525, IMAP 1143, POP3 25110") {
     throw "Unexpected protocol ports: $($report.ports)"
 }
 
-$databasePrefix = if ($report.implementation -eq "cpp") { "hmail_perf_cpp_sql_" } else { "hmail_perf_net_sql_" }
-if ($report.database -notmatch "^$([regex]::Escape($databasePrefix))") {
+if ($report.database -notmatch '^hmail_perf_[a-z0-9_]+$' -or $report.database -match '(?i)hmaildb_test5700|production') {
     throw "Unexpected disposable benchmark database: $($report.database)"
 }
-$dataPrefix = if ($report.implementation -eq "cpp") { "C:\hmail-perf-cpp-ascii-" } else { "C:\hmail-perf-net10-ascii-" }
-if ($report.dataRoot -notmatch "^$([regex]::Escape($dataPrefix))") {
+if ($report.dataRoot -notmatch '^C:\\hmail-perf-' -or $report.dataRoot -match '(?i)hmailserver57|production') {
     throw "Unexpected disposable benchmark data root: $($report.dataRoot)"
 }
 

@@ -438,7 +438,7 @@ $markdownPath = Join-Path $OutputDirectory "net10-live-protocol.md"
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 $samples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 $markdown = @(
-    "# .NET 10 live protocol benchmark",
+    "# Live protocol benchmark",
     "",
     "Status: $($report.status)",
     "Database: $($report.database)",
@@ -450,7 +450,7 @@ $markdown = @(
     "| --- | ---: | ---: | ---: | ---: | ---: |"
 )
 $markdown += $summary | ForEach-Object { "| $($_.scenario) | $($_.successes) | $($_.errors) | $($_.p50_ms) | $($_.p95_ms) | $($_.p99_ms) |" }
-$markdown += "", "COM local-server registration was intentionally omitted because the installed AppID rejects the rewrite caller with 0x80004015.", "This is live .NET 10 listener evidence, not a C++ comparison; no speed-up ratio is valid."
+$markdown += "", "COM local-server registration was intentionally omitted; the installed Application registration was not changed.", "This single-implementation artifact does not calculate a C++/.NET 10 speed ratio."
 $markdown | Set-Content -LiteralPath $markdownPath -Encoding UTF8
 
 $summary | Format-Table -AutoSize
