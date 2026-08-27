@@ -14,6 +14,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
+. (Join-Path $PSScriptRoot "live-imap-result-validation.ps1")
 
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $serviceExe = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260810_152708\LiveListenerHost\bin\Release\net10.0-windows\LiveListenerHost.exe"
@@ -57,13 +58,14 @@ function Read-UntilTag {
     param([IO.StreamReader]$Reader, [string]$Tag)
 
     $lines = [System.Collections.Generic.List[string]]::new()
+    $tagPrefix = $Tag.TrimEnd() + " "
     for ($index = 0; $index -lt 40; $index++) {
         $line = $Reader.ReadLine()
         if ($null -eq $line) {
             break
         }
         $lines.Add($line)
-        if ($line.StartsWith($Tag, [StringComparison]::OrdinalIgnoreCase)) {
+        if ($line.StartsWith($tagPrefix, [StringComparison]::OrdinalIgnoreCase)) {
             break
         }
     }
@@ -195,6 +197,16 @@ function New-ClientResult {
     }
 }
 
+function Get-CompletionTag {
+    param([string[]]$Lines, [string]$Tag)
+
+    $matching = @($Lines | Where-Object { $_ -like "$Tag *" } | Select-Object -Last 1)
+    if ($matching.Count -eq 0) {
+        return $null
+    }
+    return [string]$matching[0]
+}
+
 function Invoke-SmtpScenario {
     $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     try {
@@ -241,11 +253,63 @@ function Invoke-ImapScenario {
         $sort = Read-UntilTag $reader "a004"
         $writer.WriteLine("a005 LOGOUT")
         $logout = Read-UntilTag $reader "a005"
+        $searchValidation = Test-ImapResultSequence -Lines $search -Command SEARCH -ExpectedCount 1000
+        $sortValidation = Test-ImapResultSequence -Lines $sort -Command SORT -ExpectedCount 1000
+        $searchCompletionTag = Get-CompletionTag $search "a003"
+        $sortCompletionTag = Get-CompletionTag $sort "a004"
+
+        # IMAPCommandSEARCH::ExecuteCommand emits this non-UID completion text;
+        # IMAPCommandUID::ExecuteCommand uses "UID completed" only for UID commands.
+        $legacyCompletionTagExpected = [pscustomobject]@{
+            search = "a003 OK Search completed"
+            sort = "a004 OK Search completed"
+        }
+        $legacyCompletionTagMatches = [pscustomobject]@{
+            search = [bool]($searchCompletionTag -ceq $legacyCompletionTagExpected.search)
+            sort = [bool]($sortCompletionTag -ceq $legacyCompletionTagExpected.sort)
+        }
+        $searchResponseIdentifierValid = [bool]($searchValidation.found -and $searchValidation.command -ceq "SEARCH")
+        $sortResponseIdentifierValid = [bool]($sortValidation.found -and $sortValidation.command -ceq "SORT")
+        $resultValidationError = @(
+            $searchValidation.error
+            $sortValidation.error
+        ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
         $all = (($login + $select + $search + $sort + $logout) -join " ")
         $reader.Dispose()
         $writer.Dispose()
         $client.Dispose()
-        New-ClientResult $stopwatch ($greeting -like "*OK*" -and $all -like "*OK*") $null
+        $ok = $greeting -like "*OK*" `
+            -and $all -like "*OK*" `
+            -and $searchResponseIdentifierValid `
+            -and $sortResponseIdentifierValid `
+            -and $searchValidation.exactSequence `
+            -and $sortValidation.exactSequence
+        $stopwatch.Stop()
+        [pscustomobject]@{
+            ok = [bool]$ok
+            ms = [math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
+            error = if ($ok) { $null } else { "IMAP result validation failed: $($resultValidationError -join '; ')" }
+            searchResponseIdentifier = $searchValidation.command
+            searchResponseIdentifierValid = $searchResponseIdentifierValid
+            searchResultCount = $searchValidation.count
+            searchResultFirst = $searchValidation.first
+            searchResultLast = $searchValidation.last
+            searchExactSequence = [bool]$searchValidation.exactSequence
+            searchResultShape = $searchValidation.shape
+            sortResponseIdentifier = $sortValidation.command
+            sortResponseIdentifierValid = $sortResponseIdentifierValid
+            sortResultCount = $sortValidation.count
+            sortResultFirst = $sortValidation.first
+            sortResultLast = $sortValidation.last
+            sortExactSequence = [bool]$sortValidation.exactSequence
+            sortResultShape = $sortValidation.shape
+            currentCompletionTag = [pscustomobject]@{
+                search = $searchCompletionTag
+                sort = $sortCompletionTag
+            }
+            legacyCompletionTagExpected = $legacyCompletionTagExpected
+            legacyCompletionTagMatches = $legacyCompletionTagMatches
+        }
     }
     catch {
         New-ClientResult $stopwatch $false $_.Exception.Message
@@ -374,6 +438,23 @@ try {
                         ok = $result.ok
                         ms = $result.ms
                         error = $result.error
+                        searchResponseIdentifier = $result.searchResponseIdentifier
+                        searchResponseIdentifierValid = $result.searchResponseIdentifierValid
+                        searchResultCount = $result.searchResultCount
+                        searchResultFirst = $result.searchResultFirst
+                        searchResultLast = $result.searchResultLast
+                        searchExactSequence = $result.searchExactSequence
+                        searchResultShape = $result.searchResultShape
+                        sortResponseIdentifier = $result.sortResponseIdentifier
+                        sortResponseIdentifierValid = $result.sortResponseIdentifierValid
+                        sortResultCount = $result.sortResultCount
+                        sortResultFirst = $result.sortResultFirst
+                        sortResultLast = $result.sortResultLast
+                        sortExactSequence = $result.sortExactSequence
+                        sortResultShape = $result.sortResultShape
+                        currentCompletionTag = $result.currentCompletionTag
+                        legacyCompletionTagExpected = $result.legacyCompletionTagExpected
+                        legacyCompletionTagMatches = $result.legacyCompletionTagMatches
                     })
                 }
             }

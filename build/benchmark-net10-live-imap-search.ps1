@@ -13,6 +13,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
+. (Join-Path $PSScriptRoot "live-imap-result-validation.ps1")
 $serviceExe = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260810_152708\LiveListenerHost\bin\Release\net10.0-windows\LiveListenerHost.exe"
 $stagingRoot = "C:\hmail-perf-net10-ascii-20260810"
 $database = "hmail_perf_net_sql_20260810_152708"
@@ -88,16 +89,6 @@ function Read-ImapTag {
     throw "IMAP response did not terminate with tag $Tag."
 }
 
-function Get-SearchMatchCount {
-    param([string[]]$Lines)
-    $search = @($Lines | Where-Object { $_ -like "* SEARCH*" } | Select-Object -Last 1)
-    if ($search.Count -eq 0) { return 0 }
-    $line = [string]$search[0]
-    $payload = $line -replace '^\* SEARCH\s*', ''
-    if ([string]::IsNullOrWhiteSpace($payload)) { return 0 }
-    return @($payload.Trim().Split(' ', [StringSplitOptions]::RemoveEmptyEntries)).Count
-}
-
 function Invoke-ImapSearchScenario {
     $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     $searchStopwatch = [Diagnostics.Stopwatch]::new()
@@ -125,20 +116,28 @@ function Invoke-ImapSearchScenario {
         $searchStopwatch.Stop()
         $writer.WriteLine("a004 LOGOUT")
         $logout = Read-ImapTag $reader "a004"
-        $matches = Get-SearchMatchCount $search.untagged
+        $validation = Test-ImapResultSequence -Lines $search.untagged -Command SEARCH -ExpectedCount 1000
+        $matches = $validation.count
         $ok = ($greeting -like "* OK*") `
             -and ($login.tag -like "a001 OK*") `
             -and ($select.tag -like "a002 OK*") `
             -and ($search.tag -like "a003 OK*") `
             -and ($logout.tag -like "a004 OK*") `
-            -and ($matches -eq 1000)
+            -and $validation.found `
+            -and ($validation.command -ceq "SEARCH") `
+            -and $validation.exactSequence
         $stopwatch.Stop()
         [pscustomobject]@{
             ok = [bool]$ok
             matches = $matches
+            searchResultCount = $validation.count
+            searchResultFirst = $validation.first
+            searchResultLast = $validation.last
+            searchExactSequence = [bool]$validation.exactSequence
+            searchResultShape = $validation.shape
             ms = [math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
             search_ms = [math]::Round($searchStopwatch.Elapsed.TotalMilliseconds, 3)
-            error = if ($ok) { $null } else { "IMAP SEARCH response did not return 1000 matches: [$($search.tag)]" }
+            error = if ($ok) { $null } else { "IMAP SEARCH result validation failed: $($validation.error)" }
         }
     }
     catch {
@@ -147,6 +146,11 @@ function Invoke-ImapSearchScenario {
         [pscustomobject]@{
             ok = $false
             matches = 0
+            searchResultCount = 0
+            searchResultFirst = $null
+            searchResultLast = $null
+            searchExactSequence = $false
+            searchResultShape = "missing"
             ms = [math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
             search_ms = [math]::Round($searchStopwatch.Elapsed.TotalMilliseconds, 3)
             error = $_.Exception.Message
@@ -224,6 +228,11 @@ try {
             iteration = $iteration
             ok = $result.ok
             matches = $result.matches
+            searchResultCount = $result.searchResultCount
+            searchResultFirst = $result.searchResultFirst
+            searchResultLast = $result.searchResultLast
+            searchExactSequence = $result.searchExactSequence
+            searchResultShape = $result.searchResultShape
             ms = $result.ms
             search_ms = $result.search_ms
             error = $result.error

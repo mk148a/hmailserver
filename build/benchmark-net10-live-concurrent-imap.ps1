@@ -177,8 +177,10 @@ if (-not ("HMailServerLiveImapProbe" -as [type])) {
     Add-Type -TypeDefinition @'
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Net.Sockets;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -188,6 +190,27 @@ public sealed class HMailServerLiveImapProbeResult
     public bool TimedOut { get; set; }
     public double Milliseconds { get; set; }
     public string Error { get; set; }
+    public bool SearchResultValid { get; set; }
+    public int SearchResultCount { get; set; }
+    public bool SearchExactSequence { get; set; }
+    public bool SortResultValid { get; set; }
+    public int SortResultCount { get; set; }
+    public bool SortExactSequence { get; set; }
+    public string ResultError { get; set; }
+}
+
+internal sealed class HMailServerLiveImapResultValidation
+{
+    public bool Valid { get; set; }
+    public int Count { get; set; }
+    public bool ExactSequence { get; set; }
+    public string Error { get; set; }
+}
+
+internal sealed class HMailServerLiveImapTagResponse
+{
+    public string Tag { get; set; }
+    public string[] Untagged { get; set; }
 }
 
 public static class HMailServerLiveImapProbe
@@ -274,21 +297,30 @@ public static class HMailServerLiveImapProbe
                     writer.WriteLine("a005 LOGOUT");
                     var logout = ReadTag(reader, "a005");
 
+                    var searchValidation = ValidateResult(search == null ? null : search.Untagged, "SEARCH", 1000);
+                    var sortValidation = ValidateResult(sort == null ? null : sort.Untagged, "SORT", 1000);
+
                     var success = greeting != null
                         && greeting.IndexOf("OK", StringComparison.OrdinalIgnoreCase) >= 0
                         && IsOk(login)
                         && IsOk(select)
                         && IsOk(search)
                         && IsOk(sort)
-                        && IsOk(logout);
+                        && IsOk(logout)
+                        && searchValidation.Valid
+                        && sortValidation.Valid;
                     return success
-                        ? Success(stopwatch)
+                        ? Success(stopwatch, searchValidation, sortValidation)
                         : Failure(
                             stopwatch,
                             false,
-                            "IMAP response failure: greeting=[" + greeting + "] login=[" + login
-                            + "] select=[" + select + "] search=[" + search + "] sort=[" + sort
-                            + "] logout=[" + logout + "]");
+                            "IMAP response failure: greetingOk=" + (greeting != null)
+                            + " loginOk=" + IsOk(login) + " selectOk=" + IsOk(select)
+                            + " searchOk=" + IsOk(search) + " sortOk=" + IsOk(sort)
+                            + " logoutOk=" + IsOk(logout)
+                            + " resultError=" + CombineValidationErrors(searchValidation, sortValidation),
+                            searchValidation,
+                            sortValidation);
                 }
             }
         }
@@ -310,8 +342,9 @@ public static class HMailServerLiveImapProbe
         }
     }
 
-    private static string ReadTag(StreamReader reader, string tag)
+    private static HMailServerLiveImapTagResponse ReadTag(StreamReader reader, string tag)
     {
+        var untagged = new List<string>();
         for (var index = 0; index < 512; index++)
         {
             var line = reader.ReadLine();
@@ -322,40 +355,169 @@ public static class HMailServerLiveImapProbe
 
             if (line.StartsWith(tag + " ", StringComparison.OrdinalIgnoreCase))
             {
-                return line;
+                return new HMailServerLiveImapTagResponse
+                {
+                    Tag = line,
+                    Untagged = untagged.ToArray()
+                };
             }
+            untagged.Add(line);
         }
 
         return null;
     }
 
-    private static bool IsOk(string line)
+    private static bool IsOk(HMailServerLiveImapTagResponse response)
     {
-        return line != null && line.IndexOf(" OK", StringComparison.OrdinalIgnoreCase) >= 0;
+        return response != null
+            && response.Tag != null
+            && response.Tag.IndexOf(" OK", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static HMailServerLiveImapProbeResult Success(Stopwatch stopwatch)
+    private static HMailServerLiveImapResultValidation ValidateResult(
+        string[] lines,
+        string identifier,
+        int expectedCount)
     {
-        stopwatch.Stop();
-        return new HMailServerLiveImapProbeResult
+        var prefix = "* " + identifier;
+        string candidate = null;
+        if (lines != null)
         {
-            Success = true,
-            Milliseconds = Math.Round(stopwatch.Elapsed.TotalMilliseconds, 3)
+            foreach (var line in lines)
+            {
+                if (line != null
+                    && line.StartsWith(prefix, StringComparison.Ordinal)
+                    && (line.Length == prefix.Length || line[prefix.Length] == ' '))
+                {
+                    candidate = line;
+                }
+            }
+        }
+
+        if (candidate == null)
+        {
+            return InvalidResult("No untagged * " + identifier + " result line was found.");
+        }
+
+        if (candidate.Length == prefix.Length)
+        {
+            return new HMailServerLiveImapResultValidation
+            {
+                Valid = expectedCount == 0,
+                ExactSequence = expectedCount == 0,
+                Error = expectedCount == 0 ? null : "Expected " + expectedCount + " result values, got zero."
+            };
+        }
+
+        if (candidate[prefix.Length] != ' ')
+        {
+            return InvalidResult("Result values must follow the command name with one space.");
+        }
+
+        var payload = candidate.Substring(prefix.Length + 1);
+        if (payload.Length == 0 || payload[0] == ' ' || payload[payload.Length - 1] == ' ')
+        {
+            return InvalidResult("A zero-result line must have no trailing space and nonzero values must use single spaces.");
+        }
+
+        var tokens = payload.Split(new[] { ' ' }, StringSplitOptions.None);
+        var count = 0;
+        var exact = true;
+        foreach (var token in tokens)
+        {
+            int value;
+            if (!int.TryParse(token, NumberStyles.None, CultureInfo.InvariantCulture, out value))
+            {
+                return InvalidResult("Result contains a nonnumeric token.", count);
+            }
+            count++;
+            if (value != count)
+            {
+                exact = false;
+            }
+        }
+
+        exact = exact && count == expectedCount;
+        return new HMailServerLiveImapResultValidation
+        {
+            Valid = exact,
+            Count = count,
+            ExactSequence = exact,
+            Error = exact
+                ? null
+                : count == expectedCount
+                    ? "Result values are not in exact 1.." + expectedCount + " order."
+                    : "Expected " + expectedCount + " result values, got " + count + "."
         };
+    }
+
+    private static HMailServerLiveImapResultValidation InvalidResult(string error, int count = 0)
+    {
+        return new HMailServerLiveImapResultValidation
+        {
+            Valid = false,
+            Count = count,
+            ExactSequence = false,
+            Error = error
+        };
+    }
+
+    private static string CombineValidationErrors(
+        HMailServerLiveImapResultValidation search,
+        HMailServerLiveImapResultValidation sort)
+    {
+        var errors = new List<string>();
+        if (search != null && !string.IsNullOrEmpty(search.Error))
+        {
+            errors.Add("SEARCH: " + search.Error);
+        }
+        if (sort != null && !string.IsNullOrEmpty(sort.Error))
+        {
+            errors.Add("SORT: " + sort.Error);
+        }
+        return string.Join("; ", errors);
+    }
+
+    private static HMailServerLiveImapProbeResult Success(
+        Stopwatch stopwatch,
+        HMailServerLiveImapResultValidation search,
+        HMailServerLiveImapResultValidation sort)
+    {
+        return Finish(stopwatch, true, false, null, search, sort);
     }
 
     private static HMailServerLiveImapProbeResult Failure(
         Stopwatch stopwatch,
         bool timedOut,
-        string error)
+        string error,
+        HMailServerLiveImapResultValidation search = null,
+        HMailServerLiveImapResultValidation sort = null)
+    {
+        return Finish(stopwatch, false, timedOut, error, search, sort);
+    }
+
+    private static HMailServerLiveImapProbeResult Finish(
+        Stopwatch stopwatch,
+        bool success,
+        bool timedOut,
+        string error,
+        HMailServerLiveImapResultValidation search,
+        HMailServerLiveImapResultValidation sort)
     {
         stopwatch.Stop();
         return new HMailServerLiveImapProbeResult
         {
-            Success = false,
+            Success = success,
             TimedOut = timedOut,
             Milliseconds = Math.Round(stopwatch.Elapsed.TotalMilliseconds, 3),
-            Error = error ?? "Unknown IMAP probe failure."
+            Error = error ?? (success ? null : "Unknown IMAP probe failure."),
+            SearchResultValid = search != null && search.Valid,
+            SearchResultCount = search == null ? 0 : search.Count,
+            SearchExactSequence = search != null && search.ExactSequence,
+            SortResultValid = sort != null && sort.Valid,
+            SortResultCount = sort == null ? 0 : sort.Count,
+            SortExactSequence = sort != null && sort.ExactSequence,
+            ResultError = CombineValidationErrors(search, sort)
         };
     }
 }
@@ -451,6 +613,13 @@ try {
                         TimedOut = $waveResult.TimedOut
                         Milliseconds = $waveResult.Milliseconds
                         Error = $waveResult.Error
+                        SearchResultValid = $waveResult.SearchResultValid
+                        SearchResultCount = $waveResult.SearchResultCount
+                        SearchExactSequence = $waveResult.SearchExactSequence
+                        SortResultValid = $waveResult.SortResultValid
+                        SortResultCount = $waveResult.SortResultCount
+                        SortExactSequence = $waveResult.SortExactSequence
+                        ResultError = $waveResult.ResultError
                     })
                 }
                 $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
@@ -552,6 +721,13 @@ $report = [pscustomobject]@{
             timedOut = $_.TimedOut
             ms = $_.Milliseconds
             error = $_.Error
+            searchResultValid = $_.SearchResultValid
+            searchResultCount = $_.SearchResultCount
+            searchExactSequence = $_.SearchExactSequence
+            sortResultValid = $_.SortResultValid
+            sortResultCount = $_.SortResultCount
+            sortExactSequence = $_.SortExactSequence
+            resultError = $_.ResultError
         }
     })
     ratioValid = $false
