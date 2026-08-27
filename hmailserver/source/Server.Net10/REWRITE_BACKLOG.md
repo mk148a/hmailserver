@@ -1,4 +1,35 @@
-## Current authoritative status (2026-08-27, paired benchmark containment)
+## Current authoritative status (2026-08-27, live IMAP result validation)
+
+Code/test commit `c763be9c4` adds bounded live result validation to the IMAP
+SEARCH/SORT benchmark runners. `build/live-imap-result-validation.ps1`
+validates the response identifier, numeric shape, zero-result shape, and exact
+`1..1000` sequence. `benchmark-net10-live-imap-search.ps1` validates SEARCH,
+`benchmark-net10-live-protocol.ps1` validates SEARCH and SORT plus completion
+tags, and `benchmark-net10-live-concurrent-imap.ps1` validates every measured
+session. The protocol reader also now stops only on a complete tagged response
+line rather than a tag prefix.
+
+The legacy behavior is anchored at
+`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:39-153`,
+`IMAPCommandUID.cpp:34-96`, and `IMAPSort.cpp:107-234`. On the clean disposable
+wire fixture, the C++ `/Debug` listener and Net10 apphost each passed live
+SMTP, IMAP, and POP3 smoke, and each returned SEARCH and SORT `1..1000`.
+C++ emits the legacy `Search completed` tags; Net10 currently emits uppercase
+`SEARCH completed` and `SORT completed`, which is recorded as an explicit
+compatibility gap rather than hidden by the result-success flag.
+
+Focused result tests pass `9/9`; the disposable Net10 Full-Text preparation
+test passes `1/1`. Full Debug Net10 remains `2742 passed, 90 skipped, 5 failed`
+(`2837` total); all five failures are the pre-existing host out-of-process COM
+activation checks returning `E_NOINTERFACE`. Live result correctness is now
+proven for this fixture, but end-to-end fixture/run/executable provenance is
+still unbound. Release remains **RED**. Next independent slice: bind every
+live result artifact to one fixture, run, database/Data root, and executable
+hash, then proceed to POP3 large-mailbox regression acceptance.
+
+The prior benchmark containment work is retained below as historical context.
+
+## Historical authoritative status (2026-08-27, paired benchmark containment)
 
 Code/test commit `3b6dd0fc6` closes the benchmark input-safety gap identified
 by the security review. `provision-paired-benchmark-fixture.ps1` pins the

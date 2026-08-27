@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-27, live IMAP result validation)
+
+Code/test commit `c763be9c4` adds live wire assertions for IMAP SEARCH/SORT.
+`build/live-imap-result-validation.ps1` checks the untagged response
+identifier, zero-result shape, numeric tokens, and exact `1..1000` order.
+The single-run protocol runner validates SEARCH and SORT and records current
+versus legacy completion tags; the concurrent runner applies the result check
+to every session. The reader now requires a complete tagged response line.
+
+Legacy references are `hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp`
+`IMAPCommandSEARCH::ExecuteCommand` (39-153),
+`IMAPCommandUID::ExecuteCommand` (`IMAPCommandUID.cpp`, 34-96), and
+`IMAPSort::Sort` (`IMAPSort.cpp`, 107-234). A clean disposable fixture with
+1000 messages produced PASS live SMTP/IMAP/POP3 smoke results for both the
+C++ `/Debug` listener and Net10 apphost; SEARCH and SORT were exactly
+`1..1000` on both sides. Net10 still uses uppercase `SEARCH completed` and
+`SORT completed` tags, while the legacy tags are `Search completed`, so this
+is correctness evidence with a recorded tag compatibility gap, not a full
+IMAP parity claim.
+
+Focused validation is `9/9`; disposable Net10 Full-Text preparation is `1/1`.
+The full Debug suite is `2742 passed, 90 skipped, 5 failed` (`2837` total),
+with all five failures in existing out-of-process COM activation checks
+returning `E_NOINTERFACE`. The next bounded performance slice is end-to-end
+fixture/run/executable provenance binding. The performance and production
+release gates remain **RED**.
+
 ## Current performance evidence (2026-08-27)
 
 The 2026-08-26 zero-listener C++ record is historical and superseded. A clean

@@ -37,6 +37,24 @@ bound end-to-end to one fixture and tested executable. A 50-wave diagnostic
 Net10 run reached 49,986/50,000 with 14 client `WSAEADDRINUSE` errors; it is not
 an acceptance result.
 
+The live wire follow-up is now covered by code/test commit `c763be9c4`.
+`build/live-imap-result-validation.ps1` validates the untagged SEARCH/SORT
+identifier, numeric result shape, zero-result shape, and exact `1..1000`
+sequence. The protocol and concurrent IMAP runners apply that validation to
+every measured result. On the clean disposable fixture
+`hmail_perf_pair_wire_cpp_20260827` / `hmail_perf_pair_wire_net10_20260827`,
+both the C++ `/Debug` listener and the Net10 apphost passed one live SMTP,
+IMAP, and POP3 smoke sample; both returned SEARCH and SORT `1..1000`.
+
+The C++ wire tags match the legacy `IMAPCommandSEARCH::ExecuteCommand`,
+`IMAPCommandUID::ExecuteCommand`, and `IMAPSort::Sort` behavior. Net10 still
+emits `a003 OK SEARCH completed` and `a004 OK SORT completed`, while legacy
+emits `a003 OK Search completed` and `a004 OK Search completed`; the result
+runner records this as an explicit compatibility difference. This proves live
+result correctness for the tested fixture, not full IMAP parity or performance
+acceptance. The next slice is end-to-end fixture/run/executable provenance
+binding; the performance release gate remains **RED**.
+
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
 
