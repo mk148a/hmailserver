@@ -18,6 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
+. (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
 $serviceExe = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260810_152708\LiveListenerHost\bin\Release\net10.0-windows\LiveListenerHost.exe"
 $stagingRoot = "C:\hmail-perf-net10-ascii-20260810"
 $database = "hmail_perf_net_sql_20260810_152708"
@@ -32,7 +33,10 @@ if ($Implementation -eq "cpp") {
 
 if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
 if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
-if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) {
+    Assert-ApprovedBenchmarkExecutable -Path $BenchmarkServiceExecutable -Implementation $Implementation -RepositoryRoot $repoRoot
+    $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable)
+}
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260811\$Implementation-smtp-acceptance"
@@ -249,8 +253,6 @@ function Wait-ForAcceptedMessageState {
         snapshot = $last
     }
 }
-
-. (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
 
 function Wait-ForReadiness {
     param([int]$ProcessId)

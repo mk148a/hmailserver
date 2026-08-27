@@ -36,7 +36,10 @@ if ($Implementation -eq "cpp") {
 
 if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot)) { $stagingRoot = [IO.Path]::GetFullPath($BenchmarkStagingRoot) }
 if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase)) { $database = $BenchmarkDatabase }
-if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) { $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable) }
+if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) {
+    Assert-ApprovedBenchmarkExecutable -Path $BenchmarkServiceExecutable -Implementation $Implementation -RepositoryRoot $repoRoot
+    $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable)
+}
 
 if ($database -notmatch '^hmail_perf_[a-z0-9_]+$') {
     throw "Refusing non-disposable benchmark database: $database"

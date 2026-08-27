@@ -1,3 +1,56 @@
+function Test-BenchmarkPathContainsReparsePoint {
+    param([string]$Path)
+
+    $current = [IO.Path]::GetFullPath($Path)
+    while ($true) {
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                return $true
+            }
+        }
+        $parent = [IO.Directory]::GetParent($current)
+        if ($null -eq $parent -or $parent.FullName -eq $current) {
+            break
+        }
+        $current = $parent.FullName
+    }
+    return $false
+}
+
+function Assert-ApprovedBenchmarkExecutable {
+    param(
+        [string]$Path,
+        [ValidateSet("net10", "cpp")]
+        [string]$Implementation,
+        [string]$RepositoryRoot
+    )
+
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    if (Test-BenchmarkPathContainsReparsePoint $fullPath) {
+        throw "Refusing executable override through a reparse point: $fullPath"
+    }
+
+    $approved = if ($Implementation -eq "cpp") {
+        $fullPath -match '(?i)^C:\\hmail-perf-(?:cpp|pair)-[a-z0-9_-]+(?:\\cpp)?\\Bin\\hMailServer\.exe$'
+    }
+    else {
+        $benchmarkRoot = ([IO.Path]::GetFullPath((Join-Path $RepositoryRoot "artifacts\benchmarks"))).TrimEnd('\') + '\'
+        $relativePath = if ($fullPath.StartsWith($benchmarkRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            $fullPath.Substring($benchmarkRoot.Length)
+        }
+        else {
+            ""
+        }
+        $repositoryHost = $relativePath -match '(?i)^live-cpp-net10-[a-z0-9_-]+\\LiveListenerHost\\bin\\(?:Release|Debug)\\net10\.0-windows\\LiveListenerHost\.exe$'
+        $disposableHost = $fullPath -match '(?i)^C:\\hmail-perf-(?:net10|pair)-[a-z0-9_-]+(?:\\net10)?(?:\\Bin)?\\(?:hMailServer|LiveListenerHost)\.exe$'
+        $repositoryHost -or $disposableHost
+    }
+    if (-not $approved) {
+        throw "Executable override is not an approved disposable benchmark executable: $fullPath"
+    }
+}
+
 function Get-InstalledHmailServerLocations {
     $locations = [System.Collections.Generic.List[object]]::new()
     foreach ($view in [Microsoft.Win32.RegistryView]::Registry64, [Microsoft.Win32.RegistryView]::Registry32) {

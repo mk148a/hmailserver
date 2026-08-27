@@ -12,6 +12,61 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
+$expectedUpgradeScriptPath = [IO.Path]::GetFullPath((Join-Path $repoRoot 'hmailserver\source\DBScripts\Upgrade5708to6000MSSQL.sql'))
+$expectedUpgradeScriptSha256 = '7B0C7A56545912C8A1A85E361D52D52E5B56BDEC6B19E9BA95901CFA106E2FB2'
+
+function Test-PathContainsReparsePoint {
+    param([string]$Path)
+
+    $current = [IO.Path]::GetFullPath($Path)
+    while ($true) {
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                return $true
+            }
+        }
+        $parent = [IO.Directory]::GetParent($current)
+        if ($null -eq $parent -or $parent.FullName -eq $current) {
+            break
+        }
+        $current = $parent.FullName
+    }
+    return $false
+}
+
+function Test-TreeContainsReparsePoint {
+    param([string]$Root)
+
+    if (-not (Test-Path -LiteralPath $Root -PathType Container)) {
+        return $false
+    }
+    foreach ($item in Get-ChildItem -LiteralPath $Root -Force -Recurse -ErrorAction Stop) {
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Resolve-SafeBenchmarkInput {
+    param([string]$Path, [string]$Label)
+
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    if (Test-PathContainsReparsePoint $fullPath) {
+        throw "$Label must not use a reparse point: $fullPath"
+    }
+    if ($fullPath -match '(?i)(^|\\)(hmailserver57|hmailserver|hmaildb_test5700|Program Files|ProgramData|Windows)(\\|$)') {
+        throw "$Label is protected or production-like: $fullPath"
+    }
+    if ($fullPath -notmatch '(?i)^C:\\hmail-perf-[a-z0-9_-]+(?:\\.*)?$') {
+        throw "$Label must be under an approved disposable benchmark root: $fullPath"
+    }
+    if (Test-TreeContainsReparsePoint $fullPath) {
+        throw "$Label must not contain a reparse point: $fullPath"
+    }
+    return $fullPath
+}
 
 function Assert-DisposableName {
     param([string]$Value, [string]$Label)
@@ -109,21 +164,55 @@ function Get-BackupLogicalFiles {
     return $files
 }
 
+if (-not [string]::IsNullOrWhiteSpace($UpgradeScriptPath) -and
+    -not [string]::Equals([IO.Path]::GetFullPath($UpgradeScriptPath), $expectedUpgradeScriptPath, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "UpgradeScriptPath is pinned to the checked-in repository script: $expectedUpgradeScriptPath"
+}
+$UpgradeScriptPath = $expectedUpgradeScriptPath
+if (-not (Test-Path -LiteralPath $UpgradeScriptPath -PathType Leaf)) {
+    throw "Net10 upgrade script is missing: $UpgradeScriptPath"
+}
+$upgradeScriptSha256 = (Get-FileHash -LiteralPath $UpgradeScriptPath -Algorithm SHA256).Hash.ToUpperInvariant()
+if ($upgradeScriptSha256 -ne $expectedUpgradeScriptSha256) {
+    throw "Checked-in Net10 upgrade script hash does not match the expected SHA-256."
+}
+
+$BackupPath = Resolve-SafeBenchmarkInput $BackupPath 'BackupPath'
+$SourceDataRoot = Resolve-SafeBenchmarkInput $SourceDataRoot 'SourceDataRoot'
 if (-not (Test-Path -LiteralPath $BackupPath -PathType Leaf)) { throw "Backup does not exist: $BackupPath" }
 if (-not (Test-Path -LiteralPath $SourceDataRoot -PathType Container)) { throw "Source Data root does not exist: $SourceDataRoot" }
 if ([string]::IsNullOrWhiteSpace($LegacyBinPath)) {
     $LegacyBinPath = Join-Path (Split-Path -Parent $SourceDataRoot) 'Bin'
 }
 $LegacyBinPath = [IO.Path]::GetFullPath($LegacyBinPath)
+if ($LegacyBinPath -notmatch '(?i)^C:\\hmail-perf-cpp-build-[a-z0-9_-]+\\Bin$') {
+    throw "LegacyBinPath is not an approved disposable clean C++ build root: $LegacyBinPath"
+}
+if (Test-PathContainsReparsePoint $LegacyBinPath) {
+    throw "LegacyBinPath must not use a reparse point: $LegacyBinPath"
+}
+$legacyBuildRoot = Split-Path -Parent $LegacyBinPath
+$legacyBuildManifestPath = Join-Path $legacyBuildRoot 'legacy-build.json'
+if (-not (Test-Path -LiteralPath $legacyBuildManifestPath -PathType Leaf)) {
+    throw "LegacyBinPath is not a clean C++ build root with a build manifest: $LegacyBinPath"
+}
+try {
+    $legacyBuildManifest = Get-Content -LiteralPath $legacyBuildManifestPath -Raw | ConvertFrom-Json
+}
+catch {
+    throw "Legacy C++ build manifest is invalid: $legacyBuildManifestPath"
+}
+if ($legacyBuildManifest.status -ne 'PASS' -or $legacyBuildManifest.postBuildRegistrationDisabled -ne $true -or
+    -not [string]::Equals([IO.Path]::GetFullPath([string]$legacyBuildManifest.outputRoot), $legacyBuildRoot, [StringComparison]::OrdinalIgnoreCase) -or
+    -not [string]::Equals([IO.Path]::GetFullPath([string]$legacyBuildManifest.executable), (Join-Path $LegacyBinPath 'hMailServer.exe'), [StringComparison]::OrdinalIgnoreCase)) {
+    throw "LegacyBinPath is not a clean, registration-disabled C++ build root: $LegacyBinPath"
+}
 if (-not (Test-Path -LiteralPath (Join-Path $LegacyBinPath 'hMailServer.exe') -PathType Leaf)) {
     throw "Legacy C++ executable is missing under: $LegacyBinPath"
 }
-if ([string]::IsNullOrWhiteSpace($UpgradeScriptPath)) {
-    $UpgradeScriptPath = Join-Path $repoRoot 'hmailserver\source\DBScripts\Upgrade5708to6000MSSQL.sql'
-}
-$UpgradeScriptPath = [IO.Path]::GetFullPath($UpgradeScriptPath)
-if (-not (Test-Path -LiteralPath $UpgradeScriptPath -PathType Leaf)) {
-    throw "Net10 upgrade script is missing: $UpgradeScriptPath"
+$actualLegacyHash = (Get-FileHash -LiteralPath (Join-Path $LegacyBinPath 'hMailServer.exe') -Algorithm SHA256).Hash
+if (-not [string]::Equals($actualLegacyHash, [string]$legacyBuildManifest.executableSha256, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "LegacyBinPath executable hash does not match the clean build manifest."
 }
 $fullOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 if ($fullOutputRoot -notmatch '(?i)^C:\\hmail-perf-pair-') { throw "Output root is not disposable: $fullOutputRoot" }

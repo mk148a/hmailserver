@@ -6,6 +6,8 @@ import csv
 import hashlib
 import json
 import math
+import os
+import stat
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -121,12 +123,45 @@ def classify_error(sample: dict[str, Any]) -> str:
     return "protocol-failure"
 
 
-def prepare_output(path: Path) -> None:
+def has_reparse_point(path: Path) -> bool:
+    current = Path(os.path.abspath(path))
+    while True:
+        try:
+            info = os.lstat(current)
+        except FileNotFoundError:
+            pass
+        else:
+            attributes = getattr(info, "st_file_attributes", 0)
+            if current.is_symlink() or attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400):
+                return True
+        if current.parent == current:
+            return False
+        current = current.parent
+
+
+def prepare_output(path: Path, repository: Path) -> None:
+    path = Path(os.path.abspath(path))
+    benchmark_root = Path(os.path.abspath(repository / "artifacts" / "benchmarks"))
+    require(not has_reparse_point(path), f"Output directory must not use a symlink or reparse point: {path}")
+    require(not has_reparse_point(benchmark_root), f"Approved benchmark root must not use a symlink or reparse point: {benchmark_root}")
+    try:
+        relative = path.relative_to(benchmark_root)
+    except ValueError as error:
+        raise ValueError(f"Output directory is not an approved paired benchmark directory: {path}") from error
+    require(
+        len(relative.parts) == 1 and relative.name.lower().startswith("paired-cpp-net10-") and
+        all(character.isalnum() or character in "-_" for character in relative.name),
+        f"Output directory is not an approved paired benchmark directory: {path}",
+    )
+    if path.exists() and not path.is_dir():
+        raise ValueError(f"Output directory is not a directory: {path}")
     path.mkdir(parents=True, exist_ok=True)
     for name in GENERATED_FILES:
         target = path / name
-        if target.exists():
-            target.unlink()
+        require(
+            not target.exists() and not target.is_symlink(),
+            f"Refusing to overwrite pre-existing report artifact: {target}",
+        )
 
 
 def apply_chart_style() -> None:
@@ -378,9 +413,9 @@ def write_csv(path: Path, fieldnames: list[str], rows: list[dict[str, Any]]) -> 
 def main() -> None:
     args = parse_args()
     input_root = args.input_root.resolve()
-    repository = args.repository_root.resolve()
-    output = args.output_directory.resolve()
-    prepare_output(output)
+    repository = Path(os.path.abspath(args.repository_root))
+    output = Path(os.path.abspath(args.output_directory))
+    prepare_output(output, repository)
 
     fixture = load_json(args.fixture_manifest.resolve())
     environment = load_json(args.environment.resolve())

@@ -11,8 +11,29 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
+$msBuildOverrideProvided = -not [string]::IsNullOrWhiteSpace($MsBuildPath)
 $fullOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 $fullLibrariesRoot = [IO.Path]::GetFullPath($LibrariesRoot)
+
+function Test-PathContainsReparsePoint {
+    param([string]$Path)
+
+    $current = [IO.Path]::GetFullPath($Path)
+    while ($true) {
+        if (Test-Path -LiteralPath $current) {
+            $item = Get-Item -LiteralPath $current -Force -ErrorAction Stop
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                return $true
+            }
+        }
+        $parent = [IO.Directory]::GetParent($current)
+        if ($null -eq $parent -or $parent.FullName -eq $current) {
+            break
+        }
+        $current = $parent.FullName
+    }
+    return $false
+}
 
 if ($fullOutputRoot -notmatch '(?i)^C:\\hmail-perf-cpp-build-') {
     throw "Output root is not an approved disposable C++ build root: $fullOutputRoot"
@@ -40,6 +61,14 @@ if ([string]::IsNullOrWhiteSpace($MsBuildPath)) {
     $MsBuildPath = 'C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe'
 }
 $MsBuildPath = [IO.Path]::GetFullPath($MsBuildPath)
+if ($msBuildOverrideProvided) {
+    if (Test-PathContainsReparsePoint $MsBuildPath) {
+        throw "Refusing MSBuild executable override through a reparse point: $MsBuildPath"
+    }
+    if ($MsBuildPath -notmatch '(?i)^C:\\Program Files(?: \(x86\))?\\Microsoft Visual Studio\\[^\\]+\\(?:Community|Professional|Enterprise|BuildTools)\\MSBuild\\Current\\Bin\\MSBuild\.exe$') {
+        throw "MSBuild executable override is not an approved Visual Studio MSBuild path: $MsBuildPath"
+    }
+}
 if (-not (Test-Path -LiteralPath $MsBuildPath -PathType Leaf)) {
     throw "MSBuild is missing: $MsBuildPath"
 }
