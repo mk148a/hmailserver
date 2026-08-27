@@ -1,9 +1,11 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$InputDirectory
+    [string]$InputDirectory,
+    [switch]$AllowFailedReport
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
 
 $reports = @(Get-ChildItem -LiteralPath $InputDirectory -Filter "*-smtp-message-acceptance.json" -File)
 if ($reports.Count -ne 1) {
@@ -11,6 +13,8 @@ if ($reports.Count -ne 1) {
 }
 
 $report = Get-Content -LiteralPath $reports[0].FullName -Raw | ConvertFrom-Json
+$reportBaseName = [IO.Path]::GetFileNameWithoutExtension($reports[0].Name)
+Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath (Join-Path $InputDirectory "$reportBaseName.csv") -MarkdownPath (Join-Path $InputDirectory "$reportBaseName.md")
 if ($report.schema -ne "live-smtp-message-acceptance-v1") {
     throw "Unexpected SMTP acceptance report schema: $($report.schema)"
 }
@@ -51,6 +55,11 @@ if (@($report.PSObject.Properties.Name) -notcontains "acceptedMessageStates") {
 }
 if ($report.status -eq "PASS" -and $report.postRunAccounting.valid -ne $true) {
     throw "A passing SMTP acceptance report must have valid SQL/Data post-run accounting."
+}
+if ($report.status -eq "PASS" -and (
+        [int64]$report.postRunAccounting.messageRowDelta -ne [int64]$report.acceptedMessages -or
+        [int64]$report.postRunAccounting.dataFileDelta -ne [int64]$report.acceptedMessages)) {
+    throw "A passing SMTP acceptance report must have exact SQL message-row and Data-file deltas."
 }
 if ($report.status -eq "PASS" -and @($report.acceptedMessageStates | Where-Object observed).Count -ne [int]$report.acceptedMessages) {
     throw "A passing SMTP acceptance report must observe every accepted message in SQL queue/delivery state."
@@ -106,6 +115,9 @@ if (@($report.samples).Count -gt 0 -and [int]$report.postWorkloadSettleSeconds -
 }
 if ($report.status -notin @("PASS", "FAIL")) {
     throw "Unexpected report status: $($report.status)"
+}
+if ($report.status -ne "PASS" -and -not $AllowFailedReport) {
+    throw "SMTP acceptance report status is FAIL."
 }
 
 Write-Output "Validated $($reports[0].FullName): status=$($report.status), accepted=$($report.acceptedMessages)/$($report.requestedMessages), errors=$($report.errors)."

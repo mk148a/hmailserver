@@ -101,6 +101,12 @@ try {
         '-BackupPath', $backupFile,
         '-SourceDataRoot', $sourceDataRoot,
         '-OutputRoot', "C:\hmail-perf-pair-safety-$stamp",
+        '-Net10BinPath', (Join-Path $repoRoot 'build')
+    ) 'pinned to the repository Release output'
+    Assert-ScriptRejects $fixtureScript @(
+        '-BackupPath', $backupFile,
+        '-SourceDataRoot', $sourceDataRoot,
+        '-OutputRoot', "C:\hmail-perf-pair-safety-$stamp",
         '-LegacyBinPath', (Join-Path $repoRoot 'build')
     ) 'approved disposable clean C++ build root'
     Assert-ScriptRejects $fixtureScript @(

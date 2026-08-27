@@ -7,6 +7,8 @@ param(
     [string]$BenchmarkStagingRoot = "",
     [string]$BenchmarkDatabase = "",
     [string]$BenchmarkServiceExecutable = "",
+    [string]$FixtureManifest = "",
+    [string]$RunId = "",
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10"
 )
@@ -15,6 +17,7 @@ $ErrorActionPreference = "Stop"
 
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
 . (Join-Path $PSScriptRoot "live-imap-result-validation.ps1")
+. (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
 
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $serviceExe = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260810_152708\LiveListenerHost\bin\Release\net10.0-windows\LiveListenerHost.exe"
@@ -36,6 +39,24 @@ if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) {
     $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable)
 }
 
+$fixtureBinding = $null
+if (-not [string]::IsNullOrWhiteSpace($FixtureManifest)) {
+    $fixtureBinding = Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase) -and $BenchmarkDatabase -cne $fixtureBinding.database) {
+        throw "BenchmarkDatabase does not match the fixture manifest."
+    }
+    $fixtureStagingRoot = Split-Path -Parent $fixtureBinding.dataRoot
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot) -and [IO.Path]::GetFullPath($BenchmarkStagingRoot) -ine $fixtureStagingRoot) {
+        throw "BenchmarkStagingRoot does not match the fixture manifest."
+    }
+    if ($null -ne $fixtureBinding.executable -and [IO.Path]::GetFullPath($serviceExe) -ine $fixtureBinding.executable) {
+        throw "BenchmarkServiceExecutable does not match the fixture manifest."
+    }
+    $database = $fixtureBinding.database
+    $stagingRoot = $fixtureStagingRoot
+}
+Assert-ApprovedBenchmarkExecutable -Path $serviceExe -Implementation $Implementation -RepositoryRoot $repoRoot
+
 if ($database -notmatch '^hmail_perf_[a-z0-9_]+$') {
     throw "Refusing non-disposable benchmark database: $database"
 }
@@ -50,7 +71,8 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
 if (-not (Test-Path -LiteralPath $serviceExe -PathType Leaf)) {
     throw "Live listener host is missing: $serviceExe"
 }
-if (-not (Test-Path -LiteralPath (Join-Path $stagingRoot "Data") -PathType Container)) {
+$dataRoot = Join-Path $stagingRoot "Data"
+if (-not (Test-Path -LiteralPath $dataRoot -PathType Container)) {
     throw "Disposable Data directory is missing: $stagingRoot\Data"
 }
 
@@ -410,9 +432,10 @@ $after = $null
 $preflight = $null
 $provenance = $null
 
+$provenance = Get-LiveBenchmarkProvenance -FixtureManifest $FixtureManifest -RunId $RunId -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe -Ports ([ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 })
+
 if ($Implementation -eq "cpp") {
     $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
-    $provenance = Get-CppExecutableProvenance -TargetExecutable $serviceExe
     $readinessFailures = @($preflight.failures)
 }
 
@@ -495,7 +518,11 @@ $report = [pscustomobject]@{
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
     database = $database
-    dataRoot = Join-Path $stagingRoot "Data"
+    runId = $provenance.runId
+    provenanceStatus = if ($provenance.manifestBound) { "MANIFEST_BOUND" } else { "UNBOUND" }
+    fixtureId = $provenance.fixtureId
+    manifestSha256 = $provenance.manifestSha256
+    dataRoot = $dataRoot
     bind = "127.0.0.1"
     ports = "SMTP 2525, IMAP 1143, POP3 25110"
     messageCount = 1000
@@ -505,7 +532,7 @@ $report = [pscustomobject]@{
     processBefore = if ($null -ne $before) { @{ privateBytes = $before.privateBytes; handles = $before.handles; threads = $before.threads } } else { $null }
     processAfter = if ($null -ne $after) { @{ privateBytes = $after.privateBytes; handles = $after.handles; threads = $after.threads } } else { $null }
     isolationPreflight = $preflight
-    executableProvenance = $provenance
+    executableProvenance = $provenance.executableProvenance
     samples = $samples
     comHostedService = if ($Implementation -eq "net10") { "not started; installed AppID preserved" } else { "legacy /Debug path; AppID hash checked separately" }
     productionSafety = if ($Implementation -eq "cpp") {
@@ -520,15 +547,44 @@ $jsonPath = Join-Path $OutputDirectory "net10-live-protocol.json"
 $csvPath = Join-Path $OutputDirectory "net10-live-protocol.csv"
 $markdownPath = Join-Path $OutputDirectory "net10-live-protocol.md"
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
-$samples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
+$csvSamples = $samples | ForEach-Object {
+    [pscustomobject]@{
+        runId = $report.runId
+        provenanceStatus = $report.provenanceStatus
+        fixtureId = $report.fixtureId
+        manifestSha256 = $report.manifestSha256
+        implementation = $report.implementation
+        database = $report.database
+        dataRoot = $report.dataRoot
+        executableSha256 = $report.executableProvenance.sha256
+        scenario = $_.scenario
+        iteration = $_.iteration
+        ok = $_.ok
+        ms = $_.ms
+        error = $_.error
+        searchResponseIdentifier = $_.searchResponseIdentifier
+        searchResultCount = $_.searchResultCount
+        searchExactSequence = $_.searchExactSequence
+        sortResponseIdentifier = $_.sortResponseIdentifier
+        sortResultCount = $_.sortResultCount
+        sortExactSequence = $_.sortExactSequence
+    }
+}
+$csvSamples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 $markdown = @(
     "# Live protocol benchmark",
     "",
+    "Implementation: $($report.implementation)",
     "Status: $($report.status)",
     "Database: $($report.database)",
     "Data root: $($report.dataRoot)",
     "Bind/ports: $($report.bind) / $($report.ports)",
     "Corpus files: $($report.messageCount)",
+    "Run ID: $($report.runId)",
+    "Provenance: $($report.provenanceStatus)",
+    "Fixture ID: $($report.fixtureId)",
+    "Fixture manifest SHA-256: $($report.manifestSha256)",
+    "Executable SHA-256: $($report.executableProvenance.sha256)",
     "",
     "| Scenario | Success | Errors | p50 ms | p95 ms | p99 ms |",
     "| --- | ---: | ---: | ---: | ---: | ---: |"

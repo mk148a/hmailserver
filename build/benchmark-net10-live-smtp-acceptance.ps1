@@ -11,6 +11,8 @@ param(
     [string]$BenchmarkStagingRoot = "",
     [string]$BenchmarkDatabase = "",
     [string]$BenchmarkServiceExecutable = "",
+    [string]$FixtureManifest = "",
+    [string]$RunId = "",
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10"
 )
@@ -19,6 +21,7 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
+. (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
 $serviceExe = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260810_152708\LiveListenerHost\bin\Release\net10.0-windows\LiveListenerHost.exe"
 $stagingRoot = "C:\hmail-perf-net10-ascii-20260810"
 $database = "hmail_perf_net_sql_20260810_152708"
@@ -37,6 +40,24 @@ if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) {
     Assert-ApprovedBenchmarkExecutable -Path $BenchmarkServiceExecutable -Implementation $Implementation -RepositoryRoot $repoRoot
     $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable)
 }
+
+$fixtureBinding = $null
+if (-not [string]::IsNullOrWhiteSpace($FixtureManifest)) {
+    $fixtureBinding = Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkDatabase) -and $BenchmarkDatabase -cne $fixtureBinding.database) {
+        throw "BenchmarkDatabase does not match the fixture manifest."
+    }
+    $fixtureStagingRoot = Split-Path -Parent $fixtureBinding.dataRoot
+    if (-not [string]::IsNullOrWhiteSpace($BenchmarkStagingRoot) -and [IO.Path]::GetFullPath($BenchmarkStagingRoot) -ine $fixtureStagingRoot) {
+        throw "BenchmarkStagingRoot does not match the fixture manifest."
+    }
+    if ($null -ne $fixtureBinding.executable -and [IO.Path]::GetFullPath($serviceExe) -ine $fixtureBinding.executable) {
+        throw "BenchmarkServiceExecutable does not match the fixture manifest."
+    }
+    $database = $fixtureBinding.database
+    $stagingRoot = $fixtureStagingRoot
+}
+Assert-ApprovedBenchmarkExecutable -Path $serviceExe -Implementation $Implementation -RepositoryRoot $repoRoot
 
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260811\$Implementation-smtp-acceptance"
@@ -413,13 +434,14 @@ $provenance = $null
 $workloadStartedUtc = $null
 $workloadEndedUtc = $null
 
+$provenance = Get-LiveBenchmarkProvenance -FixtureManifest $FixtureManifest -RunId $RunId -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe -Ports ([ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 })
+
 $sqlBefore = Get-SqlFixtureSnapshot -Database $database -DataRoot $dataRoot
 $dataBefore = Get-DataFixtureSnapshot -Root $dataRoot
 $fixtureIdentity = Get-FixtureIdentity -Sql $sqlBefore -Data $dataBefore -RequestedMessages $MessageCount
 
 if ($Implementation -eq "cpp") {
     $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
-    $provenance = Get-CppExecutableProvenance -TargetExecutable $serviceExe
     $readinessFailures = @($preflight.failures)
 }
 
@@ -492,6 +514,7 @@ $durationSeconds = if ($null -ne $workloadStartedUtc -and $null -ne $workloadEnd
 } else {
     0
 }
+
 $postRunAccounting = [pscustomobject]@{
     sqlAvailable = $sqlBefore.available -and $sqlAfter.available
     dataAvailable = $dataBefore.available -and $dataAfter.available
@@ -502,7 +525,7 @@ $postRunAccounting = [pscustomobject]@{
     recipientRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.recipients - $sqlBefore.recipients } else { $null }
     dataFileDelta = if ($dataBefore.available -and $dataAfter.available) { $dataAfter.fileCount - $dataBefore.fileCount } else { $null }
     acceptedStatesObserved = @($acceptedStates | Where-Object observed).Count
-    valid = ($sqlBefore.available -and $sqlAfter.available -and $dataBefore.available -and $dataAfter.available -and $sqlBefore.fixtureValid -and $sqlAfter.fixtureValid -and (($sqlAfter.messages - $sqlBefore.messages) -ge $successful.Count) -and (@($acceptedStates | Where-Object observed).Count -eq $successful.Count))
+    valid = ($sqlBefore.available -and $sqlAfter.available -and $dataBefore.available -and $dataAfter.available -and $sqlBefore.fixtureValid -and $sqlAfter.fixtureValid -and (($sqlAfter.messages - $sqlBefore.messages) -eq $successful.Count) -and (($dataAfter.fileCount - $dataBefore.fileCount) -eq $successful.Count) -and (@($acceptedStates | Where-Object observed).Count -eq $successful.Count))
 }
 $report = [pscustomobject]@{
     schema = "live-smtp-message-acceptance-v1"
@@ -514,10 +537,15 @@ $report = [pscustomobject]@{
     workloadEndedUtc = if ($null -ne $workloadEndedUtc) { $workloadEndedUtc.ToString("o") } else { $null }
     workloadSeconds = [math]::Round($durationSeconds, 6)
     postWorkloadSettleSeconds = $PostWorkloadSettleSeconds
+    runId = $provenance.runId
+    provenanceStatus = if ($provenance.manifestBound) { "MANIFEST_BOUND" } else { "UNBOUND" }
+    fixtureId = $provenance.fixtureId
+    manifestSha256 = $provenance.manifestSha256
     database = $database
     dataRoot = $dataRoot
     bind = "127.0.0.1"
     port = 2525
+    ports = $provenance.ports
     requestedMessages = $MessageCount
     acceptedMessages = $successful.Count
     errors = $MessageCount - $successful.Count
@@ -531,7 +559,7 @@ $report = [pscustomobject]@{
     processAfterImmediate = $afterImmediate
     processAfter = $after
     isolationPreflight = $preflight
-    executableProvenance = $provenance
+    executableProvenance = $provenance.executableProvenance
     fixture = [pscustomobject]@{
         identity = $fixtureIdentity
         database = $database
@@ -555,15 +583,38 @@ $jsonPath = Join-Path $OutputDirectory "$Implementation-smtp-message-acceptance.
 $csvPath = Join-Path $OutputDirectory "$Implementation-smtp-message-acceptance.csv"
 $markdownPath = Join-Path $OutputDirectory "$Implementation-smtp-message-acceptance.md"
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
-$samples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
+$csvSamples = $samples | ForEach-Object {
+    [pscustomobject]@{
+        runId = $report.runId
+        provenanceStatus = $report.provenanceStatus
+        fixtureId = $report.fixtureId
+        manifestSha256 = $report.manifestSha256
+        implementation = $report.implementation
+        database = $report.database
+        dataRoot = $report.dataRoot
+        executableSha256 = $report.executableProvenance.sha256
+        scenario = $_.scenario
+        sequence = $_.sequence
+        ok = $_.ok
+        ms = $_.ms
+        error = $_.error
+    }
+}
+$csvSamples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 $markdown = @(
     "# SMTP message acceptance benchmark",
     "",
+    "Implementation: $($report.implementation)",
     "Status: $($report.status)",
     "Implementation: $($report.implementation)",
     "Database: $($report.database)",
     "Data root: $($report.dataRoot)",
     "Bind/port: $($report.bind):$($report.port)",
+    "Run ID: $($report.runId)",
+    "Provenance: $($report.provenanceStatus)",
+    "Fixture ID: $($report.fixtureId)",
+    "Fixture manifest SHA-256: $($report.manifestSha256)",
+    "Executable SHA-256: $($report.executableProvenance.sha256)",
     "Requested/accepted: $($report.requestedMessages) / $($report.acceptedMessages)",
     "p50/p95/p99: $($report.p50_ms) / $($report.p95_ms) / $($report.p99_ms) ms",
     "Throughput: $($report.throughput_messages_per_second) messages/s",

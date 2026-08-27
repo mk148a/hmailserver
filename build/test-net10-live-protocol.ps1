@@ -1,9 +1,11 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$InputDirectory
+    [string]$InputDirectory,
+    [switch]$AllowFailedReport
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
 
 $reports = @(Get-ChildItem -LiteralPath $InputDirectory -Filter "net10-live-protocol.json" -File)
 if ($reports.Count -ne 1) {
@@ -11,6 +13,7 @@ if ($reports.Count -ne 1) {
 }
 
 $report = Get-Content -LiteralPath $reports[0].FullName -Raw | ConvertFrom-Json
+Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath (Join-Path $InputDirectory "net10-live-protocol.csv") -MarkdownPath (Join-Path $InputDirectory "net10-live-protocol.md")
 if ($report.schema -ne "live-protocol-v1") {
     throw "Unexpected live protocol report schema: $($report.schema)"
 }
@@ -78,6 +81,9 @@ if ($report.implementation -eq "cpp") {
 
 if ($report.status -notin @("PASS", "FAIL")) {
     throw "Unexpected report status: $($report.status)"
+}
+if ($report.status -ne "PASS" -and -not $AllowFailedReport) {
+    throw "Live protocol acceptance report status is FAIL."
 }
 if ($report.status -eq "PASS" -and ($readinessFailures.Count -ne 0 -or $shutdownFailures.Count -ne 0 -or ($summary | Where-Object errors -gt 0).Count -ne 0)) {
     throw "A PASS protocol report must have clean readiness, samples, and shutdown."

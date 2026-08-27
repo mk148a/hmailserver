@@ -4,16 +4,19 @@ param(
     [ValidateRange(1, 5000)]
     [int]$ExpectedConcurrency = 1000,
     [ValidateRange(1, 100)]
-    [int]$ExpectedWaves = 1
+    [int]$ExpectedWaves = 1,
+    [switch]$AllowFailedReport
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
 $jsonPath = Join-Path $InputDirectory "live-concurrent-imap.json"
 if (-not (Test-Path -LiteralPath $jsonPath -PathType Leaf)) {
     throw "Concurrent IMAP JSON report is missing: $jsonPath"
 }
 
 $report = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
+Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath (Join-Path $InputDirectory "live-concurrent-imap.csv") -MarkdownPath (Join-Path $InputDirectory "live-concurrent-imap.md")
 if ($report.schema -ne "live-concurrent-imap-v1") {
     throw "Unexpected concurrent IMAP report schema: $($report.schema)"
 }
@@ -120,6 +123,9 @@ if ([int]$report.summary.completed -gt 0 -and [int]$report.postWorkloadSettleSec
 }
 if ($report.status -notin @("PASS", "FAIL")) {
     throw "Unexpected concurrent IMAP report status: $($report.status)"
+}
+if ($report.status -ne "PASS" -and -not $AllowFailedReport) {
+    throw "Concurrent IMAP acceptance report status is FAIL."
 }
 
 Write-Output "Validated $($report.implementation) concurrent IMAP artifact: $($report.summary.successes)/$expectedSessions success across $ExpectedWaves wave(s), $($report.summary.timeouts) timeouts, status $($report.status)."

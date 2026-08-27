@@ -6,6 +6,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputRoot,
     [string]$LegacyBinPath = "",
+    [string]$Net10BinPath = "",
     [string]$UpgradeScriptPath = "",
     [string]$Stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd_HHmmss')
 )
@@ -14,6 +15,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 $expectedUpgradeScriptPath = [IO.Path]::GetFullPath((Join-Path $repoRoot 'hmailserver\source\DBScripts\Upgrade5708to6000MSSQL.sql'))
 $expectedUpgradeScriptSha256 = '7B0C7A56545912C8A1A85E361D52D52E5B56BDEC6B19E9BA95901CFA106E2FB2'
+$expectedNet10BinPath = [IO.Path]::GetFullPath((Join-Path $repoRoot 'hmailserver\source\Server.Net10\src\HMailServer.Service\bin\Release\net10.0-windows'))
 
 function Test-PathContainsReparsePoint {
     param([string]$Path)
@@ -181,6 +183,11 @@ $BackupPath = Resolve-SafeBenchmarkInput $BackupPath 'BackupPath'
 $SourceDataRoot = Resolve-SafeBenchmarkInput $SourceDataRoot 'SourceDataRoot'
 if (-not (Test-Path -LiteralPath $BackupPath -PathType Leaf)) { throw "Backup does not exist: $BackupPath" }
 if (-not (Test-Path -LiteralPath $SourceDataRoot -PathType Container)) { throw "Source Data root does not exist: $SourceDataRoot" }
+if (-not [string]::IsNullOrWhiteSpace($Net10BinPath) -and
+    -not [string]::Equals([IO.Path]::GetFullPath($Net10BinPath), $expectedNet10BinPath, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Net10BinPath is pinned to the repository Release output: $expectedNet10BinPath"
+}
+$Net10BinPath = $expectedNet10BinPath
 if ([string]::IsNullOrWhiteSpace($LegacyBinPath)) {
     $LegacyBinPath = Join-Path (Split-Path -Parent $SourceDataRoot) 'Bin'
 }
@@ -213,6 +220,13 @@ if (-not (Test-Path -LiteralPath (Join-Path $LegacyBinPath 'hMailServer.exe') -P
 $actualLegacyHash = (Get-FileHash -LiteralPath (Join-Path $LegacyBinPath 'hMailServer.exe') -Algorithm SHA256).Hash
 if (-not [string]::Equals($actualLegacyHash, [string]$legacyBuildManifest.executableSha256, [StringComparison]::OrdinalIgnoreCase)) {
     throw "LegacyBinPath executable hash does not match the clean build manifest."
+}
+if ((Test-PathContainsReparsePoint $Net10BinPath) -or (Test-TreeContainsReparsePoint $Net10BinPath)) {
+    throw "Net10BinPath must not use or contain a reparse point: $Net10BinPath"
+}
+$net10SourceExecutable = Join-Path $Net10BinPath 'hMailServer.exe'
+if (-not (Test-Path -LiteralPath $net10SourceExecutable -PathType Leaf)) {
+    throw "Net10 Release executable is missing under: $Net10BinPath"
 }
 $fullOutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 if ($fullOutputRoot -notmatch '(?i)^C:\\hmail-perf-pair-') { throw "Output root is not disposable: $fullOutputRoot" }
@@ -277,8 +291,11 @@ WHERE CHARINDEX(N'\Data\', messagefilename) > 0;
     Copy-Item -LiteralPath $SourceDataRoot -Destination (Join-Path $net10Root 'Data') -Recurse -Force
 
     $cppBin = Join-Path $cppRoot 'Bin'
+    $net10Bin = Join-Path $net10Root 'Bin'
     New-Item -ItemType Directory -Force -Path $cppBin | Out-Null
+    New-Item -ItemType Directory -Force -Path $net10Bin | Out-Null
     Copy-Item -Path (Join-Path $LegacyBinPath '*') -Destination $cppBin -Recurse -Force
+    Copy-Item -Path (Join-Path $Net10BinPath '*') -Destination $net10Bin -Recurse -Force
     $languageFile = Join-Path $cppBin 'Languages\english.ini'
     if (-not (Test-Path -LiteralPath $languageFile -PathType Leaf)) {
         $translation = Join-Path $repoRoot 'hmailserver\source\Translations\english.ini'
@@ -353,6 +370,8 @@ DataFolder=$(Join-Path $net10Root 'Data')
         net10DataRoot = [IO.Path]::GetFullPath((Join-Path $net10Root 'Data'))
         cppExecutable = [IO.Path]::GetFullPath((Join-Path $cppBin 'hMailServer.exe'))
         cppExecutableSha256 = (Get-FileHash -LiteralPath (Join-Path $cppBin 'hMailServer.exe') -Algorithm SHA256).Hash
+        net10Executable = [IO.Path]::GetFullPath((Join-Path $net10Bin 'hMailServer.exe'))
+        net10ExecutableSha256 = (Get-FileHash -LiteralPath (Join-Path $net10Bin 'hMailServer.exe') -Algorithm SHA256).Hash
         dataParity = [pscustomobject]@{
             fileCount = $cppDataManifest.fileCount
             bytes = $cppDataManifest.bytes
