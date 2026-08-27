@@ -51,9 +51,22 @@ The C++ wire tags match the legacy `IMAPCommandSEARCH::ExecuteCommand`,
 emits `a003 OK SEARCH completed` and `a004 OK SORT completed`, while legacy
 emits `a003 OK Search completed` and `a004 OK Search completed`; the result
 runner records this as an explicit compatibility difference. This proves live
-result correctness for the tested fixture, not full IMAP parity or performance
-acceptance. The next slice is end-to-end fixture/run/executable provenance
-binding; the performance release gate remains **RED**.
+result correctness for the tested index-populated fixture, not full IMAP
+parity or performance acceptance.
+
+Code/test commit `61bf5ec6e` completes end-to-end manifest binding for the core
+protocol, concurrent IMAP, and durable SMTP artifacts. JSON, CSV, and Markdown
+now carry one run ID, fixture/manifest identity, disposable database/Data
+identity, and exact C++/Net10 executable hashes; validators reject unbound or
+failed reports. Exact SMTP SQL-row and Data-file deltas are mandatory.
+
+A fresh repository-generated fixture exposed a separate production parity
+gap that the earlier table did not exercise. With legacy `MessageIndexing=0`
+and no search-document rows, C++ scans message files and returns SEARCH
+`1..1000`, while Net10 currently returns zero; SORT remains exact. The earlier
+latency comparison used an index-populated fixture and remains valid only for
+that configuration. Indexing-disabled SEARCH fallback is therefore the next
+bounded production slice, and the performance release gate remains **RED**.
 
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).

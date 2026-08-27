@@ -1,3 +1,36 @@
+## Current authoritative status (2026-08-27, manifest-bound benchmark artifacts)
+
+Code/test commit `61bf5ec6e` makes the core live benchmark evidence
+manifest-bound and cross-format consistent. `build/live-benchmark-provenance.ps1`
+validates the paired fixture schema, 5708/6000 database boundary, disposable
+roots/names, loopback ports, manifest bytes/hash, and C++/Net10 executable
+paths/hashes. Protocol, concurrent IMAP, and durable SMTP JSON/CSV/Markdown
+include the same run, fixture, database/Data, and executable identity.
+Acceptance validators reject unbound or failed reports unless failure reading
+is explicitly diagnostic. SMTP PASS requires exact message-row and Data-file
+deltas. The provisioner now copies the repository Release Net10 payload and
+emits its executable path/hash, closing the producer/consumer mismatch.
+
+Focused provenance tests are `12/12`; IMAP result tests are `9/9`; benchmark
+input safety and 10-file PowerShell AST checks pass. A clean repo-generated
+fixture passed exact 1,000-file/message parity and executable binding. C++
+protocol and 1x1 concurrent IMAP passed; both C++ and Net10 exact 1-message
+durable SMTP passed. Net10 protocol/concurrent IMAP failed for a real parity
+reason: legacy `MessageIndexing=0` with an empty search-document table still
+causes C++ to scan message files and return SEARCH `1..1000`, while Net10
+returned zero. SORT remained exact. The older passing fixture had
+`MessageIndexing=1` and 1,000 indexed documents and therefore did not cover
+this branch.
+
+Full Debug remains `2742/90/5`, with only the existing registered local-server
+COM `E_NOINTERFACE` failures. The Release orchestration also remains red because
+the separate multi-target ComInterop build reports 19 CA1416 errors after the
+Service target succeeds. Release remains **RED**. Current next slice: confirm
+legacy indexing-disabled SEARCH behavior in C++ and implement the smallest
+Net10 file-scan fallback with focused positive/negative tests, then rerun the
+manifest-bound protocol and concurrent smokes. SQL/Data re-attestation and
+filesystem TOCTOU hardening remain the following benchmark-security slice.
+
 ## Current authoritative status (2026-08-27, live IMAP result validation)
 
 Code/test commit `c763be9c4` adds bounded live result validation to the IMAP

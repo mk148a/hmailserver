@@ -1,5 +1,36 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-27, manifest-bound benchmark artifacts)
+
+Code/test commit `61bf5ec6e` adds `build/live-benchmark-provenance.ps1` and
+binds the core protocol, concurrent IMAP, and durable SMTP runners to a shared
+run ID, fixture ID/manifest hash, disposable database/Data roots, loopback
+ports, and exact executable hash. JSON, CSV, and Markdown must agree. The
+acceptance validators reject `UNBOUND` and workload `FAIL` artifacts by
+default; `-AllowFailedReport` is diagnostic only. SMTP PASS now requires exact
+SQL-message and Data-file deltas.
+
+`provision-paired-benchmark-fixture.ps1` now copies the pinned repository
+Release Net10 payload and writes `net10Executable` plus
+`net10ExecutableSha256`. A fresh repository-generated fixture passed schema
+5708/6000, 1,000-file Data, 1,000-row message, and executable-manifest checks.
+On that fixture C++ protocol, C++ 1x1 concurrent IMAP, and both 1-message exact
+durable SMTP smokes passed. Net10 SMTP passed, but Net10 SEARCH and concurrent
+IMAP correctly failed: with `MessageIndexing=0` and no
+`hm_message_search_documents` rows, SEARCH returned zero while legacy C++
+returned exact `1..1000`; SORT returned `1..1000` on both. The prior passing
+Net10 fixture had indexing enabled and 1,000 search-document rows, so it masked
+this production parity gap.
+
+Focused provenance tests pass `12/12`, IMAP result tests pass `9/9`, input
+safety and 10-file PowerShell AST checks pass. Full Debug remains `2742 passed,
+90 skipped, 5 failed`; all five failures are the existing registered local
+server COM `E_NOINTERFACE` checks. `build-net10.ps1 -Configuration Release`
+builds the Service payload but later fails the separate multi-target ComInterop
+build on 19 CA1416 diagnostics. Next production slice: restore legacy
+indexing-disabled SEARCH fallback parity, then rerun the manifest-bound pair.
+Release remains **RED**; no push was performed.
+
 ## Current authoritative continuation (2026-08-27, live IMAP result validation)
 
 Code/test commit `c763be9c4` adds live wire assertions for IMAP SEARCH/SORT.
