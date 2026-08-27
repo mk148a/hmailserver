@@ -32,9 +32,22 @@ load. POP3 is a documented Net10 regression. The performance release gate
 remains **RED** because 24-hour leak, remote delivery/retry, queue, TLS/network,
 restore, installer, COM lifecycle, and SEC-18 acceptance are still open.
 
-Next performance slice: POP3 large-mailbox parity/regression acceptance;
-then the 24-hour multi-protocol/queue soak when its isolated runner is
-available. Do not treat this evidence as production readiness.
+Code/test commit `3b6dd0fc6` hardens benchmark input containment. The paired
+fixture provisioner pins the checked-in upgrade script and SHA-256, accepts
+only approved disposable Data/backup roots, and requires a clean
+registration-disabled legacy build manifest. All seven live benchmark runners
+validate executable overrides against approved disposable or repository host
+paths. The report generator refuses arbitrary output roots, reparse points,
+and overwriting existing generated files. Focused rejection tests pass.
+
+This is tooling containment, not new parity evidence. Live SEARCH/SORT still
+needs returned UID/count/order assertions, and raw artifacts are not yet
+provenance-bound end-to-end to one fixture and tested executable. The 50-wave
+Net10 diagnostic result of 49,986/50,000 with 14 client `WSAEADDRINUSE`
+failures remains excluded from acceptance. Next bounded performance slice:
+live IMAP SEARCH/SORT correctness plus provenance binding; then POP3
+large-mailbox parity/regression acceptance and the 24-hour soak. Do not treat
+this evidence as production readiness.
 
 ## Current Authoritative Continuation (2026-08-26, disposable legacy registration)
 

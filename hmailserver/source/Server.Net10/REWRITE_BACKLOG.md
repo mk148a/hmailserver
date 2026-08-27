@@ -1,3 +1,25 @@
+## Current authoritative status (2026-08-27, paired benchmark containment)
+
+Code/test commit `3b6dd0fc6` closes the benchmark input-safety gap identified
+by the security review. `provision-paired-benchmark-fixture.ps1` pins the
+checked-in `Upgrade5708to6000MSSQL.sql` and expected SHA-256, rejects protected
+or non-`C:\hmail-perf-*` Data/backup roots and reparse points, and requires a
+registration-disabled legacy build manifest with a matching executable hash.
+All seven live benchmark runners validate executable overrides against
+approved disposable or repository host paths. The paired report generator
+requires a fresh `paired-cpp-net10-*` directory under repository benchmark
+artifacts and will not overwrite existing generated files. Focused rejection,
+PowerShell parse, Python compile, report validation, and full Debug test runs
+were executed; the full suite remains `2742 passed, 90 skipped, 5 failed` due
+to the existing host COM activation `E_NOINTERFACE` checks.
+
+This closes harness containment only. Live SEARCH/SORT returned UID/count/order
+correctness and end-to-end fixture/executable provenance binding remain open.
+The 50-wave Net10 diagnostic result (`49,986/50,000`, 14 client
+`WSAEADDRINUSE` errors) is not acceptance evidence. Release remains **RED**.
+Next independent slice: live IMAP SEARCH/SORT correctness plus provenance
+binding, then POP3 large-mailbox parity/regression acceptance.
+
 ## Current authoritative status (2026-08-25, backup event ordering recheck)
 
 Legacy `BackupExecuter::StartBackup` (`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-193`)

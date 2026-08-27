@@ -25,6 +25,18 @@ mandatory 24-hour soak, remote delivery, queue, TLS/network, restore,
 installer, and lifecycle gates are still open. POP3 is a documented Net10
 regression; no production-readiness claim is made.
 
+The benchmark containment follow-up is code/test commit `3b6dd0fc6`.
+`provision-paired-benchmark-fixture.ps1` now pins the migration script hash and
+requires approved disposable Data/backup roots plus a registration-disabled
+legacy build manifest. All seven live benchmark runners reject unapproved
+executable overrides, and the report generator refuses arbitrary or
+pre-existing generated output. Focused input-safety rejection tests pass. This
+closes harness input containment only: live SEARCH/SORT correctness still needs
+returned UID/count/order assertions, and raw artifact provenance is not yet
+bound end-to-end to one fixture and tested executable. A 50-wave diagnostic
+Net10 run reached 49,986/50,000 with 14 client `WSAEADDRINUSE` errors; it is not
+an acceptance result.
+
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
 
