@@ -68,6 +68,16 @@ latency comparison used an index-populated fixture and remains valid only for
 that configuration. Indexing-disabled SEARCH fallback is therefore the next
 bounded production slice, and the performance release gate remains **RED**.
 
+Code/test commit `ebe4e04a4` closes the bounded `SEARCH SUBJECT` part of that
+gap. Net10 now reads the MIME-decoded Subject from authoritative `.eml` files
+and applies legacy case-insensitive substring matching independently of the
+indexing setting. Focused tests pass `26/26`, and a manifest-bound disposable
+1,000-message live smoke returned exact `1..1000` for `SEARCH SUBJECT
+Benchmark`. Its single `764.413 ms` sample is correctness evidence only.
+`SEARCH TEXT needle` still returns zero on the empty-index fixture, so the
+general indexing-disabled SEARCH gate and overall performance gate remain
+**RED**.
+
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
 

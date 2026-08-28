@@ -9282,3 +9282,25 @@ The next independent performance slice is POP3 large-mailbox parity and
 regression acceptance, followed by the 24-hour multi-protocol/queue soak when
 the required isolated runner is available. Older `Current authoritative status`
 entries below are historical slice records; they are not the current next task.
+## Current authoritative status (2026-08-28, indexing-disabled SUBJECT parity)
+
+Code/test commit `ebe4e04a4` restores legacy IMAP `SEARCH SUBJECT` behavior
+without changing message-indexing state or manufacturing search documents.
+`SUBJECT` is represented separately from aggregated header FTS terms; SEARCH
+keeps SQL mailbox/range/flag/date/size filtering and then reads authoritative
+`.eml` files, uses MimeKit-decoded Subject values, and applies case-insensitive
+substring matching. Shared SORT parsing retains its previous search-header FTS
+filter through an explicit planner regression guard.
+
+Focused tests pass `26/26`; full Debug is `2749/90/5`, with only the existing
+registered COM `E_NOINTERFACE` failures. Release Service builds cleanly. A
+manifest-bound disposable 1,000-message fixture with `MessageIndexing=0` and
+no search-document rows returned exact `1..1000` for `SEARCH SUBJECT
+Benchmark`. The single live sample took `764.413 ms`; it is correctness
+evidence, not a performance threshold.
+
+Current next slice: exact legacy `SEARCH TEXT needle` file-backed semantics.
+The standard protocol workload still returns zero on the same empty-index
+fixture. Following work must remove the Subject fallback's per-candidate
+metadata-query N+1, then rerun paired load. Performance/release remains
+**RED**.

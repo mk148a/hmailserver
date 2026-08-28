@@ -1,5 +1,30 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-28, indexing-disabled SUBJECT parity)
+
+Code/test commit `ebe4e04a4` separates IMAP `SUBJECT` from aggregated header
+FTS terms and post-filters ordered SQL mailbox candidates through the
+authoritative `.eml` source. MimeKit supplies the decoded Subject and matching
+uses the legacy case-insensitive substring rule from
+`IMAPCommandSEARCH::DoesMessageMatch_`, `MatchesHeaderCriteria_`, and
+`GetHeaderValue_`. SORT keeps its prior search-header FTS behavior despite the
+shared parser change.
+
+Focused parser/planner/executor/MIME/SORT tests pass `26/26`. Full Debug is
+`2749 passed, 90 skipped, 5 failed`; the five failures remain the existing
+registered local-server COM `E_NOINTERFACE` checks. Release Service builds with
+zero warnings/errors. On a fresh manifest-bound 5708/6000 fixture with 1,000
+identical files and no search-document rows, live Net10 `SEARCH SUBJECT
+Benchmark` returned exact `1..1000` (`764.413 ms`, one correctness sample).
+
+This does not close the original protocol workload: `SEARCH TEXT needle`
+still returns zero because TEXT remains tied to the empty search-document
+table. Next production slice: confirm legacy TEXT/header/body file semantics
+and implement the smallest file-backed TEXT fallback. The Subject path also
+performs one metadata query and one MIME parse per candidate; batch metadata
+optimization and real load measurement remain open. Release stays **RED**;
+no push was performed.
+
 ## Current authoritative continuation (2026-08-27, manifest-bound benchmark artifacts)
 
 Code/test commit `61bf5ec6e` adds `build/live-benchmark-provenance.ps1` and
