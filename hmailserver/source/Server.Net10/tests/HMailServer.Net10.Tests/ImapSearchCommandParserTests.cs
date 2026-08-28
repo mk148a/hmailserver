@@ -38,8 +38,9 @@ public sealed class ImapSearchCommandParserTests
             Array.Empty<ImapIdRange>(),
             request.SequenceRanges.ToArray());
         CollectionAssert.AreEqual(
-            new[] { "report", "X-Customer", "Ada" },
+            new[] { "X-Customer", "Ada" },
             request.GetHeaderTerms().ToArray());
+        CollectionAssert.AreEqual(new[] { "report" }, request.GetSubjectTerms().ToArray());
         CollectionAssert.AreEqual(new[] { "paid" }, request.GetBodyTerms().ToArray());
         CollectionAssert.AreEqual(new[] { "invoice" }, request.GetAnyTerms().ToArray());
     }

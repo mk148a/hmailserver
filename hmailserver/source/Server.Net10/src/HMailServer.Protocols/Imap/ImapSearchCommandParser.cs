@@ -53,6 +53,7 @@ public sealed class ImapSearchCommandParser
         var sequenceRanges = new List<ImapIdRange>();
         var uidRanges = new List<ImapIdRange>();
         var headerTerms = new List<string>();
+        var subjectTerms = new List<string>();
         var bodyTerms = new List<string>();
         var anyTerms = new List<string>();
 
@@ -198,9 +199,12 @@ public sealed class ImapSearchCommandParser
                 case "BCC":
                 case "CC":
                 case "FROM":
-                case "SUBJECT":
                 case "TO":
                     AddTerm(headerTerms, ReadRequiredValue(tokens, ref index, $"{key} string"));
+                    break;
+
+                case "SUBJECT":
+                    AddTerm(subjectTerms, ReadRequiredValue(tokens, ref index, "SUBJECT string"));
                     break;
 
                 case "HEADER":
@@ -234,6 +238,7 @@ public sealed class ImapSearchCommandParser
             SequenceRanges = sequenceRanges.ToArray(),
             UidRanges = uidRanges.ToArray(),
             HeaderTerms = headerTerms.ToArray(),
+            SubjectTerms = subjectTerms.ToArray(),
             BodyTerms = bodyTerms.ToArray(),
             AnyTerms = anyTerms.ToArray(),
             SentSince = sentSince,

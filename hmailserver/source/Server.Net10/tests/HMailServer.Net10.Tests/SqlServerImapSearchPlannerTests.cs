@@ -8,6 +8,36 @@ namespace HMailServer.Net10.Tests;
 public sealed class SqlServerImapSearchPlannerTests
 {
     [TestMethod]
+    public void Plan_SubjectOnlySelectsMailboxCandidatesWithoutFullTextJoin()
+    {
+        var request = new ImapSearchRequest(
+            AccountId: 10,
+            FolderId: 20,
+            MinUid: null,
+            MaxUid: null,
+            RequiredFlags: null,
+            ForbiddenFlags: null,
+            Since: null,
+            Before: null,
+            LargerThanBytes: null,
+            SmallerThanBytes: null,
+            HeaderText: null,
+            BodyText: null,
+            AnyText: null,
+            ReturnUid: true)
+        {
+            SubjectTerms = ["quarterly"]
+        };
+
+        var plan = new SqlServerImapSearchPlanner().Plan(request);
+
+        Assert.IsFalse(plan.CommandText.Contains("hm_message_search_documents", StringComparison.Ordinal));
+        Assert.IsFalse(plan.CommandText.Contains("CONTAINS(", StringComparison.Ordinal));
+        StringAssert.Contains(plan.CommandText, "ORDER BY m.messageuid ASC");
+        Assert.AreEqual(2, plan.Parameters.Count);
+    }
+
+    [TestMethod]
     public void Plan_UsesSqlPredicatesAndFullTextSearch()
     {
         var request = new ImapSearchRequest(

@@ -78,6 +78,38 @@ public sealed class SqlServerImapSortPlannerTests
     }
 
     [TestMethod]
+    public void Plan_PreservesSubjectSearchFilteringForSort()
+    {
+        var searchRequest = new ImapSearchRequest(
+            AccountId: 10,
+            FolderId: 20,
+            MinUid: null,
+            MaxUid: null,
+            RequiredFlags: null,
+            ForbiddenFlags: null,
+            Since: null,
+            Before: null,
+            LargerThanBytes: null,
+            SmallerThanBytes: null,
+            HeaderText: null,
+            BodyText: null,
+            AnyText: null,
+            ReturnUid: true)
+        {
+            SubjectTerms = ["quarterly"]
+        };
+
+        var plan = new SqlServerImapSortPlanner().Plan(
+            new ImapSortRequest(
+                searchRequest,
+                [new ImapSortCriterion(ImapSortKey.Subject, Descending: false)]));
+
+        StringAssert.Contains(plan.CommandText, "INNER JOIN hm_message_search_documents AS sd");
+        StringAssert.Contains(plan.CommandText, "CONTAINS(sd.search_header, @SubjectText0)");
+        Assert.AreEqual("\"quarterly\"", plan.Parameters["@SubjectText0"]);
+    }
+
+    [TestMethod]
     public void Plan_AppliesSentDateFiltersBeforeSortOrder()
     {
         var searchRequest = new ImapSearchRequest(

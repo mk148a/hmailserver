@@ -55,6 +55,41 @@ public sealed class ImapSearchExecutorTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_SubjectReturnsPositiveSubstringMatch()
+    {
+        var response = await ExecuteSubjectSearchAsync("report", "Quarterly report ready");
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SubjectRejectsNonMatch()
+    {
+        var response = await ExecuteSubjectSearchAsync("invoice", "Quarterly report ready");
+
+        Assert.AreEqual("* SEARCH\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SubjectMatchesCaseInsensitiveSubstring()
+    {
+        var response = await ExecuteSubjectSearchAsync("REPORT", "Quarterly report ready");
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SubjectRejectsNeedleOnlyInOtherHeader()
+    {
+        var response = await ExecuteSubjectSearchAsync(
+            "needle",
+            subject: "Quarterly report ready",
+            headerText: "X-Tracking: needle");
+
+        Assert.AreEqual("* SEARCH\r\n", response);
+    }
+
+    [TestMethod]
     public void Format_ReturnsEmptySearchWhenNoIdentifiersMatch()
     {
         Assert.AreEqual("* SEARCH\r\n", ImapSearchResultFormatter.Format(Array.Empty<long>()));
@@ -76,6 +111,35 @@ public sealed class ImapSearchExecutorTests
             BodyText: null,
             AnyText: "invoice",
             ReturnUid: returnUid);
+
+    private static async Task<string> ExecuteSubjectSearchAsync(
+        string term,
+        string subject,
+        string? headerText = null)
+    {
+        var identity = new MessageIdentity(1, 10, 20, 101);
+        var request = CreateRequest(returnUid: true) with
+        {
+            AnyText = null,
+            SubjectTerms = [term]
+        };
+        var document = new MessageSearchDocument(
+            identity,
+            DateTimeOffset.UtcNow,
+            SizeBytes: 100,
+            Flags: 0,
+            HeaderText: headerText ?? $"Subject: {subject}",
+            BodyText: string.Empty,
+            CombinedText: headerText ?? $"Subject: {subject}")
+        {
+            SubjectText = subject
+        };
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([identity]),
+            documentSource: new FakeDocumentSource(document));
+
+        return await executor.ExecuteAsync(request, CancellationToken.None);
+    }
 
     private sealed class FakeMessageSearchIndex : IMessageSearchIndex
     {
@@ -117,5 +181,23 @@ public sealed class ImapSearchExecutorTests
                     [1] = 7,
                     [2] = 9
                 });
+    }
+
+    private sealed class FakeDocumentSource : IMessageSearchDocumentSource
+    {
+        private readonly MessageSearchDocument _document;
+
+        public FakeDocumentSource(MessageSearchDocument document)
+        {
+            _document = document;
+        }
+
+        public ValueTask<MessageSearchDocument?> TryLoadAsync(
+            MessageIdentity identity,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<MessageSearchDocument?>(_document);
+        }
     }
 }

@@ -22,6 +22,8 @@ public sealed record ImapSearchRequest(
 
     public IReadOnlyList<string> HeaderTerms { get; init; } = Array.Empty<string>();
 
+    public IReadOnlyList<string> SubjectTerms { get; init; } = Array.Empty<string>();
+
     public IReadOnlyList<string> BodyTerms { get; init; } = Array.Empty<string>();
 
     public IReadOnlyList<string> AnyTerms { get; init; } = Array.Empty<string>();
@@ -33,6 +35,8 @@ public sealed record ImapSearchRequest(
     public DateOnly? SentBefore { get; init; }
 
     public IReadOnlyList<string> GetHeaderTerms() => NormalizeTextTerms(HeaderText, HeaderTerms);
+
+    public IReadOnlyList<string> GetSubjectTerms() => NormalizeTextTerms(null, SubjectTerms);
 
     public IReadOnlyList<string> GetBodyTerms() => NormalizeTextTerms(BodyText, BodyTerms);
 

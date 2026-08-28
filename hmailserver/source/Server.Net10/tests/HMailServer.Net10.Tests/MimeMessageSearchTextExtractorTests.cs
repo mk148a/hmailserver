@@ -8,6 +8,20 @@ namespace HMailServer.Net10.Tests;
 public sealed class MimeMessageSearchTextExtractorTests
 {
     [TestMethod]
+    public void Extract_ReturnsMimeDecodedSubject()
+    {
+        using var stream = new MemoryStream(
+            "Subject: =?utf-8?B?UXVhcnRlcmx5IHLDqXN1bcOp?=\r\n\r\nBody"u8.ToArray());
+        var message = MimeMessage.Load(stream);
+
+        var text = MimeMessageSearchTextExtractor.Extract(
+            message,
+            new MessageFileSearchDocumentSourceOptions(Path.GetTempPath()));
+
+        Assert.AreEqual("Quarterly résumé", text.SubjectText);
+    }
+
+    [TestMethod]
     public void Extract_IncludesDecodedHeadersPlainTextAndHtmlText()
     {
         var message = new MimeMessage();

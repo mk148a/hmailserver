@@ -72,7 +72,10 @@ WHERE
             metadata.Flags,
             text.HeaderText,
             text.BodyText,
-            text.CombinedText);
+            text.CombinedText)
+        {
+            SubjectText = text.SubjectText
+        };
     }
 
     private async ValueTask<MessageMetadata?> LoadMetadataAsync(

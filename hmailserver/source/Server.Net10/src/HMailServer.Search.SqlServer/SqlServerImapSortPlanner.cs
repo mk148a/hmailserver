@@ -11,9 +11,10 @@ public sealed class SqlServerImapSortPlanner
 
         var searchRequest = request.SearchRequest;
         var headerTerms = searchRequest.GetHeaderTerms();
+        var subjectTerms = searchRequest.GetSubjectTerms();
         var bodyTerms = searchRequest.GetBodyTerms();
         var anyTerms = searchRequest.GetAnyTerms();
-        var needsFullText = headerTerms.Count > 0 || bodyTerms.Count > 0 || anyTerms.Count > 0;
+        var needsFullText = headerTerms.Count > 0 || subjectTerms.Count > 0 || bodyTerms.Count > 0 || anyTerms.Count > 0;
 
         var sql = new StringBuilder("""
 SELECT
@@ -96,6 +97,7 @@ WHERE
         }
 
         AddFullTextPredicates(sql, parameters, "sd.search_header", "@HeaderText", headerTerms);
+        AddFullTextPredicates(sql, parameters, "sd.search_header", "@SubjectText", subjectTerms);
         AddFullTextPredicates(sql, parameters, "sd.search_body", "@BodyText", bodyTerms);
         AddFullTextPredicates(sql, parameters, "sd.search_combined", "@AnyText", anyTerms);
         AddOrderBy(sql, request.Criteria);

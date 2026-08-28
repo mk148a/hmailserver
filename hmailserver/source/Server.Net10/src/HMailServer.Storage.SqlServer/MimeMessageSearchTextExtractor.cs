@@ -7,7 +7,8 @@ namespace HMailServer.Storage.SqlServer;
 public sealed record MessageSearchText(
     string HeaderText,
     string BodyText,
-    string CombinedText);
+    string CombinedText,
+    string SubjectText);
 
 public static class MimeMessageSearchTextExtractor
 {
@@ -22,7 +23,11 @@ public static class MimeMessageSearchTextExtractor
         var bodyText = BuildBodyText(message, options.MaxBodyChars);
         var combinedText = Truncate(headerText + Environment.NewLine + bodyText, options.MaxCombinedChars);
 
-        return new MessageSearchText(headerText, bodyText, combinedText);
+        return new MessageSearchText(
+            headerText,
+            bodyText,
+            combinedText,
+            message.Subject ?? string.Empty);
     }
 
     private static string BuildBodyText(MimeMessage message, int maxBodyChars)

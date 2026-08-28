@@ -7,4 +7,7 @@ public sealed record MessageSearchDocument(
     byte Flags,
     string HeaderText,
     string BodyText,
-    string CombinedText);
+    string CombinedText)
+{
+    public string SubjectText { get; init; } = string.Empty;
+}
