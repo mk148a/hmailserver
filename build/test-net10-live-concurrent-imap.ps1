@@ -17,6 +17,7 @@ if (-not (Test-Path -LiteralPath $jsonPath -PathType Leaf)) {
 
 $report = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
 Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath (Join-Path $InputDirectory "live-concurrent-imap.csv") -MarkdownPath (Join-Path $InputDirectory "live-concurrent-imap.md")
+Assert-LiveBenchmarkRunStartArtifact -Report $report -CsvPath (Join-Path $InputDirectory "live-concurrent-imap.csv") -MarkdownPath (Join-Path $InputDirectory "live-concurrent-imap.md")
 if ($report.schema -ne "live-concurrent-imap-v1") {
     throw "Unexpected concurrent IMAP report schema: $($report.schema)"
 }

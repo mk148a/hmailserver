@@ -14,6 +14,7 @@ if ($reports.Count -ne 1) {
 
 $report = Get-Content -LiteralPath $reports[0].FullName -Raw | ConvertFrom-Json
 Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath (Join-Path $InputDirectory "net10-live-protocol.csv") -MarkdownPath (Join-Path $InputDirectory "net10-live-protocol.md")
+Assert-LiveBenchmarkRunStartArtifact -Report $report -CsvPath (Join-Path $InputDirectory "net10-live-protocol.csv") -MarkdownPath (Join-Path $InputDirectory "net10-live-protocol.md")
 if ($report.schema -ne "live-protocol-v1") {
     throw "Unexpected live protocol report schema: $($report.schema)"
 }

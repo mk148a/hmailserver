@@ -431,6 +431,7 @@ $before = $null
 $after = $null
 $preflight = $null
 $provenance = $null
+$runStartAttestation = $null
 
 $provenance = Get-LiveBenchmarkProvenance -FixtureManifest $FixtureManifest -RunId $RunId -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe -Ports ([ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 })
 
@@ -440,6 +441,9 @@ if ($Implementation -eq "cpp") {
 }
 
 if ($null -eq $preflight -or $preflight.passed) {
+    if ($provenance.manifestBound) {
+        $runStartAttestation = Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe
+    }
     $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
 }
 try {
@@ -533,6 +537,7 @@ $report = [pscustomobject]@{
     processAfter = if ($null -ne $after) { @{ privateBytes = $after.privateBytes; handles = $after.handles; threads = $after.threads } } else { $null }
     isolationPreflight = $preflight
     executableProvenance = $provenance.executableProvenance
+    runStartAttestation = $runStartAttestation
     samples = $samples
     comHostedService = if ($Implementation -eq "net10") { "not started; installed AppID preserved" } else { "legacy /Debug path; AppID hash checked separately" }
     productionSafety = if ($Implementation -eq "cpp") {
@@ -557,6 +562,9 @@ $csvSamples = $samples | ForEach-Object {
         database = $report.database
         dataRoot = $report.dataRoot
         executableSha256 = $report.executableProvenance.sha256
+        runStartAttestationStatus = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { "UNBOUND" }
+        runStartDataSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { $null }
+        runStartMessageSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { $null }
         scenario = $_.scenario
         iteration = $_.iteration
         ok = $_.ok
@@ -585,6 +593,9 @@ $markdown = @(
     "Fixture ID: $($report.fixtureId)",
     "Fixture manifest SHA-256: $($report.manifestSha256)",
     "Executable SHA-256: $($report.executableProvenance.sha256)",
+    "Run-start attestation: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { 'UNBOUND' })",
+    "Run-start Data SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { '' })",
+    "Run-start message SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { '' })",
     "",
     "| Scenario | Success | Errors | p50 ms | p95 ms | p99 ms |",
     "| --- | ---: | ---: | ---: | ---: | ---: |"

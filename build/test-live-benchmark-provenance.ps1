@@ -36,10 +36,16 @@ try {
     }
     $rootCreated = $true
     New-Item -ItemType Directory -Force -Path $cppData, $net10Data, (Split-Path -Parent $cppExe), (Split-Path -Parent $net10Exe) | Out-Null
+    for ($index = 1; $index -le 1000; $index++) {
+        $name = ('message-{0:D4}.eml' -f $index)
+        Set-Content -LiteralPath (Join-Path $cppData $name) -Value "message $index" -Encoding ASCII
+        Set-Content -LiteralPath (Join-Path $net10Data $name) -Value "message $index" -Encoding ASCII
+    }
     Set-Content -LiteralPath $cppExe -Value "cpp benchmark executable" -Encoding ASCII
     Set-Content -LiteralPath $net10Exe -Value "net10 benchmark executable" -Encoding ASCII
     $cppHash = (Get-FileHash -LiteralPath $cppExe -Algorithm SHA256).Hash
     $net10Hash = (Get-FileHash -LiteralPath $net10Exe -Algorithm SHA256).Hash
+    $dataFingerprint = Get-LiveBenchmarkDirectoryFingerprint $cppData
     $manifest = [pscustomobject]@{
         schema = "paired-benchmark-fixture-v2"
         status = "PASS"
@@ -55,7 +61,7 @@ try {
         cppExecutableSha256 = $cppHash
         net10Executable = $net10Exe
         net10ExecutableSha256 = $net10Hash
-        dataParity = [pscustomobject]@{ fileCount = 1000; exact = $true; sha256 = ("a" * 64) }
+        dataParity = [pscustomobject]@{ fileCount = 1000; bytes = $dataFingerprint.bytes; exact = $true; sha256 = $dataFingerprint.sha256 }
         messageParity = [pscustomobject]@{ rowCount = 1000; exact = $true; sha256 = ("b" * 64) }
     }
     $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
@@ -72,6 +78,25 @@ try {
             throw "valid $implementation provenance did not bind all required fields."
         }
         $script:passed++
+
+        $attestation = Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $manifestPath -Implementation $implementation -RepositoryRoot $PSScriptRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $executable -DatabaseVersionReader { param($ignored) if ($implementation -eq "cpp") { 5708 } else { 6000 } } -MessageFingerprintReader { param($ignored) [pscustomobject]@{ rowCount = 1000; sha256 = ("b" * 64) } }
+        if ($attestation.status -ne "PASS" -or $attestation.dataFileCount -ne 1000 -or $attestation.messageRowCount -ne 1000 -or $attestation.executableSha256 -ne $expectedHash) {
+            throw "valid $implementation run-start attestation did not bind live fixture state."
+        }
+        $script:passed++
+    }
+
+    Set-Content -LiteralPath (Join-Path $net10Data 'message-0001.eml') -Value 'tampered' -Encoding ASCII
+    Assert-Throws "run-start Data drift" {
+        Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $manifestPath -Implementation net10 -RepositoryRoot $PSScriptRoot -Database $manifest.net10Database -DataRoot $net10Data -ServiceExecutable $net10Exe -DatabaseVersionReader { 6000 } -MessageFingerprintReader { [pscustomobject]@{ rowCount = 1000; sha256 = ("b" * 64) } }
+    }
+    Set-Content -LiteralPath (Join-Path $net10Data 'message-0001.eml') -Value 'message 1' -Encoding ASCII
+
+    Assert-Throws "run-start SQL version drift" {
+        Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $manifestPath -Implementation net10 -RepositoryRoot $PSScriptRoot -Database $manifest.net10Database -DataRoot $net10Data -ServiceExecutable $net10Exe -DatabaseVersionReader { 5999 } -MessageFingerprintReader { [pscustomobject]@{ rowCount = 1000; sha256 = ("b" * 64) } }
+    }
+    Assert-Throws "run-start SQL message drift" {
+        Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $manifestPath -Implementation net10 -RepositoryRoot $PSScriptRoot -Database $manifest.net10Database -DataRoot $net10Data -ServiceExecutable $net10Exe -DatabaseVersionReader { 6000 } -MessageFingerprintReader { [pscustomobject]@{ rowCount = 999; sha256 = ("c" * 64) } }
     }
 
     $unbound = Get-LiveBenchmarkProvenance -Implementation net10 -RepositoryRoot $PSScriptRoot -Database $manifest.net10Database -DataRoot $net10Data -ServiceExecutable $net10Exe -Ports $ports

@@ -113,6 +113,92 @@ function Get-LiveBenchmarkManifestHash {
     return (Get-FileHash -LiteralPath $ManifestPath -Algorithm SHA256 -ErrorAction Stop).Hash.ToUpperInvariant()
 }
 
+function Test-LiveBenchmarkTreeContainsReparsePoint {
+    param([Parameter(Mandatory = $true)][string]$Root)
+
+    foreach ($item in Get-ChildItem -LiteralPath $Root -Force -Recurse -ErrorAction Stop) {
+        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Get-LiveBenchmarkDirectoryFingerprint {
+    param([Parameter(Mandatory = $true)][string]$Root)
+
+    $fullRoot = Assert-LiveBenchmarkDisposablePath -Path $Root -Kind data
+    if (-not (Test-Path -LiteralPath $fullRoot -PathType Container)) {
+        throw "Live benchmark Data root is missing: $fullRoot"
+    }
+    if (Test-LiveBenchmarkTreeContainsReparsePoint $fullRoot) {
+        throw "Live benchmark Data root contains a reparse point: $fullRoot"
+    }
+
+    $trimmedRoot = $fullRoot.TrimEnd('\')
+    $files = @(Get-ChildItem -LiteralPath $trimmedRoot -File -Recurse -Force -ErrorAction Stop |
+        Sort-Object FullName)
+    $rows = foreach ($file in $files) {
+        $relative = $file.FullName.Substring($trimmedRoot.Length).TrimStart('\').Replace('/', '\')
+        "$relative|$($file.Length)|$((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256 -ErrorAction Stop).Hash)"
+    }
+    $payload = [Text.Encoding]::UTF8.GetBytes(($rows -join "`n"))
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = ([BitConverter]::ToString($sha.ComputeHash($payload))).Replace('-', '')
+    }
+    finally {
+        $sha.Dispose()
+    }
+
+    [pscustomobject]@{
+        fileCount = $files.Count
+        bytes = [long](($files | Measure-Object Length -Sum).Sum)
+        sha256 = $digest
+    }
+}
+
+function Get-LiveBenchmarkDatabaseVersion {
+    param([Parameter(Mandatory = $true)][string]$Database)
+
+    $database = Assert-LiveBenchmarkDatabase $Database
+    $value = (& sqlcmd.exe -S localhost -E -b -d $database -h-1 -W -Q 'SET NOCOUNT ON; SELECT value FROM hm_dbversion;').Trim()
+    if ($LASTEXITCODE -ne 0 -or $value -notmatch '^\d+$') {
+        throw "Could not read hm_dbversion from $database."
+    }
+    return [int]$value
+}
+
+function Get-LiveBenchmarkMessageFingerprint {
+    param([Parameter(Mandatory = $true)][string]$Database)
+
+    $database = Assert-LiveBenchmarkDatabase $Database
+    $query = @"
+SET NOCOUNT ON;
+DECLARE @payload nvarchar(max);
+SELECT @payload = STRING_AGG(CAST(CONCAT(
+    messageid, N'|', messageaccountid, N'|', messagefolderid, N'|',
+    CASE WHEN CHARINDEX(N'\Data\', messagefilename) > 0
+         THEN SUBSTRING(messagefilename, CHARINDEX(N'\Data\', messagefilename) + 6, 4000)
+         ELSE messagefilename END, N'|',
+    messagetype, N'|', COALESCE(messagefrom, N''), N'|', messagesize, N'|',
+    messagecurnooftries, N'|', CONVERT(nvarchar(33), messagenexttrytime, 126), N'|',
+    messageflags, N'|', CONVERT(nvarchar(33), messagecreatetime, 126), N'|',
+    messagelocked, N'|', messageuid, N'|', COALESCE(messageruleforcedrouteid, -1), N'|',
+    COALESCE(messagerulebindaddress, N'')) AS nvarchar(max)), NCHAR(10))
+    WITHIN GROUP (ORDER BY messageid)
+FROM hm_messages;
+SELECT CONCAT(COUNT_BIG(*), N'|', CONVERT(varchar(64), HASHBYTES('SHA2_256', COALESCE(@payload, N'')), 2))
+FROM hm_messages;
+"@
+    $value = (& sqlcmd.exe -S localhost -E -b -d $database -h-1 -W -Q $query).Trim()
+    if ($LASTEXITCODE -ne 0 -or $value -notmatch '^\d+\|[0-9A-F]{64}$') {
+        throw "Could not calculate the logical message fingerprint for $database."
+    }
+    $parts = $value.Split('|')
+    [pscustomobject]@{ rowCount = [long]$parts[0]; sha256 = $parts[1] }
+}
+
 function Read-LiveBenchmarkFixtureManifest {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
@@ -163,6 +249,10 @@ function Read-LiveBenchmarkFixtureManifest {
 
     $cppDatabase = Assert-LiveBenchmarkDatabase (Get-LiveBenchmarkManifestProperty $manifest "cppDatabase")
     $net10Database = Assert-LiveBenchmarkDatabase (Get-LiveBenchmarkManifestProperty $manifest "net10Database")
+    if ($cppDatabase -notmatch '^hmail_perf_pair_cpp_[a-z0-9_]+$' -or
+        $net10Database -notmatch '^hmail_perf_pair_net10_[a-z0-9_]+$') {
+        throw "Fixture manifest databases must use implementation-specific paired disposable names."
+    }
     $cppDataRoot = Assert-LiveBenchmarkDisposablePath -Path (Get-LiveBenchmarkManifestProperty $manifest "cppDataRoot") -Kind data
     $net10DataRoot = Assert-LiveBenchmarkDisposablePath -Path (Get-LiveBenchmarkManifestProperty $manifest "net10DataRoot") -Kind data
     if (-not [string]::Equals($cppDataRoot, (Join-Path $outputRoot "cpp\Data"), [StringComparison]::OrdinalIgnoreCase) -or
@@ -175,7 +265,7 @@ function Read-LiveBenchmarkFixtureManifest {
         }
     }
 
-    if ($null -eq $manifest.dataParity -or [int]$manifest.dataParity.fileCount -ne 1000 -or $manifest.dataParity.exact -ne $true -or $manifest.dataParity.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
+    if ($null -eq $manifest.dataParity -or [int]$manifest.dataParity.fileCount -ne 1000 -or [long]$manifest.dataParity.bytes -le 0 -or $manifest.dataParity.exact -ne $true -or $manifest.dataParity.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
         throw "Fixture manifest does not prove the exact 1,000-file Data corpus."
     }
     if ($null -eq $manifest.messageParity -or [int]$manifest.messageParity.rowCount -ne 1000 -or $manifest.messageParity.exact -ne $true -or $manifest.messageParity.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
@@ -227,10 +317,88 @@ function Read-LiveBenchmarkFixtureManifest {
         dataRoot = if ($Implementation -eq "cpp") { $cppDataRoot } else { $net10DataRoot }
         executable = if ($Implementation -eq "cpp") { $cppExecutable } else { $net10Executable }
         expectedExecutableSha256 = if ($Implementation -eq "cpp") { $cppExpectedHash.ToUpperInvariant() } else { $net10ExpectedHash.ToUpperInvariant() }
+        expectedDatabaseVersion = if ($Implementation -eq "cpp") { [int]$manifest.cppDatabaseVersion } else { [int]$manifest.net10DatabaseVersion }
+        expectedDataFingerprint = [pscustomobject]@{
+            fileCount = [int]$manifest.dataParity.fileCount
+            bytes = [long]$manifest.dataParity.bytes
+            sha256 = ([string]$manifest.dataParity.sha256).ToUpperInvariant()
+        }
+        expectedMessageFingerprint = [pscustomobject]@{
+            rowCount = [long]$manifest.messageParity.rowCount
+            sha256 = ([string]$manifest.messageParity.sha256).ToUpperInvariant()
+        }
         cppExecutable = $cppExecutable
         cppExecutableSha256 = $cppExpectedHash.ToUpperInvariant()
         net10Executable = $net10Executable
         net10ExecutableSha256 = $net10ExpectedHash.ToUpperInvariant()
+    }
+}
+
+function Assert-LiveBenchmarkRunStartAttestation {
+    param(
+        [Parameter(Mandatory = $true)][string]$FixtureManifest,
+        [Parameter(Mandatory = $true)][ValidateSet("net10", "cpp")][string]$Implementation,
+        [Parameter(Mandatory = $true)][string]$RepositoryRoot,
+        [Parameter(Mandatory = $true)][string]$Database,
+        [Parameter(Mandatory = $true)][string]$DataRoot,
+        [Parameter(Mandatory = $true)][string]$ServiceExecutable,
+        [scriptblock]$DatabaseVersionReader,
+        [scriptblock]$MessageFingerprintReader
+    )
+
+    $manifest = Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation $Implementation -RepositoryRoot $RepositoryRoot
+    if (-not [string]::Equals($manifest.database, $Database, [StringComparison]::Ordinal) -or
+        -not [string]::Equals($manifest.dataRoot, (Get-LiveBenchmarkFullPath $DataRoot), [StringComparison]::OrdinalIgnoreCase) -or
+        -not [string]::Equals($manifest.executable, (Get-LiveBenchmarkFullPath $ServiceExecutable), [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Run-start attestation inputs do not match the fixture manifest."
+    }
+
+    $dataFingerprint = Get-LiveBenchmarkDirectoryFingerprint $manifest.dataRoot
+    if ($dataFingerprint.fileCount -ne $manifest.expectedDataFingerprint.fileCount -or
+        $dataFingerprint.bytes -ne $manifest.expectedDataFingerprint.bytes -or
+        $dataFingerprint.sha256 -ne $manifest.expectedDataFingerprint.sha256) {
+        throw "Run-start Data fingerprint does not match the fixture manifest."
+    }
+
+    $databaseVersion = if ($null -ne $DatabaseVersionReader) {
+        & $DatabaseVersionReader $manifest.database
+    }
+    else {
+        Get-LiveBenchmarkDatabaseVersion $manifest.database
+    }
+    if ([int]$databaseVersion -ne $manifest.expectedDatabaseVersion) {
+        throw "Run-start database version does not match the fixture manifest."
+    }
+
+    $messageFingerprint = if ($null -ne $MessageFingerprintReader) {
+        & $MessageFingerprintReader $manifest.database
+    }
+    else {
+        Get-LiveBenchmarkMessageFingerprint $manifest.database
+    }
+    if ([long]$messageFingerprint.rowCount -ne $manifest.expectedMessageFingerprint.rowCount -or
+        ([string]$messageFingerprint.sha256).ToUpperInvariant() -ne $manifest.expectedMessageFingerprint.sha256) {
+        throw "Run-start message fingerprint does not match the fixture manifest."
+    }
+
+    $executableSha256 = Get-LiveBenchmarkManifestHash $manifest.executable
+    if ($executableSha256 -ne $manifest.expectedExecutableSha256) {
+        throw "Run-start executable hash does not match the fixture manifest."
+    }
+
+    [pscustomobject]@{
+        status = "PASS"
+        observedUtc = [DateTimeOffset]::UtcNow.ToString("o")
+        manifestSha256 = $manifest.sha256
+        database = $manifest.database
+        databaseVersion = [int]$databaseVersion
+        messageRowCount = [long]$messageFingerprint.rowCount
+        messageSha256 = ([string]$messageFingerprint.sha256).ToUpperInvariant()
+        dataFileCount = [int]$dataFingerprint.fileCount
+        dataBytes = [long]$dataFingerprint.bytes
+        dataSha256 = $dataFingerprint.sha256
+        executableSha256 = $executableSha256
+        descendantReparsePoints = $false
     }
 }
 
@@ -392,6 +560,46 @@ function Assert-LiveBenchmarkManifestBoundArtifact {
     )) {
         if ($markdown.IndexOf($line, [StringComparison]::Ordinal) -lt 0) {
             throw "Live benchmark Markdown provenance is missing: $line"
+        }
+    }
+}
+
+function Assert-LiveBenchmarkRunStartArtifact {
+    param(
+        [Parameter(Mandatory = $true)][object]$Report,
+        [Parameter(Mandatory = $true)][string]$CsvPath,
+        [Parameter(Mandatory = $true)][string]$MarkdownPath
+    )
+
+    $attestation = $Report.runStartAttestation
+    if ($null -eq $attestation -or $attestation.status -cne "PASS" -or
+        $attestation.manifestSha256 -cne $Report.manifestSha256 -or
+        $attestation.database -cne $Report.database -or
+        [int]$attestation.dataFileCount -ne 1000 -or
+        [long]$attestation.messageRowCount -ne 1000 -or
+        $attestation.dataSha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
+        $attestation.messageSha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
+        $attestation.executableSha256 -cne $Report.executableProvenance.sha256 -or
+        $attestation.descendantReparsePoints -ne $false) {
+        throw "Live benchmark artifact does not contain a passing run-start attestation."
+    }
+
+    $csvRows = @(Import-Csv -LiteralPath $CsvPath)
+    if ($csvRows.Count -eq 0 -or @($csvRows | Where-Object {
+            $_.runStartAttestationStatus -cne "PASS" -or
+            $_.runStartDataSha256 -cne $attestation.dataSha256 -or
+            $_.runStartMessageSha256 -cne $attestation.messageSha256
+        }).Count -ne 0) {
+        throw "Live benchmark CSV does not agree with the run-start attestation."
+    }
+
+    $markdown = Get-Content -LiteralPath $MarkdownPath -Raw
+    foreach ($line in @(
+            "Run-start attestation: PASS",
+            "Run-start Data SHA-256: $($attestation.dataSha256)",
+            "Run-start message SHA-256: $($attestation.messageSha256)")) {
+        if ($markdown.IndexOf($line, [StringComparison]::Ordinal) -lt 0) {
+            throw "Live benchmark Markdown does not agree with the run-start attestation."
         }
     }
 }

@@ -13,6 +13,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
+. (Join-Path $PSScriptRoot 'live-benchmark-provenance.ps1')
 $expectedUpgradeScriptPath = [IO.Path]::GetFullPath((Join-Path $repoRoot 'hmailserver\source\DBScripts\Upgrade5708to6000MSSQL.sql'))
 $expectedUpgradeScriptSha256 = '7B0C7A56545912C8A1A85E361D52D52E5B56BDEC6B19E9BA95901CFA106E2FB2'
 $expectedNet10BinPath = [IO.Path]::GetFullPath((Join-Path $repoRoot 'hmailserver\source\Server.Net10\src\HMailServer.Service\bin\Release\net10.0-windows'))
@@ -342,13 +343,13 @@ DataFolder=$(Join-Path $net10Root 'Data')
 "@
     Set-Content -LiteralPath (Join-Path $net10Root 'hmailServer.ini') -Value $net10Ini -Encoding ASCII
 
-    $cppDataManifest = Get-DirectoryManifest (Join-Path $cppRoot 'Data')
-    $net10DataManifest = Get-DirectoryManifest (Join-Path $net10Root 'Data')
+    $cppDataManifest = Get-LiveBenchmarkDirectoryFingerprint (Join-Path $cppRoot 'Data')
+    $net10DataManifest = Get-LiveBenchmarkDirectoryFingerprint (Join-Path $net10Root 'Data')
     if ($cppDataManifest.sha256 -ne $net10DataManifest.sha256 -or $cppDataManifest.fileCount -ne $net10DataManifest.fileCount) {
         throw "Paired Data copies are not byte-for-byte equivalent."
     }
-    $cppMessageFingerprint = Get-MessageFingerprint $cppDatabase
-    $net10MessageFingerprint = Get-MessageFingerprint $net10Database
+    $cppMessageFingerprint = Get-LiveBenchmarkMessageFingerprint $cppDatabase
+    $net10MessageFingerprint = Get-LiveBenchmarkMessageFingerprint $net10Database
     if ($cppMessageFingerprint.sha256 -ne $net10MessageFingerprint.sha256 -or $cppMessageFingerprint.rowCount -ne $net10MessageFingerprint.rowCount) {
         throw "Paired SQL message projections differ after the Net10 schema migration."
     }
