@@ -74,7 +74,10 @@ WHERE
             text.BodyText,
             text.CombinedText)
         {
-            SubjectText = text.SubjectText
+            SubjectText = text.SubjectText,
+            FileSearchHeaderText = text.FileSearchHeaderText,
+            FileSearchPlainBodyText = text.FileSearchPlainBodyText,
+            FileSearchHtmlBodyText = text.FileSearchHtmlBodyText
         };
     }
 

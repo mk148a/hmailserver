@@ -8,15 +8,18 @@ public sealed class ImapSearchExecutor
     private readonly IMessageSearchIndex _searchIndex;
     private readonly IImapSequenceNumberResolver? _sequenceNumberResolver;
     private readonly IMessageSearchDocumentSource? _documentSource;
+    private readonly IMessageIndexingAdministrationStore? _indexingAdministrationStore;
 
     public ImapSearchExecutor(
         IMessageSearchIndex searchIndex,
         IImapSequenceNumberResolver? sequenceNumberResolver = null,
-        IMessageSearchDocumentSource? documentSource = null)
+        IMessageSearchDocumentSource? documentSource = null,
+        IMessageIndexingAdministrationStore? indexingAdministrationStore = null)
     {
         _searchIndex = searchIndex;
         _sequenceNumberResolver = sequenceNumberResolver;
         _documentSource = documentSource;
+        _indexingAdministrationStore = indexingAdministrationStore;
     }
 
     public async ValueTask<string> ExecuteAsync(
@@ -78,14 +81,25 @@ public sealed class ImapSearchExecutor
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var subjectTerms = request.GetSubjectTerms();
-        if (subjectTerms.Count > 0 && _documentSource is null)
+        var anyTerms = request.GetAnyTerms();
+        var useFileTextFallback = anyTerms.Count > 0
+            && _indexingAdministrationStore is not null
+            && !await _indexingAdministrationStore
+                .IsEnabledAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+        if ((subjectTerms.Count > 0 || useFileTextFallback) && _documentSource is null)
         {
-            throw new InvalidOperationException("IMAP SEARCH SUBJECT requires a message file document source.");
+            throw new InvalidOperationException("File-backed IMAP SEARCH requires a message file document source.");
         }
 
-        await foreach (var identity in _searchIndex.SearchAsync(request, cancellationToken).ConfigureAwait(false))
+        var candidateRequest = useFileTextFallback
+            ? request with { AnyText = null, AnyTerms = Array.Empty<string>() }
+            : request;
+
+        await foreach (var identity in _searchIndex.SearchAsync(candidateRequest, cancellationToken).ConfigureAwait(false))
         {
-            if (subjectTerms.Count == 0)
+            if (subjectTerms.Count == 0 && !useFileTextFallback)
             {
                 yield return identity;
                 continue;
@@ -96,11 +110,38 @@ public sealed class ImapSearchExecutor
                 .ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (document is not null && SubjectMatches(document.SubjectText, subjectTerms))
+            if (document is null)
             {
-                yield return identity;
+                continue;
+            }
+
+            if (subjectTerms.Count > 0 && !SubjectMatches(document.SubjectText, subjectTerms))
+            {
+                continue;
+            }
+
+            if (useFileTextFallback && !TextMatches(document, anyTerms))
+            {
+                continue;
+            }
+
+            yield return identity;
+        }
+    }
+
+    private static bool TextMatches(MessageSearchDocument document, IReadOnlyList<string> terms)
+    {
+        foreach (var term in terms)
+        {
+            if (!document.FileSearchHeaderText.Contains(term, StringComparison.OrdinalIgnoreCase)
+                && !document.FileSearchPlainBodyText.Contains(term, StringComparison.OrdinalIgnoreCase)
+                && !document.FileSearchHtmlBodyText.Contains(term, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
             }
         }
+
+        return true;
     }
 
     private static bool SubjectMatches(string subject, IReadOnlyList<string> terms)

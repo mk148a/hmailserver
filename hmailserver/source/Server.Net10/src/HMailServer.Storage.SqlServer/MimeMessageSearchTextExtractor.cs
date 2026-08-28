@@ -8,7 +8,14 @@ public sealed record MessageSearchText(
     string HeaderText,
     string BodyText,
     string CombinedText,
-    string SubjectText);
+    string SubjectText)
+{
+    public string FileSearchHeaderText { get; init; } = string.Empty;
+
+    public string FileSearchPlainBodyText { get; init; } = string.Empty;
+
+    public string FileSearchHtmlBodyText { get; init; } = string.Empty;
+}
 
 public static class MimeMessageSearchTextExtractor
 {
@@ -19,30 +26,38 @@ public static class MimeMessageSearchTextExtractor
         ArgumentNullException.ThrowIfNull(message);
         ArgumentNullException.ThrowIfNull(options);
 
-        var headerText = Truncate(BuildHeaderText(message), options.MaxHeaderChars);
-        var bodyText = BuildBodyText(message, options.MaxBodyChars);
+        var fileSearchHeaderText = BuildHeaderText(message);
+        var fileSearchPlainBodyText = message.TextBody ?? string.Empty;
+        var fileSearchHtmlBodyText = message.HtmlBody ?? string.Empty;
+        var headerText = Truncate(fileSearchHeaderText, options.MaxHeaderChars);
+        var bodyText = BuildBodyText(fileSearchPlainBodyText, fileSearchHtmlBodyText, options.MaxBodyChars);
         var combinedText = Truncate(headerText + Environment.NewLine + bodyText, options.MaxCombinedChars);
 
         return new MessageSearchText(
             headerText,
             bodyText,
             combinedText,
-            message.Subject ?? string.Empty);
+            message.Subject ?? string.Empty)
+        {
+            FileSearchHeaderText = fileSearchHeaderText,
+            FileSearchPlainBodyText = fileSearchPlainBodyText,
+            FileSearchHtmlBodyText = fileSearchHtmlBodyText
+        };
     }
 
-    private static string BuildBodyText(MimeMessage message, int maxBodyChars)
+    private static string BuildBodyText(string plainBodyText, string htmlBodyText, int maxBodyChars)
     {
         var builder = new StringBuilder(Math.Min(maxBodyChars, 32 * 1024));
-        AppendLimited(builder, message.TextBody, maxBodyChars);
+        AppendLimited(builder, plainBodyText, maxBodyChars);
 
-        if (!string.IsNullOrWhiteSpace(message.HtmlBody) && builder.Length < maxBodyChars)
+        if (!string.IsNullOrWhiteSpace(htmlBodyText) && builder.Length < maxBodyChars)
         {
             if (builder.Length > 0)
             {
                 builder.AppendLine();
             }
 
-            AppendLimited(builder, HtmlToText(message.HtmlBody), maxBodyChars);
+            AppendLimited(builder, HtmlToText(htmlBodyText), maxBodyChars);
         }
 
         return builder.ToString();

@@ -10,4 +10,10 @@ public sealed record MessageSearchDocument(
     string CombinedText)
 {
     public string SubjectText { get; init; } = string.Empty;
+
+    public string FileSearchHeaderText { get; init; } = string.Empty;
+
+    public string FileSearchPlainBodyText { get; init; } = string.Empty;
+
+    public string FileSearchHtmlBodyText { get; init; } = string.Empty;
 }

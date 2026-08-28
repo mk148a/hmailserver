@@ -90,6 +90,143 @@ public sealed class ImapSearchExecutorTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_RemovesAnyTermsFromCandidateRequest()
+    {
+        var identity = new MessageIdentity(1, 10, 20, 101);
+        var index = new FakeMessageSearchIndex([identity]);
+        var executor = new ImapSearchExecutor(
+            index,
+            documentSource: new FakeDocumentSource(CreateDocument(identity, plainBodyText: "invoice paid")),
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        var response = await executor.ExecuteAsync(
+            CreateRequest(returnUid: true) with { AnyTerms = ["paid"] },
+            CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+        Assert.IsNotNull(index.LastRequest);
+        Assert.IsNull(index.LastRequest.AnyText);
+        Assert.AreEqual(0, index.LastRequest.GetAnyTerms().Count);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_MatchesDecodedHeader()
+    {
+        var response = await ExecuteTextFallbackAsync(
+            "résumé",
+            CreateDocument(headerText: "X-Description: Quarterly résumé"));
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_MatchesPlainBody()
+    {
+        var response = await ExecuteTextFallbackAsync(
+            "invoice",
+            CreateDocument(plainBodyText: "The invoice is ready."));
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_MatchesRawHtmlBody()
+    {
+        var response = await ExecuteTextFallbackAsync(
+            "data-marker=\"needle\"",
+            CreateDocument(htmlBodyText: "<p data-marker=\"needle\">Report</p>"));
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_MatchesCaseInsensitiveMiddleSubstring()
+    {
+        var response = await ExecuteTextFallbackAsync(
+            "MIDDLE",
+            CreateDocument(plainBodyText: "prefix-middle-suffix"));
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_DoesNotMatchAcrossDomains()
+    {
+        var response = await ExecuteTextFallbackAsync(
+            "endstart",
+            CreateDocument(headerText: "X-Value: end", plainBodyText: "start of body"));
+
+        Assert.AreEqual("* SEARCH\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_MissingDocumentDoesNotStopLaterMatches()
+    {
+        var missingIdentity = new MessageIdentity(1, 10, 20, 101);
+        var matchingIdentity = new MessageIdentity(2, 10, 20, 105);
+        var documentSource = new FakeDocumentSource(
+            CreateDocument(matchingIdentity, plainBodyText: "invoice"));
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([missingIdentity, matchingIdentity]),
+            documentSource: documentSource,
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        var response = await executor.ExecuteAsync(CreateRequest(returnUid: true), CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 105\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_PreservesCandidateOrdering()
+    {
+        var firstIdentity = new MessageIdentity(1, 10, 20, 101);
+        var secondIdentity = new MessageIdentity(2, 10, 20, 105);
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([firstIdentity, secondIdentity]),
+            documentSource: new FakeDocumentSource(
+                CreateDocument(firstIdentity, plainBodyText: "invoice one"),
+                CreateDocument(secondIdentity, plainBodyText: "invoice two")),
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        var response = await executor.ExecuteAsync(CreateRequest(returnUid: true), CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101 105\r\n", response);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_ObservesCancellationAfterDocumentLoad()
+    {
+        var identity = new MessageIdentity(1, 10, 20, 101);
+        using var cancellation = new CancellationTokenSource();
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([identity]),
+            documentSource: new CancelingDocumentSource(
+                CreateDocument(identity, plainBodyText: "invoice"),
+                cancellation),
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => executor.ExecuteAsync(CreateRequest(returnUid: true), cancellation.Token).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingEnabled_RetainsAnyTermsInSearchRequest()
+    {
+        var identity = new MessageIdentity(1, 10, 20, 101);
+        var index = new FakeMessageSearchIndex([identity]);
+        var request = CreateRequest(returnUid: true) with { AnyTerms = ["paid"] };
+        var executor = new ImapSearchExecutor(
+            index,
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: true));
+
+        var response = await executor.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+        Assert.AreSame(request, index.LastRequest);
+        CollectionAssert.AreEqual(new[] { "invoice", "paid" }, index.LastRequest!.GetAnyTerms().ToArray());
+    }
+
+    [TestMethod]
     public void Format_ReturnsEmptySearchWhenNoIdentifiersMatch()
     {
         Assert.AreEqual("* SEARCH\r\n", ImapSearchResultFormatter.Format(Array.Empty<long>()));
@@ -141,9 +278,50 @@ public sealed class ImapSearchExecutorTests
         return await executor.ExecuteAsync(request, CancellationToken.None);
     }
 
+    private static async Task<string> ExecuteTextFallbackAsync(
+        string term,
+        MessageSearchDocument document)
+    {
+        var request = CreateRequest(returnUid: true) with
+        {
+            AnyText = null,
+            AnyTerms = [term]
+        };
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([document.Identity]),
+            documentSource: new FakeDocumentSource(document),
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        return await executor.ExecuteAsync(request, CancellationToken.None);
+    }
+
+    private static MessageSearchDocument CreateDocument(
+        MessageIdentity? identity = null,
+        string headerText = "",
+        string plainBodyText = "",
+        string htmlBodyText = "")
+    {
+        var documentIdentity = identity ?? new MessageIdentity(1, 10, 20, 101);
+        return new MessageSearchDocument(
+            documentIdentity,
+            DateTimeOffset.UtcNow,
+            SizeBytes: 100,
+            Flags: 0,
+            HeaderText: string.Empty,
+            BodyText: string.Empty,
+            CombinedText: string.Empty)
+        {
+            FileSearchHeaderText = headerText,
+            FileSearchPlainBodyText = plainBodyText,
+            FileSearchHtmlBodyText = htmlBodyText
+        };
+    }
+
     private sealed class FakeMessageSearchIndex : IMessageSearchIndex
     {
         private readonly IReadOnlyList<MessageIdentity> _identities;
+
+        public ImapSearchRequest? LastRequest { get; private set; }
 
         public FakeMessageSearchIndex(IReadOnlyList<MessageIdentity> identities)
         {
@@ -160,6 +338,7 @@ public sealed class ImapSearchExecutorTests
             ImapSearchRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
+            LastRequest = request;
             await Task.Yield();
             foreach (var identity in _identities)
             {
@@ -185,11 +364,11 @@ public sealed class ImapSearchExecutorTests
 
     private sealed class FakeDocumentSource : IMessageSearchDocumentSource
     {
-        private readonly MessageSearchDocument _document;
+        private readonly IReadOnlyDictionary<long, MessageSearchDocument> _documents;
 
-        public FakeDocumentSource(MessageSearchDocument document)
+        public FakeDocumentSource(params MessageSearchDocument[] documents)
         {
-            _document = document;
+            _documents = documents.ToDictionary(document => document.Identity.MessageId);
         }
 
         public ValueTask<MessageSearchDocument?> TryLoadAsync(
@@ -197,7 +376,61 @@ public sealed class ImapSearchExecutorTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            _documents.TryGetValue(identity.MessageId, out var document);
+            return ValueTask.FromResult(document);
+        }
+    }
+
+    private sealed class CancelingDocumentSource : IMessageSearchDocumentSource
+    {
+        private readonly MessageSearchDocument _document;
+        private readonly CancellationTokenSource _cancellation;
+
+        public CancelingDocumentSource(
+            MessageSearchDocument document,
+            CancellationTokenSource cancellation)
+        {
+            _document = document;
+            _cancellation = cancellation;
+        }
+
+        public ValueTask<MessageSearchDocument?> TryLoadAsync(
+            MessageIdentity identity,
+            CancellationToken cancellationToken)
+        {
+            _cancellation.Cancel();
             return ValueTask.FromResult<MessageSearchDocument?>(_document);
         }
+    }
+
+    private sealed class FakeAdministrationStore : IMessageIndexingAdministrationStore
+    {
+        private readonly bool _enabled;
+
+        public FakeAdministrationStore(bool enabled)
+        {
+            _enabled = enabled;
+        }
+
+        public ValueTask<bool> IsEnabledAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(_enabled);
+        }
+
+        public ValueTask<MessageIndexingAdministrationStatus> GetStatusAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask SetEnabledAsync(bool enabled, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask ClearAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask IndexAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask RebuildAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }
