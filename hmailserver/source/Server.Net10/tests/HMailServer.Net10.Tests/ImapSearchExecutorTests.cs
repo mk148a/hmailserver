@@ -110,6 +110,52 @@ public sealed class ImapSearchExecutorTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingPartiallyCovered_RemovesTextPredicatesAndFiltersFiles()
+    {
+        var firstIdentity = new MessageIdentity(1, 10, 20, 101);
+        var secondIdentity = new MessageIdentity(2, 10, 20, 102);
+        var index = new FakeMessageSearchIndex([firstIdentity, secondIdentity]);
+        var documentSource = new FakeBatchDocumentSource(
+            CreateDocument(firstIdentity, headerText: "X-Tracking: invoice", plainBodyText: "paid"),
+            CreateDocument(secondIdentity, headerText: "X-Tracking: invoice", plainBodyText: "pending"));
+        var request = CreateRequest(returnUid: true) with
+        {
+            MinUid = 100,
+            MaxUid = 200,
+            RequiredFlags = 1,
+            Since = new DateOnly(2026, 1, 1),
+            HeaderText = "tracking",
+            HeaderTerms = ["invoice"],
+            BodyText = "paid",
+            BodyTerms = ["paid"],
+            AnyText = "invoice",
+            AnyTerms = ["invoice"]
+        };
+        var executor = new ImapSearchExecutor(
+            index,
+            documentSource: documentSource,
+            indexingAdministrationStore: new FakeAdministrationStore(
+                enabled: true,
+                totalMessageCount: 2,
+                totalIndexedCount: 1));
+
+        var response = await executor.ExecuteAsync(request, CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+        Assert.IsNotNull(index.LastRequest);
+        Assert.IsNull(index.LastRequest.HeaderText);
+        Assert.IsNull(index.LastRequest.BodyText);
+        Assert.IsNull(index.LastRequest.AnyText);
+        Assert.AreEqual(0, index.LastRequest.GetHeaderTerms().Count);
+        Assert.AreEqual(0, index.LastRequest.GetBodyTerms().Count);
+        Assert.AreEqual(0, index.LastRequest.GetAnyTerms().Count);
+        Assert.AreEqual(100L, index.LastRequest.MinUid);
+        Assert.AreEqual(200L, index.LastRequest.MaxUid);
+        Assert.AreEqual((byte)1, index.LastRequest.RequiredFlags);
+        Assert.AreEqual(new DateOnly(2026, 1, 1), index.LastRequest.Since);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_TextWithIndexingDisabled_MatchesDecodedHeader()
     {
         var response = await ExecuteTextFallbackAsync(
@@ -620,10 +666,17 @@ public sealed class ImapSearchExecutorTests
     private sealed class FakeAdministrationStore : IMessageIndexingAdministrationStore
     {
         private readonly bool _enabled;
+        private readonly int _totalMessageCount;
+        private readonly int _totalIndexedCount;
 
-        public FakeAdministrationStore(bool enabled)
+        public FakeAdministrationStore(
+            bool enabled,
+            int totalMessageCount = 0,
+            int totalIndexedCount = 0)
         {
             _enabled = enabled;
+            _totalMessageCount = totalMessageCount;
+            _totalIndexedCount = totalIndexedCount;
         }
 
         public ValueTask<bool> IsEnabledAsync(CancellationToken cancellationToken)
@@ -632,8 +685,18 @@ public sealed class ImapSearchExecutorTests
             return ValueTask.FromResult(_enabled);
         }
 
-        public ValueTask<MessageIndexingAdministrationStatus> GetStatusAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        public ValueTask<MessageIndexingAdministrationStatus> GetStatusAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult(
+                new MessageIndexingAdministrationStatus(
+                    _totalMessageCount,
+                    _totalIndexedCount,
+                    _enabled,
+                    IsFullTextReady: true,
+                    QueuedMessageCount: 0,
+                    LastError: string.Empty));
+        }
 
         public ValueTask SetEnabledAsync(bool enabled, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

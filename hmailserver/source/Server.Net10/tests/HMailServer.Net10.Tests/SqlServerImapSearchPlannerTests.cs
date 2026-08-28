@@ -38,6 +38,44 @@ public sealed class SqlServerImapSearchPlannerTests
     }
 
     [TestMethod]
+    public void Plan_TextStrippedCandidateRetainsMailboxFiltersWithoutFullTextJoin()
+    {
+        var request = new ImapSearchRequest(
+            AccountId: 10,
+            FolderId: 20,
+            MinUid: 100,
+            MaxUid: 200,
+            RequiredFlags: 1,
+            ForbiddenFlags: 2,
+            Since: new DateOnly(2026, 1, 1),
+            Before: new DateOnly(2026, 2, 1),
+            LargerThanBytes: 1024,
+            SmallerThanBytes: 4096,
+            HeaderText: null,
+            BodyText: null,
+            AnyText: null,
+            ReturnUid: true)
+        {
+            HeaderTerms = [],
+            BodyTerms = [],
+            AnyTerms = []
+        };
+
+        var plan = new SqlServerImapSearchPlanner().Plan(request);
+
+        Assert.IsFalse(plan.CommandText.Contains("hm_message_search_documents", StringComparison.Ordinal));
+        Assert.IsFalse(plan.CommandText.Contains("CONTAINS(", StringComparison.Ordinal));
+        StringAssert.Contains(plan.CommandText, "m.messageuid >= @MinUid");
+        StringAssert.Contains(plan.CommandText, "m.messageuid <= @MaxUid");
+        StringAssert.Contains(plan.CommandText, "m.messagesize > @LargerThanBytes");
+        StringAssert.Contains(plan.CommandText, "m.messagesize < @SmallerThanBytes");
+        StringAssert.Contains(plan.CommandText, "(m.messageflags & @RequiredFlags) = @RequiredFlags");
+        StringAssert.Contains(plan.CommandText, "(m.messageflags & @ForbiddenFlags) = 0");
+        StringAssert.Contains(plan.CommandText, "m.messagecreatetime >= @Since");
+        StringAssert.Contains(plan.CommandText, "m.messagecreatetime < @Before");
+    }
+
+    [TestMethod]
     public void Plan_UsesSqlPredicatesAndFullTextSearch()
     {
         var request = new ImapSearchRequest(

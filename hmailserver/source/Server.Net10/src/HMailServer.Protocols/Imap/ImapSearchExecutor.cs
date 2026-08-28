@@ -83,12 +83,12 @@ public sealed class ImapSearchExecutor
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var subjectTerms = request.GetSubjectTerms();
+        var headerTerms = request.GetHeaderTerms();
+        var bodyTerms = request.GetBodyTerms();
         var anyTerms = request.GetAnyTerms();
-        var useFileTextFallback = anyTerms.Count > 0
-            && _indexingAdministrationStore is not null
-            && !await _indexingAdministrationStore
-                .IsEnabledAsync(cancellationToken)
-                .ConfigureAwait(false);
+        var useFileTextFallback = await ShouldUseFileTextFallbackAsync(
+            headerTerms.Count + bodyTerms.Count + anyTerms.Count,
+            cancellationToken).ConfigureAwait(false);
 
         if ((subjectTerms.Count > 0 || useFileTextFallback) && _documentSource is null)
         {
@@ -96,7 +96,15 @@ public sealed class ImapSearchExecutor
         }
 
         var candidateRequest = useFileTextFallback
-            ? request with { AnyText = null, AnyTerms = Array.Empty<string>() }
+            ? request with
+            {
+                HeaderText = null,
+                HeaderTerms = Array.Empty<string>(),
+                BodyText = null,
+                BodyTerms = Array.Empty<string>(),
+                AnyText = null,
+                AnyTerms = Array.Empty<string>()
+            }
             : request;
 
         if (subjectTerms.Count == 0 && !useFileTextFallback)
@@ -121,6 +129,8 @@ public sealed class ImapSearchExecutor
             await foreach (var match in FilterFileMatchesAsync(
                 batch,
                 subjectTerms,
+                headerTerms,
+                bodyTerms,
                 anyTerms,
                 useFileTextFallback,
                 cancellationToken).ConfigureAwait(false))
@@ -136,6 +146,8 @@ public sealed class ImapSearchExecutor
             await foreach (var match in FilterFileMatchesAsync(
                 batch,
                 subjectTerms,
+                headerTerms,
+                bodyTerms,
                 anyTerms,
                 useFileTextFallback,
                 cancellationToken).ConfigureAwait(false))
@@ -148,6 +160,8 @@ public sealed class ImapSearchExecutor
     private async IAsyncEnumerable<MessageIdentity> FilterFileMatchesAsync(
         IReadOnlyList<MessageIdentity> identities,
         IReadOnlyList<string> subjectTerms,
+        IReadOnlyList<string> headerTerms,
+        IReadOnlyList<string> bodyTerms,
         IReadOnlyList<string> anyTerms,
         bool useFileTextFallback,
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -167,7 +181,13 @@ public sealed class ImapSearchExecutor
                 }
 
                 var identity = identities[resultCount++];
-                if (DocumentMatches(document, subjectTerms, anyTerms, useFileTextFallback))
+                if (DocumentMatches(
+                    document,
+                    subjectTerms,
+                    headerTerms,
+                    bodyTerms,
+                    anyTerms,
+                    useFileTextFallback))
                 {
                     yield return identity;
                 }
@@ -189,7 +209,13 @@ public sealed class ImapSearchExecutor
                 .ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (DocumentMatches(document, subjectTerms, anyTerms, useFileTextFallback))
+            if (DocumentMatches(
+                document,
+                subjectTerms,
+                headerTerms,
+                bodyTerms,
+                anyTerms,
+                useFileTextFallback))
             {
                 yield return identity;
             }
@@ -199,6 +225,8 @@ public sealed class ImapSearchExecutor
     private static bool DocumentMatches(
         MessageSearchDocument? document,
         IReadOnlyList<string> subjectTerms,
+        IReadOnlyList<string> headerTerms,
+        IReadOnlyList<string> bodyTerms,
         IReadOnlyList<string> anyTerms,
         bool useFileTextFallback)
     {
@@ -212,7 +240,10 @@ public sealed class ImapSearchExecutor
             return false;
         }
 
-        if (useFileTextFallback && !TextMatches(document, anyTerms))
+        if (useFileTextFallback
+            && (!HeaderMatches(document.FileSearchHeaderText, headerTerms)
+                || !BodyMatches(document, bodyTerms)
+                || !TextMatches(document, anyTerms)))
         {
             return false;
         }
@@ -238,6 +269,33 @@ public sealed class ImapSearchExecutor
         return true;
     }
 
+    private static bool HeaderMatches(string headerText, IReadOnlyList<string> terms)
+    {
+        foreach (var term in terms)
+        {
+            if (!headerText.Contains(term, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool BodyMatches(MessageSearchDocument document, IReadOnlyList<string> terms)
+    {
+        foreach (var term in terms)
+        {
+            if (!document.FileSearchPlainBodyText.Contains(term, StringComparison.OrdinalIgnoreCase)
+                && !document.FileSearchHtmlBodyText.Contains(term, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private static bool SubjectMatches(string subject, IReadOnlyList<string> terms)
     {
         foreach (var term in terms)
@@ -249,5 +307,27 @@ public sealed class ImapSearchExecutor
         }
 
         return true;
+    }
+
+    private async ValueTask<bool> ShouldUseFileTextFallbackAsync(
+        int textTermCount,
+        CancellationToken cancellationToken)
+    {
+        if (textTermCount == 0 || _indexingAdministrationStore is null)
+        {
+            return false;
+        }
+
+        if (!await _indexingAdministrationStore
+            .IsEnabledAsync(cancellationToken)
+            .ConfigureAwait(false))
+        {
+            return true;
+        }
+
+        var status = await _indexingAdministrationStore
+            .GetStatusAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return status.TotalIndexedCount < status.TotalMessageCount;
     }
 }

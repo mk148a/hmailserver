@@ -1,6 +1,8 @@
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
 using HMailServer.Delivery;
+using HMailServer.Protocols.Imap;
+using HMailServer.Search.SqlServer;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
 using Microsoft.Data.SqlClient;
@@ -84,6 +86,88 @@ public sealed class SqlServerMessageIndexingIntegrationTests
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
             Directory.Delete(dataDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task ImapSearch_WithEnabledPartialIndexing_FallsBackToBothMessageFiles()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-partial-search-{Guid.NewGuid():N}");
+        var firstPath = Path.Combine(dataDirectory, "first.eml");
+        var secondPath = Path.Combine(dataDirectory, "second.eml");
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        Directory.CreateDirectory(dataDirectory);
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                firstPath,
+                "Subject: First\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nshared invoice").ConfigureAwait(false);
+            await File.WriteAllTextAsync(
+                secondPath,
+                "Subject: Second\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nshared invoice").ConfigureAwait(false);
+            await CreatePartialSearchSchemaAndSeedAsync(
+                testConnectionString,
+                firstPath,
+                secondPath).ConfigureAwait(false);
+
+            var connectionFactory = new SqlServerConnectionFactory(testConnectionString);
+            var indexingStore = new SqlServerMessageIndexingAdministrationStore(connectionFactory);
+            var status = await indexingStore.GetStatusAsync(CancellationToken.None).ConfigureAwait(false);
+            Assert.IsTrue(status.Enabled);
+            Assert.AreEqual(2, status.TotalMessageCount);
+            Assert.AreEqual(1, status.TotalIndexedCount);
+
+            var options = new MessageFileSearchDocumentSourceOptions(dataDirectory);
+            var executor = new ImapSearchExecutor(
+                new SqlServerMessageSearchIndex(
+                    connectionFactory,
+                    new SqlServerImapSearchPlanner()),
+                documentSource: new MessageFileSearchDocumentSource(
+                    connectionFactory,
+                    new MessageFilePathResolver(options),
+                    options),
+                indexingAdministrationStore: indexingStore);
+            var response = await executor.ExecuteAsync(
+                new ImapSearchRequest(
+                    AccountId: 10,
+                    FolderId: 20,
+                    MinUid: null,
+                    MaxUid: null,
+                    RequiredFlags: null,
+                    ForbiddenFlags: null,
+                    Since: null,
+                    Before: null,
+                    LargerThanBytes: null,
+                    SmallerThanBytes: null,
+                    HeaderText: null,
+                    BodyText: null,
+                    AnyText: "invoice",
+                    ReturnUid: true),
+                CancellationToken.None).ConfigureAwait(false);
+
+            Assert.AreEqual("* SEARCH 101 102\r\n", response);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            if (Directory.Exists(dataDirectory))
+            {
+                Directory.Delete(dataDirectory, recursive: true);
+            }
         }
     }
 
@@ -2755,6 +2839,80 @@ VALUES
         command.Parameters.Add("@FirstPath", System.Data.SqlDbType.NVarChar, 1024).Value = firstPath;
         command.Parameters.Add("@SecondPath", System.Data.SqlDbType.NVarChar, 1024).Value = secondPath;
         command.Parameters.Add("@MissingPath", System.Data.SqlDbType.NVarChar, 1024).Value = missingPath;
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreatePartialSearchSchemaAndSeedAsync(
+        string connectionString,
+        string firstPath,
+        string secondPath)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountaddress nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagefolderid int NOT NULL,
+    messageuid bigint NOT NULL,
+    messagefilename nvarchar(1024) NOT NULL,
+    messagecreatetime datetime NOT NULL,
+    messagesize bigint NOT NULL,
+    messageflags tinyint NOT NULL,
+    messagetype int NOT NULL
+);
+
+CREATE TABLE dbo.hm_message_search_documents
+(
+    messageid bigint NOT NULL PRIMARY KEY
+);
+
+CREATE TABLE dbo.hm_message_search_queue
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    queuedutc datetime2(3) NOT NULL,
+    attempts int NOT NULL,
+    lastattemptutc datetime2(3) NULL,
+    nextattemptutc datetime2(3) NULL,
+    searchleaseowner nvarchar(128) NULL,
+    searchleaseexpiresutc datetime2(3) NULL,
+    lasterror nvarchar(1024) NULL
+);
+
+CREATE TABLE dbo.hm_settings
+(
+    settingname nvarchar(255) NOT NULL PRIMARY KEY,
+    settingstring nvarchar(max) NOT NULL,
+    settinginteger int NOT NULL
+);
+
+INSERT INTO dbo.hm_accounts (accountid, accountaddress)
+VALUES (10, N'user@example.test');
+
+INSERT INTO dbo.hm_messages
+    (messageid, messageaccountid, messagefolderid, messageuid, messagefilename,
+     messagecreatetime, messagesize, messageflags, messagetype)
+VALUES
+    (1, 10, 20, 101, @FirstPath, '2026-08-28T10:00:00', 100, 0, 2),
+    (2, 10, 20, 102, @SecondPath, '2026-08-28T11:00:00', 100, 0, 2);
+
+INSERT INTO dbo.hm_message_search_documents (messageid)
+VALUES (1);
+
+INSERT INTO dbo.hm_settings (settingname, settingstring, settinginteger)
+VALUES (N'MessageIndexing', N'', 1);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.Add("@FirstPath", System.Data.SqlDbType.NVarChar, 1024).Value = firstPath;
+        command.Parameters.Add("@SecondPath", System.Data.SqlDbType.NVarChar, 1024).Value = secondPath;
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
