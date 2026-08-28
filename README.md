@@ -100,6 +100,15 @@ still per candidate and fresh percentile measurements are pending, so the
 performance gate remains **RED**. The next slice is enabled partially-indexed
 SEARCH fallback parity.
 
+Code/test commit `1d0c66634` closes that partial-index false-negative. For a
+text-bearing SEARCH, Net10 checks index coverage; when indexed rows are fewer
+than message rows, it retains SQL mailbox/UID/flag/date filtering but evaluates
+header, body, and TEXT terms through the authoritative message files. A
+disposable SQL test with two matching messages and only one index row returns
+both UIDs. Complete-index behavior and SORT are unchanged. Full Debug is `2772
+passed, 90 skipped, 5 failed`; the five failures are the existing registered
+COM local-server `E_NOINTERFACE` checks. The performance gate remains **RED**.
+
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
 

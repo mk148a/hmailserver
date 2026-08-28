@@ -9346,3 +9346,26 @@ fallback without changing indexed/SORT behavior, then rerun the manifest-bound
 paired protocol and concurrent-IMAP diagnostics. Keep run-start SQL/Data
 reattestation, filesystem TOCTOU, POP3, long soak, restore, installer,
 registered COM, SEC-18, and other release gates open.
+## Current authoritative status (2026-08-28, partial-index SEARCH parity)
+
+Code/test commit `1d0c66634` closes the enabled-but-incomplete search-index
+false-negative. Legacy `IMAPCommandSEARCH::ExecuteCommand`,
+`DoesMessageMatch_`, `MatchesTEXTCriteria_`, `MatchesBODYCriteria_`, and
+`MatchesHeaderCriteria_` enumerate selected-folder messages and evaluate
+authoritative files; the asynchronous legacy indexer is not a SEARCH
+correctness dependency. Net10 now checks indexing administration coverage and,
+when `TotalIndexedCount < TotalMessageCount`, strips only header/body/TEXT
+Full-Text terms from the SQL candidate request, retains mailbox/UID/flag/date
+filters, and applies the existing batched file matcher. Complete-index behavior
+and SORT are unchanged.
+
+Executor/planner/disposable-SQL tests pass `3/3`; the SQL case seeds two
+matching messages but one search-document row and returns both UIDs. Release
+Service builds with zero warnings/errors. Full Debug is `2772 passed, 90
+skipped, 5 failed`; all five are the pre-existing registered local-server COM
+`E_NOINTERFACE` failures. Performance release remains **RED**. Current next
+slice: re-attest SQL/Data/executable identity immediately before each live run
+and close the remaining filesystem TOCTOU window, then rerun acceptance-sized
+paired protocol/concurrency diagnostics. POP3, 1,000-session C++, long soak,
+restore, installer, registered COM, SEC-18, and other release gates remain
+open.

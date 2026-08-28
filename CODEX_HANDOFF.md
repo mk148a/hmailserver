@@ -9119,3 +9119,25 @@ and the gate remains **RED**. Next slice: enabled partially-indexed SEARCH
 fallback parity, followed by fresh manifest-bound paired protocol/concurrent
 diagnostics. Do not touch production service/SQL/Data, installed Application
 COM/DCOM registration, IIS, firewall, or unrelated dirty artifacts.
+## Current authoritative continuation (2026-08-28, partial-index SEARCH parity)
+
+Code/test commit `1d0c66634` makes enabled but incomplete indexing
+completeness-aware. Legacy `IMAPCommandSEARCH::ExecuteCommand`,
+`DoesMessageMatch_`, `MatchesTEXTCriteria_`, `MatchesBODYCriteria_`, and
+`MatchesHeaderCriteria_` scan every selected message file and do not consume a
+search-document table. Net10 now calls `GetStatusAsync` only for text-bearing
+SEARCH requests; when indexed rows are fewer than message rows it removes
+header/body/TEXT predicates from the SQL candidate request, preserves all
+mailbox/range/flag/date filters, then uses the existing 128-item batched file
+source. Complete-index and SORT paths remain unchanged.
+
+Focused executor/planner/disposable-SQL coverage passes `3/3`; two file-backed
+messages with only one index row return both UIDs. Release Service builds with
+zero warnings/errors. Full Debug is `2772 passed, 90 skipped, 5 failed`; all
+five failures remain the existing registered local-server COM
+`E_NOINTERFACE` checks. No production SQL/Data/service, COM/DCOM registration,
+IIS, firewall, or unrelated dirty artifact changed.
+
+Next slice: add run-start SQL/Data/executable re-attestation and close the
+remaining filesystem TOCTOU window before acceptance-sized paired reruns.
+Performance and release remain **RED**.
