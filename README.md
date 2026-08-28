@@ -78,6 +78,18 @@ Benchmark`. Its single `764.413 ms` sample is correctness evidence only.
 general indexing-disabled SEARCH gate and overall performance gate remain
 **RED**.
 
+Code/test commit `48c3bea66` closes the bounded disabled-index `SEARCH TEXT`
+gap. Net10 now evaluates decoded top-level headers, the first visible plain
+body, and raw HTML as separate authoritative-file domains, preserving legacy
+case-insensitive substring behavior and excluding attachments. Focused tests
+pass `23/23`; the broader search set passes `30/30`. On a fresh manifest-bound
+1,000-message fixture, the unchanged protocol workload returned exact SEARCH
+and SORT `1..1000`, and 1x1 concurrent IMAP passed. The one-sample IMAP times
+(`808.878 ms` protocol, `729.160 ms` concurrent) are correctness diagnostics,
+not acceptance percentiles. Per-message metadata SQL, enabled partial-index
+coverage, and full paired load remain open, so the performance gate stays
+**RED**.
+
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
 

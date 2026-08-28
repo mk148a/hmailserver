@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-28, indexing-disabled TEXT parity)
+
+Code/test commit `48c3bea66` restores legacy IMAP `SEARCH TEXT` behavior when
+message indexing is disabled. `ImapSearchExecutor` removes only Any/TEXT terms
+from the SQL candidate request in that state, preserves mailbox/range/flag/date
+filters and UID order, then evaluates each term against three separate
+authoritative file domains: decoded reconstructed headers, first visible
+decoded plain body, and raw decoded HTML body. It does not reuse truncated
+`search_combined`, strip HTML, join domains, or search attachments. Enabled
+index and SORT paths retain their prior behavior.
+
+Focused executor/extractor tests pass `23/23`; broader search tests pass
+`30/30`. Full Debug is `2761 passed, 90 skipped, 5 failed`; all five remain
+the existing registered local-server COM `E_NOINTERFACE` failures and reproduce
+alone. Release Service builds with zero warnings/errors. A fresh manifest-bound
+1,000-message 5708/6000 fixture passed the unchanged standard Net10 protocol
+workload: `SEARCH TEXT needle` and SORT both returned exact `1..1000`.
+Protocol IMAP was `808.878 ms` for one sample; 1x1 concurrent IMAP passed at
+`729.160 ms`. These are correctness smokes, not acceptance percentiles.
+
+Next production slice: remove the per-candidate metadata-query N+1 while
+preserving file-backed MIME semantics and ordering, then rerun paired protocol
+loads. Enabled-but-partially-indexed false negatives, malformed/oversized file
+continuation, run-start fixture re-attestation, and long-load gates remain
+open. Release stays **RED**; no push was performed.
+
 ## Current authoritative continuation (2026-08-28, indexing-disabled SUBJECT parity)
 
 Code/test commit `ebe4e04a4` separates IMAP `SUBJECT` from aggregated header

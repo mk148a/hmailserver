@@ -9304,3 +9304,24 @@ The standard protocol workload still returns zero on the same empty-index
 fixture. Following work must remove the Subject fallback's per-candidate
 metadata-query N+1, then rerun paired load. Performance/release remains
 **RED**.
+## Current authoritative status (2026-08-28, indexing-disabled TEXT parity)
+
+Code/test commit `48c3bea66` adds the legacy file-backed `SEARCH TEXT` branch
+for `MessageIndexing=0`. SQL still selects ordered candidates with non-content
+predicates, but empty search-document rows no longer eliminate every message.
+TEXT terms are matched as case-insensitive substrings against decoded top-level
+headers, the first visible plain body, and raw HTML separately. Attachments,
+cross-domain concatenation, index truncation, and HTML-to-text conversion are
+excluded from this fallback. Enabled indexing and SORT are unchanged.
+
+Focused tests pass `23/23` and broader search tests pass `30/30`. Full Debug is
+`2761/90/5`, with only the known registered COM `E_NOINTERFACE` failures.
+Release Service builds cleanly. The unchanged manifest-bound protocol smoke on
+a fresh exact 1,000-message fixture now passes `SEARCH TEXT needle` and SORT
+`1..1000`; 1x1 concurrent IMAP also passes. Single-sample durations of
+`808.878 ms` and `729.160 ms` are not performance acceptance evidence.
+
+Current next slice: batch authoritative file-search metadata/path loading so
+one mailbox scan does not issue one metadata query per message. Then address
+enabled partial-index fallback and rerun paired load. Performance and release
+remain **RED**.
