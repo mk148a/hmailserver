@@ -1,0 +1,108 @@
+{
+  "schema": "live-concurrent-imap-v1",
+  "implementation": "net10",
+  "status": "PASS",
+  "startedUtc": "2026-08-28T06:32:54.8298595+00:00",
+  "endedUtc": "2026-08-28T06:33:04.7828851+00:00",
+  "workloadStartedUtc": "2026-08-28T06:32:57.6288742+00:00",
+  "workloadEndedUtc": "2026-08-28T06:32:58.0635160+00:00",
+  "runId": "7a1d56e4-0c4c-4d9d-b4aa-8f4e0d8e6c01",
+  "provenanceStatus": "MANIFEST_BOUND",
+  "fixtureId": "hmail-perf-pair-provenance5-20260828",
+  "manifestSha256": "473290E591EC64BFB01BE9361A354CF0D99FEE43B1E19201C7F891EBDD457B11",
+  "database": "hmail_perf_pair_net10_provenance5_20260828",
+  "dataRoot": "C:\\hmail-perf-pair-provenance5-20260828\\net10\\Data",
+  "bind": "127.0.0.1",
+  "port": 1143,
+  "ports": "SMTP 2525, IMAP 1143, POP3 25110",
+  "messageCount": 1000,
+  "concurrency": 1,
+  "waves": 1,
+  "requestedSessions": 1,
+  "timeoutMilliseconds": 5000,
+  "postWorkloadSettleSeconds": 5,
+  "summary": {
+    "scenario": "imap-concurrent",
+    "concurrency": 1,
+    "waves": 1,
+    "requested": 1,
+    "completed": 1,
+    "successes": 1,
+    "errors": 0,
+    "timeouts": 0,
+    "p50_ms": 429.251,
+    "p95_ms": 429.251,
+    "p99_ms": 429.251,
+    "workload_seconds": 0.434642,
+    "throughput_sessions_per_second": 2.301
+  },
+  "readinessFailures": [],
+  "shutdownFailures": [],
+  "processBefore": {
+    "privateBytes": 20615168,
+    "handles": 525,
+    "threads": 24
+  },
+  "processAfterImmediate": {
+    "privateBytes": 43712512,
+    "handles": 526,
+    "threads": 24
+  },
+  "processAfter": {
+    "privateBytes": 44208128,
+    "handles": 526,
+    "threads": 24
+  },
+  "waveMetrics": [
+    {
+      "wave": 1,
+      "startedUtc": "2026-08-28T06:32:57.6288742+00:00",
+      "endedUtc": "2026-08-28T06:32:58.0635160+00:00",
+      "workloadSeconds": 0.434642,
+      "successes": 1,
+      "errors": 0,
+      "processBefore": {
+        "privateBytes": 20615168,
+        "handles": 525,
+        "threads": 24
+      },
+      "processAfterImmediate": {
+        "privateBytes": 43712512,
+        "handles": 526,
+        "threads": 24
+      },
+      "processAfterSettle": {
+        "privateBytes": 44208128,
+        "handles": 526,
+        "threads": 24
+      }
+    }
+  ],
+  "isolationPreflight": null,
+  "executableProvenance": {
+    "implementation": "net10",
+    "path": "C:\\hmail-perf-pair-provenance5-20260828\\net10\\Bin\\hMailServer.exe",
+    "sha256": "6215A50DBEFD1BB54327A3A98ADD5DC3B3FCDD61CDFFBF53C04EB10DE3F2E447",
+    "expectedSha256": "6215A50DBEFD1BB54327A3A98ADD5DC3B3FCDD61CDFFBF53C04EB10DE3F2E447",
+    "length": 162304,
+    "lastWriteTimeUtc": "2026-08-28T06:19:53.8273100Z"
+  },
+  "samples": [
+    {
+      "wave": 1,
+      "ok": true,
+      "timedOut": false,
+      "ms": 429.251,
+      "error": null,
+      "searchResultValid": true,
+      "searchResultCount": 1000,
+      "searchExactSequence": true,
+      "sortResultValid": true,
+      "sortResultCount": 1000,
+      "sortExactSequence": true,
+      "resultError": ""
+    }
+  ],
+  "ratioValid": false,
+  "productionSafety": "service stopped/disabled; production DB/Data not used"
+}

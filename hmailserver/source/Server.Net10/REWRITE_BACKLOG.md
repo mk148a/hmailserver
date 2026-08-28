@@ -9325,3 +9325,24 @@ Current next slice: batch authoritative file-search metadata/path loading so
 one mailbox scan does not issue one metadata query per message. Then address
 enabled partial-index fallback and rerun paired load. Performance and release
 remain **RED**.
+## Current authoritative status (2026-08-28, batched file-backed SEARCH metadata)
+
+Code/test commit `33c34766e` adds `IMessageSearchDocumentBatchSource` and uses
+it from `ImapSearchExecutor` for file-required Subject and disabled-index TEXT
+filters. `MessageFileSearchDocumentSource` now performs one parameterized SQL
+`IN` metadata query per 128 candidates, preserves candidate order and missing
+rows as positional nulls, and parses files after SQL resources are disposed.
+Legacy MIME matching domains, enabled-index behavior, SORT, authenticated
+boundaries, and COM identity are unchanged. Focused executor/source/search
+coverage is `39/39`; the disposable localhost SQL order/missing-row test
+passes; Release Service builds with `0` warnings and `0` errors. Full Debug is
+`2769 passed, 90 skipped, 5 failed`; the five failures are the existing
+registered local-server COM `E_NOINTERFACE` checks.
+
+The batch slice removes the known metadata-query N+1, but MIME file parsing is
+still per candidate and no percentile acceptance claim is made. Performance
+release remains **RED**. Next slice: cover enabled partially-indexed SEARCH
+fallback without changing indexed/SORT behavior, then rerun the manifest-bound
+paired protocol and concurrent-IMAP diagnostics. Keep run-start SQL/Data
+reattestation, filesystem TOCTOU, POP3, long soak, restore, installer,
+registered COM, SEC-18, and other release gates open.

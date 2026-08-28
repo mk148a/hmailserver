@@ -9097,3 +9097,25 @@ were rerun successfully: `2747 passed, 90 skipped, 0 failed` (`2837` total).
 This verification does not prove cloned legacy SQL/Data rollback, registered
 COM caller evidence, paired C++ load, or long-soak acceptance. Release remains
 **RED** and no push was performed.
+## Current authoritative continuation (2026-08-28, batched file-backed SEARCH metadata)
+
+Code/test commit `33c34766e` adds `IMessageSearchDocumentBatchSource` and
+changes `ImapSearchExecutor` to load file-required search documents in bounded
+128-item batches. The SQL implementation uses a parameterized `IN` query,
+returns one positional result per candidate with null for missing metadata, and
+disposes the reader/connection before MIME file parsing. The non-batch fallback
+remains for existing sources; enabled-index and SORT paths are unchanged.
+
+Legacy anchors remain `IMAPCommandSearch::MatchesHeaderCriteria_`,
+`MatchesTEXTCriteria_`, and `MessageData::LoadFromMessage`. Focused executor,
+source, search, and SORT coverage is `39/39`; the disposable localhost SQL
+batch order/missing-row test passes; Release Service builds with zero warnings
+and errors. Full Debug is `2769 passed, 90 skipped, 5 failed`; all five are the
+pre-existing registered local-server COM `E_NOINTERFACE` failures.
+
+This closes the metadata-query N+1 diagnostic, not the full performance gate:
+MIME parsing remains per candidate, percentile load evidence is still pending,
+and the gate remains **RED**. Next slice: enabled partially-indexed SEARCH
+fallback parity, followed by fresh manifest-bound paired protocol/concurrent
+diagnostics. Do not touch production service/SQL/Data, installed Application
+COM/DCOM registration, IIS, firewall, or unrelated dirty artifacts.

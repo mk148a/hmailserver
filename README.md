@@ -90,8 +90,25 @@ not acceptance percentiles. Per-message metadata SQL, enabled partial-index
 coverage, and full paired load remain open, so the performance gate stays
 **RED**.
 
+Code/test commit `33c34766e` removes the per-candidate metadata-query N+1 for
+file-backed Subject and disabled-index TEXT searches. Candidate metadata is
+loaded through a parameterized 128-item batch query with order and missing-row
+preservation; MIME parsing, indexed behavior, SORT, and COM boundaries are
+unchanged. Focused coverage is `39/39`, the disposable localhost SQL batch test
+passes, and the Release Service build has zero warnings/errors. MIME parsing is
+still per candidate and fresh percentile measurements are pending, so the
+performance gate remains **RED**. The next slice is enabled partially-indexed
+SEARCH fallback parity.
+
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
+
+The post-batch paired diagnostic is recorded in
+[artifacts/benchmarks/paired-cpp-net10-20260828-batch/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260828-batch/PERFORMANCE_COMPARISON.md).
+It uses the same disposable 1,000-message fixture for both implementations;
+three-iteration p95 values are diagnostic only. Net10 passed the protocol and
+1-session checks, but was slower in this small sample for IMAP and POP3. No
+speedup claim is made and the performance gate remains **RED**.
 
 The lower dated status sections are retained as historical slice records. The
 2026-08-27 performance section above is the authoritative current status.
