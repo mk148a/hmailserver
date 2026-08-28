@@ -194,6 +194,106 @@ public sealed class ImapSearchExecutorTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_UsesBatchSourceIn128ItemBatches()
+    {
+        var identities = Enumerable.Range(1, 130)
+            .Select(value => new MessageIdentity(value, 10, 20, 100 + value))
+            .ToArray();
+        var documentSource = new FakeBatchDocumentSource(
+            identities.Select(identity => CreateDocument(identity, plainBodyText: "invoice")).ToArray());
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex(identities),
+            documentSource: documentSource,
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        var response = await executor.ExecuteAsync(CreateRequest(returnUid: true), CancellationToken.None);
+
+        Assert.AreEqual($"* SEARCH {string.Join(' ', identities.Select(identity => identity.Uid))}\r\n", response);
+        Assert.AreEqual(2, documentSource.Batches.Count);
+        Assert.AreEqual(128, documentSource.Batches[0].Count);
+        Assert.AreEqual(2, documentSource.Batches[1].Count);
+        CollectionAssert.AreEqual(identities, documentSource.Batches.SelectMany(batch => batch).ToArray());
+        Assert.AreEqual(0, documentSource.SingleLoadCount);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_PreservesPositionalNulls()
+    {
+        var identities = new[]
+        {
+            new MessageIdentity(1, 10, 20, 101),
+            new MessageIdentity(2, 10, 20, 102),
+            new MessageIdentity(3, 10, 20, 103)
+        };
+        var documentSource = new FakeBatchDocumentSource(
+            CreateDocument(identities[0], plainBodyText: "invoice"),
+            CreateDocument(identities[2], plainBodyText: "invoice"));
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex(identities),
+            documentSource: documentSource,
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        var response = await executor.ExecuteAsync(CreateRequest(returnUid: true), CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101 103\r\n", response);
+    }
+
+    [TestMethod]
+    [DataRow(2)]
+    [DataRow(4)]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_RejectsInvalidBatchOutputCount(int outputCount)
+    {
+        var identities = new[]
+        {
+            new MessageIdentity(1, 10, 20, 101),
+            new MessageIdentity(2, 10, 20, 102),
+            new MessageIdentity(3, 10, 20, 103)
+        };
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex(identities),
+            documentSource: new InvalidCountBatchDocumentSource(outputCount),
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(CreateRequest(returnUid: true), CancellationToken.None).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_ObservesCancellationDuringBatchLoad()
+    {
+        var identity = new MessageIdentity(1, 10, 20, 101);
+        using var cancellation = new CancellationTokenSource();
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([identity]),
+            documentSource: new CancelingBatchDocumentSource(
+                CreateDocument(identity, plainBodyText: "invoice"),
+                cancellation),
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => executor.ExecuteAsync(CreateRequest(returnUid: true), cancellation.Token).AsTask());
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingDisabled_FallsBackToPerItemSource()
+    {
+        var firstIdentity = new MessageIdentity(1, 10, 20, 101);
+        var secondIdentity = new MessageIdentity(2, 10, 20, 102);
+        var documentSource = new FakeDocumentSource(
+            CreateDocument(firstIdentity, plainBodyText: "invoice"),
+            CreateDocument(secondIdentity, plainBodyText: "invoice"));
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([firstIdentity, secondIdentity]),
+            documentSource: documentSource,
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: false));
+
+        var response = await executor.ExecuteAsync(CreateRequest(returnUid: true), CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101 102\r\n", response);
+        Assert.AreEqual(2, documentSource.LoadCount);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_TextWithIndexingDisabled_ObservesCancellationAfterDocumentLoad()
     {
         var identity = new MessageIdentity(1, 10, 20, 101);
@@ -224,6 +324,23 @@ public sealed class ImapSearchExecutorTests
         Assert.AreEqual("* SEARCH 101\r\n", response);
         Assert.AreSame(request, index.LastRequest);
         CollectionAssert.AreEqual(new[] { "invoice", "paid" }, index.LastRequest!.GetAnyTerms().ToArray());
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TextWithIndexingEnabled_DoesNotLoadDocuments()
+    {
+        var identity = new MessageIdentity(1, 10, 20, 101);
+        var documentSource = new FakeBatchDocumentSource(CreateDocument(identity, plainBodyText: "invoice"));
+        var executor = new ImapSearchExecutor(
+            new FakeMessageSearchIndex([identity]),
+            documentSource: documentSource,
+            indexingAdministrationStore: new FakeAdministrationStore(enabled: true));
+
+        var response = await executor.ExecuteAsync(CreateRequest(returnUid: true), CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+        Assert.AreEqual(0, documentSource.Batches.Count);
+        Assert.AreEqual(0, documentSource.SingleLoadCount);
     }
 
     [TestMethod]
@@ -371,13 +488,110 @@ public sealed class ImapSearchExecutorTests
             _documents = documents.ToDictionary(document => document.Identity.MessageId);
         }
 
+        public int LoadCount { get; private set; }
+
         public ValueTask<MessageSearchDocument?> TryLoadAsync(
             MessageIdentity identity,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            LoadCount++;
             _documents.TryGetValue(identity.MessageId, out var document);
             return ValueTask.FromResult(document);
+        }
+    }
+
+    private sealed class FakeBatchDocumentSource : IMessageSearchDocumentBatchSource
+    {
+        private readonly IReadOnlyDictionary<long, MessageSearchDocument> _documents;
+
+        public FakeBatchDocumentSource(params MessageSearchDocument[] documents)
+        {
+            _documents = documents.ToDictionary(document => document.Identity.MessageId);
+        }
+
+        public List<IReadOnlyList<MessageIdentity>> Batches { get; } = [];
+
+        public int SingleLoadCount { get; private set; }
+
+        public ValueTask<MessageSearchDocument?> TryLoadAsync(
+            MessageIdentity identity,
+            CancellationToken cancellationToken)
+        {
+            SingleLoadCount++;
+            throw new AssertFailedException("The executor should use the batch source.");
+        }
+
+        public async IAsyncEnumerable<MessageSearchDocument?> TryLoadBatchAsync(
+            IReadOnlyList<MessageIdentity> identities,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Batches.Add(identities.ToArray());
+            await Task.Yield();
+
+            foreach (var identity in identities)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                _documents.TryGetValue(identity.MessageId, out var document);
+                yield return document;
+            }
+        }
+    }
+
+    private sealed class InvalidCountBatchDocumentSource : IMessageSearchDocumentBatchSource
+    {
+        private readonly int _outputCount;
+
+        public InvalidCountBatchDocumentSource(int outputCount)
+        {
+            _outputCount = outputCount;
+        }
+
+        public ValueTask<MessageSearchDocument?> TryLoadAsync(
+            MessageIdentity identity,
+            CancellationToken cancellationToken) =>
+            throw new AssertFailedException("The executor should use the batch source.");
+
+        public async IAsyncEnumerable<MessageSearchDocument?> TryLoadBatchAsync(
+            IReadOnlyList<MessageIdentity> identities,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+
+            for (var index = 0; index < _outputCount; index++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var identity = identities[Math.Min(index, identities.Count - 1)];
+                yield return CreateDocument(identity, plainBodyText: "invoice");
+            }
+        }
+    }
+
+    private sealed class CancelingBatchDocumentSource : IMessageSearchDocumentBatchSource
+    {
+        private readonly MessageSearchDocument _document;
+        private readonly CancellationTokenSource _cancellation;
+
+        public CancelingBatchDocumentSource(
+            MessageSearchDocument document,
+            CancellationTokenSource cancellation)
+        {
+            _document = document;
+            _cancellation = cancellation;
+        }
+
+        public ValueTask<MessageSearchDocument?> TryLoadAsync(
+            MessageIdentity identity,
+            CancellationToken cancellationToken) =>
+            throw new AssertFailedException("The executor should use the batch source.");
+
+        public async IAsyncEnumerable<MessageSearchDocument?> TryLoadBatchAsync(
+            IReadOnlyList<MessageIdentity> identities,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            await Task.Yield();
+            _cancellation.Cancel();
+            yield return _document;
         }
     }
 

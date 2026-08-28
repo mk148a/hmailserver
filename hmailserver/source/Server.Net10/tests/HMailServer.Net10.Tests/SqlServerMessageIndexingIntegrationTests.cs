@@ -17,6 +17,78 @@ public sealed class SqlServerMessageIndexingIntegrationTests
 
     [TestMethod]
     [TestCategory("SqlServerIntegration")]
+    public async Task MessageFileSearchDocumentSource_BatchPreservesOrderAndMissingResults()
+    {
+        var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(serverConnectionString))
+        {
+            return;
+        }
+
+        var databaseName = $"hmailserver_net10_test_{Guid.NewGuid():N}";
+        var dataDirectory = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-search-source-{Guid.NewGuid():N}");
+        var firstPath = Path.Combine(dataDirectory, "first.eml");
+        var secondPath = Path.Combine(dataDirectory, "second.eml");
+        var missingPath = Path.Combine(dataDirectory, "missing.eml");
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        Directory.CreateDirectory(dataDirectory);
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                firstPath,
+                "Subject: First\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nfirst invoice").ConfigureAwait(false);
+            await File.WriteAllTextAsync(
+                secondPath,
+                "Subject: Second\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nsecond invoice").ConfigureAwait(false);
+            await CreateMessageFileSearchSourceSchemaAndSeedAsync(
+                testConnectionString,
+                firstPath,
+                secondPath,
+                missingPath).ConfigureAwait(false);
+
+            var options = new MessageFileSearchDocumentSourceOptions(dataDirectory);
+            var source = new MessageFileSearchDocumentSource(
+                new SqlServerConnectionFactory(testConnectionString),
+                new MessageFilePathResolver(options),
+                options);
+            var identities = new[]
+            {
+                new MessageIdentity(2, 0, 10, 102),
+                new MessageIdentity(999, 0, 10, 999),
+                new MessageIdentity(4, 0, 10, 104),
+                new MessageIdentity(3, 0, 10, 103),
+                new MessageIdentity(1, 0, 10, 101)
+            };
+            var documents = new List<MessageSearchDocument?>();
+
+            await foreach (var document in source.TryLoadBatchAsync(identities, CancellationToken.None))
+            {
+                documents.Add(document);
+            }
+
+            Assert.AreEqual(identities.Length, documents.Count);
+            Assert.AreEqual("Second", documents[0]!.SubjectText);
+            Assert.IsNull(documents[1]);
+            Assert.IsNull(documents[2]);
+            Assert.IsNull(documents[3]);
+            Assert.AreEqual("First", documents[4]!.SubjectText);
+            Assert.AreEqual("First", (await source.TryLoadAsync(identities[4], CancellationToken.None))!.SubjectText);
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+            Directory.Delete(dataDirectory, recursive: true);
+        }
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
     public async Task AuthenticatedComPath_ExecutesMessageIndexingAdministrationAgainstIsolatedDatabase()
     {
         var serverConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -2638,6 +2710,51 @@ VALUES (1);
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync().ConfigureAwait(false);
         await using var command = new SqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
+    private static async Task CreateMessageFileSearchSourceSchemaAndSeedAsync(
+        string connectionString,
+        string firstPath,
+        string secondPath,
+        string missingPath)
+    {
+        const string sql = """
+CREATE TABLE dbo.hm_accounts
+(
+    accountid int NOT NULL PRIMARY KEY,
+    accountaddress nvarchar(255) NOT NULL
+);
+
+CREATE TABLE dbo.hm_messages
+(
+    messageid bigint NOT NULL PRIMARY KEY,
+    messageaccountid int NOT NULL,
+    messagefolderid int NOT NULL,
+    messageuid bigint NOT NULL,
+    messagefilename nvarchar(1024) NOT NULL,
+    messagecreatetime datetime NOT NULL,
+    messagesize bigint NOT NULL,
+    messageflags tinyint NOT NULL,
+    messagetype int NOT NULL
+);
+
+INSERT INTO dbo.hm_messages
+    (messageid, messageaccountid, messagefolderid, messageuid, messagefilename,
+     messagecreatetime, messagesize, messageflags, messagetype)
+VALUES
+    (1, 0, 10, 101, @FirstPath, '2026-08-28T10:00:00', 111, 1, 2),
+    (2, 0, 10, 102, @SecondPath, '2026-08-28T11:00:00', 222, 2, 2),
+    (3, 0, 10, 103, @MissingPath, '2026-08-28T12:00:00', 333, 3, 2),
+    (4, 0, 10, 104, N'..\outside.eml', '2026-08-28T13:00:00', 444, 4, 2);
+""";
+
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(sql, connection);
+        command.Parameters.Add("@FirstPath", System.Data.SqlDbType.NVarChar, 1024).Value = firstPath;
+        command.Parameters.Add("@SecondPath", System.Data.SqlDbType.NVarChar, 1024).Value = secondPath;
+        command.Parameters.Add("@MissingPath", System.Data.SqlDbType.NVarChar, 1024).Value = missingPath;
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 

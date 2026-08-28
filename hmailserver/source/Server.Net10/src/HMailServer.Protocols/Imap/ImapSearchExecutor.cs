@@ -5,6 +5,8 @@ namespace HMailServer.Protocols.Imap;
 
 public sealed class ImapSearchExecutor
 {
+    private const int DocumentBatchSize = 128;
+
     private readonly IMessageSearchIndex _searchIndex;
     private readonly IImapSequenceNumberResolver? _sequenceNumberResolver;
     private readonly IMessageSearchDocumentSource? _documentSource;
@@ -97,37 +99,129 @@ public sealed class ImapSearchExecutor
             ? request with { AnyText = null, AnyTerms = Array.Empty<string>() }
             : request;
 
-        await foreach (var identity in _searchIndex.SearchAsync(candidateRequest, cancellationToken).ConfigureAwait(false))
+        if (subjectTerms.Count == 0 && !useFileTextFallback)
         {
-            if (subjectTerms.Count == 0 && !useFileTextFallback)
+            await foreach (var identity in _searchIndex.SearchAsync(candidateRequest, cancellationToken).ConfigureAwait(false))
             {
                 yield return identity;
+            }
+
+            yield break;
+        }
+
+        var batch = new List<MessageIdentity>(DocumentBatchSize);
+        await foreach (var identity in _searchIndex.SearchAsync(candidateRequest, cancellationToken).ConfigureAwait(false))
+        {
+            batch.Add(identity);
+            if (batch.Count < DocumentBatchSize)
+            {
                 continue;
             }
 
+            await foreach (var match in FilterFileMatchesAsync(
+                batch,
+                subjectTerms,
+                anyTerms,
+                useFileTextFallback,
+                cancellationToken).ConfigureAwait(false))
+            {
+                yield return match;
+            }
+
+            batch.Clear();
+        }
+
+        if (batch.Count > 0)
+        {
+            await foreach (var match in FilterFileMatchesAsync(
+                batch,
+                subjectTerms,
+                anyTerms,
+                useFileTextFallback,
+                cancellationToken).ConfigureAwait(false))
+            {
+                yield return match;
+            }
+        }
+    }
+
+    private async IAsyncEnumerable<MessageIdentity> FilterFileMatchesAsync(
+        IReadOnlyList<MessageIdentity> identities,
+        IReadOnlyList<string> subjectTerms,
+        IReadOnlyList<string> anyTerms,
+        bool useFileTextFallback,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (_documentSource is IMessageSearchDocumentBatchSource batchSource)
+        {
+            var resultCount = 0;
+            await foreach (var document in batchSource
+                .TryLoadBatchAsync(identities, cancellationToken)
+                .WithCancellation(cancellationToken)
+                .ConfigureAwait(false))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (resultCount >= identities.Count)
+                {
+                    throw CreateBatchCountException(identities.Count, resultCount + 1);
+                }
+
+                var identity = identities[resultCount++];
+                if (DocumentMatches(document, subjectTerms, anyTerms, useFileTextFallback))
+                {
+                    yield return identity;
+                }
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (resultCount != identities.Count)
+            {
+                throw CreateBatchCountException(identities.Count, resultCount);
+            }
+
+            yield break;
+        }
+
+        foreach (var identity in identities)
+        {
             var document = await _documentSource!
                 .TryLoadAsync(identity, cancellationToken)
                 .ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (document is null)
+            if (DocumentMatches(document, subjectTerms, anyTerms, useFileTextFallback))
             {
-                continue;
+                yield return identity;
             }
-
-            if (subjectTerms.Count > 0 && !SubjectMatches(document.SubjectText, subjectTerms))
-            {
-                continue;
-            }
-
-            if (useFileTextFallback && !TextMatches(document, anyTerms))
-            {
-                continue;
-            }
-
-            yield return identity;
         }
     }
+
+    private static bool DocumentMatches(
+        MessageSearchDocument? document,
+        IReadOnlyList<string> subjectTerms,
+        IReadOnlyList<string> anyTerms,
+        bool useFileTextFallback)
+    {
+        if (document is null)
+        {
+            return false;
+        }
+
+        if (subjectTerms.Count > 0 && !SubjectMatches(document.SubjectText, subjectTerms))
+        {
+            return false;
+        }
+
+        if (useFileTextFallback && !TextMatches(document, anyTerms))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static InvalidOperationException CreateBatchCountException(int expectedCount, int actualCount) =>
+        new($"Message document batch source returned {actualCount} results for {expectedCount} identities.");
 
     private static bool TextMatches(MessageSearchDocument document, IReadOnlyList<string> terms)
     {
