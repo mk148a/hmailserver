@@ -1,0 +1,173 @@
+{
+  "schema": "live-protocol-v1",
+  "implementation": "cpp",
+  "status": "PASS",
+  "startedUtc": "2026-08-28T11:15:26.4662364+00:00",
+  "endedUtc": "2026-08-28T11:15:32.0594378+00:00",
+  "database": "hmail_perf_pair_cpp_provenance6_20260828",
+  "runId": "8b819d48-c41e-4f2c-b482-c39b8fca5336",
+  "provenanceStatus": "MANIFEST_BOUND",
+  "fixtureId": "hmail-perf-pair-provenance6-20260828",
+  "manifestSha256": "839A86CB0FF69324EDB8E3F183E19A774C3756BC5F2BF5FADBA4A246EFB4C61A",
+  "dataRoot": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Data",
+  "bind": "127.0.0.1",
+  "ports": "SMTP 2525, IMAP 1143, POP3 25110",
+  "messageCount": 1000,
+  "summary": [
+    {
+      "scenario": "smtp",
+      "iterations": 1,
+      "successes": 1,
+      "errors": 0,
+      "p50_ms": 15.892,
+      "p95_ms": 15.892,
+      "p99_ms": 15.892
+    },
+    {
+      "scenario": "imap",
+      "iterations": 1,
+      "successes": 1,
+      "errors": 0,
+      "p50_ms": 367.344,
+      "p95_ms": 367.344,
+      "p99_ms": 367.344
+    },
+    {
+      "scenario": "pop3",
+      "iterations": 1,
+      "successes": 1,
+      "errors": 0,
+      "p50_ms": 12.058,
+      "p95_ms": 12.058,
+      "p99_ms": 12.058
+    }
+  ],
+  "readinessFailures": [],
+  "shutdownFailures": [],
+  "processBefore": {
+    "threads": 75,
+    "handles": 517,
+    "privateBytes": 14602240
+  },
+  "processAfter": {
+    "threads": 75,
+    "handles": 519,
+    "privateBytes": 15392768
+  },
+  "isolationPreflight": {
+    "targetExecutable": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin\\hMailServer.exe",
+    "targetBin": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin",
+    "registryInstallLocations": [],
+    "serviceState": "missing",
+    "iniPath": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin\\hMailServer.ini",
+    "failures": [],
+    "passed": true
+  },
+  "executableProvenance": {
+    "implementation": "cpp",
+    "path": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin\\hMailServer.exe",
+    "sha256": "2DE1AA51367268CECA019365B14AF7237EA00AAED1360C6793BA381879E3E9B1",
+    "expectedSha256": "2DE1AA51367268CECA019365B14AF7237EA00AAED1360C6793BA381879E3E9B1",
+    "length": 6519296,
+    "lastWriteTimeUtc": "2026-08-27T07:02:40.3902150Z"
+  },
+  "runStartAttestation": {
+    "status": "PASS",
+    "observedUtc": "2026-08-28T11:15:28.2957138+00:00",
+    "manifestSha256": "839A86CB0FF69324EDB8E3F183E19A774C3756BC5F2BF5FADBA4A246EFB4C61A",
+    "database": "hmail_perf_pair_cpp_provenance6_20260828",
+    "databaseVersion": 5708,
+    "messageRowCount": 1000,
+    "messageSha256": "5136EEC556F9790732AE759EF52F77FE6172329EA55787A80300C4A824107E46",
+    "dataFileCount": 1000,
+    "dataBytes": 209679,
+    "dataSha256": "45FA907CE0D3797C1E13EBB2F03F076A25656CCE27E801C18F745ACD3944FBBD",
+    "executableSha256": "2DE1AA51367268CECA019365B14AF7237EA00AAED1360C6793BA381879E3E9B1",
+    "descendantReparsePoints": false
+  },
+  "samples": [
+    {
+      "scenario": "smtp",
+      "iteration": 1,
+      "ok": true,
+      "ms": 15.892,
+      "error": "",
+      "searchResponseIdentifier": null,
+      "searchResponseIdentifierValid": null,
+      "searchResultCount": null,
+      "searchResultFirst": null,
+      "searchResultLast": null,
+      "searchExactSequence": null,
+      "searchResultShape": null,
+      "sortResponseIdentifier": null,
+      "sortResponseIdentifierValid": null,
+      "sortResultCount": null,
+      "sortResultFirst": null,
+      "sortResultLast": null,
+      "sortExactSequence": null,
+      "sortResultShape": null,
+      "currentCompletionTag": null,
+      "legacyCompletionTagExpected": null,
+      "legacyCompletionTagMatches": null
+    },
+    {
+      "scenario": "imap",
+      "iteration": 1,
+      "ok": true,
+      "ms": 367.344,
+      "error": null,
+      "searchResponseIdentifier": "SEARCH",
+      "searchResponseIdentifierValid": true,
+      "searchResultCount": 1000,
+      "searchResultFirst": 1,
+      "searchResultLast": 1000,
+      "searchExactSequence": true,
+      "searchResultShape": "sequence",
+      "sortResponseIdentifier": "SORT",
+      "sortResponseIdentifierValid": true,
+      "sortResultCount": 1000,
+      "sortResultFirst": 1,
+      "sortResultLast": 1000,
+      "sortExactSequence": true,
+      "sortResultShape": "sequence",
+      "currentCompletionTag": {
+        "search": "a003 OK Search completed",
+        "sort": "a004 OK Search completed"
+      },
+      "legacyCompletionTagExpected": {
+        "search": "a003 OK Search completed",
+        "sort": "a004 OK Search completed"
+      },
+      "legacyCompletionTagMatches": {
+        "search": true,
+        "sort": true
+      }
+    },
+    {
+      "scenario": "pop3",
+      "iteration": 1,
+      "ok": true,
+      "ms": 12.058,
+      "error": "",
+      "searchResponseIdentifier": null,
+      "searchResponseIdentifierValid": null,
+      "searchResultCount": null,
+      "searchResultFirst": null,
+      "searchResultLast": null,
+      "searchExactSequence": null,
+      "searchResultShape": null,
+      "sortResponseIdentifier": null,
+      "sortResponseIdentifierValid": null,
+      "sortResultCount": null,
+      "sortResultFirst": null,
+      "sortResultLast": null,
+      "sortExactSequence": null,
+      "sortResultShape": null,
+      "currentCompletionTag": null,
+      "legacyCompletionTagExpected": null,
+      "legacyCompletionTagMatches": null
+    }
+  ],
+  "comHostedService": "legacy /Debug path; AppID hash checked separately",
+  "productionSafety": "loopback-only; legacy registry/config resolution and executable provenance were preflighted; disposable SQL/Data roots required"
+}

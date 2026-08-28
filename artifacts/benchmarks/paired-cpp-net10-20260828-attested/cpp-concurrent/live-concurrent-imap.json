@@ -1,0 +1,130 @@
+{
+  "schema": "live-concurrent-imap-v1",
+  "implementation": "cpp",
+  "status": "PASS",
+  "startedUtc": "2026-08-28T11:17:19.3177308+00:00",
+  "endedUtc": "2026-08-28T11:17:29.1534504+00:00",
+  "workloadStartedUtc": "2026-08-28T11:17:22.8924555+00:00",
+  "workloadEndedUtc": "2026-08-28T11:17:23.0766154+00:00",
+  "runId": "8b819d48-c41e-4f2c-b482-c39b8fca5336",
+  "provenanceStatus": "MANIFEST_BOUND",
+  "fixtureId": "hmail-perf-pair-provenance6-20260828",
+  "manifestSha256": "839A86CB0FF69324EDB8E3F183E19A774C3756BC5F2BF5FADBA4A246EFB4C61A",
+  "database": "hmail_perf_pair_cpp_provenance6_20260828",
+  "dataRoot": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Data",
+  "bind": "127.0.0.1",
+  "port": 1143,
+  "ports": "SMTP 2525, IMAP 1143, POP3 25110",
+  "messageCount": 1000,
+  "concurrency": 1,
+  "waves": 1,
+  "requestedSessions": 1,
+  "timeoutMilliseconds": 5000,
+  "postWorkloadSettleSeconds": 5,
+  "summary": {
+    "scenario": "imap-concurrent",
+    "concurrency": 1,
+    "waves": 1,
+    "requested": 1,
+    "completed": 1,
+    "successes": 1,
+    "errors": 0,
+    "timeouts": 0,
+    "p50_ms": 178.747,
+    "p95_ms": 178.747,
+    "p99_ms": 178.747,
+    "workload_seconds": 0.18416,
+    "throughput_sessions_per_second": 5.43
+  },
+  "readinessFailures": [],
+  "shutdownFailures": [],
+  "processBefore": {
+    "privateBytes": 14610432,
+    "handles": 510,
+    "threads": 75
+  },
+  "processAfterImmediate": {
+    "privateBytes": 15581184,
+    "handles": 510,
+    "threads": 75
+  },
+  "processAfter": {
+    "privateBytes": 15613952,
+    "handles": 510,
+    "threads": 76
+  },
+  "waveMetrics": [
+    {
+      "wave": 1,
+      "startedUtc": "2026-08-28T11:17:22.8924555+00:00",
+      "endedUtc": "2026-08-28T11:17:23.0766154+00:00",
+      "workloadSeconds": 0.18416,
+      "successes": 1,
+      "errors": 0,
+      "processBefore": {
+        "privateBytes": 14610432,
+        "handles": 510,
+        "threads": 75
+      },
+      "processAfterImmediate": {
+        "privateBytes": 15581184,
+        "handles": 510,
+        "threads": 75
+      },
+      "processAfterSettle": {
+        "privateBytes": 15613952,
+        "handles": 510,
+        "threads": 76
+      }
+    }
+  ],
+  "isolationPreflight": {
+    "targetExecutable": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin\\hMailServer.exe",
+    "targetBin": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin",
+    "registryInstallLocations": [],
+    "serviceState": "missing",
+    "iniPath": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin\\hMailServer.ini",
+    "failures": [],
+    "passed": true
+  },
+  "executableProvenance": {
+    "implementation": "cpp",
+    "path": "C:\\hmail-perf-pair-provenance6-20260828\\cpp\\Bin\\hMailServer.exe",
+    "sha256": "2DE1AA51367268CECA019365B14AF7237EA00AAED1360C6793BA381879E3E9B1",
+    "expectedSha256": "2DE1AA51367268CECA019365B14AF7237EA00AAED1360C6793BA381879E3E9B1",
+    "length": 6519296,
+    "lastWriteTimeUtc": "2026-08-27T07:02:40.3902150Z"
+  },
+  "runStartAttestation": {
+    "status": "PASS",
+    "observedUtc": "2026-08-28T11:17:20.8404731+00:00",
+    "manifestSha256": "839A86CB0FF69324EDB8E3F183E19A774C3756BC5F2BF5FADBA4A246EFB4C61A",
+    "database": "hmail_perf_pair_cpp_provenance6_20260828",
+    "databaseVersion": 5708,
+    "messageRowCount": 1000,
+    "messageSha256": "5136EEC556F9790732AE759EF52F77FE6172329EA55787A80300C4A824107E46",
+    "dataFileCount": 1000,
+    "dataBytes": 209679,
+    "dataSha256": "45FA907CE0D3797C1E13EBB2F03F076A25656CCE27E801C18F745ACD3944FBBD",
+    "executableSha256": "2DE1AA51367268CECA019365B14AF7237EA00AAED1360C6793BA381879E3E9B1",
+    "descendantReparsePoints": false
+  },
+  "samples": [
+    {
+      "wave": 1,
+      "ok": true,
+      "timedOut": false,
+      "ms": 178.747,
+      "error": null,
+      "searchResultValid": true,
+      "searchResultCount": 1000,
+      "searchExactSequence": true,
+      "sortResultValid": true,
+      "sortResultCount": 1000,
+      "sortExactSequence": true,
+      "resultError": ""
+    }
+  ],
+  "ratioValid": false,
+  "productionSafety": "service stopped/disabled; production DB/Data not used"
+}

@@ -9369,3 +9369,25 @@ and close the remaining filesystem TOCTOU window, then rerun acceptance-sized
 paired protocol/concurrency diagnostics. POP3, 1,000-session C++, long soak,
 restore, installer, registered COM, SEC-18, and other release gates remain
 open.
+## Current authoritative status (2026-08-28, live run-start fixture attestation)
+
+Code/test commit `15a92553f` adds shared deterministic Data, SQL-version,
+logical-message, and executable attestation to the paired benchmark harness.
+The protocol and concurrent-IMAP runners reread/hash the fixture manifest and
+recompute all four live values immediately before process launch. Descendant
+Data reparse points fail closed. JSON/CSV/Markdown now carry and cross-validate
+the run-start evidence. The fixture provisioner uses the same shared Data and
+message fingerprint algorithms.
+
+Focused provenance coverage passes `17` assertions; input-safety rejection and
+all four live artifact validators pass. Fresh C++ and Net10 protocol plus 1x1
+concurrent smokes passed against a newly provisioned 1,000-message fixture.
+These are correctness smokes, not acceptance percentiles. Full Net10 remains
+`2772 passed, 90 skipped, 5 failed`, with the existing COM `E_NOINTERFACE`
+failures. Performance stays **RED**.
+
+Current next slice: harden `generate-paired-performance-report.py` so it rejects
+UNBOUND, wrong-manifest, wrong-database/Data, stale-executable,
+missing-attestation, and mixed-run inputs. Then attest/lease the complete launch
+payload/config and relevant environment, extend SQL fingerprinting beyond
+`hm_messages`, and run acceptance-sized loads.

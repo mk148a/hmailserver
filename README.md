@@ -119,6 +119,17 @@ three-iteration p95 values are diagnostic only. Net10 passed the protocol and
 1-session checks, but was slower in this small sample for IMAP and POP3. No
 speedup claim is made and the performance gate remains **RED**.
 
+Code/test commit `15a92553f` adds live run-start fixture attestation. Before
+the paired protocol or concurrent-IMAP process starts, the harness now re-hashes
+the manifest, exact 1,000-file Data tree, disposable SQL version/message
+projection, and selected executable; descendant Data reparse points fail
+closed. JSON, CSV, and Markdown must agree. A fresh C++/Net10 smoke passed and
+is recorded in
+[artifacts/benchmarks/paired-cpp-net10-20260828-attested/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260828-attested/PERFORMANCE_COMPARISON.md).
+The samples are not acceptance percentiles. Full launch-payload leases,
+expanded SQL state, aggregate provenance enforcement, load, and soak remain
+open, so the performance gate is still **RED**.
+
 The lower dated status sections are retained as historical slice records. The
 2026-08-27 performance section above is the authoritative current status.
 

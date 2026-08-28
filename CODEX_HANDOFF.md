@@ -9141,3 +9141,26 @@ IIS, firewall, or unrelated dirty artifact changed.
 Next slice: add run-start SQL/Data/executable re-attestation and close the
 remaining filesystem TOCTOU window before acceptance-sized paired reruns.
 Performance and release remain **RED**.
+## Current authoritative continuation (2026-08-28, live run-start fixture attestation)
+
+Code/test commit `15a92553f` removes the prior false `MANIFEST_BOUND` path for
+the two read-only paired runners. `Assert-LiveBenchmarkRunStartAttestation`
+re-reads the exact manifest, rejects descendant Data reparse points, recomputes
+the 1,000-file Data digest, reads the disposable SQL schema version and logical
+1,000-message digest, and re-hashes the selected executable immediately before
+launch. Protocol and concurrent IMAP JSON/CSV/Markdown carry matching
+attestation fields and strict validators require PASS agreement.
+
+Provenance tests pass `17` assertions, input-safety passes, and all four fresh
+live artifacts validate. C++ and Net10 each passed one protocol sample and one
+concurrent IMAP session with exact SEARCH/SORT `1..1000`. Full Net10 remains
+`2772/90/5`; the five failures are the existing registered COM
+`E_NOINTERFACE` checks. No production service/SQL/Data, COM/DCOM, registry,
+IIS, or firewall state changed.
+
+Residual P2 gaps are explicit: the full DLL/config launch closure is not held
+by read handles, relevant SQL settings beyond `hm_messages` are not yet
+fingerprinted or held immutable, and the Python paired report generator can
+still accept mixed/unbound inputs. Next slice is the aggregate generator guard,
+then payload lease and expanded SQL/post-run attestation. Release remains
+**RED**.
