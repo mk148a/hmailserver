@@ -23,11 +23,19 @@ disabled, `0/1000` search documents, and queue `0`. This makes the current
 Net10 SEARCH/FULL results invalid for a capacity conclusion until a disposable
 Net10 index is prepared and the query profiles are rerun.
 
-Next slice: add a benchmark-only SQL fan-out diagnostic that separates
-steady-state indexed SEARCH/SORT from missing-index/backfill conditions at
-100/500/1000 sessions, retaining live ACL revalidation and complete failure
-accounting. Do not change production listener limits, SQL schema, or ACL cache
-semantics until the evidence identifies a bounded fix.
+The benchmark-only SQL fan-out diagnostic separates steady-state indexed
+SEARCH/SORT from missing-index/backfill conditions at 1,000 sessions, retaining
+complete failure accounting and live ACL revalidation. It does not change
+production listener limits, SQL schema, or ACL cache semantics.
+
+The disposable Net10 backfill test then produced `1000/1000` indexed search
+documents, indexing enabled, and queue `0`. On the indexed rerun Net10 passed
+all five 1,000-session profiles; C++ passed Admission, AuthSelect, and Sort,
+but Search was `579/1000` and Full was `775/1000`. The indexed evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/`.
+No paired Search/Full ratio or overall winner is valid. The next implementation
+slice is an evidence-backed C++/Net10 capacity diagnosis or fix, preserving
+failure accounting and live ACL revalidation.
 
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 

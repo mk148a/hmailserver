@@ -19,16 +19,16 @@ winner is claimed. The performance release gate remains **RED**.
 
 Report and charts:
 
-- [PROFILE_DIAGNOSTIC.md](artifacts/benchmarks/paired-cpp-net10-20260831-query-diagnostic/report/PROFILE_DIAGNOSTIC.md)
-- [profile-success-count.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-diagnostic/report/profile-success-count.png)
-- [profile-p95-latency.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-diagnostic/report/profile-p95-latency.png)
-- [profile-throughput.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-diagnostic/report/profile-throughput.png)
+- [PROFILE_DIAGNOSTIC.md](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/report/PROFILE_DIAGNOSTIC.md)
+- [profile-success-count.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/report/profile-success-count.png)
+- [profile-p95-latency.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/report/profile-p95-latency.png)
+- [profile-throughput.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/report/profile-throughput.png)
 
 The C++ process is still a disposable standalone `/Debug` process rather than
 an installed service, and the corpus is below the required 100,000 messages.
 No production source, COM registration, service, database, or Data directory
-was changed. Next slice: isolate SQL fan-out and backfill/indexing state before
-any performance implementation change.
+was changed. The initial query-state gap was then closed only in the disposable
+Net10 fixture before the indexed rerun.
 
 The read-only SQL state collector in `5676f6a82` found that the paired C++
 database has no Net10 indexing tables, while the Net10 database has Full-Text
@@ -37,6 +37,16 @@ Therefore the current Search/Full failures cannot be treated as pure capacity
 evidence until a disposable Net10 index is prepared and the profiles are
 rerun. The state report is
 [imap-query-state.md](artifacts/benchmarks/paired-cpp-net10-20260831-query-diagnostic/query-state/imap-query-state.md).
+
+After the disposable Net10 backfill test passed, the indexed rerun reached
+`1000/1000` for Net10 in all five profiles. C++ reached `1000/1000` for
+Admission, AuthSelect, and Sort, but only `579/1000` for Search and `775/1000`
+for Full. The indexed report is
+[PROFILE_DIAGNOSTIC.md](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/report/PROFILE_DIAGNOSTIC.md)
+with the corresponding
+[query-state evidence](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/query-state/imap-query-state.md).
+The performance gate remains **RED** because the paired Search and Full
+acceptance conditions still fail and C++ is not an installed service.
 
 ## Current performance gate (2026-08-31, RED)
 

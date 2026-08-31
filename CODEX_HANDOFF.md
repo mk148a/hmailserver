@@ -19,9 +19,9 @@ process rather than an installed service, the corpus is 1,000 rather than
 100,000 messages, and SQL fan-out, POP3, queue/delivery, restore, installer,
 registered COM, SEC-18, and soak gates remain open.
 
-Next slice: add explicit SQL/indexing-state evidence to these query profiles,
-then reassess a minimal Net10 capacity fix without weakening live ACL
-revalidation or failure accounting.
+The SQL/indexing-state evidence step is complete for the disposable fixture;
+the next slice is an evidence-backed C++/Net10 capacity diagnosis or fix,
+without weakening live ACL revalidation or failure accounting.
 
 The read-only query-state collector in `5676f6a82` found C++ with no indexing
 tables and Net10 with Full-Text objects but indexing disabled, `0/1000` search
@@ -29,6 +29,14 @@ documents, and queue `0`. The query-profile capacity results are therefore not
 valid steady-state evidence yet. Prepare only the disposable Net10 index,
 capture the state again, and rerun the query profiles before considering a
 production change.
+
+The disposable Net10 backfill opt-in passed through `vstest` and produced
+`1000/1000` indexed documents, indexing enabled, queue `0`. The indexed rerun
+passed all five Net10 profiles; C++ passed Admission, AuthSelect, and Sort but
+Search was `579/1000` and Full was `775/1000`. The indexed report and state
+evidence are under
+`artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/`.
+The performance gate remains RED and no Search/Full ratio is valid.
 
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
