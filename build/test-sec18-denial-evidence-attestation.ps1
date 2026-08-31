@@ -103,6 +103,8 @@ try {
     $badWrongSidOutputPath = Join-Path $testOutputDirectory 'bad-wrong-sid-output.json'
     $badProcessPath = Join-Path $temporaryDirectory 'bad-process.json'
     $badProcessOutputPath = Join-Path $testOutputDirectory 'bad-process-output.json'
+    $badGraphPath = Join-Path $temporaryDirectory 'bad-graph.json'
+    $badGraphOutputPath = Join-Path $testOutputDirectory 'bad-graph-output.json'
     $badAuthorizedResponsePath = Join-Path $temporaryDirectory 'bad-authorized-response.json'
     $badAuthorizedOutputPath = Join-Path $testOutputDirectory 'bad-authorized-output.json'
 
@@ -203,8 +205,56 @@ try {
     $badApplicationIdCollector.ApplicationAppId = '{00000000-0000-0000-0000-000000000000}'
     Write-JsonFixture $badApplicationIdCollectorPath $badApplicationIdCollector
     '{"schemaVersion":1,"schemaVersion":2}' | Set-Content -LiteralPath $duplicateCleanupPath -Encoding UTF8
-    Write-JsonFixture $baselinePath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
-    Write-JsonFixture $postPath ([pscustomobject]@{ GraphPathCount = 22; SnapshotCount = 44; Snapshots = @([pscustomobject]@{ Key = 'same' }) })
+    $graphKeyPaths = @(
+        'Software\Classes\hMailServer.Application.1',
+        'Software\Classes\hMailServer.Application.1\CLSID',
+        'Software\Classes\hMailServer.Application',
+        'Software\Classes\hMailServer.Application\CLSID',
+        'Software\Classes\hMailServer.Application\CurVer',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\ProgID',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\VersionIndependentProgID',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\Programmable',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\LocalServer32',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\TypeLib',
+        'Software\Classes\AppID\{5EDEC473-39E0-43F6-A234-1947071721C8}',
+        'Software\Classes\AppID\hMailServer.EXE',
+        'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}',
+        'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0',
+        'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\0',
+        'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\0\win64',
+        'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\FLAGS',
+        'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\HELPDIR',
+        'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}',
+        'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\ProxyStubClsid32',
+        'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\TypeLib'
+    )
+    $graphSnapshots = foreach ($view in @('Registry64', 'Registry32')) {
+        foreach ($keyPath in $graphKeyPaths) {
+            [pscustomobject]@{ View = $view; KeyPath = $keyPath; Present = $true }
+        }
+    }
+    $graphEvidence = [pscustomobject]@{
+        SchemaVersion = 1
+        EvidenceKind = 'SEC18-InstalledApplicationGraph'
+        GraphPathCount = 22
+        SnapshotCount = 44
+        Snapshots = @($graphSnapshots)
+        CanonicalValidation = [pscustomobject]@{
+            Complete = $true
+            FixedValuesValidated = $true
+            DirectSubkeysValidated = $true
+            Registry32AsymmetryValidated = $true
+            InstallationPathsValidated = $true
+        }
+        CanonicalExpectedContentsValidated = $true
+        CompleteReadback = $true
+    }
+    Write-JsonFixture $baselinePath $graphEvidence
+    Write-JsonFixture $postPath $graphEvidence
+    $badGraph = $graphEvidence | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+    $badGraph.Snapshots[0].KeyPath = 'Software\Classes\SEC18.InvalidGraphKey'
+    Write-JsonFixture $badGraphPath $badGraph
 
     $commonArguments = @(
         '-NoProfile',
@@ -279,6 +329,16 @@ try {
     $badProcessReport = Get-Content -LiteralPath $badProcessOutputPath -Raw | ConvertFrom-Json
     $nonPoolTokenCheck = $badProcessReport.Checks | Where-Object { $_.Name -eq 'nonpool-process-token' }
     Assert-True (-not [bool]$nonPoolTokenCheck.Passed) 'missing non-pool process token evidence must fail its check.'
+
+    $badGraphArguments = $commonArguments.Clone()
+    $badGraphArguments[$badGraphArguments.IndexOf('-BaselineGraphPath') + 1] = $badGraphPath
+    $badGraphArguments[$badGraphArguments.IndexOf('-PostGraphPath') + 1] = $badGraphPath
+    $badGraphArguments += @('-OutputPath', $badGraphOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badGraphArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'a graph with matching counts and hash but a non-canonical key path must fail closed with exit 2.'
+    $badGraphReport = Get-Content -LiteralPath $badGraphOutputPath -Raw | ConvertFrom-Json
+    $graphCheck = $badGraphReport.Checks | Where-Object { $_.Name -eq 'installed-application-graph-unchanged' }
+    Assert-True (-not [bool]$graphCheck.Passed) 'a non-canonical graph key path must fail the installed graph check.'
 
     $duplicateOutputArguments = $commonArguments.Clone()
     $duplicateOutputArguments += @('-OutputPath', $goodOutputPath)

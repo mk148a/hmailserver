@@ -368,6 +368,48 @@ $nonPoolProcessTokenBound = @($processes | Where-Object {
             (Has-Property $_ 'Name') -and [string]::Equals(([string]$_.Name).Replace('.exe', ''), $nonPoolProcessName, [StringComparison]::OrdinalIgnoreCase))
     }).Count -gt 0
 
+$expectedInstalledGraphKeyPaths = @(
+    'Software\Classes\hMailServer.Application.1',
+    'Software\Classes\hMailServer.Application.1\CLSID',
+    'Software\Classes\hMailServer.Application',
+    'Software\Classes\hMailServer.Application\CLSID',
+    'Software\Classes\hMailServer.Application\CurVer',
+    'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}',
+    'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\ProgID',
+    'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\VersionIndependentProgID',
+    'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\Programmable',
+    'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\LocalServer32',
+    'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\TypeLib',
+    'Software\Classes\AppID\{5EDEC473-39E0-43F6-A234-1947071721C8}',
+    'Software\Classes\AppID\hMailServer.EXE',
+    'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}',
+    'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0',
+    'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\0',
+    'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\0\win64',
+    'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\FLAGS',
+    'Software\Classes\TypeLib\{DB241B59-A1B1-4C59-98FC-8D101A2995F2}\1.0\HELPDIR',
+    'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}',
+    'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\ProxyStubClsid32',
+    'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\TypeLib'
+)
+$graphEvidenceCandidates = @($baselineGraph, $postGraph)
+$graphEvidenceComplete = @($graphEvidenceCandidates | Where-Object {
+        (Has-Property $_ 'SchemaVersion') -and [int]$_.SchemaVersion -eq 1 -and
+        (Has-Property $_ 'EvidenceKind') -and [string]::Equals([string]$_.EvidenceKind, 'SEC18-InstalledApplicationGraph', [StringComparison]::Ordinal) -and
+        (Has-Property $_ 'GraphPathCount') -and [int]$_.GraphPathCount -eq $expectedInstalledGraphKeyPaths.Count -and
+        (Has-Property $_ 'SnapshotCount') -and [int]$_.SnapshotCount -eq ($expectedInstalledGraphKeyPaths.Count * 2) -and
+        (Has-Property $_ 'CanonicalExpectedContentsValidated') -and [bool]$_.CanonicalExpectedContentsValidated -and
+        (Has-Property $_ 'CompleteReadback') -and [bool]$_.CompleteReadback -and
+        (Has-Property $_ 'CanonicalValidation') -and (Has-Property $_.CanonicalValidation 'Complete') -and [bool]$_.CanonicalValidation.Complete -and
+        (Has-Property $_.CanonicalValidation 'FixedValuesValidated') -and [bool]$_.CanonicalValidation.FixedValuesValidated -and
+        (Has-Property $_.CanonicalValidation 'DirectSubkeysValidated') -and [bool]$_.CanonicalValidation.DirectSubkeysValidated -and
+        (Has-Property $_.CanonicalValidation 'Registry32AsymmetryValidated') -and [bool]$_.CanonicalValidation.Registry32AsymmetryValidated -and
+        (Has-Property $_.CanonicalValidation 'InstallationPathsValidated') -and [bool]$_.CanonicalValidation.InstallationPathsValidated -and
+        @($_.Snapshots).Count -eq ($expectedInstalledGraphKeyPaths.Count * 2) -and
+        (@($_.Snapshots | ForEach-Object { "$($_.View)|$($_.KeyPath)" } | Sort-Object) -join "`n") -ceq
+        (@('Registry64','Registry32' | ForEach-Object { $view = $_; $expectedInstalledGraphKeyPaths | ForEach-Object { "$view|$_" } } | Sort-Object) -join "`n")
+    }).Count -eq 2
+
 $authorizedSidBound = $null -ne $authorized -and
     [string]::Equals([string]$authorized.callerSid, [string]$authorized.expectedSid, [StringComparison]::OrdinalIgnoreCase) -and
     [string]::Equals([string]$authorized.callerSid, $poolSid, [StringComparison]::OrdinalIgnoreCase)
@@ -540,6 +582,7 @@ Add-Check 'collector-provenance' $collectorScriptSourcePresent 'The collector im
 $baselineHash = Get-SnapshotHash $baselineGraph
 $postHash = Get-SnapshotHash $postGraph
 Add-Check 'installed-application-graph-unchanged' (
+    $graphEvidenceComplete -and
     [int]$baselineGraph.GraphPathCount -eq 22 -and
     [int]$postGraph.GraphPathCount -eq 22 -and
     [int]$baselineGraph.SnapshotCount -eq 44 -and
