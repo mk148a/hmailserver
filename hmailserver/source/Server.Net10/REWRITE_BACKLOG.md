@@ -9415,3 +9415,25 @@ that bind a fresh shared run ID, fixture hash, timestamp, expected artifact
 slots, and raw artifact hashes. Then make the report generator recompute and
 validate sample cardinality, percentiles, throughput, timeout/settle settings,
 and workload labels before it emits any comparison table, ratio, or chart.
+
+## Current authoritative status (2026-08-31, measurement reconciliation)
+
+Code/test commit `f43ef7094` adds the raw measurement reconciliation layer to
+the paired benchmark report generator. It requires exact acceptance shapes:
+200 protocol samples per scenario, 100/500/1,000 concurrent sessions, 500
+SMTP messages, and 20 waves of 1,000 IMAP sessions. It recomputes percentile
+and throughput fields, validates exact SEARCH/SORT output, rejects duplicate
+or contradictory session/timeout rows, verifies every soak wave's duration
+and process snapshot, and reconciles SMTP workload timestamps, SQL/Data
+accounting, and all 500 ordered acceptance states. The concurrent producer now
+emits per-wave session IDs. Focused coverage is `13/13` PASS; real `1/1`
+smokes pass producer/validator integration but are intentionally too small for
+acceptance charts. Full Debug remains `2772 passed, 90 skipped, 5 failed`
+with the existing registered COM `E_NOINTERFACE` failures. Performance remains
+**RED**.
+
+Current next slice: create a trusted run descriptor/orchestrator that binds a
+fresh shared run ID, exact fixture-manifest bytes, creation timestamps,
+expected artifact slots, and raw JSON/CSV/Markdown hashes. The full C++/Net10
+matrix must then be rerun on a fresh fixture and regenerated through the
+reconciler before any historical speed table is treated as current evidence.

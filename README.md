@@ -128,6 +128,15 @@ evidence only and publish no speed claim. A trusted run descriptor, raw report
 hash binding, and metric/sample recomputation remain mandatory before the full
 comparison can be regenerated; the performance gate remains **RED**.
 
+Code/test commit `f43ef7094` also makes the comparison generator recompute
+percentiles and throughput from raw samples, enforce the exact 200/500/100,
+500,1,000/20-wave workload shapes, validate SEARCH/SORT result correctness,
+reconcile every soak wave's resource snapshot, and require detailed SMTP
+SQL/Data acceptance evidence. Concurrent artifacts now carry an exact session
+sequence per wave. A `1/1` smoke remains intentionally excluded from the
+acceptance charts; the full matrix must be rerun through this validator before
+the historical table above can be treated as current evidence.
+
 The complete report, sanitized CSV/JSON summaries, and static charts are in
 [artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md](artifacts/benchmarks/paired-cpp-net10-20260827/PERFORMANCE_COMPARISON.md).
 

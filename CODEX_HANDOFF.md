@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, measurement reconciliation)
+
+Code/test commit `f43ef7094` closes the second report-integrity layer. The
+paired generator now recomputes protocol p50/p95/p99 from exactly 200 samples
+per scenario, requires exact IMAP SEARCH/SORT results, validates strict
+concurrent wave/session membership, timeout/settle methodology, wave durations,
+process memory/handle/thread snapshots, and exact SMTP timestamp, SQL/Data,
+and 500-message accepted-state evidence. Negative coverage remains `13/13`
+PASS, and the concurrent producer emits per-wave session IDs. If C++ passes
+the 1,000-session wave in a future run, the report narrative and ratio become
+conditional rather than contradictory.
+
+Fresh disposable C++ and Net10 `1/1` SMTP and concurrent smokes passed the
+updated producer validators. They are integration checks only and are rejected
+by the acceptance-sized generator. Full Debug remains `2772 passed, 90
+skipped, 5 failed`; all five are the existing registered local-server COM
+`E_NOINTERFACE` failures. Nothing was pushed. The old generated report remains
+historical until a fresh complete matrix passes the new raw-metric checks.
+
+Next slice: create a trusted run descriptor/orchestrator binding one fresh run
+ID, fixture-manifest hash, timestamps, expected slots, and raw report hashes;
+then rerun the complete C++/Net10 matrix and regenerate sanitized tables/charts.
+Release and performance gates remain **RED**.
+
 ## Current authoritative continuation (2026-08-31, aggregate provenance guard)
 
 Code/test commit `89ad75a53` makes the paired report generator fail closed on
