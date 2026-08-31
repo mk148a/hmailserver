@@ -1,0 +1,262 @@
+param(
+    [Parameter(Mandatory = $true)]
+    [string]$FixtureManifest,
+    [Parameter(Mandatory = $true)]
+    [string]$Net10EvidencePath,
+    [string]$OutputDirectory = "",
+    [string]$ServiceName = "",
+    [ValidateRange(25000, 29999)]
+    [int]$SinkPort = 26045,
+    [ValidateRange(10, 300)]
+    [int]$TimeoutSeconds = 90
+)
+
+$ErrorActionPreference = "Stop"
+$repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
+. (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
+. (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
+
+function Invoke-SqlStrict {
+    param([string]$Database, [string]$Query)
+    $result = @(& sqlcmd.exe -S localhost -E -b -d $Database -Q $Query 2>&1)
+    if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed for disposable database '$Database': $($result -join ' ')" }
+    return $result
+}
+
+function Get-SqlScalar {
+    param([string]$Database, [string]$Query)
+    $result = (@(& sqlcmd.exe -S localhost -E -b -d $Database -h-1 -W -Q $Query 2>&1) -join " ").Trim()
+    if ($LASTEXITCODE -ne 0) { throw "sqlcmd scalar query failed for disposable database '$Database'." }
+    return $result
+}
+
+function Get-ServiceRecord {
+    param([string]$Name)
+    $service = Get-CimInstance Win32_Service -Filter "Name='$Name'" -ErrorAction SilentlyContinue
+    if ($null -eq $service) { return $null }
+    [pscustomobject]@{
+        name = [string]$service.Name
+        state = [string]$service.State
+        processId = [int]$service.ProcessId
+        startName = [string]$service.StartName
+        pathName = [string]$service.PathName
+    }
+}
+
+function Assert-DisposableFixture {
+    param($Fixture)
+    if ($Fixture.database -notmatch '^hmail_perf_pair_cpp_[a-z0-9_]+$') { throw "C++ fixture database is not disposable." }
+    if ($Fixture.dataRoot -notmatch '(?i)^C:\\hmail-perf-(?:cpp|pair)-[a-z0-9_-]+\\cpp\\Data$') { throw "C++ Data root is outside the disposable fixture boundary." }
+    if ($Fixture.executable -notmatch '(?i)^C:\\hmail-perf-(?:cpp|pair)-[a-z0-9_-]+\\cpp\\Bin\\hMailServer\.exe$') { throw "C++ executable is outside the disposable fixture boundary." }
+    if (-not (Test-Path -LiteralPath $Fixture.executable -PathType Leaf)) { throw "C++ executable is missing: $($Fixture.executable)" }
+    if (-not (Test-Path -LiteralPath $Fixture.dataRoot -PathType Container)) { throw "C++ Data root is missing: $($Fixture.dataRoot)" }
+}
+
+function Start-TransientSink {
+    param([int]$Port, [string]$StatePath)
+    Start-Job -ArgumentList $Port, $StatePath -ScriptBlock {
+        param($SinkPort, $SinkStatePath)
+        $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $SinkPort)
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $saw451 = $false
+        $sawData = $false
+        $listener.Start()
+        try {
+            $client = $listener.AcceptTcpClient()
+            try {
+                $stream = $client.GetStream()
+                $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 4096, $true)
+                $writer = [IO.StreamWriter]::new($stream, [Text.Encoding]::ASCII, 4096, $true)
+                $writer.NewLine = "`r`n"
+                $writer.AutoFlush = $true
+                $writer.WriteLine("220 disposable retry sink")
+                while ($null -ne ($line = $reader.ReadLine())) {
+                    $lines.Add($line)
+                    if ($line -match '^(EHLO|HELO)') { $writer.WriteLine("250 disposable retry sink") }
+                    elseif ($line -match '^MAIL FROM:') { $writer.WriteLine("250 sender accepted") }
+                    elseif ($line -match '^RCPT TO:') {
+                        $writer.WriteLine("451 temporary recipient failure")
+                        $saw451 = $true
+                        break
+                    }
+                    elseif ($line -match '^DATA') { $sawData = $true; $writer.WriteLine("354 unexpected data") }
+                    else { $writer.WriteLine("250 ok") }
+                }
+                $reader.Dispose()
+                $writer.Dispose()
+            }
+            finally { $client.Dispose() }
+        }
+        finally {
+            $listener.Stop()
+            [pscustomobject]@{
+                saw451 = $saw451
+                sawData = $sawData
+                lines = $lines.ToArray()
+            } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $SinkStatePath -Encoding UTF8
+        }
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
+    $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\paired-cpp-net10-20260901-delivery\cpp-tcp451-retry"
+}
+$OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
+if ($OutputDirectory -notmatch '(?i)\\artifacts\\benchmarks\\paired-cpp-net10-[a-z0-9_-]+(?:\\[^\\]+)*$') {
+    throw "OutputDirectory is outside the repository benchmark artifact boundary: $OutputDirectory"
+}
+New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+
+$fixture = Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation cpp -RepositoryRoot $repoRoot
+$net10Evidence = Get-Content -LiteralPath $Net10EvidencePath -Raw | ConvertFrom-Json
+Assert-DisposableFixture $fixture
+if ($net10Evidence.status -ne "PASS" -or $net10Evidence.smtpReply -ne 451 -or -not $net10Evidence.saw451ResponseSent) {
+    throw "Net10 TCP 451 evidence is not a PASS artifact with a real 451 response."
+}
+if ([string]::IsNullOrWhiteSpace($ServiceName)) { $ServiceName = "hMailPerfTcp451Cpp-$([Guid]::NewGuid().ToString('N').Substring(0, 12))" }
+if ($ServiceName -eq "hMailServer" -or $ServiceName -notmatch '^[A-Za-z0-9_.-]{1,255}$') { throw "ServiceName must be a disposable SCM name." }
+if (Get-NetTCPConnection -State Listen -LocalAddress 127.0.0.1 -LocalPort $SinkPort -ErrorAction SilentlyContinue) { throw "Sink port $SinkPort is already in use." }
+if ($null -ne (Get-ServiceRecord $ServiceName)) { throw "Refusing to reuse service '$ServiceName'." }
+$preflight = Get-CppIsolationPreflight -TargetExecutable $fixture.executable -ExpectedStagingRoot (Split-Path -Parent $fixture.dataRoot) -ExpectedDatabase $fixture.database -DisposableRegistrationGuarded
+if (-not $preflight.passed) { throw (($preflight.failures) -join [Environment]::NewLine) }
+
+$runId = [Guid]::NewGuid().ToString('N')
+$from = "tcp451-cpp-$runId@perf.test"
+$fromSql = $from.Replace("'", "''")
+$routeName = "retry-$runId.test"
+$routeSql = $routeName.Replace("'", "''")
+$seedPath = Join-Path $fixture.dataRoot "perf.test\test\tcp451-$runId.eml"
+$seedPathSql = $seedPath.Replace("'", "''")
+$sinkStatePath = Join-Path $OutputDirectory "cpp-tcp451-sink-$runId.json"
+$serviceCreated = $false
+$serviceStarted = $false
+$routeCreated = $false
+$messageSeeded = $false
+$sqlPrincipalCreated = $false
+$sinkJob = $null
+$runError = $null
+$evidence = $null
+$cleanupFailures = [System.Collections.Generic.List[string]]::new()
+$startUtc = [DateTimeOffset]::UtcNow
+
+try {
+    $existingRoute = Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT(*) FROM hm_routes WHERE routedomainname=N'$routeSql';"
+    if ([int]$existingRoute -ne 0) { throw "Generated route name already exists." }
+    $routeInsert = "INSERT INTO hm_routes (routedomainname,routedescription,routetargetsmthost,routetargetsmtport,routenooftries,routeminutesbetweentry,routealladdresses,routeuseauthentication,routeauthenticationusername,routeauthenticationpassword,routetreatsecurityaslocal,routeconnectionsecurity,routetreatsenderaslocaldomain) VALUES (N'$routeSql',N'disposable TCP 451',N'127.0.0.1',$SinkPort,4,1,1,0,N'',N'',0,0,0);"
+    Invoke-SqlStrict $fixture.database $routeInsert | Out-Null
+    $routeCreated = $true
+    [IO.Directory]::CreateDirectory((Split-Path $seedPath)) | Out-Null
+    $payload = "From: $from`r`nTo: retry@$routeName`r`nSubject: disposable TCP 451 retry`r`n`r`nretry body`r`n"
+    [IO.File]::WriteAllText($seedPath, $payload, [Text.Encoding]::ASCII)
+    $size = [IO.File]::ReadAllBytes($seedPath).Length
+    $seed = "INSERT INTO hm_messages (messageaccountid,messagefolderid,messagefilename,messagetype,messagefrom,messagesize,messagecurnooftries,messagenexttrytime,messageflags,messagecreatetime,messagelocked,messageuid) VALUES (0,0,N'$seedPathSql',1,N'$fromSql',$size,0,GETDATE(),0,GETDATE(),0,0); DECLARE @id bigint=SCOPE_IDENTITY(); INSERT INTO hm_messagerecipients (recipientmessageid,recipientaddress,recipientlocalaccountid,recipientoriginaladdress) VALUES (@id,N'retry@$routeSql',0,N'retry@$routeSql');"
+    Invoke-SqlStrict $fixture.database $seed | Out-Null
+    $messageSeeded = $true
+    if ([int](Get-SqlScalar master "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.server_principals WHERE name=N'NT AUTHORITY\LOCAL SERVICE';") -ne 0) { throw "LocalService SQL login already exists; refusing to reuse it." }
+    Invoke-SqlStrict master "CREATE LOGIN [NT AUTHORITY\LOCAL SERVICE] FROM WINDOWS;" | Out-Null
+    Invoke-SqlStrict $fixture.database "CREATE USER [NT AUTHORITY\LOCAL SERVICE] FOR LOGIN [NT AUTHORITY\LOCAL SERVICE]; ALTER ROLE [db_owner] ADD MEMBER [NT AUTHORITY\LOCAL SERVICE];" | Out-Null
+    $sqlPrincipalCreated = $true
+    $sinkJob = Start-TransientSink $SinkPort $sinkStatePath
+    Start-Sleep -Milliseconds 500
+    $binPath = '"{0}" /DisposableBenchmark /ServiceName={1} RunAsService' -f $fixture.executable, $ServiceName
+    & sc.exe create $ServiceName binPath= $binPath start= demand type= own obj= 'NT AUTHORITY\LocalService' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "sc.exe create failed." }
+    $serviceCreated = $true
+    & sc.exe start $ServiceName | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "sc.exe start failed." }
+    $serviceStarted = $true
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    do {
+        Start-Sleep -Milliseconds 500
+        $service = Get-ServiceRecord $ServiceName
+        if ($null -ne $service -and $service.state -eq "Running") { break }
+    } while ([DateTime]::UtcNow -lt $deadline)
+    if ($null -eq $service -or $service.state -ne "Running") { throw "Disposable C++ service did not reach Running." }
+    do { Start-Sleep -Milliseconds 500 } while (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline)
+    if (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf)) { throw "C++ service did not reach the transient sink before timeout." }
+    $sinkEvidence = Get-Content -LiteralPath $sinkStatePath -Raw | ConvertFrom-Json
+    $row = @(& sqlcmd.exe -S localhost -E -b -d $fixture.database -h-1 -W -s '|' -Q "SET NOCOUNT ON; SELECT COUNT_BIG(*),MAX(CAST(messagetype AS int)),MAX(CAST(messagelocked AS int)),MAX(messagecurnooftries),MAX(messagenexttrytime),MAX(CASE WHEN r.recipientmessageid IS NULL THEN 0 ELSE 1 END) FROM hm_messages m LEFT JOIN hm_messagerecipients r ON r.recipientmessageid=m.messageid WHERE m.messagefrom=N'$fromSql';" 2>&1) | Where-Object { $_ -match '\|' } | Select-Object -Last 1
+    if ($LASTEXITCODE -ne 0) { throw "C++ SQL evidence query failed." }
+    $parts = ([string]$row).Trim().Split('|')
+    if ($parts.Count -ne 6) { throw "C++ SQL evidence returned an unexpected shape: $row" }
+    $evidence = [ordered]@{
+        queuedCount = [int64]$parts[0].Trim()
+        messageType = [int]$parts[1].Trim()
+        locked = [int]$parts[2].Trim()
+        retryCount = [int]$parts[3].Trim()
+        nextTryUtc = ([DateTime]::Parse($parts[4].Trim())).ToUniversalTime().ToString('o')
+        recipientCount = [int]$parts[5].Trim()
+        dataFileExists = Test-Path -LiteralPath $seedPath -PathType Leaf
+        sink = $sinkEvidence
+    }
+    Remove-Item -LiteralPath $sinkStatePath -Force -ErrorAction SilentlyContinue
+    if (-not $sinkEvidence.saw451 -or $sinkEvidence.sawData -or $evidence.queuedCount -ne 1 -or $evidence.messageType -ne 1 -or $evidence.locked -ne 0 -or $evidence.retryCount -ne 1 -or $evidence.recipientCount -ne 1 -or -not $evidence.dataFileExists) {
+        throw "C++ TCP 451 retry-state assertions failed."
+    }
+}
+catch {
+    $runError = $_.Exception.Message
+}
+finally {
+    if ($serviceCreated) {
+        & sc.exe stop $ServiceName | Out-Null
+        $deadline = [DateTime]::UtcNow.AddSeconds(30)
+        do { Start-Sleep -Milliseconds 500; $service = Get-ServiceRecord $ServiceName } while ($null -ne $service -and $service.state -ne "Stopped" -and [DateTime]::UtcNow -lt $deadline)
+        if ($null -ne $service -and $service.state -ne "Stopped") { $cleanupFailures.Add("Disposable C++ service did not stop.") }
+        & sc.exe delete $ServiceName | Out-Null
+        if ($LASTEXITCODE -ne 0) { $cleanupFailures.Add("sc.exe delete failed.") }
+    }
+    if ($null -ne $sinkJob) { Stop-Job $sinkJob -ErrorAction SilentlyContinue; Remove-Job $sinkJob -Force -ErrorAction SilentlyContinue }
+    if ($messageSeeded) {
+        try { Invoke-SqlStrict $fixture.database "DELETE r FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid=r.recipientmessageid WHERE m.messagefrom=N'$fromSql'; DELETE FROM hm_messages WHERE messagefrom=N'$fromSql';" | Out-Null } catch { $cleanupFailures.Add("Message cleanup failed: $($_.Exception.Message)") }
+    }
+    if ($routeCreated) { try { Invoke-SqlStrict $fixture.database "DELETE FROM hm_routes WHERE routedomainname=N'$routeSql';" | Out-Null } catch { $cleanupFailures.Add("Route cleanup failed: $($_.Exception.Message)") } }
+    if ($sqlPrincipalCreated) {
+        try { Invoke-SqlStrict $fixture.database "IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NT AUTHORITY\LOCAL SERVICE') DROP USER [NT AUTHORITY\LOCAL SERVICE];" | Out-Null; Invoke-SqlStrict master "IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name=N'NT AUTHORITY\LOCAL SERVICE') DROP LOGIN [NT AUTHORITY\LOCAL SERVICE];" | Out-Null } catch { $cleanupFailures.Add("SQL principal cleanup failed: $($_.Exception.Message)") }
+    }
+    Remove-Item -LiteralPath $seedPath -Force -ErrorAction SilentlyContinue
+}
+
+$cleanupState = [ordered]@{
+    serviceAbsent = $null -eq (Get-ServiceRecord $ServiceName)
+    routeAbsent = [int](Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT(*) FROM hm_routes WHERE routedomainname=N'$routeSql';") -eq 0
+    messageAbsent = [int](Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT(*) FROM hm_messages WHERE messagefrom=N'$fromSql';") -eq 0
+    recipientAbsent = [int](Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid=r.recipientmessageid WHERE m.messagefrom=N'$fromSql';") -eq 0
+    dataFileAbsent = -not (Test-Path -LiteralPath $seedPath -PathType Leaf)
+}
+$cleanupPass = $cleanupFailures.Count -eq 0 -and @($cleanupState.Values | Where-Object { -not $_ }).Count -eq 0
+$endUtc = [DateTimeOffset]::UtcNow
+$report = [ordered]@{
+    schema = "paired-cpp-net10-tcp-451-retry-v1"
+    status = if ($null -eq $runError -and $cleanupPass) { "PASS" } else { "FAIL" }
+    generatedUtc = $endUtc.ToString('o')
+    gitCommit = (git rev-parse HEAD).Trim()
+    fixtureManifest = [IO.Path]::GetFullPath($FixtureManifest)
+    fixtureManifestSha256 = $fixture.sha256
+    sink = [ordered]@{ host = "127.0.0.1"; port = $SinkPort; smtpReply = 451; sameProtocolPhase = $true }
+    cpp = [ordered]@{ database = $fixture.database; dataRoot = $fixture.dataRoot; executable = $fixture.executable; executableSha256 = (Get-FileHash -LiteralPath $fixture.executable -Algorithm SHA256).Hash; serviceName = $ServiceName; evidence = $evidence }
+    net10 = [ordered]@{ evidencePath = [IO.Path]::GetFullPath($Net10EvidencePath); database = $net10Evidence.database; dataRoot = $net10Evidence.dataRoot; evidence = $net10Evidence }
+    cleanup = $cleanupState
+    cleanupFailures = @($cleanupFailures)
+    error = $runError
+}
+$jsonPath = Join-Path $OutputDirectory "paired-cpp-net10-tcp451-retry.json"
+$csvPath = Join-Path $OutputDirectory "paired-cpp-net10-tcp451-retry.csv"
+$mdPath = Join-Path $OutputDirectory "paired-cpp-net10-tcp451-retry.md"
+$report | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
+"implementation,status,smtp_reply,queued_count,message_type,locked,retry_count,recipient_count,data_file_exists`ncpp,$($report.status),451,$($evidence.queuedCount),$($evidence.messageType),$($evidence.locked),$($evidence.retryCount),$($evidence.recipientCount),$($evidence.dataFileExists)`nnet10,$($net10Evidence.status),451,$($net10Evidence.queuedCount),$($net10Evidence.messageType),$($net10Evidence.locked),$($net10Evidence.retryCount),$($net10Evidence.recipientCount),$(-not $net10Evidence.sawData)" | Set-Content -LiteralPath $csvPath -Encoding UTF8
+@(
+    "# Paired C++ / .NET 10 TCP 451 retry acceptance",
+    "",
+    "- Status: **$($report.status)**",
+    "- Sink: 127.0.0.1:$SinkPort, RCPT reply 451, DATA expected on first attempt: false",
+    "- C++: queued=$($evidence.queuedCount), type=$($evidence.messageType), locked=$($evidence.locked), retry=$($evidence.retryCount), recipients=$($evidence.recipientCount), Data file=$($evidence.dataFileExists)",
+    "- Net10: queued=$($net10Evidence.queuedCount), type=$($net10Evidence.messageType), locked=$($net10Evidence.locked), retry=$($net10Evidence.retryCount), recipients=$($net10Evidence.recipientCount), no DATA=$(-not $net10Evidence.sawData)",
+    "- Cleanup: service=$($cleanupState.serviceAbsent), route=$($cleanupState.routeAbsent), message=$($cleanupState.messageAbsent), recipient=$($cleanupState.recipientAbsent), Data file=$($cleanupState.dataFileAbsent)",
+    "",
+    "This is bounded transient-state parity evidence. It is not retry recovery, throughput, soak, or release clearance.",
+    "",
+    "JSON: $jsonPath"
+) | Set-Content -LiteralPath $mdPath -Encoding UTF8
+if ($report.status -ne "PASS") { throw "Paired TCP 451 retry acceptance failed. See $jsonPath" }
+Write-Output ($report | ConvertTo-Json -Depth 16)
