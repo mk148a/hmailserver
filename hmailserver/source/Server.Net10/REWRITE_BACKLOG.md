@@ -66,6 +66,14 @@ the tested disposable POP3 mailbox acceptance gap, not the 100,000-message,
 installed-service, 24-hour soak, or overall performance gates. See
 `artifacts/benchmarks/paired-cpp-net10-20260831-pop3-large-mailbox/report/POP3_LARGE_MAILBOX_COMPARISON.md`.
 
+Installer/rollback preflight then passed in `build/test-net10-rollback-archive-preflight.ps1`
+without machine mutation. The real drill is **ENVIRONMENT-BLOCKED**: the
+installer invokes `--register-com` and `sc.exe create/config`, while the current
+host has no disposable registered legacy service/COM rollback baseline. No
+service, registry, COM, DCOM, SQL, or Data mutation was attempted. The exact
+blocker and required isolated evidence are recorded in
+`artifacts/migration/installer-rollback-preflight-20260831.md`.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator

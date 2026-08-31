@@ -67,6 +67,15 @@ C++ target is standalone `/Debug`, the corpus is 1,000 messages, and soak and
 installed-service evidence remain open. Next slice: complete installer/rollback
 acceptance in disposable resources or record the exact environment blocker.
 
+The archive preflight has now passed without side effects. The actual
+installer/rollback drill is environment-blocked because it would mutate COM and
+the `hMailServer` service, and there is no disposable registered legacy service
+and COM rollback baseline on this host. No machine mutation was attempted. See
+`artifacts/migration/installer-rollback-preflight-20260831.md`. Next slice:
+refresh SEC-18 evidence and complete any remaining isolated denial tests, or
+continue installer rollback only after a disposable registered-service clone
+exists.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and

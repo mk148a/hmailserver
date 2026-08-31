@@ -79,6 +79,15 @@ not a release performance winner: the C++ target is not an installed service,
 the corpus is 1,000 rather than 100,000 messages, and only five iterations
 were run. See the [POP3 report](artifacts/benchmarks/paired-cpp-net10-20260831-pop3-large-mailbox/report/POP3_LARGE_MAILBOX_COMPARISON.md).
 
+## Installer/rollback acceptance status (2026-08-31)
+
+The rollback archive preflight passed without installer side effects. The actual
+installer drill is **ENVIRONMENT-BLOCKED** because it would invoke
+`--register-com` and `sc.exe create/config` and this host has no disposable
+registered legacy service/COM rollback baseline. No machine-wide service,
+registry, COM, database, or Data mutation was attempted. Details and the exact
+continuation requirements are in the [installer/rollback preflight report](artifacts/migration/installer-rollback-preflight-20260831.md).
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic
