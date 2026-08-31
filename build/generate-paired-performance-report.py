@@ -11,6 +11,7 @@ import re
 import stat
 import subprocess
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -225,6 +226,300 @@ def validate_report_set(
     }
     require(len(run_ids) == 1, "Paired performance inputs contain mixed run IDs.")
     return next(iter(run_ids))
+
+
+def percentile(values: list[float], percent: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = (percent / 100.0) * (len(ordered) - 1)
+    lower = math.floor(rank)
+    upper = math.ceil(rank)
+    if lower == upper:
+        return round(ordered[lower], 3)
+    return round(
+        ordered[lower] + (ordered[upper] - ordered[lower]) * (rank - lower),
+        3,
+    )
+
+
+def require_number(value: Any, label: str, *, positive: bool = False) -> float:
+    require(not isinstance(value, bool), f"{label} is not numeric.")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{label} is not numeric.") from error
+    require(math.isfinite(number), f"{label} is not finite.")
+    require(not positive or number > 0, f"{label} must be positive.")
+    return number
+
+
+def require_integer(value: Any, label: str) -> int:
+    require(type(value) is int, f"{label} is not an integer.")
+    return value
+
+
+def parse_timestamp(value: Any, label: str) -> datetime:
+    require(isinstance(value, str) and value.strip() != "", f"{label} is missing.")
+    try:
+        timestamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError(f"{label} is invalid.") from error
+    require(timestamp.tzinfo is not None, f"{label} must include an offset.")
+    return timestamp
+
+
+def validate_process_metrics(value: Any, label: str) -> None:
+    require(isinstance(value, dict), f"{label} is missing.")
+    require_integer(value.get("privateBytes"), f"{label} privateBytes")
+    require_integer(value.get("handles"), f"{label} handles")
+    require_integer(value.get("threads"), f"{label} threads")
+    require(value["privateBytes"] > 0, f"{label} privateBytes must be positive.")
+    require(value["handles"] > 0, f"{label} handles must be positive.")
+    require(value["threads"] > 0, f"{label} threads must be positive.")
+
+
+def require_metric(actual: Any, expected: float | None, label: str) -> None:
+    if expected is None:
+        require(actual is None, f"{label} must be null when there are no successful samples.")
+        return
+    actual_number = require_number(actual, label)
+    require(abs(actual_number - expected) <= 0.001, f"{label} does not reconcile with samples.")
+
+
+def validate_protocol_workload(report: dict[str, Any]) -> None:
+    require(report.get("schema") == "live-protocol-v1", "Unexpected protocol schema.")
+    require(report.get("status") == "PASS", "Protocol workload did not pass.")
+    require(require_integer(report.get("messageCount"), "Protocol messageCount") == 1000, "Protocol corpus is not 1,000 messages.")
+    require(report.get("bind") == "127.0.0.1", "Protocol workload is not loopback-only.")
+    require(
+        report.get("ports") == "SMTP 2525, IMAP 1143, POP3 25110",
+        "Protocol ports do not match the paired methodology.",
+    )
+    samples = report.get("samples")
+    require(isinstance(samples, list) and len(samples) == 600, "Protocol workload must contain 600 samples.")
+    require(
+        isinstance(report.get("summary"), list)
+        and len(report["summary"]) == 3
+        and {row.get("scenario") for row in report["summary"]} == set(SCENARIOS),
+        "Protocol summary must contain exactly SMTP, IMAP, and POP3.",
+    )
+    require(not report.get("readinessFailures"), "Protocol readiness failures are present.")
+    require(not report.get("shutdownFailures"), "Protocol shutdown failures are present.")
+    for scenario in SCENARIOS:
+        rows = [row for row in samples if row.get("scenario") == scenario]
+        require(len(rows) == 200, f"Protocol {scenario} must contain 200 samples.")
+        require(
+            {require_integer(row.get("iteration"), f"Protocol {scenario} iteration") for row in rows}
+            == set(range(1, 201)),
+            f"Protocol {scenario} iteration sequence is incomplete or duplicated.",
+        )
+        require(all(type(row.get("ok")) is bool for row in rows), f"Protocol {scenario} ok is not boolean.")
+        require(all(row.get("ok") is True for row in rows), f"Protocol {scenario} contains failures.")
+        if scenario == "imap":
+            require(
+                all(
+                    row.get("searchResponseIdentifier") == "SEARCH"
+                    and row.get("searchResultCount") == 1000
+                    and row.get("searchExactSequence") is True
+                    and row.get("sortResponseIdentifier") == "SORT"
+                    and row.get("sortResultCount") == 1000
+                    and row.get("sortExactSequence") is True
+                    for row in rows
+                ),
+                "Protocol IMAP samples do not contain exact SEARCH/SORT 1..1000 results.",
+            )
+        values = [require_number(row.get("ms"), f"Protocol {scenario} sample ms", positive=True) for row in rows]
+        summary = summary_row(report, scenario)
+        require(require_integer(summary.get("iterations"), f"Protocol {scenario} iterations") == 200, f"Protocol {scenario} iteration summary is wrong.")
+        require(require_integer(summary.get("successes"), f"Protocol {scenario} successes") == 200, f"Protocol {scenario} success summary is wrong.")
+        require(require_integer(summary.get("errors"), f"Protocol {scenario} errors") == 0, f"Protocol {scenario} error summary is wrong.")
+        for percent in (50, 95, 99):
+            require_metric(summary.get(f"p{percent}_ms"), percentile(values, percent), f"Protocol {scenario} p{percent}")
+
+
+def validate_concurrent_workload(
+    report: dict[str, Any],
+    expected_concurrency: int,
+    expected_waves: int,
+    *,
+    require_pass: bool,
+) -> None:
+    require(report.get("schema") == "live-concurrent-imap-v1", "Unexpected concurrent IMAP schema.")
+    require(require_integer(report.get("concurrency"), "Concurrent IMAP concurrency") == expected_concurrency, "Concurrent IMAP level mismatch.")
+    require(require_integer(report.get("waves"), "Concurrent IMAP waves") == expected_waves, "Concurrent IMAP wave count mismatch.")
+    requested = expected_concurrency * expected_waves
+    require(require_integer(report.get("requestedSessions"), "Concurrent IMAP requestedSessions") == requested, "Concurrent IMAP requested count mismatch.")
+    require(require_integer(report.get("timeoutMilliseconds"), "Concurrent IMAP timeoutMilliseconds") == 30000, "Concurrent IMAP timeout must be 30 seconds.")
+    require(require_integer(report.get("postWorkloadSettleSeconds"), "Concurrent IMAP postWorkloadSettleSeconds") == 5, "Concurrent IMAP settle interval must be five seconds.")
+    require(require_integer(report.get("messageCount"), "Concurrent IMAP messageCount") == 1000, "Concurrent IMAP corpus is not 1,000 messages.")
+    require(report.get("bind") == "127.0.0.1" and require_integer(report.get("port"), "Concurrent IMAP port") == 1143, "Concurrent IMAP is not on the approved loopback port.")
+    samples = report.get("samples")
+    require(isinstance(samples, list) and len(samples) == requested, "Concurrent IMAP sample count mismatch.")
+    wave_sessions: dict[int, set[int]] = {}
+    for row in samples:
+        require(type(row.get("ok")) is bool, "Concurrent IMAP sample ok is not boolean.")
+        require(type(row.get("timedOut")) is bool, "Concurrent IMAP sample timedOut is not boolean.")
+        require(not (row["ok"] and row["timedOut"]), "Concurrent IMAP sample cannot succeed and time out.")
+        require_number(row.get("ms"), "Concurrent IMAP sample ms", positive=True)
+        wave = require_integer(row.get("wave"), "Concurrent IMAP sample wave")
+        session = require_integer(row.get("session"), "Concurrent IMAP sample session")
+        wave_sessions.setdefault(wave, set()).add(session)
+    require(
+        wave_sessions
+        == {wave: set(range(1, expected_concurrency + 1)) for wave in range(1, expected_waves + 1)},
+        "Concurrent IMAP wave/session membership is incomplete or duplicated.",
+    )
+    successful = [row for row in samples if row.get("ok") is True]
+    timed_out = [row for row in samples if row.get("timedOut") is True]
+    require(
+        all(
+            row.get("searchResultValid") is True
+            and row.get("searchResultCount") == 1000
+            and row.get("searchExactSequence") is True
+            and row.get("sortResultValid") is True
+            and row.get("sortResultCount") == 1000
+            and row.get("sortExactSequence") is True
+            for row in successful
+        ),
+        "Successful concurrent IMAP samples do not contain exact SEARCH/SORT 1..1000 results.",
+    )
+    values = [float(row["ms"]) for row in successful]
+    summary = report.get("summary")
+    require(isinstance(summary, dict), "Concurrent IMAP summary is missing.")
+    require(require_integer(summary.get("requested"), "Concurrent IMAP summary requested") == requested, "Concurrent IMAP requested summary is wrong.")
+    require(require_integer(summary.get("completed"), "Concurrent IMAP summary completed") == len(samples), "Concurrent IMAP completed summary is wrong.")
+    require(require_integer(summary.get("successes"), "Concurrent IMAP summary successes") == len(successful), "Concurrent IMAP success summary is wrong.")
+    require(require_integer(summary.get("errors"), "Concurrent IMAP summary errors") == requested - len(successful), "Concurrent IMAP error summary is wrong.")
+    require(require_integer(summary.get("timeouts"), "Concurrent IMAP summary timeouts") == len(timed_out), "Concurrent IMAP timeout summary is wrong.")
+    for percent in (50, 95, 99):
+        require_metric(summary.get(f"p{percent}_ms"), percentile(values, percent), f"Concurrent IMAP p{percent}")
+
+    wave_metrics = report.get("waveMetrics")
+    require(isinstance(wave_metrics, list) and len(wave_metrics) == expected_waves, "Concurrent IMAP waveMetrics count mismatch.")
+    exact_workload_seconds = 0.0
+    for expected_wave, metric in enumerate(wave_metrics, start=1):
+        require(require_integer(metric.get("wave"), "Concurrent IMAP metric wave") == expected_wave, "Concurrent IMAP metric wave order is wrong.")
+        started = parse_timestamp(metric.get("startedUtc"), "Concurrent IMAP metric startedUtc")
+        ended = parse_timestamp(metric.get("endedUtc"), "Concurrent IMAP metric endedUtc")
+        duration = (ended - started).total_seconds()
+        require(duration > 0, "Concurrent IMAP metric duration must be positive.")
+        require_metric(metric.get("workloadSeconds"), round(duration, 6), "Concurrent IMAP metric workloadSeconds")
+        exact_workload_seconds += duration
+        wave_rows = [row for row in samples if row["wave"] == expected_wave]
+        wave_successes = sum(row["ok"] is True for row in wave_rows)
+        require(require_integer(metric.get("successes"), "Concurrent IMAP metric successes") == wave_successes, "Concurrent IMAP wave successes do not reconcile.")
+        require(require_integer(metric.get("errors"), "Concurrent IMAP metric errors") == expected_concurrency - wave_successes, "Concurrent IMAP wave errors do not reconcile.")
+        validate_process_metrics(metric.get("processBefore"), "Concurrent IMAP processBefore")
+        validate_process_metrics(metric.get("processAfterImmediate"), "Concurrent IMAP processAfterImmediate")
+        validate_process_metrics(metric.get("processAfterSettle"), "Concurrent IMAP processAfterSettle")
+    require(
+        parse_timestamp(report.get("workloadStartedUtc"), "Concurrent IMAP workloadStartedUtc")
+        == parse_timestamp(wave_metrics[0].get("startedUtc"), "Concurrent IMAP first wave startedUtc")
+        and parse_timestamp(report.get("workloadEndedUtc"), "Concurrent IMAP workloadEndedUtc")
+        == parse_timestamp(wave_metrics[-1].get("endedUtc"), "Concurrent IMAP last wave endedUtc"),
+        "Concurrent IMAP workload bounds do not match waveMetrics.",
+    )
+    require_metric(summary.get("workload_seconds"), round(exact_workload_seconds, 6), "Concurrent IMAP workload seconds")
+    expected_throughput = round(len(successful) / exact_workload_seconds, 3)
+    require_metric(summary.get("throughput_sessions_per_second"), expected_throughput, "Concurrent IMAP throughput")
+    derived_pass = (
+        len(successful) == requested
+        and not timed_out
+        and not report.get("readinessFailures")
+        and not report.get("shutdownFailures")
+    )
+    require(report.get("status") == ("PASS" if derived_pass else "FAIL"), "Concurrent IMAP status does not reconcile.")
+    if require_pass:
+        require(derived_pass, "Required concurrent IMAP workload did not pass.")
+
+
+def validate_smtp_workload(report: dict[str, Any]) -> None:
+    require(report.get("schema") == "live-smtp-message-acceptance-v1", "Unexpected SMTP schema.")
+    require(report.get("status") == "PASS", "SMTP acceptance workload did not pass.")
+    require(require_integer(report.get("requestedMessages"), "SMTP requestedMessages") == 500, "SMTP acceptance must request 500 messages.")
+    require(require_integer(report.get("postWorkloadSettleSeconds"), "SMTP postWorkloadSettleSeconds") == 5, "SMTP settle interval must be five seconds.")
+    require(report.get("bind") == "127.0.0.1" and require_integer(report.get("port"), "SMTP port") == 2525, "SMTP acceptance is not on the approved loopback port.")
+    samples = report.get("samples")
+    require(isinstance(samples, list) and len(samples) == 500, "SMTP acceptance must contain 500 samples.")
+    require(
+        {require_integer(row.get("sequence"), "SMTP sample sequence") for row in samples} == set(range(1, 501)),
+        "SMTP acceptance sequence is incomplete or duplicated.",
+    )
+    successful = [row for row in samples if row.get("ok") is True]
+    require(all(type(row.get("ok")) is bool for row in samples), "SMTP sample ok is not boolean.")
+    require(len(successful) == 500, "SMTP acceptance contains failed samples.")
+    require(require_integer(report.get("acceptedMessages"), "SMTP acceptedMessages") == 500, "SMTP accepted-message summary is wrong.")
+    require(require_integer(report.get("errors"), "SMTP errors") == 0, "SMTP error summary is wrong.")
+    values = [require_number(row.get("ms"), "SMTP sample ms", positive=True) for row in successful]
+    for percent in (50, 95, 99):
+        require_metric(report.get(f"p{percent}_ms"), percentile(values, percent), f"SMTP p{percent}")
+    workload_started = parse_timestamp(report.get("workloadStartedUtc"), "SMTP workloadStartedUtc")
+    workload_ended = parse_timestamp(report.get("workloadEndedUtc"), "SMTP workloadEndedUtc")
+    workload_seconds = (workload_ended - workload_started).total_seconds()
+    require(workload_seconds > 0, "SMTP workload duration must be positive.")
+    require_metric(report.get("workloadSeconds"), round(workload_seconds, 6), "SMTP workloadSeconds")
+    require_metric(
+        report.get("throughput_messages_per_second"),
+        round(500 / workload_seconds, 3),
+        "SMTP throughput",
+    )
+    require(not report.get("readinessFailures"), "SMTP readiness failures are present.")
+    require(not report.get("shutdownFailures"), "SMTP shutdown failures are present.")
+    accounting = report.get("postRunAccounting")
+    require(isinstance(accounting, dict) and accounting.get("valid") is True, "SMTP post-run accounting did not pass.")
+    require(
+        accounting.get("sqlAvailable") is True
+        and accounting.get("dataAvailable") is True
+        and accounting.get("fixtureValidBefore") is True
+        and accounting.get("fixtureValidAfter") is True
+        and require_integer(accounting.get("messageRowDelta"), "SMTP messageRowDelta") == 500
+        and require_integer(accounting.get("dataFileDelta"), "SMTP dataFileDelta") == 500
+        and require_integer(accounting.get("acceptedStatesObserved"), "SMTP acceptedStatesObserved") == 500,
+        "SMTP SQL/Data accounting is not exactly +500/+500.",
+    )
+    fixture = report.get("fixture")
+    require(isinstance(fixture, dict), "SMTP fixture evidence is missing.")
+    before = fixture.get("before")
+    after = fixture.get("after")
+    require(isinstance(before, dict) and isinstance(after, dict), "SMTP before/after evidence is missing.")
+    before_sql, after_sql = before.get("sql"), after.get("sql")
+    before_data, after_data = before.get("data"), after.get("data")
+    require(
+        all(isinstance(value, dict) for value in (before_sql, after_sql, before_data, after_data))
+        and before_sql.get("available") is True
+        and after_sql.get("available") is True
+        and before_sql.get("fixtureValid") is True
+        and after_sql.get("fixtureValid") is True
+        and before_data.get("available") is True
+        and after_data.get("available") is True
+        and require_integer(after_sql.get("messages"), "SMTP after SQL messages")
+        - require_integer(before_sql.get("messages"), "SMTP before SQL messages")
+        == 500
+        and require_integer(after_data.get("fileCount"), "SMTP after Data files")
+        - require_integer(before_data.get("fileCount"), "SMTP before Data files")
+        == 500,
+        "SMTP before/after SQL/Data evidence does not reconcile.",
+    )
+    accepted_states = report.get("acceptedMessageStates")
+    require(isinstance(accepted_states, list) and len(accepted_states) == 500, "SMTP accepted-state evidence count mismatch.")
+    require(
+        all(
+            state.get("observed") is True
+            and require_integer(state.get("expectedNewMessages"), "SMTP accepted-state sequence") == sequence
+            and require_integer(state.get("messages"), "SMTP accepted-state messages") >= sequence
+            and require_integer(state.get("queuedMessages"), "SMTP accepted-state queuedMessages")
+            + require_integer(state.get("deliveredMessages"), "SMTP accepted-state deliveredMessages")
+            >= sequence
+            and isinstance(state.get("snapshot"), dict)
+            and state["snapshot"].get("available") is True
+            and state["snapshot"].get("fixtureValid") is True
+            and require_integer(state["snapshot"].get("messages"), "SMTP accepted snapshot messages")
+            == before_sql["messages"] + state["messages"]
+        for sequence, state in enumerate(accepted_states, start=1)
+        ),
+        "SMTP accepted-state evidence is incomplete or out of order.",
+    )
 
 
 def git_text(repository: Path, *args: str) -> str:
@@ -621,6 +916,20 @@ def main() -> None:
         args.fixture_manifest.resolve(),
     )
 
+    for report in protocol.values():
+        validate_protocol_workload(report)
+    for implementation, reports in concurrent.items():
+        for level, report in reports.items():
+            validate_concurrent_workload(
+                report,
+                level,
+                1,
+                require_pass=not (implementation == "cpp" and level == 1000),
+            )
+    for report in smtp.values():
+        validate_smtp_workload(report)
+    validate_concurrent_workload(soak, 1000, 20, require_pass=True)
+
     for implementation, report in protocol.items():
         require(report.get("schema") == "live-protocol-v1", "Unexpected protocol schema.")
         require(report.get("implementation") == implementation, "Protocol implementation mismatch.")
@@ -867,6 +1176,27 @@ def main() -> None:
         metric_rows,
     )
 
+    cpp_1000_passed = concurrent["cpp"][1000]["status"] == "PASS"
+    thousand_finding = next(row for row in concurrent_findings if row["concurrency"] == 1000)
+    if cpp_1000_passed:
+        thousand_summary = (
+            "Both implementations passed 1,000/1,000 concurrent IMAP sessions; "
+            f"{thousand_finding['comparison']}."
+        )
+        thousand_limitation = (
+            "Both implementations passed the 1,000-session wave; the published ratio is "
+            "limited to this host, fixture, and loopback methodology."
+        )
+    else:
+        thousand_summary = (
+            "Net10 passed 1,000/1,000 concurrent IMAP sessions; legacy C++ completed only "
+            f"{concurrent['cpp'][1000]['summary']['successes']}/1000 and failed that gate."
+        )
+        thousand_limitation = (
+            "The legacy C++ 1,000-session wave failed, so no 1,000-session latency or "
+            "throughput ratio is valid."
+        )
+
     performance = {
         "schema": "paired-cpp-net10-performance-v1",
         "gate": "RED",
@@ -969,7 +1299,7 @@ def main() -> None:
         "limitations": [
             "C++ requires schema 5708 while Net10 requires schema 6000; the logical message projection and Data bytes are exact, not the physical database files.",
             "Runs were sequential on one Windows 11 laptop with the Balanced power plan and loopback networking.",
-            "The legacy C++ 1,000-session wave failed, so no 1,000-session latency or throughput ratio is valid.",
+            thousand_limitation,
             "The 20,000-session Net10 run is a short soak and does not replace the mandatory 24-hour leak test.",
             "Remote DNS/TLS delivery, queue throughput, POP3 soak, external fetch, restore timing, installer/service lifecycle, and SQL wait baselines remain open.",
         ],
@@ -1012,7 +1342,7 @@ def main() -> None:
         "",
         "A clean, repository-built legacy C++ Release binary and the .NET 10 Release binary were run sequentially on the same host and SQL Server instance. Both used the same 1,000-message logical corpus, byte-identical Data copies, loopback bindings, accounts, credentials, and protocol commands. The legacy runtime correctly remained on database schema 5708; only the Net10 copy was upgraded to schema 6000.",
         "",
-        f"Net10 reduced p95 SMTP command latency by `{protocol_findings[0]['cppOverNet10Ratio']:.2f}x` and p95 IMAP SEARCH/SORT latency by `{protocol_findings[1]['cppOverNet10Ratio']:.2f}x`. POP3 p95 regressed by `{1 / protocol_findings[2]['cppOverNet10Ratio']:.2f}x`. Net10 passed 1,000/1,000 concurrent IMAP sessions; legacy C++ completed only `{concurrent['cpp'][1000]['summary']['successes']}/1000` and failed that gate.",
+        f"Net10 reduced p95 SMTP command latency by `{protocol_findings[0]['cppOverNet10Ratio']:.2f}x` and p95 IMAP SEARCH/SORT latency by `{protocol_findings[1]['cppOverNet10Ratio']:.2f}x`. POP3 p95 regressed by `{1 / protocol_findings[2]['cppOverNet10Ratio']:.2f}x`. {thousand_summary}",
         "",
         f"Both implementations durably accepted 500/500 SMTP messages with exact +500 SQL rows and +500 Data files. Net10 p95 acceptance latency was `{smtp['net10']['p95_ms']:.2f} ms` versus `{smtp['cpp']['p95_ms']:.2f} ms`; end-to-end durable throughput was effectively tied (`{smtp['net10']['throughput_messages_per_second']:.2f}` vs `{smtp['cpp']['throughput_messages_per_second']:.2f}` messages/s).",
         "",
@@ -1072,7 +1402,7 @@ def main() -> None:
         "- **Overall performance release gate: RED.** This report closes the previously missing clean legacy startup and paired loopback comparison, not the entire release benchmark matrix.",
         "- C++ requires schema 5708 and Net10 requires 6000. Logical message rows and Data bytes are exact; physical SQL files are intentionally not identical.",
         "- Measurements are from one laptop, one SQL Server instance, Balanced power mode, and loopback networking. They are not a capacity-planning baseline.",
-        "- Legacy C++ failed the 1,000-session wave, so no C++/Net10 latency or throughput ratio is published at that load.",
+        f"- {thousand_limitation}",
         "- POP3 is materially slower in Net10 and remains an optimization target.",
         "- The 20,000-session run is short-soak evidence only. Mandatory 24-hour memory/handle/thread/socket soak remains open.",
         "- Remote SMTP delivery/retry, delivery queue throughput, TLS/DNS, external fetch, rules/scripting, backup/restore timing, and installer/service/COM lifecycle benchmarks remain open.",

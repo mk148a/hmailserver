@@ -7,6 +7,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -89,6 +90,189 @@ class PairedPerformanceProvenanceTests(unittest.TestCase):
                 "executableSha256": executable_hash,
                 "descendantReparsePoints": False,
             },
+        }
+
+    def protocol_workload(self) -> dict[str, object]:
+        samples = []
+        summary = []
+        for scenario_index, scenario in enumerate(REPORT_MODULE.SCENARIOS, start=1):
+            rows = [
+                {
+                    "scenario": scenario,
+                    "iteration": iteration,
+                    "ok": True,
+                    "ms": round(scenario_index + iteration / 1000, 3),
+                    **(
+                        {
+                            "searchResponseIdentifier": "SEARCH",
+                            "searchResultCount": 1000,
+                            "searchExactSequence": True,
+                            "sortResponseIdentifier": "SORT",
+                            "sortResultCount": 1000,
+                            "sortExactSequence": True,
+                        }
+                        if scenario == "imap"
+                        else {}
+                    ),
+                }
+                for iteration in range(1, 201)
+            ]
+            samples.extend(rows)
+            values = [row["ms"] for row in rows]
+            summary.append(
+                {
+                    "scenario": scenario,
+                    "iterations": 200,
+                    "successes": 200,
+                    "errors": 0,
+                    "p50_ms": REPORT_MODULE.percentile(values, 50),
+                    "p95_ms": REPORT_MODULE.percentile(values, 95),
+                    "p99_ms": REPORT_MODULE.percentile(values, 99),
+                }
+            )
+        return {
+            "schema": "live-protocol-v1",
+            "status": "PASS",
+            "messageCount": 1000,
+            "bind": "127.0.0.1",
+            "ports": "SMTP 2525, IMAP 1143, POP3 25110",
+            "readinessFailures": [],
+            "shutdownFailures": [],
+            "summary": summary,
+            "samples": samples,
+        }
+
+    def concurrent_workload(self, concurrency: int = 4, waves: int = 1) -> dict[str, object]:
+        samples = [
+            {
+                "wave": wave,
+                "session": sequence,
+                "ok": True,
+                "timedOut": False,
+                "ms": float(wave * 10 + sequence),
+                "searchResultValid": True,
+                "searchResultCount": 1000,
+                "searchExactSequence": True,
+                "sortResultValid": True,
+                "sortResultCount": 1000,
+                "sortExactSequence": True,
+            }
+            for wave in range(1, waves + 1)
+            for sequence in range(1, concurrency + 1)
+        ]
+        values = [row["ms"] for row in samples]
+        start = datetime(2026, 8, 31, tzinfo=timezone.utc)
+        wave_metrics = []
+        for wave in range(1, waves + 1):
+            wave_start = start + timedelta(seconds=(wave - 1) * 6)
+            wave_end = wave_start + timedelta(seconds=1)
+            wave_metrics.append(
+                {
+                    "wave": wave,
+                    "startedUtc": wave_start.isoformat(),
+                    "endedUtc": wave_end.isoformat(),
+                    "workloadSeconds": 1.0,
+                    "successes": concurrency,
+                    "errors": 0,
+                    "processBefore": {"privateBytes": 1000, "handles": 10, "threads": 2},
+                    "processAfterImmediate": {"privateBytes": 1100, "handles": 10, "threads": 2},
+                    "processAfterSettle": {"privateBytes": 1050, "handles": 10, "threads": 2},
+                }
+            )
+        workload_seconds = float(waves)
+        requested = concurrency * waves
+        return {
+            "schema": "live-concurrent-imap-v1",
+            "status": "PASS",
+            "concurrency": concurrency,
+            "waves": waves,
+            "requestedSessions": requested,
+            "timeoutMilliseconds": 30000,
+            "postWorkloadSettleSeconds": 5,
+            "messageCount": 1000,
+            "bind": "127.0.0.1",
+            "port": 1143,
+            "readinessFailures": [],
+            "shutdownFailures": [],
+            "workloadStartedUtc": wave_metrics[0]["startedUtc"],
+            "workloadEndedUtc": wave_metrics[-1]["endedUtc"],
+            "waveMetrics": wave_metrics,
+            "summary": {
+                "requested": requested,
+                "completed": requested,
+                "successes": requested,
+                "errors": 0,
+                "timeouts": 0,
+                "p50_ms": REPORT_MODULE.percentile(values, 50),
+                "p95_ms": REPORT_MODULE.percentile(values, 95),
+                "p99_ms": REPORT_MODULE.percentile(values, 99),
+                "workload_seconds": workload_seconds,
+                "throughput_sessions_per_second": round(requested / workload_seconds, 3),
+            },
+            "samples": samples,
+        }
+
+    def smtp_workload(self) -> dict[str, object]:
+        samples = [
+            {"sequence": sequence, "ok": True, "ms": round(1 + sequence / 1000, 3)}
+            for sequence in range(1, 501)
+        ]
+        values = [row["ms"] for row in samples]
+        workload_seconds = 25.0
+        workload_started = datetime(2026, 8, 31, tzinfo=timezone.utc)
+        workload_ended = workload_started + timedelta(seconds=workload_seconds)
+        before_sql = {"available": True, "fixtureValid": True, "messages": 1000}
+        after_sql = {"available": True, "fixtureValid": True, "messages": 1500}
+        before_data = {"available": True, "fileCount": 1000}
+        after_data = {"available": True, "fileCount": 1500}
+        return {
+            "schema": "live-smtp-message-acceptance-v1",
+            "status": "PASS",
+            "requestedMessages": 500,
+            "acceptedMessages": 500,
+            "errors": 0,
+            "postWorkloadSettleSeconds": 5,
+            "bind": "127.0.0.1",
+            "port": 2525,
+            "readinessFailures": [],
+            "shutdownFailures": [],
+            "p50_ms": REPORT_MODULE.percentile(values, 50),
+            "p95_ms": REPORT_MODULE.percentile(values, 95),
+            "p99_ms": REPORT_MODULE.percentile(values, 99),
+            "workloadStartedUtc": workload_started.isoformat(),
+            "workloadEndedUtc": workload_ended.isoformat(),
+            "workloadSeconds": workload_seconds,
+            "throughput_messages_per_second": 20.0,
+            "postRunAccounting": {
+                "valid": True,
+                "sqlAvailable": True,
+                "dataAvailable": True,
+                "fixtureValidBefore": True,
+                "fixtureValidAfter": True,
+                "messageRowDelta": 500,
+                "dataFileDelta": 500,
+                "acceptedStatesObserved": 500,
+            },
+            "fixture": {
+                "before": {"sql": before_sql, "data": before_data},
+                "after": {"sql": after_sql, "data": after_data},
+            },
+            "acceptedMessageStates": [
+                {
+                    "observed": True,
+                    "expectedNewMessages": sequence,
+                    "messages": sequence,
+                    "queuedMessages": 0,
+                    "deliveredMessages": sequence,
+                    "snapshot": {
+                        "available": True,
+                        "fixtureValid": True,
+                        "messages": 1000 + sequence,
+                    },
+                }
+                for sequence in range(1, 501)
+            ],
+            "samples": samples,
         }
 
     def assert_rejected(self, report: dict[str, object], expected: str) -> None:
@@ -174,6 +358,106 @@ class PairedPerformanceProvenanceTests(unittest.TestCase):
         cpp_path.write_bytes(b"changed cpp executable")
         with self.assertRaisesRegex(ValueError, r"C\+\+ executable changed"):
             REPORT_MODULE.validate_fixture_executables(fixture, net10_path)
+
+    def test_accepts_reconciled_acceptance_workloads(self) -> None:
+        REPORT_MODULE.validate_protocol_workload(self.protocol_workload())
+        REPORT_MODULE.validate_concurrent_workload(
+            self.concurrent_workload(concurrency=4, waves=2),
+            4,
+            2,
+            require_pass=True,
+        )
+        REPORT_MODULE.validate_smtp_workload(self.smtp_workload())
+
+    def test_rejects_under_sampled_or_tampered_protocol_metrics(self) -> None:
+        report = self.protocol_workload()
+        report["samples"].pop()
+        with self.assertRaisesRegex(ValueError, "600 samples"):
+            REPORT_MODULE.validate_protocol_workload(report)
+        report = self.protocol_workload()
+        report["summary"][0]["p95_ms"] += 1
+        with self.assertRaisesRegex(ValueError, "p95 does not reconcile"):
+            REPORT_MODULE.validate_protocol_workload(report)
+        report = self.protocol_workload()
+        report["samples"][0]["ms"] = -1
+        with self.assertRaisesRegex(ValueError, "must be positive"):
+            REPORT_MODULE.validate_protocol_workload(report)
+
+    def test_rejects_wrong_concurrent_methodology_or_throughput(self) -> None:
+        report = self.concurrent_workload()
+        report["timeoutMilliseconds"] = 5000
+        with self.assertRaisesRegex(ValueError, "timeout must be 30 seconds"):
+            REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=True)
+        report = self.concurrent_workload()
+        report["summary"]["throughput_sessions_per_second"] += 1
+        with self.assertRaisesRegex(ValueError, "throughput does not reconcile"):
+            REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=True)
+        report = self.concurrent_workload()
+        report["samples"][0]["sortExactSequence"] = False
+        with self.assertRaisesRegex(ValueError, "exact SEARCH/SORT"):
+            REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=True)
+        report = self.concurrent_workload()
+        report["samples"][0]["timedOut"] = True
+        with self.assertRaisesRegex(ValueError, "cannot succeed and time out"):
+            REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=True)
+        report = self.concurrent_workload()
+        report["samples"][1]["session"] = 1
+        with self.assertRaisesRegex(ValueError, "wave/session membership"):
+            REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=True)
+        report = self.concurrent_workload()
+        report["timeoutMilliseconds"] = 30000.9
+        with self.assertRaisesRegex(ValueError, "not an integer"):
+            REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=True)
+        report = self.concurrent_workload()
+        report["waveMetrics"][0]["processAfterSettle"]["handles"] = 0
+        with self.assertRaisesRegex(ValueError, "handles must be positive"):
+            REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=True)
+
+    def test_accepts_reconciled_diagnostic_concurrent_failure(self) -> None:
+        report = self.concurrent_workload()
+        failed = report["samples"][-1]
+        failed["ok"] = False
+        failed["timedOut"] = True
+        successful_values = [row["ms"] for row in report["samples"] if row["ok"]]
+        report["status"] = "FAIL"
+        report["summary"].update(
+            {
+                "successes": 3,
+                "errors": 1,
+                "timeouts": 1,
+                "p50_ms": REPORT_MODULE.percentile(successful_values, 50),
+                "p95_ms": REPORT_MODULE.percentile(successful_values, 95),
+                "p99_ms": REPORT_MODULE.percentile(successful_values, 99),
+                "throughput_sessions_per_second": 3.0,
+            }
+        )
+        report["waveMetrics"][0]["successes"] = 3
+        report["waveMetrics"][0]["errors"] = 1
+        REPORT_MODULE.validate_concurrent_workload(report, 4, 1, require_pass=False)
+
+    def test_rejects_under_sampled_or_tampered_smtp_metrics(self) -> None:
+        report = self.smtp_workload()
+        report["samples"].pop()
+        with self.assertRaisesRegex(ValueError, "500 samples"):
+            REPORT_MODULE.validate_smtp_workload(report)
+        report = self.smtp_workload()
+        report["p99_ms"] += 1
+        with self.assertRaisesRegex(ValueError, "p99 does not reconcile"):
+            REPORT_MODULE.validate_smtp_workload(report)
+        report = self.smtp_workload()
+        report["postRunAccounting"]["sqlAvailable"] = False
+        with self.assertRaisesRegex(ValueError, "SQL/Data accounting"):
+            REPORT_MODULE.validate_smtp_workload(report)
+        report = self.smtp_workload()
+        report["acceptedMessageStates"][0]["observed"] = False
+        with self.assertRaisesRegex(ValueError, "accepted-state evidence"):
+            REPORT_MODULE.validate_smtp_workload(report)
+        report = self.smtp_workload()
+        report["workloadEndedUtc"] = (
+            datetime.fromisoformat(report["workloadStartedUtc"]) + timedelta(seconds=50)
+        ).isoformat()
+        with self.assertRaisesRegex(ValueError, "workloadSeconds does not reconcile"):
+            REPORT_MODULE.validate_smtp_workload(report)
 
 
 if __name__ == "__main__":

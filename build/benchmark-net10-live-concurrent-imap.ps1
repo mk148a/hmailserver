@@ -633,9 +633,12 @@ try {
                 $waveEndedUtc = [DateTimeOffset]::UtcNow
                 $workloadEndedUtc = $waveEndedUtc
                 $workloadSeconds += ($waveEndedUtc - $waveStartedUtc).TotalSeconds
+                $session = 0
                 foreach ($waveResult in $waveResults) {
+                    $session++
                     $results.Add([pscustomobject]@{
                         Wave = $wave
+                        Session = $session
                         Success = $waveResult.Success
                         TimedOut = $waveResult.TimedOut
                         Milliseconds = $waveResult.Milliseconds
@@ -750,6 +753,7 @@ $report = [pscustomobject]@{
     samples = @($results | ForEach-Object {
         [pscustomobject]@{
             wave = $_.Wave
+            session = $_.Session
             ok = $_.Success
             timedOut = $_.TimedOut
             ms = $_.Milliseconds
@@ -786,6 +790,7 @@ $csvSamples = $report.samples | ForEach-Object {
         runStartDataSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { $null }
         runStartMessageSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { $null }
         wave = $_.wave
+        session = $_.session
         ok = $_.ok
         timedOut = $_.timedOut
         ms = $_.ms

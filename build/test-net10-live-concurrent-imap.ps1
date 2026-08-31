@@ -49,6 +49,22 @@ if ($waves -ne $ExpectedWaves) {
     throw "Expected $ExpectedWaves wave(s), got $waves."
 }
 $expectedSessions = $ExpectedConcurrency * $ExpectedWaves
+$samples = @($report.samples)
+if ($samples.Count -gt 0) {
+    foreach ($wave in 1..$ExpectedWaves) {
+        $waveSamples = @($samples | Where-Object wave -eq $wave)
+        $sessions = @($waveSamples | ForEach-Object { [int]$_.session } | Sort-Object -Unique)
+        if ($waveSamples.Count -ne $ExpectedConcurrency -or
+            $sessions.Count -ne $ExpectedConcurrency -or
+            $sessions[0] -ne 1 -or
+            $sessions[-1] -ne $ExpectedConcurrency) {
+            throw "Wave $wave does not contain an exact 1..$ExpectedConcurrency session sequence."
+        }
+        if (@($waveSamples | Where-Object { $_.ok -and $_.timedOut }).Count -ne 0) {
+            throw "Wave $wave contains a sample marked both successful and timed out."
+        }
+    }
+}
 if ($report.readinessFailures.Count -eq 0) {
     if ($report.summary.completed -ne $expectedSessions) {
         throw "Expected $expectedSessions completed samples, got $($report.summary.completed)."
