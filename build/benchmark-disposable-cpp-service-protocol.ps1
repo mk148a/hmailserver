@@ -21,6 +21,7 @@ param(
     [int]$SqlMaxPoolSize = 100,
     [ValidateRange(1, 100000)]
     [int]$MessageCount = 100,
+    [switch]$VerifyLocalDeliveryReadback,
     [ValidateRange(1, 1000000)]
     [int]$CorpusMessageCount = 1000,
     [ValidateRange(1, 60)]
@@ -259,6 +260,7 @@ try {
                 '-PostAcceptanceTimeoutSeconds', $PostAcceptanceTimeoutSeconds,
                 '-PostWorkloadSettleSeconds', $PostWorkloadSettleSeconds
             )
+            if ($VerifyLocalDeliveryReadback) { $childArgs += '-VerifyLocalDeliveryReadback' }
         }
         if (-not [string]::IsNullOrWhiteSpace($RunId)) { $childArgs += @('-RunId', $RunId) }
         & powershell.exe @childArgs 2>&1 | Out-Host
@@ -327,6 +329,7 @@ $report = [pscustomobject]@{
     stagingRoot = $stagingRoot
     database = $database
     corpusMessageCount = $CorpusMessageCount
+    verifyLocalDeliveryReadback = [bool]$VerifyLocalDeliveryReadback
     serviceName = $ServiceName
     serviceAccount = $ServiceAccount
     commandLine = $binPath

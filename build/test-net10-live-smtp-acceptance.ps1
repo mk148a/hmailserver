@@ -45,6 +45,22 @@ if ($report.implementation -eq "cpp") {
 if ($null -eq $report.fixture -or $null -eq $report.postRunAccounting) {
     throw "SMTP acceptance reports must include fixture and post-run accounting evidence."
 }
+$readbackEnabled = @($report.PSObject.Properties.Name) -contains "localDeliveryReadbackEnabled" -and [bool]$report.localDeliveryReadbackEnabled
+if ($readbackEnabled) {
+    $readback = $report.localDeliveryReadback
+    if ($null -eq $readback -or [string]::IsNullOrWhiteSpace($readback.runToken) -or $null -eq $readback.before -or $null -eq $readback.after) {
+        throw "Enabled local-delivery readback must include marker and before/after snapshots."
+    }
+    if ($report.status -eq "PASS" -and ($readback.before.rowCount -ne 0 -or $readback.before.markerFileCount -ne 0 -or $readback.after.valid -ne $true -or $readback.after.expectedCount -ne $report.acceptedMessages -or $readback.after.markerFilesMatchExpected -ne $true)) {
+        throw "A passing readback report must prove a fresh marker set and complete local delivery."
+    }
+    if ($report.status -eq "PASS" -and @($readback.after.rows | Where-Object {
+            $_.messageType -ne 2 -or $_.folderAccountId -ne 1 -or $_.folderParentId -ne -1 -or
+            $_.folderName -cne "INBOX" -or $_.accountAddress -cne "test@perf.test" -or $_.recipientRows -ne 0
+        }).Count -ne 0) {
+        throw "A passing readback report contains a row outside the delivered perf.test Inbox contract."
+    }
+}
 if ([string]::IsNullOrWhiteSpace($report.fixture.identity) -or $report.fixture.database -ne $report.database -or $report.fixture.dataRoot -ne $report.dataRoot) {
     throw "SMTP acceptance fixture identity or target roots are invalid."
 }

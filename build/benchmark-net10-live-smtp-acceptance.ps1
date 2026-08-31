@@ -15,6 +15,7 @@ param(
     [string]$RunId = "",
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10",
+    [switch]$VerifyLocalDeliveryReadback,
     [int]$ExternalServiceProcessId = 0,
     [string]$ExternalServiceName = ""
 )
@@ -351,6 +352,9 @@ function Get-Percentile {
 function Invoke-SmtpAcceptance {
     param([int]$Sequence)
 
+    $sender = if ($VerifyLocalDeliveryReadback) { "$readbackSenderPrefix$Sequence@perf.test" } else { "sender$Sequence@perf.test" }
+    $marker = if ($VerifyLocalDeliveryReadback) { "$readbackRunToken-$Sequence" } else { [string]$Sequence }
+    $messageId = if ($VerifyLocalDeliveryReadback) { "$marker@perf.test" } else { "paired-$Sequence@perf.test" }
     $stopwatch = [Diagnostics.Stopwatch]::StartNew()
     $client = $null
     $reader = $null
@@ -370,7 +374,7 @@ function Invoke-SmtpAcceptance {
         $writer.WriteLine("EHLO perf.test")
         $ehlo = Read-SmtpResponse $reader
         $responses.Add("ehlo: " + ($ehlo -join " | "))
-        $writer.WriteLine("MAIL FROM:<sender$Sequence@perf.test>")
+        $writer.WriteLine("MAIL FROM:<$sender>")
         $mailFrom = $reader.ReadLine()
         $responses.Add("mail-from: $mailFrom")
         $writer.WriteLine("RCPT TO:<test@perf.test>")
@@ -379,12 +383,12 @@ function Invoke-SmtpAcceptance {
         $writer.WriteLine("DATA")
         $dataReady = $reader.ReadLine()
         $responses.Add("data: $dataReady")
-        $writer.WriteLine("From: sender$Sequence@perf.test")
+        $writer.WriteLine("From: $sender")
         $writer.WriteLine("To: test@perf.test")
-        $writer.WriteLine("Subject: paired acceptance $Sequence")
-        $writer.WriteLine("Message-ID: <paired-$Sequence@perf.test>")
+        $writer.WriteLine("Subject: paired acceptance $marker")
+        $writer.WriteLine("Message-ID: <$messageId>")
         $writer.WriteLine("")
-        $writer.WriteLine("paired SMTP acceptance message $Sequence")
+        $writer.WriteLine("paired SMTP acceptance message $marker")
         $writer.WriteLine(".")
         $accepted = $reader.ReadLine()
         $responses.Add("accepted: $accepted")
@@ -429,6 +433,126 @@ if ($Implementation -eq "net10") {
     $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
 }
 
+function Get-MarkerFiles {
+    param(
+        [string]$Root,
+        [string[]]$Markers
+    )
+
+    $files = @()
+    foreach ($file in @(Get-ChildItem -LiteralPath $Root -Recurse -File)) {
+        $text = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($file.FullName))
+        if (@($Markers | Where-Object { $text.IndexOf("Message-ID: <$_@perf.test>", [StringComparison]::Ordinal) -ge 0 }).Count -gt 0) {
+            $files += $file.FullName
+        }
+    }
+    return @($files | Sort-Object -Unique)
+}
+
+function Get-LocalDeliveryReadbackSnapshot {
+    param(
+        [string]$Database,
+        [string]$DataRoot,
+        [string[]]$Markers,
+        [string]$SenderPrefix
+    )
+
+    try {
+        $senderPrefixSql = $SenderPrefix.Replace("'", "''")
+        $query = @"
+SET NOCOUNT ON;
+SELECT
+    m.messagefrom,
+    m.messagetype,
+    ISNULL(f.folderaccountid, -1),
+    ISNULL(f.folderparentid, -1),
+    ISNULL(f.foldername, N''),
+    ISNULL(a.accountaddress, N''),
+    (SELECT COUNT_BIG(*) FROM hm_messagerecipients AS r WHERE r.recipientmessageid = m.messageid)
+FROM hm_messages AS m
+LEFT JOIN hm_imapfolders AS f ON f.folderid = m.messagefolderid
+LEFT JOIN hm_accounts AS a ON a.accountid = f.folderaccountid
+WHERE m.messagefrom LIKE N'$senderPrefixSql%'
+ORDER BY m.messagefrom;
+"@
+        $rows = @(
+            sqlcmd -S localhost -E -d $Database -W -s '|' -h-1 -b -Q $query |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                ForEach-Object {
+                    $parts = ([string]$_).Trim().Split('|')
+                    if ($parts.Count -ne 7) { throw "Local-delivery readback returned $($parts.Count) fields instead of 7." }
+                    [pscustomobject]@{
+                        messageFrom = $parts[0].Trim()
+                        messageType = [int]$parts[1].Trim()
+                        folderAccountId = [int]$parts[2].Trim()
+                        folderParentId = [int]$parts[3].Trim()
+                        folderName = $parts[4].Trim()
+                        accountAddress = $parts[5].Trim()
+                        recipientRows = [int64]$parts[6].Trim()
+                    }
+                }
+        )
+        if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed during local-delivery readback." }
+        $markerFiles = @(Get-MarkerFiles -Root $DataRoot -Markers $Markers)
+        $checks = @(
+            foreach ($marker in $Markers) {
+                $matchingFiles = @($markerFiles | Where-Object {
+                    [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($_)).IndexOf("Message-ID: <$marker@perf.test>", [StringComparison]::Ordinal) -ge 0
+                })
+                [pscustomobject]@{
+                    marker = $marker
+                    fileExists = $matchingFiles.Count -eq 1
+                    fileCount = $matchingFiles.Count
+                    paths = $matchingFiles
+                }
+            }
+        )
+        $rowsValid = $rows.Count -eq $Markers.Count -and @($rows | Where-Object {
+            $_.messageType -ne 2 -or $_.folderAccountId -ne 1 -or $_.folderParentId -ne -1 -or
+            $_.folderName -cne 'INBOX' -or $_.accountAddress -cne 'test@perf.test' -or $_.recipientRows -ne 0
+        }).Count -eq 0
+        [pscustomobject]@{
+            available = $true
+            valid = $rowsValid -and $checks.Count -eq $Markers.Count -and @($checks | Where-Object { -not $_.fileExists }).Count -eq 0
+            expectedCount = $Markers.Count
+            rowCount = $rows.Count
+            rows = $rows
+            markerFileCount = $markerFiles.Count
+            markerFilesMatchExpected = $checks.Count -eq $Markers.Count -and @($checks | Where-Object { -not $_.fileExists }).Count -eq 0
+            checks = $checks
+            error = $null
+        }
+    }
+    catch {
+        [pscustomobject]@{
+            available = $false
+            valid = $false
+            expectedCount = $Markers.Count
+            rowCount = 0
+            rows = @()
+            markerFileCount = 0
+            markerFilesMatchExpected = $false
+            checks = @()
+            error = $_.Exception.Message
+        }
+    }
+}
+
+function Wait-ForLocalDeliveryReadback {
+    param(
+        [string[]]$Markers
+    )
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($PostAcceptanceTimeoutSeconds)
+    $last = $null
+    do {
+        $last = Get-LocalDeliveryReadbackSnapshot -Database $database -DataRoot $dataRoot -Markers $Markers -SenderPrefix $readbackSenderPrefix
+        if ($last.available -and $last.valid) { return $last }
+        Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+    return $last
+}
+
 $process = $null
 $startUtc = [DateTimeOffset]::UtcNow
 $readinessFailures = @()
@@ -444,12 +568,19 @@ $runStartAttestation = $null
 $workloadStartedUtc = $null
 $workloadEndedUtc = $null
 $externalService = $ExternalServiceProcessId -gt 0
+$readbackRunToken = if ($VerifyLocalDeliveryReadback) { "smtp-readback-$([Guid]::NewGuid().ToString('N'))" } else { $null }
+$readbackSenderPrefix = if ($VerifyLocalDeliveryReadback) { "$readbackRunToken-" } else { $null }
+$readbackBefore = $null
+$readbackAfter = $null
 
 $provenance = Get-LiveBenchmarkProvenance -FixtureManifest $FixtureManifest -RunId $RunId -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe -Ports ([ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 })
 
 $sqlBefore = Get-SqlFixtureSnapshot -Database $database -DataRoot $dataRoot
 $dataBefore = Get-DataFixtureSnapshot -Root $dataRoot
 $fixtureIdentity = Get-FixtureIdentity -Sql $sqlBefore -Data $dataBefore -RequestedMessages $MessageCount
+if ($VerifyLocalDeliveryReadback) {
+    $readbackBefore = Get-LocalDeliveryReadbackSnapshot -Database $database -DataRoot $dataRoot -Markers @() -SenderPrefix $readbackSenderPrefix
+}
 
 if ($Implementation -eq "cpp") {
     $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database -DisposableRegistrationGuarded:$externalService
@@ -514,6 +645,10 @@ try {
             if ($PostWorkloadSettleSeconds -gt 0) {
                 Start-Sleep -Seconds $PostWorkloadSettleSeconds
             }
+            if ($VerifyLocalDeliveryReadback) {
+                $markers = @($samples | Where-Object ok | ForEach-Object { "$readbackRunToken-$($_.sequence)" })
+                $readbackAfter = Wait-ForLocalDeliveryReadback -Markers $markers
+            }
             $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
             if ($null -ne $metricProcess) {
                 $after = [pscustomobject]@{
@@ -543,6 +678,10 @@ $durationSeconds = if ($null -ne $workloadStartedUtc -and $null -ne $workloadEnd
 } else {
     0
 }
+$localDeliveryReadbackValid = if ($VerifyLocalDeliveryReadback) {
+    $null -ne $readbackBefore -and $readbackBefore.available -and $readbackBefore.rowCount -eq 0 -and $readbackBefore.markerFileCount -eq 0 -and
+    $null -ne $readbackAfter -and $readbackAfter.valid -and $readbackAfter.expectedCount -eq $successful.Count
+} else { $null }
 
 $postRunAccounting = [pscustomobject]@{
     sqlAvailable = $sqlBefore.available -and $sqlAfter.available
@@ -554,7 +693,8 @@ $postRunAccounting = [pscustomobject]@{
     recipientRowDelta = if ($sqlBefore.available -and $sqlAfter.available) { $sqlAfter.recipients - $sqlBefore.recipients } else { $null }
     dataFileDelta = if ($dataBefore.available -and $dataAfter.available) { $dataAfter.fileCount - $dataBefore.fileCount } else { $null }
     acceptedStatesObserved = @($acceptedStates | Where-Object observed).Count
-    valid = ($sqlBefore.available -and $sqlAfter.available -and $dataBefore.available -and $dataAfter.available -and $sqlBefore.fixtureValid -and $sqlAfter.fixtureValid -and (($sqlAfter.messages - $sqlBefore.messages) -eq $successful.Count) -and (($dataAfter.fileCount - $dataBefore.fileCount) -eq $successful.Count) -and (@($acceptedStates | Where-Object observed).Count -eq $successful.Count))
+    localDeliveryReadbackValid = $localDeliveryReadbackValid
+    valid = ($sqlBefore.available -and $sqlAfter.available -and $dataBefore.available -and $dataAfter.available -and $sqlBefore.fixtureValid -and $sqlAfter.fixtureValid -and (($sqlAfter.messages - $sqlBefore.messages) -eq $successful.Count) -and (($dataAfter.fileCount - $dataBefore.fileCount) -eq $successful.Count) -and (@($acceptedStates | Where-Object observed).Count -eq $successful.Count) -and (-not $VerifyLocalDeliveryReadback -or $localDeliveryReadbackValid))
 }
 $report = [pscustomobject]@{
     schema = "live-smtp-message-acceptance-v1"
@@ -593,6 +733,15 @@ $report = [pscustomobject]@{
     serviceBacked = $externalService
     externalServiceName = if ($externalService) { $ExternalServiceName } else { $null }
     externalServiceProcessId = if ($externalService) { $ExternalServiceProcessId } else { $null }
+    localDeliveryReadbackEnabled = [bool]$VerifyLocalDeliveryReadback
+    localDeliveryReadback = if ($VerifyLocalDeliveryReadback) {
+        [pscustomobject]@{
+            runToken = $readbackRunToken
+            senderPrefix = $readbackSenderPrefix
+            before = $readbackBefore
+            after = $readbackAfter
+        }
+    } else { $null }
     fixture = [pscustomobject]@{
         identity = $fixtureIdentity
         database = $database

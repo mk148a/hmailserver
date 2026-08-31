@@ -37,6 +37,8 @@ Assert-Contains $runner "[int]$CorpusMessageCount" 'manifest-bound corpus parame
 Assert-Contains $runner "'-ExpectedMessageCount', $CorpusMessageCount" 'manifest-bound corpus child argument'
 Assert-Contains $runner 'disposable-cpp-service-concurrent-imap-v1' 'concurrent IMAP report schema'
 Assert-Contains $runner "'-MessageCount', $MessageCount" 'SMTP child arguments'
+Assert-Contains $runner '$VerifyLocalDeliveryReadback' 'SMTP local-delivery readback switch'
+Assert-Contains $runner "'-VerifyLocalDeliveryReadback'" 'SMTP local-delivery readback child argument'
 Assert-Contains $runner 'disposable-cpp-service-smtp-v1' 'SMTP report schema'
 Assert-Contains $runner 'Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation cpp' 'fixture binding'
 Assert-Contains $runner 'NT AUTHORITY\LocalService' 'dedicated service identity'
