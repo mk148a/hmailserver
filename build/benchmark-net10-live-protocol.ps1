@@ -305,12 +305,14 @@ function Invoke-ImapScenario {
             -and $searchResponseIdentifierValid `
             -and $sortResponseIdentifierValid `
             -and $searchValidation.exactSequence `
-            -and $sortValidation.exactSequence
+            -and $sortValidation.exactSequence `
+            -and $legacyCompletionTagMatches.search `
+            -and $legacyCompletionTagMatches.sort
         $stopwatch.Stop()
         [pscustomobject]@{
             ok = [bool]$ok
             ms = [math]::Round($stopwatch.Elapsed.TotalMilliseconds, 3)
-            error = if ($ok) { $null } else { "IMAP result validation failed: $($resultValidationError -join '; ')" }
+            error = if ($ok) { $null } else { "IMAP result/completion validation failed: $($resultValidationError -join '; ')" }
             searchResponseIdentifier = $searchValidation.command
             searchResponseIdentifierValid = $searchResponseIdentifierValid
             searchResultCount = $searchValidation.count

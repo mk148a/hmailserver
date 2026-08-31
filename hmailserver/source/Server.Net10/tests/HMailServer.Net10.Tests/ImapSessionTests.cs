@@ -77,7 +77,7 @@ public sealed class ImapSessionTests
             new ImapSessionContext(AccountId: 100, FolderId: 20),
             CancellationToken.None);
 
-        StringAssert.Contains(stream.GetOutputText(), "A001 OK SEARCH completed\r\n");
+        StringAssert.Contains(stream.GetOutputText(), "A001 OK Search completed\r\n");
         Assert.IsNotNull(searchIndex.LastRequest);
     }
 
@@ -442,7 +442,7 @@ public sealed class ImapSessionTests
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "* OK hMailServer .NET 10 IMAP ready\r\n");
         StringAssert.Contains(output, "* CAPABILITY IMAP4rev1 UIDPLUS SORT MOVE IDLE ACL QUOTA AUTH=PLAIN SASL-IR\r\nA001 OK CAPABILITY completed\r\n");
-        StringAssert.Contains(output, "* SEARCH 101 105\r\nA002 OK SEARCH completed\r\n");
+        StringAssert.Contains(output, "* SEARCH 101 105\r\nA002 OK Search completed\r\n");
         StringAssert.Contains(output, "* BYE hMailServer IMAP session closing\r\nA003 OK LOGOUT completed\r\n");
         Assert.IsNotNull(searchIndex.LastRequest);
         Assert.IsTrue(searchIndex.LastRequest.ReturnUid);
@@ -474,7 +474,7 @@ public sealed class ImapSessionTests
         StringAssert.Contains(output, "* 9 EXISTS\r\n");
         StringAssert.Contains(output, "* OK [UIDNEXT 500] next uid\r\n");
         StringAssert.Contains(output, "A002 OK [READ-WRITE] SELECT completed\r\n");
-        StringAssert.Contains(output, "* SEARCH 101\r\nA003 OK SEARCH completed\r\n");
+        StringAssert.Contains(output, "* SEARCH 101\r\nA003 OK Search completed\r\n");
         Assert.IsNotNull(searchIndex.LastRequest);
         Assert.AreEqual(77, searchIndex.LastRequest.AccountId);
         Assert.AreEqual(88, searchIndex.LastRequest.FolderId);
@@ -805,7 +805,7 @@ public sealed class ImapSessionTests
 
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "* 1 RECENT\r\n");
-        StringAssert.Contains(output, "* SEARCH 101\r\nA003 OK SEARCH completed\r\n");
+        StringAssert.Contains(output, "* SEARCH 101\r\nA003 OK Search completed\r\n");
         Assert.IsTrue(recentStore.ClearRecentFlags);
         Assert.AreEqual(77, recentStore.AccountId);
         Assert.AreEqual(88, recentStore.FolderId);
@@ -995,7 +995,7 @@ public sealed class ImapSessionTests
             CancellationToken.None);
 
         var output = stream.GetOutputText();
-        StringAssert.Contains(output, "* SORT 105 101\r\nA003 OK SORT completed\r\n");
+        StringAssert.Contains(output, "* SORT 105 101\r\nA003 OK Search completed\r\n");
         Assert.IsNotNull(sortIndex.LastRequest);
         Assert.IsTrue(sortIndex.LastRequest.ReturnUid);
         Assert.AreEqual(77, sortIndex.LastRequest.SearchRequest.AccountId);
@@ -1149,7 +1149,7 @@ public sealed class ImapSessionTests
 
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "A003 OK [APPENDUID 123 501] APPEND completed\r\n");
-        StringAssert.Contains(output, "* SEARCH 501\r\nA004 OK SEARCH completed\r\n");
+        StringAssert.Contains(output, "* SEARCH 501\r\nA004 OK Search completed\r\n");
         Assert.IsNotNull(searchIndex.LastRequest);
         CollectionAssert.AreEquivalent(
             new[] { 101L, 501L },
@@ -1181,7 +1181,7 @@ public sealed class ImapSessionTests
 
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "A003 OK COPY completed\r\n");
-        StringAssert.Contains(output, "* SEARCH 201\r\nA004 OK SEARCH completed\r\n");
+        StringAssert.Contains(output, "* SEARCH 201\r\nA004 OK Search completed\r\n");
         Assert.IsNotNull(searchIndex.LastRequest);
         CollectionAssert.AreEquivalent(
             new[] { 101L, 201L },

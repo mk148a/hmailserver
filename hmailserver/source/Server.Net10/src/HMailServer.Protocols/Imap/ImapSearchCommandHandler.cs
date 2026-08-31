@@ -37,7 +37,7 @@ public sealed class ImapSearchCommandHandler
             }
 
             var searchResponse = await _executor.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
-            return searchResponse + $"{SanitizeAtom(tag)} OK SEARCH completed\r\n";
+            return searchResponse + $"{SanitizeAtom(tag)} OK Search completed\r\n";
         }
         catch (ImapSearchParseException ex)
         {

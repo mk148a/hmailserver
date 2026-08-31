@@ -51,7 +51,7 @@ public sealed class ImapTcpListenerTests
         await WriteLineAsync(writer, "A001 UID SEARCH TEXT \"invoice\" UNSEEN", cts.Token);
 
         Assert.AreEqual("* SEARCH 101 105", await ReadLineAsync(reader, cts.Token));
-        Assert.AreEqual("A001 OK SEARCH completed", await ReadLineAsync(reader, cts.Token));
+        Assert.AreEqual("A001 OK Search completed", await ReadLineAsync(reader, cts.Token));
 
         await WriteLineAsync(writer, "A002 LOGOUT", cts.Token);
         Assert.AreEqual("* BYE hMailServer IMAP session closing", await ReadLineAsync(reader, cts.Token));

@@ -37,7 +37,7 @@ public sealed class ImapSortCommandHandler
             }
 
             var sortResponse = await _executor.ExecuteAsync(request, cancellationToken).ConfigureAwait(false);
-            return sortResponse + $"{SanitizeAtom(tag)} OK SORT completed\r\n";
+            return sortResponse + $"{SanitizeAtom(tag)} OK Search completed\r\n";
         }
         catch (ImapSortParseException ex)
         {

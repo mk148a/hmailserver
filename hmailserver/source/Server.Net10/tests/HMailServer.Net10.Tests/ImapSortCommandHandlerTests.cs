@@ -46,7 +46,7 @@ public sealed class ImapSortCommandHandlerTests
             returnUid: true,
             cancellationToken: CancellationToken.None);
 
-        Assert.AreEqual("* SORT 105 101\r\nA001 OK SORT completed\r\n", response);
+        Assert.AreEqual("* SORT 105 101\r\nA001 OK Search completed\r\n", response);
         Assert.IsNotNull(index.LastRequest);
         Assert.IsTrue(index.LastRequest.ReturnUid);
         Assert.AreEqual(ImapSortKey.Date, index.LastRequest.Criteria[0].Key);
@@ -72,7 +72,7 @@ public sealed class ImapSortCommandHandlerTests
             returnUid: false,
             cancellationToken: CancellationToken.None);
 
-        Assert.AreEqual("* SORT 4 9\r\nA002 OK SORT completed\r\n", response);
+        Assert.AreEqual("* SORT 4 9\r\nA002 OK Search completed\r\n", response);
     }
 
     [TestMethod]

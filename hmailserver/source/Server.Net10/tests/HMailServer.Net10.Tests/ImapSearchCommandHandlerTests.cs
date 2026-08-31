@@ -25,7 +25,7 @@ public sealed class ImapSearchCommandHandlerTests
             commandText: "UID SEARCH TEXT \"invoice\" UNSEEN",
             cancellationToken: CancellationToken.None);
 
-        Assert.AreEqual("* SEARCH 101 105\r\nA001 OK SEARCH completed\r\n", response);
+        Assert.AreEqual("* SEARCH 101 105\r\nA001 OK Search completed\r\n", response);
         Assert.IsNotNull(index.LastRequest);
         Assert.IsTrue(index.LastRequest.ReturnUid);
         CollectionAssert.AreEqual(new[] { "invoice" }, index.LastRequest.GetAnyTerms().ToArray());

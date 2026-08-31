@@ -61,6 +61,14 @@ foreach ($scenario in $scenarios) {
         throw "Summary success/error counts do not reconcile for $scenario."
     }
 }
+$imapSamples = @($samples | Where-Object scenario -eq "imap")
+if ($report.status -eq "PASS" -and @($imapSamples | Where-Object {
+        $null -eq $_.legacyCompletionTagMatches -or
+        $_.legacyCompletionTagMatches.search -ne $true -or
+        $_.legacyCompletionTagMatches.sort -ne $true
+    }).Count -ne 0) {
+    throw "A passing IMAP protocol artifact must match the legacy SEARCH/SORT completion text."
+}
 
 if ($report.implementation -eq "cpp") {
     if ($null -eq $report.isolationPreflight) {
