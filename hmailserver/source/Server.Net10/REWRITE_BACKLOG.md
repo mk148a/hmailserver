@@ -1,15 +1,18 @@
-## Current authoritative status (2026-08-31, IMAP profile isolation)
+## Current authoritative status (2026-08-31, IMAP query profile isolation)
 
-Code/test commit `0e0da1fc9` adds and validates benchmark-only admission,
-authentication/SELECT, and full SEARCH/SORT profiles. On one fresh disposable
-5708/6000 fixture with exact 1,000-message/Data parity, both implementations
-passed admission `1000/1000`. C++ `AuthSelect` passed `979/1000` while Net10
-passed `1000/1000`; C++ full SEARCH/SORT passed `223/1000` while Net10 passed
-`0/1000` with timeouts. The diagnostic correctly publishes no invalid ratio;
+Code/test commit `0b462ef7c` adds and validates benchmark-only admission,
+authentication/SELECT, SEARCH-only, SORT-only, and full SEARCH/SORT profiles.
+On one fresh disposable 5708/6000 fixture with exact 1,000-message/Data
+parity, both implementations passed admission `1000/1000`. C++ `AuthSelect`
+passed `979/1000` while Net10 passed `1000/1000`; C++ SEARCH-only passed
+`983/1000` while Net10 timed out `1000/1000`; C++ SORT-only passed `963/1000`
+while Net10 passed `1000/1000`; and full SEARCH/SORT was C++ `223/1000` versus
+Net10 `0/1000` timeouts. The diagnostic correctly publishes no invalid ratio;
 the isolated admission p95 ratio is descriptive and is not an overall winner.
 
-This confirms that the observed high-load failure is beyond listener admission,
-but does not identify whether SQL query fan-out, indexing/backfill state, or
+This confirms that the observed high-load failure is beyond listener admission
+and that the individual query paths have different failure profiles, but it
+does not identify whether SQL query fan-out, indexing/backfill state, or
 resource contention is dominant. The C++ target remains a standalone `/Debug`
 process, not a registered service, so installed-service/native acceptance is
 still environment-blocked. Performance remains **RED**.

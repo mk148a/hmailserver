@@ -1,0 +1,11 @@
+implementation,profile,status,successes,errors,timeouts,p50_ms,p95_ms,p99_ms,throughput_sessions_per_second,ratio_valid,p95_ratio_cpp_over_net10
+cpp,Admission,PASS,1000,0,0,536.445,785.501,1045.358,732.379,True,0.748062
+net10,Admission,PASS,1000,0,0,560.376,1050.048,1052.788,603.88,True,0.748062
+cpp,AuthSelect,FAIL,979,21,0,1415.889,2636.296,2747.29,339.589,False,
+net10,AuthSelect,PASS,1000,0,0,681.634,1595.547,1607.114,563.519,False,
+cpp,Search,FAIL,983,17,0,23285.084,30293.06,31304.861,31.098,False,
+net10,Search,FAIL,0,1000,1000,,,,0.0,False,
+cpp,Sort,FAIL,963,37,0,9551.95,14478.551,14948.796,63.458,False,
+net10,Sort,PASS,1000,0,0,2359.279,2807.424,2877.52,324.004,False,
+cpp,Full,FAIL,223,777,0,5336.253,9675.315,9806.786,22.483,False,
+net10,Full,FAIL,0,1000,1000,,,,0.0,False,
