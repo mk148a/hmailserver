@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using System.Runtime.Versioning;
 
 namespace HMailServer.ComInterop;
 
@@ -32,18 +33,21 @@ internal sealed class BackupArchiveBinding : IDisposable
 
     internal BackupDataDirectoryIdentity? RawDataBackupIdentity { get; }
 
+    [SupportedOSPlatform("windows")]
     internal static BackupArchiveBinding? TryCreate(string sourcePath)
     {
         var snapshotRoot = Path.Combine(Path.GetTempPath(), SnapshotRootName);
         return TryCreate(sourcePath, snapshotRoot, Guid.NewGuid().ToString("N"));
     }
 
+    [SupportedOSPlatform("windows")]
     internal static BackupArchiveBinding? TryCreateForTesting(
         string sourcePath,
         string snapshotRoot,
         string snapshotName) =>
         TryCreate(sourcePath, snapshotRoot, snapshotName);
 
+    [SupportedOSPlatform("windows")]
     private static BackupArchiveBinding? TryCreate(
         string sourcePath,
         string snapshotRoot,
@@ -169,6 +173,7 @@ internal sealed class BackupArchiveBinding : IDisposable
         }
     }
 
+    [SupportedOSPlatform("windows")]
     private static void ProtectSnapshotDirectory(string directory)
     {
         var currentUser = WindowsIdentity.GetCurrent().User

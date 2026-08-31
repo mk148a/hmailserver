@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using System.Text;
 using System.Xml;
 using HMailServer.Core.Abstractions;
@@ -78,6 +79,7 @@ public sealed class BackupManager : IInterfaceBackupManager
         }
     }
 
+    [SupportedOSPlatform("windows")]
     public IInterfaceBackup LoadBackup(string xmlFile)
     {
         EnsureAuthorized();
