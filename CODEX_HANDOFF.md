@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, Release build health)
+
+Code/test commit `058a9f6f7` annotates the Windows-only backup snapshot
+ACL/SID path and COM `BackupManager.LoadBackup` entry point with the supported
+Windows platform contract. Focused `BackupArchiveIdentityTests` pass `13/13`;
+the complete Release build passes with `0` warnings and `0` errors for both
+ComInterop target frameworks. The Release CA1416 blocker is closed without
+changing COM identity, registration, DCOM permissions, or backup behavior.
+
+Full Debug remains `2773 passed, 90 skipped, 5 failed`, with the five existing
+registered local-server COM `E_NOINTERFACE` activation checks. Performance is
+still **RED**: Net10 1,000-session IMAP and the required soak are not green.
+Next slice: use only an isolated disposable registration to prove registered
+out-of-process COM activation, or record the exact environment blocker; then
+continue fresh descriptor-bound 500/1000 IMAP and soak evidence.
+
 ## Current authoritative continuation (2026-08-31, load attestation)
 
 Tooling commit `7f70890fd` adds `live-concurrent-imap-v2` attestation for the

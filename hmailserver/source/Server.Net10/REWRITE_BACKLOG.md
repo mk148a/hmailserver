@@ -1,3 +1,20 @@
+## Current authoritative status (2026-08-31, Release build health)
+
+Code/test commit `058a9f6f7` annotates the Windows-only backup snapshot
+ACL/SID path and the COM `BackupManager.LoadBackup` entry point with the
+supported Windows platform contract. Focused `BackupArchiveIdentityTests`
+pass `13/13`; the complete Release build passes with `0` warnings and `0`
+errors for both ComInterop target frameworks. The Release CA1416 build blocker
+is closed. This does not change COM identity, registration, DCOM permissions,
+or backup behavior. Registered out-of-process COM activation remains unproven,
+and the performance gate remains **RED** because the 1,000-session and soak
+acceptance levels still fail.
+
+Next slice: prove registered out-of-process COM activation only in an isolated
+disposable registration, or record the exact environment blocker; then return
+to fresh descriptor-bound 500/1000 IMAP and soak evidence without publishing a
+speed ratio.
+
 ## Current authoritative status (2026-08-31, bounded backoff follow-up)
 
 Code/test commit `605bb1cf0` adds bounded exponential retry backoff to

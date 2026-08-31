@@ -18,6 +18,14 @@ ratio or winner, and no current performance chart is published. The harness
 now records process-exit failures in JSON/CSV/Markdown (`780494249`), and run
 descriptor sealing is covered by `18f900b1d`. Performance remains **RED**.
 
+Release build follow-up commit `058a9f6f7` annotates the Windows-only backup
+snapshot ACL/SID path and its COM `LoadBackup` entry point with the supported
+Windows platform contract. Focused `BackupArchiveIdentityTests` pass `13/13`,
+and the complete Release build passes with `0` warnings and `0` errors for both
+ComInterop target frameworks. This removes the Release CA1416 build blocker;
+registered COM activation, high-concurrency capacity, soak, and the other
+release gates remain open.
+
 The ordered load also captured the worker-exit cause in the Windows
 Application log: `MessageSearchBackfillHostedService` lost a SQL connection
 from the pool and the default `StopHost` policy terminated the Net10 process.
