@@ -43,6 +43,20 @@ passed four cells and failed the 1,000-session Search and Full cells at
 `890/1000` and `951/1000`. This identifies a reproducible high-load threshold
 but does not justify a production change or an overall speed claim.
 
+The benchmark-only connection-ramp diagnostic in code/test commit `7f36e0987`
+then ran C++ and Net10 Search at 1,000 sessions with a 5 ms/session-index
+launch stagger. C++ reached `402/1000` and returned 598 connection refusals;
+Net10 reached `1000/1000`. The simultaneous C++ Search failures were 110
+transport-boundary errors, and Full had 49 transport-read failures. The errors
+occur before a valid SEARCH response. Legacy references are
+`hmailserver/source/Server/Common/TCPIP/TCPServer.cpp:52-177`,
+`IOService.cpp:137-150`, `SessionManager.cpp:43-105`, and
+`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-105`.
+This is evidence of native transport/accept-processing saturation under the
+disposable workload, not proof of a Net10 query defect. No production listener,
+SQL, or ACL change is justified. See
+`artifacts/benchmarks/paired-cpp-net10-20260831-ramp-diagnostic/report/IMAP_CAPACITY_FAILURE_DIAGNOSTIC.md`.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator

@@ -56,6 +56,17 @@ PASS cells; this is a capacity threshold diagnostic, not an overall speedup
 claim. See the [threshold report](artifacts/benchmarks/paired-cpp-net10-20260831-threshold-diagnostic/report/IMAP_QUERY_THRESHOLD_DIAGNOSTIC.md)
 and [chart](artifacts/benchmarks/paired-cpp-net10-20260831-threshold-diagnostic/report/threshold-success-count.png).
 
+The follow-up connection-ramp diagnostic in code/test commit `7f36e0987`
+records the launch stagger without changing the default simultaneous workload.
+At 1,000 C++ Search sessions, the simultaneous run was `890/1000` with 110
+transport-boundary errors; the 5 ms/session-index ramp was `402/1000` with 598
+connection refusals. Net10 passed the same ramp `1000/1000`. The C++ errors
+occur before a valid IMAP SEARCH response and are not evidence of a SQL search
+correctness defect. Legacy source mapping is documented in the
+[capacity-failure diagnostic](artifacts/benchmarks/paired-cpp-net10-20260831-ramp-diagnostic/report/IMAP_CAPACITY_FAILURE_DIAGNOSTIC.md).
+No listener, SQL, ACL, or production behavior was changed, and no overall
+speedup claim is valid. Performance remains **RED**.
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

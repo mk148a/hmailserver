@@ -46,6 +46,17 @@ performance claim. Next slice: inspect the C++ listener/SQL failure evidence
 and decide whether a safe benchmark-only diagnosis or an environment blocker
 is possible; do not alter legacy behavior to force a green comparison.
 
+That diagnosis is now complete in benchmark code/test commit `7f36e0987`.
+The new optional launch stagger preserves the default simultaneous workload.
+At 1,000 Search sessions, C++ was `890/1000` simultaneous and `402/1000` with
+a 5 ms/session-index ramp; Net10 was `1000/1000` with the same ramp. C++
+failures were connection refusals or transport reads before a valid SEARCH
+response. The source mapping and residual uncertainty are in
+`artifacts/benchmarks/paired-cpp-net10-20260831-ramp-diagnostic/report/IMAP_CAPACITY_FAILURE_DIAGNOSTIC.md`.
+No production listener, SQL, ACL, or legacy behavior change is justified.
+Next slice: complete disposable POP3 large-mailbox acceptance or record its
+environment blocker, then proceed to installer/rollback acceptance.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and
