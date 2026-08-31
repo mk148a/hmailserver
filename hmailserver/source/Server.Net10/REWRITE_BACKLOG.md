@@ -1,4 +1,21 @@
-## Current authoritative status (2026-08-27, manifest-bound benchmark artifacts)
+## Current authoritative status (2026-08-31, bounded backoff follow-up)
+
+Code/test commit `605bb1cf0` adds bounded exponential retry backoff to
+`MessageSearchBackfillHostedService.ExecuteAsync`. Transient non-cancellation
+batch failures now wait 2 seconds, 4 seconds, then double up to a 30-second
+cap; any successful batch resets the delay. The change preserves cancellation,
+indexing semantics, and all protocol/COM boundaries. Focused backfill coverage
+passes `5/5`; full Debug is `2773 passed, 90 skipped, 5 failed` (`2868` total),
+with the five existing registered local-server COM `E_NOINTERFACE` failures.
+
+This is a bounded resource-pressure mitigation, not proof of IMAP capacity.
+The sealed disposable performance gate remains **RED**: Net10 concurrent IMAP
+was `8/100`, `0/500`, and `0/1000`, and the required soak did not complete.
+Next slice: capture effective SQL pool configuration and IMAP query/session
+fan-out on a fresh disposable fixture, then rerun the failed acceptance levels
+without weakening failure accounting.
+
+## Historical authoritative status (2026-08-27, manifest-bound benchmark artifacts)
 
 Code/test commit `61bf5ec6e` makes the core live benchmark evidence
 manifest-bound and cross-format consistent. `build/live-benchmark-provenance.ps1`

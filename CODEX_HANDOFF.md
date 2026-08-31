@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, bounded retry backoff)
+
+Code/test commit `605bb1cf0` adds bounded exponential retry backoff to
+`MessageSearchBackfillHostedService.ExecuteAsync`: transient batch failures
+wait 2 seconds, 4 seconds, and then up to 30 seconds; a successful batch
+resets the delay. Focused coverage is `5/5` PASS. Full Debug is `2773 passed,
+90 skipped, 5 failed`; the five failures remain the existing registered COM
+local-server `E_NOINTERFACE` activation checks.
+
+The change reduces repeated SQL-pool pressure and preserves cancellation, but
+does not establish a performance pass. The sealed disposable IMAP gate remains
+RED at Net10 `8/100`, `0/500`, and `0/1000`, with the soak incomplete. Next
+slice: attest effective SQL pool settings and IMAP session/query fan-out on a
+fresh disposable fixture, then rerun the failed acceptance levels. Do not
+publish a speed ratio until both implementations pass every required level.
+
 ## Current authoritative continuation (2026-08-31, post-fix load evidence)
 
 After `a3e14d83e`, a fresh Release disposable fixture was rebuilt and Net10

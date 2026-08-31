@@ -1,12 +1,12 @@
 # Current State
-- UTC and local timestamp: 2026-08-31T14:43:56Z / 2026-08-31T17:43:56+03:00
+- UTC and local timestamp: 2026-08-31T15:02:00Z / 2026-08-31T18:02:00+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `91122b53b`
+- Current HEAD: `605bb1cf0` (documentation commit follows)
 - Last successfully pushed commit: `55eff58bb`
-- Latest focused-test result: backfill hosted-service `5/5` PASS; post-fix Net10 100/500/1000 concurrent failure artifacts validated with clean worker shutdown; ordered sealed protocol/SMTP and descriptor/input-safety/AST PASS.
+- Latest focused-test result: bounded backoff backfill hosted-service `5/5` PASS; post-fix Net10 100/500/1000 concurrent failure artifacts validated with clean worker shutdown; ordered sealed protocol/SMTP and descriptor/input-safety/AST PASS.
 - Latest full Net10 result: Debug full suite `2773 passed, 90 skipped, 5 failed` (`2868` total); all five failures are existing `ComLocalServerHostTests` out-of-process activation checks returning `E_NOINTERFACE` (`0x80004002`).
 - Opt-in tests passed/skipped/blocked: ordered protocol and durable SMTP acceptance PASS; concurrent IMAP and 20-wave soak artifacts are FAIL; 90 standard opt-in tests skipped; POP3 large-mailbox, 24-hour soak, remote delivery/TLS/DNS, restore/installer rollback, registered COM, SEC-18 caller proof, AD/SSPI, and lifecycle acceptance blocked or unproven.
-- Current bounded slice: post-fix evidence confirms transient backfill SQL-pool failures no longer stop the host; Net10 high-concurrency acceptance remains RED at 8/100, 0/500, and 0/1000.
+- Current bounded slice: bounded exponential retry backoff for transient backfill SQL-pool failures; Net10 high-concurrency acceptance remains RED at 8/100, 0/500, and 0/1000.
 - Completed milestones: disposable paired 5708/6000 fixture; exact Data/message parity; protocol and SMTP durable acceptance; sealed descriptor; input containment; live SEARCH/SORT result and completion-tag checks; run/fixture/database/Data/executable attestation; raw sample/summary/resource reconciliation; failure-preserving concurrent harness validation; and indexing failure isolation with regression coverage.
 - Open production blockers: Net10/C++ high-concurrency IMAP capacity/SQL contention; Net10 20-wave soak; full accepted performance matrix and charts; launch-payload/config handle lease and environment attestation; SQL settings fingerprint/post-run verification; POP3 large-mailbox; Release ComInterop CA1416 failures; 24-hour leak soak; remote delivery/retry, queue, TLS/DNS, restore, installer/service/Data rollback, registered COM/Admin, SEC-18, plaintext PHP session credentials, AD/master-user, DKIM/DMARC/SPF, and unresolved P1 security findings.
 - Environment-blocked work: host out-of-process COM activation is not green; independent SEC-18 caller-token proof, AD/SSPI credentials, disposable restore/installer clone, production-equivalent lifecycle, and long-duration soak infrastructure are unavailable.

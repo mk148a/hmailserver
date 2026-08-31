@@ -21,9 +21,11 @@ descriptor sealing is covered by `18f900b1d`. Performance remains **RED**.
 The ordered load also captured the worker-exit cause in the Windows
 Application log: `MessageSearchBackfillHostedService` lost a SQL connection
 from the pool and the default `StopHost` policy terminated the Net10 process.
-Commit `a3e14d83e` now logs transient backfill batch failures and retries after
-the existing idle delay while preserving cancellation. Focused coverage is
-`5/5`; this prevents indexing failure from taking down the service but does
+Commit `a3e14d83e` now logs transient backfill batch failures and retries while
+preserving cancellation. Follow-up commit `605bb1cf0` adds a bounded
+exponential retry delay (2 s, 4 s, capped at 30 s) and resets it after a
+successful batch. Focused coverage is `5/5`; this reduces repeated SQL-pool
+pressure and prevents indexing failure from taking down the service, but does
 not yet prove the IMAP high-load gate.
 
 Post-fix disposable load evidence confirms the distinction: Net10 1000
