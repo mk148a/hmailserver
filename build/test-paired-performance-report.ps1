@@ -47,6 +47,14 @@ if ($report.source.cpp.postBuildRegistrationDisabled -ne $true) {
 if ($report.source.cpp.sha256 -notmatch "^[0-9A-F]{64}$" -or $report.source.net10.sha256 -notmatch "^[0-9A-F]{64}$") {
     throw "Executable provenance hashes are incomplete."
 }
+if ($report.source.runDescriptorStatus -ne "SEALED" -or
+    $report.source.runDescriptorSha256 -notmatch "^[0-9A-F]{64}$") {
+    throw "The paired report must be bound to a sealed run descriptor."
+}
+if ($null -eq $report.source.runDescriptorArtifacts -or
+    @($report.source.runDescriptorArtifacts.PSObject.Properties).Count -ne 11) {
+    throw "The paired report must retain all sealed artifact-slot hashes."
+}
 
 $protocol = @($report.protocol.findings)
 if ($protocol.Count -ne 3) {
@@ -67,8 +75,13 @@ $oneThousand = @($concurrent | Where-Object concurrency -eq 1000)
 if ($oneThousand.Count -ne 1 -or $oneThousand[0].net10Status -ne "PASS" -or $oneThousand[0].net10Successes -ne 1000) {
     throw "Net10 1,000-session acceptance is missing or incomplete."
 }
-if ($oneThousand[0].cppStatus -eq "PASS" -or $null -ne $oneThousand[0].cppOverNet10Ratio) {
-    throw "The failed legacy 1,000-session artifact must not publish a performance ratio."
+if ($oneThousand[0].cppStatus -eq "PASS") {
+    if ($oneThousand[0].cppSuccesses -ne 1000 -or $null -eq $oneThousand[0].cppOverNet10Ratio) {
+        throw "A passing legacy 1,000-session artifact must publish a reconciled ratio."
+    }
+}
+elseif ($null -ne $oneThousand[0].cppOverNet10Ratio) {
+    throw "A failed legacy 1,000-session artifact must not publish a performance ratio."
 }
 
 if ($report.smtpAcceptance.cpp.accepted -ne 500 -or $report.smtpAcceptance.net10.accepted -ne 500) {

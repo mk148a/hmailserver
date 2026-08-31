@@ -42,6 +42,19 @@ GENERATED_FILES = (
     "smtp-acceptance.png",
     "net10-imap-soak-resources.png",
 )
+REPORT_SLOTS = {
+    "protocol-cpp": ("cpp", "protocol-cpp/net10-live-protocol.json", "protocol-cpp/net10-live-protocol.csv", "protocol-cpp/net10-live-protocol.md"),
+    "protocol-net10": ("net10", "protocol-net10/net10-live-protocol.json", "protocol-net10/net10-live-protocol.csv", "protocol-net10/net10-live-protocol.md"),
+    "concurrent-cpp-100": ("cpp", "concurrent-cpp-100/live-concurrent-imap.json", "concurrent-cpp-100/live-concurrent-imap.csv", "concurrent-cpp-100/live-concurrent-imap.md"),
+    "concurrent-cpp-500": ("cpp", "concurrent-cpp-500/live-concurrent-imap.json", "concurrent-cpp-500/live-concurrent-imap.csv", "concurrent-cpp-500/live-concurrent-imap.md"),
+    "concurrent-cpp-1000": ("cpp", "concurrent-cpp-1000/live-concurrent-imap.json", "concurrent-cpp-1000/live-concurrent-imap.csv", "concurrent-cpp-1000/live-concurrent-imap.md"),
+    "concurrent-net10-100": ("net10", "concurrent-net10-100/live-concurrent-imap.json", "concurrent-net10-100/live-concurrent-imap.csv", "concurrent-net10-100/live-concurrent-imap.md"),
+    "concurrent-net10-500": ("net10", "concurrent-net10-500/live-concurrent-imap.json", "concurrent-net10-500/live-concurrent-imap.csv", "concurrent-net10-500/live-concurrent-imap.md"),
+    "concurrent-net10-1000": ("net10", "concurrent-net10-1000/live-concurrent-imap.json", "concurrent-net10-1000/live-concurrent-imap.csv", "concurrent-net10-1000/live-concurrent-imap.md"),
+    "smtp-cpp-500": ("cpp", "smtp-cpp-500/cpp-smtp-message-acceptance.json", "smtp-cpp-500/cpp-smtp-message-acceptance.csv", "smtp-cpp-500/cpp-smtp-message-acceptance.md"),
+    "smtp-net10-500": ("net10", "smtp-net10-500/net10-smtp-message-acceptance.json", "smtp-net10-500/net10-smtp-message-acceptance.csv", "smtp-net10-500/net10-smtp-message-acceptance.md"),
+    "soak-net10-1000x20": ("net10", "soak-net10-1000x20/live-concurrent-imap.json", "soak-net10-1000x20/live-concurrent-imap.csv", "soak-net10-1000x20/live-concurrent-imap.md"),
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,6 +68,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--net10-executable", type=Path, required=True)
     parser.add_argument("--repository-root", type=Path, required=True)
     parser.add_argument("--output-directory", type=Path, required=True)
+    parser.add_argument("--run-descriptor", type=Path, required=True)
     return parser.parse_args()
 
 
@@ -226,6 +240,110 @@ def validate_report_set(
     }
     require(len(run_ids) == 1, "Paired performance inputs contain mixed run IDs.")
     return next(iter(run_ids))
+
+
+def validate_run_descriptor(
+    descriptor: dict[str, Any],
+    descriptor_path: Path,
+    input_root: Path,
+    fixture: dict[str, Any],
+    manifest_path: Path,
+) -> tuple[str, str, dict[str, dict[str, Any]]]:
+    require(
+        descriptor.get("schema") == "paired-cpp-net10-run-v1",
+        "Unexpected paired run descriptor schema.",
+    )
+    require(descriptor.get("status") == "SEALED", "Paired run descriptor is not sealed.")
+    created = parse_timestamp(descriptor.get("createdUtc"), "Paired run descriptor createdUtc")
+    sealed = parse_timestamp(descriptor.get("sealedUtc"), "Paired run descriptor sealedUtc")
+    require(sealed > created, "Paired run descriptor seal time must be after creation time.")
+    try:
+        run_id = str(uuid.UUID(str(descriptor.get("runId"))))
+    except (ValueError, AttributeError) as error:
+        raise ValueError("Paired run descriptor runId is missing or invalid.") from error
+    require(run_id != str(uuid.UUID(int=0)), "Paired run descriptor runId is empty.")
+    expected_fixture_id = fixture_id(fixture, manifest_path)
+    require(
+        descriptor.get("fixtureId") == expected_fixture_id,
+        "Paired run descriptor fixture ID does not match the fixture manifest.",
+    )
+    manifest_sha256 = sha256(manifest_path)
+    require(
+        str(descriptor.get("manifestSha256", "")).upper() == manifest_sha256,
+        "Paired run descriptor manifest SHA-256 does not match the fixture manifest.",
+    )
+    require(
+        normalized_path(descriptor.get("inputRoot")) == normalized_path(input_root),
+        "Paired run descriptor input root does not match the report input root.",
+    )
+    slots = descriptor.get("artifactSlots")
+    require(isinstance(slots, list), "Paired run descriptor artifact slots are missing.")
+    require(len(slots) == len(REPORT_SLOTS), "Paired run descriptor artifact slots are incomplete.")
+    observed: dict[str, dict[str, Any]] = {}
+    for slot in slots:
+        require(isinstance(slot, dict), "Paired run descriptor contains an invalid artifact slot.")
+        name = slot.get("name")
+        require(name in REPORT_SLOTS, f"Paired run descriptor has an unexpected artifact slot: {name}.")
+        require(name not in observed, f"Paired run descriptor repeats artifact slot: {name}.")
+        implementation, relative_path, csv_path, markdown_path = REPORT_SLOTS[name]
+        relative = Path(str(slot.get("relativePath", "")))
+        require(
+            slot.get("implementation") == implementation
+            and not relative.is_absolute()
+            and ".." not in relative.parts
+            and relative == Path(relative_path),
+            f"Paired run descriptor path or implementation is wrong for {name}.",
+        )
+        report_path = input_root / relative
+        report_hash = str(slot.get("sha256", "")).upper()
+        require(
+            re.fullmatch(r"[0-9A-F]{64}", report_hash) is not None,
+            f"Paired run descriptor raw report hash is missing for {name}.",
+        )
+        artifacts = slot.get("artifacts")
+        require(isinstance(artifacts, dict), f"Paired run descriptor companion hashes are missing for {name}.")
+        companion_hashes = {}
+        for artifact_name, expected_path in (("json", relative_path), ("csv", csv_path), ("markdown", markdown_path)):
+            artifact_hash = str(artifacts.get(artifact_name, "")).upper()
+            require(
+                re.fullmatch(r"[0-9A-F]{64}", artifact_hash) is not None,
+                f"Paired run descriptor {artifact_name} hash is missing for {name}.",
+            )
+            if artifact_name == "json":
+                require(artifact_hash == report_hash, f"Paired run descriptor JSON hash disagrees for {name}.")
+            companion_hashes[artifact_name] = artifact_hash
+        observed[name] = {
+            "implementation": implementation,
+            "path": report_path,
+            "sha256": report_hash,
+            "artifacts": companion_hashes,
+        }
+    require(
+        set(observed) == set(REPORT_SLOTS),
+        "Paired run descriptor artifact slots do not match the required matrix.",
+    )
+    return run_id, sha256(descriptor_path), observed
+
+
+def validate_run_descriptor_reports(
+    descriptor_run_id: str,
+    slots: dict[str, dict[str, Any]],
+    reports: dict[str, dict[str, Any]],
+) -> None:
+    require(set(reports) == set(slots), "Paired run descriptor reports do not match the required slots.")
+    for name, slot in slots.items():
+        report_path = slot["path"]
+        for artifact_name, artifact_path in (("json", report_path), ("csv", slots[name]["path"].with_suffix(".csv")), ("markdown", slots[name]["path"].with_suffix(".md"))):
+            require(artifact_path.is_file(), f"Paired run descriptor {artifact_name} report is missing for {name}.")
+            require(
+                sha256(artifact_path) == slot["artifacts"][artifact_name],
+                f"Paired run descriptor {artifact_name} hash does not match for {name}.",
+            )
+        report = reports[name]
+        require(
+            str(uuid.UUID(str(report.get("runId")))) == descriptor_run_id,
+            f"Paired run descriptor runId does not match report {name}.",
+        )
 
 
 def percentile(values: list[float], percent: float) -> float | None:
@@ -864,6 +982,8 @@ def main() -> None:
     fixture = load_json(args.fixture_manifest.resolve())
     environment = load_json(args.environment.resolve())
     legacy_build = load_json(args.legacy_build_manifest.resolve())
+    descriptor_path = args.run_descriptor.resolve()
+    descriptor = load_json(descriptor_path)
     require(fixture.get("schema") == "paired-benchmark-fixture-v2", "Unexpected fixture schema.")
     require(fixture.get("status") == "PASS", "Fixture preparation did not pass.")
     require(fixture["dataParity"]["exact"] is True, "Data copies are not exact.")
@@ -901,6 +1021,27 @@ def main() -> None:
     }
     soak = load_json(input_root / "soak-net10-1000x20" / "live-concurrent-imap.json")
 
+    descriptor_run_id, descriptor_sha256, descriptor_slots = validate_run_descriptor(
+        descriptor,
+        descriptor_path,
+        input_root,
+        fixture,
+        args.fixture_manifest.resolve(),
+    )
+    descriptor_reports = {
+        "protocol-cpp": protocol["cpp"],
+        "protocol-net10": protocol["net10"],
+        **{
+            f"concurrent-{implementation}-{level}": report
+            for implementation, reports in concurrent.items()
+            for level, report in reports.items()
+        },
+        "smtp-cpp-500": smtp["cpp"],
+        "smtp-net10-500": smtp["net10"],
+        "soak-net10-1000x20": soak,
+    }
+    validate_run_descriptor_reports(descriptor_run_id, descriptor_slots, descriptor_reports)
+
     paired_run_id = validate_report_set(
         [
             *((implementation, report) for implementation, report in protocol.items()),
@@ -915,6 +1056,7 @@ def main() -> None:
         fixture,
         args.fixture_manifest.resolve(),
     )
+    require(paired_run_id == descriptor_run_id, "Paired report runId does not match the run descriptor.")
 
     for report in protocol.values():
         validate_protocol_workload(report)
@@ -1209,6 +1351,17 @@ def main() -> None:
             "commit": tested_commit,
             "repositoryHeadAtGeneration": repository_head,
             "runId": paired_run_id,
+            "runDescriptorSha256": descriptor_sha256,
+            "runDescriptorStatus": descriptor["status"],
+            "runDescriptorArtifacts": {
+                name: {
+                    "implementation": slot["implementation"],
+                    "jsonSha256": slot["artifacts"]["json"],
+                    "csvSha256": slot["artifacts"]["csv"],
+                    "markdownSha256": slot["artifacts"]["markdown"],
+                }
+                for name, slot in descriptor_slots.items()
+            },
             "fixtureId": fixture_id(fixture, args.fixture_manifest.resolve()),
             "manifestSha256": sha256(args.fixture_manifest.resolve()),
             "cpp": {

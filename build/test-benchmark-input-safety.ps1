@@ -144,6 +144,10 @@ try {
             '-BenchmarkServiceExecutable', $invalidExecutable
         ) 'approved disposable benchmark executable'
     }
+    Assert-ScriptRejects (Join-Path $repoRoot 'build\new-paired-performance-run.ps1') @(
+        '-FixtureManifest', (Join-Path $tempRoot 'missing-fixture.json'),
+        '-InputRoot', $repoRoot
+    ) 'repository benchmark artifacts directory'
 
     $reportArguments = @(
         '--input-root', $repoRoot,
@@ -151,7 +155,8 @@ try {
         '--environment', (Join-Path $tempRoot 'missing-environment.json'),
         '--legacy-build-manifest', (Join-Path $tempRoot 'missing-build.json'),
         '--net10-executable', (Join-Path $tempRoot 'missing-net10.exe'),
-        '--repository-root', $repoRoot
+        '--repository-root', $repoRoot,
+        '--run-descriptor', (Join-Path $tempRoot 'missing-run-descriptor.json')
     )
     Assert-PythonRejects ($reportArguments + @('--output-directory', $repoRoot)) 'approved paired benchmark directory'
 

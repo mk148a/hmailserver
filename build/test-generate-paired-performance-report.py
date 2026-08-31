@@ -92,6 +92,32 @@ class PairedPerformanceProvenanceTests(unittest.TestCase):
             },
         }
 
+    def descriptor(self, input_root: Path | None = None) -> dict[str, object]:
+        return {
+            "schema": "paired-cpp-net10-run-v1",
+            "status": "SEALED",
+            "runId": self.run_id,
+            "createdUtc": "2026-08-31T00:00:00+00:00",
+            "sealedUtc": "2026-08-31T00:00:01+00:00",
+            "fixtureId": self.fixture["fixtureId"],
+            "manifestSha256": self.manifest_sha256,
+            "inputRoot": str(input_root or (self.root / "inputs")),
+            "artifactSlots": [
+                {
+                    "name": name,
+                    "implementation": implementation,
+                    "relativePath": relative_path,
+                    "sha256": "E" * 64,
+                    "artifacts": {
+                        "json": "E" * 64,
+                        "csv": "E" * 64,
+                        "markdown": "E" * 64,
+                    },
+                }
+                for name, (implementation, relative_path, _csv_path, _markdown_path) in REPORT_MODULE.REPORT_SLOTS.items()
+            ],
+        }
+
     def protocol_workload(self) -> dict[str, object]:
         samples = []
         summary = []
@@ -286,6 +312,70 @@ class PairedPerformanceProvenanceTests(unittest.TestCase):
     def test_accepts_one_manifest_bound_run(self) -> None:
         reports = [("cpp", self.report("cpp")), ("net10", self.report("net10"))]
         self.assertEqual(self.run_id, REPORT_MODULE.validate_report_set(reports, self.fixture, self.manifest_path))
+
+    def test_accepts_sealed_run_descriptor(self) -> None:
+        input_root = self.root / "inputs"
+        descriptor_path = self.root / "run.json"
+        descriptor_path.write_text(json.dumps(self.descriptor(input_root)), encoding="utf-8")
+        run_id, descriptor_hash, slots = REPORT_MODULE.validate_run_descriptor(
+            self.descriptor(input_root),
+            descriptor_path,
+            input_root,
+            self.fixture,
+            self.manifest_path,
+        )
+        self.assertEqual(self.run_id, run_id)
+        self.assertEqual(hashlib.sha256(descriptor_path.read_bytes()).hexdigest().upper(), descriptor_hash)
+        self.assertEqual(set(REPORT_MODULE.REPORT_SLOTS), set(slots))
+
+    def test_rejects_open_or_mismatched_run_descriptor(self) -> None:
+        input_root = self.root / "inputs"
+        descriptor_path = self.root / "run.json"
+        descriptor = self.descriptor(input_root)
+        descriptor_path.write_text(json.dumps(descriptor), encoding="utf-8")
+        descriptor["status"] = "OPEN"
+        with self.assertRaisesRegex(ValueError, "not sealed"):
+            REPORT_MODULE.validate_run_descriptor(
+                descriptor, descriptor_path, input_root, self.fixture, self.manifest_path
+            )
+        descriptor = self.descriptor(input_root)
+        descriptor["artifactSlots"] = descriptor["artifactSlots"][:-1]
+        with self.assertRaisesRegex(ValueError, "incomplete"):
+            REPORT_MODULE.validate_run_descriptor(
+                descriptor, descriptor_path, input_root, self.fixture, self.manifest_path
+            )
+
+    def test_reconciles_sealed_raw_report_hashes_and_rejects_drift(self) -> None:
+        input_root = self.root / "inputs"
+        descriptor = self.descriptor(input_root)
+        slots = {}
+        reports = {}
+        for slot in descriptor["artifactSlots"]:
+            report_path = input_root / Path(slot["relativePath"])
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_bytes(slot["name"].encode("ascii"))
+            slot["sha256"] = hashlib.sha256(report_path.read_bytes()).hexdigest().upper()
+            slot["artifacts"]["json"] = slot["sha256"]
+            for artifact_name, suffix in (("csv", ".csv"), ("markdown", ".md")):
+                companion_path = report_path.with_suffix(suffix)
+                companion_path.write_bytes((slot["name"] + artifact_name).encode("ascii"))
+                slot["artifacts"][artifact_name] = hashlib.sha256(companion_path.read_bytes()).hexdigest().upper()
+            slots[slot["name"]] = {
+                "path": report_path,
+                "sha256": slot["sha256"],
+                "artifacts": slot["artifacts"],
+            }
+            reports[slot["name"]] = {"runId": self.run_id}
+        REPORT_MODULE.validate_run_descriptor_reports(self.run_id, slots, reports)
+        first_path = next(iter(slots.values()))["path"]
+        first_path.write_bytes(b"drifted")
+        with self.assertRaisesRegex(ValueError, "json hash"):
+            REPORT_MODULE.validate_run_descriptor_reports(self.run_id, slots, reports)
+        first_path.write_bytes(next(iter(slots)).encode("ascii"))
+        first_csv = first_path.with_suffix(".csv")
+        first_csv.write_bytes(b"drifted companion")
+        with self.assertRaisesRegex(ValueError, "csv hash"):
+            REPORT_MODULE.validate_run_descriptor_reports(self.run_id, slots, reports)
 
     def test_rejects_unbound_report(self) -> None:
         report = self.report("cpp")
