@@ -1,7 +1,25 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, paired SMTP local-delivery readback)
+## Current authoritative status (2026-09-01, paired TCP 451 retry state)
+
+Code/test commit `c1055f349` adds a disposable paired acceptance harness for
+the legacy C++ service and .NET 10. Against the same controlled loopback sink
+protocol, both implementations received a real RCPT `451` and proved one
+retained queue row, `messagetype=1`, `messagelocked=0`, retry count `1`, one
+retained recipient, no first-attempt `DATA`, and a retained Data file. The
+C++ service was created under a unique disposable SCM name, then stopped and
+deleted; route, queue, SQL principal, and seed file cleanup all passed.
+
+The paired JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-retry/`.
+The Net10 source-level component evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
+This closes only initial transient-state parity. Retry recovery, larger
+delivery waves, and performance/soak gates remain open; performance is
+**RED**.
+
+## Previous bounded status (2026-09-01, paired SMTP local-delivery readback)
 
 Code/test commit `6361a8074` adds opt-in, manifest-bound local-delivery
 readback to the paired SMTP acceptance runner. On one fresh disposable

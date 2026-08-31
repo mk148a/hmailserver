@@ -1,5 +1,15 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current paired TCP 451 retry-state evidence (2026-09-01)
+
+Code/test commit `c1055f349` exercised the disposable C++ service and Net10
+against the same controlled loopback sink protocol. Both received RCPT `451`
+and proved no DATA, a retained type-1 queue row, unlocked/cleared lease,
+retry count `1`, one retained recipient, retained Data file, and complete
+cleanup. This is bounded correctness evidence, not retry recovery or a timing
+comparison; the release gate remains **RED**. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-retry/`.
+
 ## Current Net10 TCP 451 retry-state evidence (2026-09-01)
 
 The disposable Net10 component test passed a real loopback TCP `451` through

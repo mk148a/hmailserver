@@ -1,5 +1,16 @@
 # .NET 10 Benchmark Pack
 
+## Current paired TCP 451 retry-state evidence (2026-09-01)
+
+Code/test commit `c1055f349` added a disposable paired harness. C++ and Net10
+both exercised the same loopback sink protocol, received RCPT `451`, sent no
+DATA, retained type-1 queue state and the recipient, cleared the lease,
+incremented retry count to `1`, retained the Data file, and passed cleanup.
+This is bounded initial transient-state correctness only; retry recovery,
+larger waves, and performance acceptance remain open and the gate is **RED**.
+Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-retry/`.
+
 ## Current Net10 TCP 451 retry-state evidence (2026-09-01)
 
 A disposable opt-in test exercised a real loopback SMTP `451` through the

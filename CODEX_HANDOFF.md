@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-01, paired TCP 451 retry state)
+
+Code/test commit `c1055f349` adds a disposable C++ harness beside the existing
+Net10 TCP-451 test. Both implementations used a controlled loopback sink that
+returned `451` at RCPT and proved the same initial transient state: no DATA,
+one retained `messagetype=1` queue row, unlocked/cleared lease, retry count `1`,
+one retained recipient, and retained Data file. The C++ disposable service,
+route, SQL principal, queue row, and seed file were cleaned up successfully.
+Aggregate evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-retry/`.
+
+This is initial transient-state parity only. It does not prove `451` to `250`
+recovery, retry timing, throughput, service-worker scheduler acceptance, or
+release readiness. The next slice is stateful retry recovery, then larger
+paired delivery waves; performance remains **RED**.
+
 ## Current authoritative continuation (2026-09-01, paired SMTP local-delivery readback)
 
 Code/test commit `6361a8074` adds opt-in exact local-delivery readback to the

@@ -1,5 +1,15 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Current paired TCP 451 retry-state evidence (2026-09-01)
+
+Code/test commit `c1055f349` used the disposable C++ service and Net10 with
+the same controlled loopback sink protocol. Both implementations received
+RCPT `451`, sent no DATA, retained one type-1 queue row and recipient, cleared
+the lease, incremented retry count to `1`, retained the Data file, and passed
+cleanup. This is initial transient-state parity only, not retry recovery,
+throughput, or release clearance. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-retry/`.
+
 ## Current Net10 TCP 451 retry-state evidence (2026-09-01)
 
 The Net10-only disposable test drove a real loopback TCP `451` through the
