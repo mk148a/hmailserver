@@ -1,7 +1,7 @@
 hMailServer
 ===========
 
-## Current performance gate (2026-08-27)
+## Current performance gate (2026-08-31, RED)
 
 > **Revalidation required:** the table below is retained as historical
 > diagnostic evidence. Its original generator did not independently recompute
@@ -15,6 +15,14 @@ loopback ports, credentials, SQL instance, and protocol commands. C++ remains
 on schema 5708; only the Net10 copy was upgraded to schema 6000. The legacy
 binary was rebuilt from the repository source with post-build registration
 disabled.
+
+Code/test commit `a71a5963f` adds a sealed paired-run descriptor. It binds one
+shared run ID, the exact fixture-manifest hash, all required protocol,
+concurrency, SMTP, and short-soak artifact slots, and the SHA-256 of every raw
+JSON report. The hardened generator now requires this descriptor before it can
+emit a comparison table, ratio, or chart. No new acceptance-sized matrix has
+been run through this boundary yet, so the table below remains historical
+diagnostic evidence.
 
 | Scenario | Legacy C++ p95 | .NET 10 p95 | Result |
 | --- | ---: | ---: | --- |

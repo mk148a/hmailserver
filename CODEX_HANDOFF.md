@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, sealed run descriptor)
+
+Code/test commit `a71a5963f` adds `build/new-paired-performance-run.ps1` and
+requires `--run-descriptor` for aggregate paired-report generation. An OPEN
+descriptor records one shared run ID, exact fixture-manifest hash, input root,
+and all 11 required artifact slots; sealing it records each raw JSON report
+SHA-256. The generator rejects OPEN, incomplete, wrong-fixture, wrong-slot,
+mixed-run, missing-report, and raw-report-drift inputs, and includes the sealed
+descriptor hash in the sanitized summary.
+
+Focused descriptor/reconciliation coverage is `16/16` PASS, input-safety is
+PASS, PowerShell AST parsing is PASS, and the benchmark project builds with
+zero warnings/errors. Full Debug remains `2772 passed, 90 skipped, 5 failed`;
+all five failures are the existing registered local-server COM
+`E_NOINTERFACE` checks. No full acceptance matrix has yet been rerun with the
+sealed descriptor, so performance and release gates remain **RED**.
+
+Next slice: correct the observable Net10 IMAP completion-text mismatch against
+legacy `OK Search completed`, add a focused acceptance assertion, then provision
+a fresh disposable fixture and run the descriptor-bound full matrix. Do not
+publish the retained historical speed table as current evidence.
+
 ## Current authoritative continuation (2026-08-31, measurement reconciliation)
 
 Code/test commit `f43ef7094` closes the second report-integrity layer. The

@@ -9437,3 +9437,27 @@ fresh shared run ID, exact fixture-manifest bytes, creation timestamps,
 expected artifact slots, and raw JSON/CSV/Markdown hashes. The full C++/Net10
 matrix must then be rerun on a fresh fixture and regenerated through the
 reconciler before any historical speed table is treated as current evidence.
+
+## Current authoritative status (2026-08-31, sealed paired-run descriptor)
+
+Code/test commit `a71a5963f` adds `build/new-paired-performance-run.ps1` and
+makes `generate-paired-performance-report.py` require a sealed
+`paired-cpp-net10-run-v1` descriptor. The descriptor binds one run ID, the
+exact fixture-manifest bytes, the report input root, all 11 required protocol,
+concurrent-IMAP, SMTP, and short-soak artifact slots, and each raw JSON report
+SHA-256. The generator verifies those hashes and the report run IDs before it
+recomputes metrics or emits tables/charts; the sanitized summary records the
+descriptor hash and SEALED status.
+
+Focused descriptor/reconciliation coverage is `16/16` PASS, benchmark
+input-safety is PASS, PowerShell AST parsing is PASS, and the benchmark project
+build has `0` warnings and `0` errors. Full Debug remains `2772 passed, 90
+skipped, 5 failed`, with the five existing registered local-server COM
+`E_NOINTERFACE` failures. Existing dirty/deleted artifacts remain untouched.
+
+The performance release gate remains **RED**. No acceptance-sized matrix has
+yet been rerun with this descriptor. The next parity slice is to correct and
+test Net10's observable IMAP completion-text mismatch against legacy `OK Search
+completed`; then execute a fresh descriptor-bound C++/.NET10 protocol,
+100/500/1,000 IMAP, 500-message SMTP, and 20-wave soak matrix followed by
+sanitized report generation.
