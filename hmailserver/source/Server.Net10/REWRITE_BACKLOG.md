@@ -37,6 +37,12 @@ No paired Search/Full ratio or overall winner is valid. The next implementation
 slice is an evidence-backed C++/Net10 capacity diagnosis or fix, preserving
 failure accounting and live ACL revalidation.
 
+The threshold generator in code/test commit `bdccabb08` records all 12
+Search/Full cells at 100/500/1000 sessions. Net10 passed all six cells; C++
+passed four cells and failed the 1,000-session Search and Full cells at
+`890/1000` and `951/1000`. This identifies a reproducible high-load threshold
+but does not justify a production change or an overall speed claim.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator

@@ -48,6 +48,14 @@ with the corresponding
 The performance gate remains **RED** because the paired Search and Full
 acceptance conditions still fail and C++ is not an installed service.
 
+The threshold matrix in code/test commit `bdccabb08` ran Search and Full at
+100/500/1000 sessions on the indexed disposable fixture. Net10 passed every
+cell. C++ passed 100 and 500 sessions, then reached `890/1000` for Search and
+`951/1000` for Full at 1,000 sessions. Ratios are published only for paired
+PASS cells; this is a capacity threshold diagnostic, not an overall speedup
+claim. See the [threshold report](artifacts/benchmarks/paired-cpp-net10-20260831-threshold-diagnostic/report/IMAP_QUERY_THRESHOLD_DIAGNOSTIC.md)
+and [chart](artifacts/benchmarks/paired-cpp-net10-20260831-threshold-diagnostic/report/threshold-success-count.png).
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

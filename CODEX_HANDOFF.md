@@ -38,6 +38,14 @@ evidence are under
 `artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/`.
 The performance gate remains RED and no Search/Full ratio is valid.
 
+The threshold diagnostic in code/test commit `bdccabb08` adds all 12
+Search/Full cells at 100/500/1000 sessions. Net10 passed all cells; C++ passed
+100 and 500 but failed 1,000 with Search `890/1000` and Full `951/1000`.
+Threshold ratios remain limited to paired PASS cells and are not an overall
+performance claim. Next slice: inspect the C++ listener/SQL failure evidence
+and decide whether a safe benchmark-only diagnosis or an environment blocker
+is possible; do not alter legacy behavior to force a green comparison.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and
