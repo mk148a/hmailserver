@@ -33,7 +33,25 @@ public sealed class MessageSearchBackfillHostedService : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var processed = await _processor.RunBatchAsync(_options, stoppingToken).ConfigureAwait(false);
+            int processed;
+            try
+            {
+                processed = await _processor.RunBatchAsync(_options, stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Message search backfill batch failed; retrying after {RetryDelay}.",
+                    IdleDelay);
+                await Task.Delay(IdleDelay, stoppingToken).ConfigureAwait(false);
+                continue;
+            }
+
             if (processed == 0)
             {
                 await Task.Delay(IdleDelay, stoppingToken).ConfigureAwait(false);

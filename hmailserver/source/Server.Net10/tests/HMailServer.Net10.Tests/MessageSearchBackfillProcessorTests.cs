@@ -1,7 +1,9 @@
 using System.Runtime.CompilerServices;
 using HMailServer.Core.Abstractions;
 using HMailServer.Indexing;
+using HMailServer.Service;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HMailServer.Net10.Tests;
 
@@ -86,6 +88,34 @@ public sealed class MessageSearchBackfillProcessorTests
         Assert.AreEqual(0, index.Upserted.Count);
     }
 
+    [TestMethod]
+    public async Task HostedService_RetriesTransientBatchFailureWithoutStoppingHost()
+    {
+        var administrationStore = new ThrowingAdministrationStore();
+        var processor = new MessageSearchBackfillProcessor(
+            new FakeBackfillStore([]),
+            new FakeDocumentSource(null),
+            new FakeSearchIndex(),
+            administrationStore);
+        var readiness = new ServerReadinessSignal();
+        readiness.SetBootstrapComplete();
+        var service = new MessageSearchBackfillHostedService(
+            MessageSearchBackfillOptions.Default("worker-1"),
+            processor,
+            NullLogger<MessageSearchBackfillHostedService>.Instance,
+            readiness);
+        using var cancellation = new CancellationTokenSource();
+
+        await service.StartAsync(cancellation.Token);
+        await administrationStore.FirstCall.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await administrationStore.SecondCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.IsFalse(service.ExecuteTask?.IsFaulted ?? true);
+
+        cancellation.Cancel();
+        await service.StopAsync(CancellationToken.None);
+    }
+
     private static MessageSearchDocument CreateDocument()
     {
         return new MessageSearchDocument(
@@ -164,6 +194,47 @@ public sealed class MessageSearchBackfillProcessorTests
 
         public ValueTask<MessageIndexingAdministrationStatus> GetStatusAsync(
             CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask SetEnabledAsync(bool enabled, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask ClearAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask IndexAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask RebuildAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class ThrowingAdministrationStore : IMessageIndexingAdministrationStore
+    {
+        private int _calls;
+
+        public TaskCompletionSource<bool> FirstCall { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource<bool> SecondCall { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public ValueTask<bool> IsEnabledAsync(CancellationToken cancellationToken)
+        {
+            var call = Interlocked.Increment(ref _calls);
+            if (call == 1)
+            {
+                FirstCall.TrySetResult(true);
+            }
+            else if (call == 2)
+            {
+                SecondCall.TrySetResult(true);
+            }
+
+            throw new TimeoutException("Synthetic SQL connection-pool timeout.");
+        }
+
+        public ValueTask<MessageIndexingAdministrationStatus> GetStatusAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public ValueTask SetEnabledAsync(bool enabled, CancellationToken cancellationToken) =>
