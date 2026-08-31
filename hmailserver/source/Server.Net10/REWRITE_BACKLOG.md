@@ -1,12 +1,25 @@
 
-## Current authoritative next slice (2026-09-01, service-backed concurrent IMAP)
+## Current authoritative next slice (2026-09-01, larger SMTP/delivery acceptance)
 
-Code/test commit `29008f60b` completes the benchmark-only service-backed
-concurrent IMAP runner. It starts legacy C++ through a unique disposable SCM
-service, passes the externally owned worker PID into the concurrent workload,
-and keeps service lifecycle and temporary SQL principal cleanup in the
-orchestrator. It does not change the installed service, AppID, COM identity,
-or production state.
+Code/test commit `434dac735` completes manifest-bound 100,000-message paired
+IMAP SEARCH/SORT acceptance support. The disposable C++ orchestrator still
+starts legacy C++ through a unique SCM service, passes the externally owned
+worker PID into the concurrent workload, and keeps service lifecycle and
+temporary SQL principal cleanup in the orchestrator. It does not change the
+installed service, AppID, COM identity, or production state.
+
+The first valid paired 100,000-message cell used matching SQL/Data copies,
+SQL Server, loopback `127.0.0.1:1143`, and the `Full` profile. C++ and Net10
+both passed exact SEARCH and SORT validation (`100000/100000` each). C++
+p50/p95/p99 were `15849.605/15849.605/15849.605 ms`; Net10 was
+`846.875/846.875/846.875 ms`. The fixture manifest SHA-256 is
+`DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A`; both
+sides had 100,000 SQL messages and 100,000 byte-matched Data files.
+
+The compact comparison and chart are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-100k/`. This is a single
+session acceptance cell; its `18.715` p50 ratio is descriptive only and does
+not establish an overall winner.
 
 The first valid paired cell used the manifest-bound 1,000-message/Data corpus,
 matching SQL Server fixture, loopback `127.0.0.1:1143`, `Full` profile, and 100
@@ -25,13 +38,11 @@ evidence. The C++ service wrapper passed cleanup, SQL principal removal,
 service deletion, and production-state preservation in both runs. The full
 matrix is under `artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-imap-capacity-matrix.md`.
 
-No overall performance ratio or winner is valid. Next slice: paired durable
-SMTP 100-message acceptance passed on both implementations with exact SQL/Data
-accounting. C++ p50/p95 were `6.678/10.555 ms`; Net10 was `4.716/8.605 ms`;
-both were about `19.28` messages/s. This is one descriptive cell and does not
-establish a general winner. Next slice: prepare the 100,000-message
-SEARCH/SORT fixture. Larger SMTP, delivery/restore timing, repeated-wave IMAP,
-installer rollback, registered COM, SEC-18, and 24-hour soak remain open.
+No overall performance ratio or winner is valid. Next slice: run larger paired
+durable SMTP and delivery/queue acceptance. The earlier durable SMTP
+100-message cell passed on both implementations with exact SQL/Data accounting
+and remains descriptive evidence only. Backup/restore timing, repeated-wave
+IMAP, installer rollback, registered COM, SEC-18, and 24-hour soak remain open.
 
 Entries below this point are historical records.
 

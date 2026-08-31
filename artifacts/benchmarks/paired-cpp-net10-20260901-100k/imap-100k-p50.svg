@@ -1,0 +1,13 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="760" height="260" viewBox="0 0 760 260">
+<title>Paired 100k IMAP SEARCH/SORT p50 latency</title>
+<rect width="760" height="260" fill="white"/>
+<text x="30" y="34" font-family="Arial" font-size="20" font-weight="bold">100k IMAP SEARCH + SORT p50 latency</text>
+<text x="30" y="58" font-family="Arial" font-size="13">One session, manifest-bound disposable fixture</text>
+<text x="30" y="105" font-family="Arial" font-size="14">C++</text>
+<rect x="105" y="84" width="560" height="32" fill="#b4472e"/>
+<text x="680" y="106" text-anchor="end" font-family="Arial" font-size="14">15849.605 ms</text>
+<text x="30" y="165" font-family="Arial" font-size="14">Net10</text>
+<rect x="105" y="144" width="30" height="32" fill="#267a68"/>
+<text x="680" y="166" text-anchor="end" font-family="Arial" font-size="14">846.875 ms</text>
+<text x="30" y="220" font-family="Arial" font-size="12" fill="#444">Lower is better; this chart does not establish release readiness.</text>
+</svg>

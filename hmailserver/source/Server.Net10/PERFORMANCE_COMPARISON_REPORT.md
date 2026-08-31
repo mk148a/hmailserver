@@ -1,5 +1,29 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current paired 100k acceptance (2026-09-01)
+
+Code/test commit `434dac735` completed the first valid service-backed paired
+100,000-message IMAP SEARCH/SORT acceptance. Both implementations used the
+same manifest-bound SQL/Data fixture, SQL Server, loopback `127.0.0.1:1143`,
+and `Full` profile. Both passed exact SEARCH and SORT validation:
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput/s |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Legacy C++ service | 100000/100000 PASS | 15849.605 | 15849.605 | 15849.605 | 0.063 |
+| .NET 10 | 100000/100000 PASS | 846.875 | 846.875 | 846.875 | 1.170 |
+
+Fixture manifest SHA-256:
+`DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A`.
+Each side had exactly 100,000 SQL messages and 100,000 byte-matched Data
+files. The single-session p50 ratio is `18.715` C++/Net10 and is descriptive
+only; it is not a general speedup or winner claim. Compact CSV, Markdown, and
+SVG evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-100k/`.
+
+Decision: **RED**. C++ 500/1000-session capacity, larger SMTP/delivery/queue,
+backup/restore timing, installer/COM lifecycle, and 24-hour resource-leak
+acceptance remain open.
+
 ## Current diagnostic refresh (2026-08-21)
 
 The latest offline synthetic 100k-message SEARCH/SORT benchmark passed with

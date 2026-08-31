@@ -1,14 +1,41 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, service-backed concurrent IMAP)
+## Current authoritative status (2026-09-01, paired 100k IMAP acceptance)
 
-Code/test commit `29008f60b` adds an external-worker mode to the benchmark-only
-concurrent IMAP runner. The disposable orchestrator starts the legacy C++
-binary through a unique SCM service, passes its verified worker PID to the
-workload runner, and owns service stop/delete and temporary SQL principal
-cleanup. The installed `hMailServer` service and Application registration are
-not modified.
+Code/test commit `434dac735` adds manifest-bound corpus sizing to the
+benchmark-only paired fixture and concurrent IMAP runner. The disposable
+orchestrator starts the legacy C++ binary through a unique SCM service, passes
+its verified worker PID to the workload runner, and owns service stop/delete
+and temporary SQL principal cleanup. The installed `hMailServer` service and
+Application registration are not modified.
+
+The first valid paired 100,000-message SEARCH/SORT acceptance used one fresh
+fixture, matching SQL/Data copies, SQL Server, loopback `127.0.0.1:1143`, and
+the `Full` IMAP profile. Both implementations passed exact SEARCH and SORT
+validation:
+
+| Implementation | p50 ms | p95 ms | p99 ms | Throughput/s | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Legacy C++ service | 15849.605 | 15849.605 | 15849.605 | 0.063 | 100000/100000 PASS |
+| .NET 10 | 846.875 | 846.875 | 846.875 | 1.170 | 100000/100000 PASS |
+
+The fixture manifest is `DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A`;
+each side contained exactly 100,000 SQL messages and 100,000 byte-matched
+Data files. The compact comparison and chart are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-100k/`.
+
+This is a single-session mailbox acceptance cell. Its measured p50 ratio is
+`18.715` C++/Net10, but it is not a general product speedup claim. The
+performance release gate remains **RED** because C++ 500/1000-session
+capacity, larger SMTP/delivery/queue scenarios, backup/restore timing,
+installer/COM lifecycle, and 24-hour leak acceptance remain open.
+
+The disposable Net10 Full-Text backfill also passed `100000/100000` before
+the live cell. No production database, Data directory, service, COM
+registration, DCOM ACL, or public listener was used.
+
+The earlier 100-session paired capacity cell remains historical evidence:
 
 The first valid paired capacity cell used the same manifest-bound 1,000-message
 corpus, copied Data trees, SQL Server instance, loopback `127.0.0.1:1143`,
@@ -39,9 +66,10 @@ matching copied staging Data root in both disposable databases. The Net10
 Full-Text backfill then passed `1000/1000` and produced the indexed state used
 by this cell. No production database or Data directory was used.
 
-Performance remains **RED** because legacy C++ 500/1000-session capacity did
-not pass, and 100,000-message SEARCH/SORT, durable SMTP/delivery,
-backup/restore timing, and 24-hour leak acceptance remain open.
+Performance remained **RED** in this historical cell because legacy C++
+500/1000-session capacity did not pass. The 100k cell above is now complete,
+while durable SMTP/delivery, backup/restore timing, and 24-hour leak
+acceptance remain open.
 
 The first service-backed durable SMTP cell also passed on the same paired
 fixture: 100/100 accepted messages for both implementations, with exact

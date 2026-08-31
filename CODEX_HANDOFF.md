@@ -1,27 +1,27 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-01, service-backed concurrent IMAP)
+## Current authoritative continuation (2026-09-01, paired 100k IMAP acceptance)
 
-Code/test commit `29008f60b` adds a bounded external-worker mode for the
-benchmark-only concurrent IMAP runner. The disposable C++ orchestrator creates
-a unique SCM service using `/DisposableBenchmark /ServiceName=... RunAsService`,
-passes the real worker PID to the workload runner, and verifies loopback
-ownership, exact legacy `hm_tcpipports` rows, SQL/Data/executable provenance,
-temporary SQL principal cleanup, service deletion, and production-service
-preservation.
+Code/test commit `434dac735` adds manifest-bound corpus sizing to the paired
+fixture and concurrent IMAP acceptance runner. The first valid paired
+100,000-message SEARCH/SORT cell used matching SQL/Data copies, SQL Server,
+loopback `127.0.0.1:1143`, and the `Full` profile. Both implementations passed
+exact SEARCH and SORT validation (`100000/100000` each). C++ p50/p95/p99 were
+`15849.605/15849.605/15849.605 ms` at `0.063` sessions/s. Net10 was
+`846.875/846.875/846.875 ms` at `1.170` sessions/s.
 
-The first valid paired capacity cell used the same manifest-bound 1,000-message
-fixture, staging Data copies, SQL Server, loopback IMAP port, `Full` profile,
-and 100 sessions. C++ and Net10 both passed `100/100`; SEARCH and SORT each
-returned the exact `1..1000` sequence. C++ p50/p95/p99 were
-`2696.204/4334.200/4377.055 ms` at `22.717` sessions/s. Net10 was
-`528.348/629.023/641.604 ms` at `148.932` sessions/s. This is a single
-descriptive cell and does not authorize a general speedup claim.
+The fixture manifest SHA-256 is
+`DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A`; each
+side contained exactly 100,000 SQL messages and 100,000 byte-matched Data
+files. The compact CSV, Markdown, and SVG evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-100k/`.
 
-The Net10 disposable database was corrected to point all 1,000 message rows at
-the matching copied staging Data root, then the Full-Text backfill opt-in
-passed `1000/1000`. The earlier empty-SEARCH result was therefore fixture
-preparation evidence, not a valid capacity result.
+This is a single-session acceptance cell. The measured p50 ratio is `18.715`
+C++/Net10, but no general speedup or winner is claimed. Performance remains
+**RED** because C++ 500/1000-session capacity, larger SMTP/delivery/queue,
+backup/restore timing, installer/COM lifecycle, and 24-hour leak acceptance
+remain open. The disposable Full-Text backfill passed `100000/100000` before
+the live cell.
 
 The 500-session cell was C++ `189/500` versus Net10 `500/500`; the 1,000-session
 cell was C++ `186/1000` versus Net10 `1000/1000`. C++ failures were socket
@@ -31,12 +31,12 @@ production-service preservation. The capacity matrix is under
 `artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-imap-capacity-matrix.md`.
 
 Performance remains **RED** and no general speedup or winner is claimed. Next
-slice: prepare the 100k SEARCH/SORT fixture. A first durable SMTP cell passed
-100/100 on both implementations with exact SQL/Data accounting; C++ p50/p95
-were `6.678/10.555 ms` and Net10 `4.716/8.605 ms`, both near `19.28`
-messages/s. This remains a single descriptive cell. Larger SMTP,
-delivery/restore timing, repeated-wave IMAP, installer rollback, registered
-COM, SEC-18, and soak gates remain open.
+slice: run larger paired durable SMTP and delivery/queue acceptance. A first
+durable SMTP cell passed 100/100 on both implementations with exact SQL/Data
+accounting; C++ p50/p95 were `6.678/10.555 ms` and Net10 `4.716/8.605 ms`,
+both near `19.28` messages/s. This remains a single descriptive cell. Restore,
+installer rollback, registered COM, SEC-18, repeated-wave IMAP, and soak gates
+remain open.
 
 ## Historical continuation (2026-08-31, disposable legacy C++ service)
 

@@ -1,5 +1,28 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Current paired 100k IMAP acceptance (2026-09-01)
+
+Code/test commit `434dac735` completed a valid service-backed C++ versus Net10
+100,000-message SEARCH/SORT acceptance cell. The same manifest-bound SQL/Data
+fixture, SQL Server instance, loopback `127.0.0.1:1143`, and `Full` profile
+were used on both sides. The fixture manifest SHA-256 is
+`DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A`.
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput/s |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Legacy C++ service | 100000/100000 PASS | 15849.605 | 15849.605 | 15849.605 | 0.063 |
+| .NET 10 | 100000/100000 PASS | 846.875 | 846.875 | 846.875 | 1.170 |
+
+Both sides had exactly 100,000 SQL messages and 100,000 byte-matched Data
+files. The single-session p50 ratio is `18.715` C++/Net10. It is descriptive
+for this bounded mailbox cell only and is not a general speedup or winner
+claim. Compact CSV, Markdown, and SVG evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-100k/`.
+
+Decision remains **RED**: legacy C++ 500/1000-session capacity, larger
+SMTP/delivery/queue scenarios, backup/restore timing, installer/COM lifecycle,
+and 24-hour resource-leak acceptance remain open.
+
 ## Independent offline correctness oracle (2026-08-25)
 
 Commit `ada3a16a3` separates the expected SEARCH/SORT result from the timed
