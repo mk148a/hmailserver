@@ -18,11 +18,17 @@ access were removed after the run; and the installed registry snapshot was
 unchanged. Evidence is under
 `artifacts/benchmarks/paired-cpp-net10-20260901-service/service/`.
 
-Performance remains **RED**. The next slice is service-backed paired protocol
-and SMTP acceptance, followed by the full capacity matrix. Do not infer a
-speedup from earlier `/Debug` or Net10-only records. The 100k mailbox, 1k
-IMAP, delivery/restore timing, installer rollback, registered COM, SEC-18, and
-24-hour soak gates remain open.
+Performance remains **RED**. Code/test commit `6ce9a5ac5` adds the service-backed
+C++ protocol orchestrator. The real LocalService SCM worker passed SMTP, IMAP
+SEARCH/SORT, and POP3 (`6/6`) with exact fixture attestation and cleanup. The
+paired Net10 run passed SMTP/POP3 but failed IMAP SEARCH/SORT with zero results,
+so no speedup is claimed. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/`.
+
+Next slice: preflight and record exact `hm_tcpipports` rows before service
+startup, then run service-backed concurrent IMAP cells. The 100k mailbox, 1k
+IMAP, durable SMTP, delivery/restore timing, installer rollback, registered
+COM, SEC-18, and 24-hour soak gates remain open.
 
 ## Historical continuation
 

@@ -19,6 +19,15 @@ The worker PID and executable, SQL database, and loopback listeners
 registry state remained unchanged. Evidence is in
 `artifacts/benchmarks/paired-cpp-net10-20260901-service/service/`.
 
+The service-backed protocol orchestrator now runs the same loopback SMTP, IMAP
+SEARCH/SORT, and POP3 smoke workload through a real disposable C++ SCM worker.
+C++ passed `6/6` samples on the attested 1,000-message fixture. The paired
+Net10 smoke run passed SMTP/POP3 but failed IMAP SEARCH/SORT because it returned
+zero results, so this is validation evidence only and not a speedup claim.
+Reports are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/protocol-cpp-service/`
+and `.../protocol-net10/`.
+
 This removes the prior “C++ cannot run as a service” environment blocker, but
 does not establish a performance winner. The release performance gate remains
 **RED** until the same service-backed C++ and Net10 workloads pass the complete

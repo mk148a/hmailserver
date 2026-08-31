@@ -17,10 +17,18 @@ The exact legacy behavior is documented at
 Evidence is under
 `artifacts/benchmarks/paired-cpp-net10-20260901-service/service/`.
 
-Next slice: run the existing matched SMTP/IMAP/POP3 and durable SMTP runners
-against the disposable service-backed C++ path, then compare with Net10. Do
-not publish a speedup until both sides pass identical scenarios. The 100,000-
-message mailbox, 1,000-session capacity, delivery/backup/restore timing,
+The service-backed C++ protocol runner is implemented in code/test commit
+`6ce9a5ac5`. Against an attested disposable 5708 fixture, the real LocalService
+SCM worker passed SMTP, IMAP SEARCH/SORT, and POP3 (`6/6` samples), with worker
+PID/executable ownership, loopback listeners, SQL principal cleanup, service
+deletion, and production-service preservation verified. The paired Net10 smoke
+run passed SMTP/POP3 but failed both IMAP samples because SEARCH/SORT returned
+zero results. No speedup or winner is claimed.
+
+Evidence is under `artifacts/benchmarks/paired-cpp-net10-20260901-service/`.
+Next slice: add exact `hm_tcpipports` fixture preflight and bind it to service
+evidence, then run service-backed concurrent IMAP cells. The 100,000-message
+mailbox, 1,000-session capacity, durable SMTP, delivery/backup/restore timing,
 registered COM, installer rollback, SEC-18 caller proof, and 24-hour soak gates
 remain open.
 
