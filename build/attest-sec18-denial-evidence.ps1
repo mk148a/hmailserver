@@ -351,6 +351,23 @@ $authorizedStageHresultsSuccessful = $authorizedStageFieldsPresent -and
     [int]$authorizedStageSource.methodHresult -eq 0
 
 $poolSid = if (Has-Property $matrix.runtime 'poolSid') { [string]$matrix.runtime.poolSid } else { $null }
+$wrongSidCaseBound = $null -ne $wrongSidTest -and
+    [string]::Equals([string]$wrongSidTest.name, 'authorized-process-wrong-expected-sid', [StringComparison]::Ordinal) -and
+    (Has-Property $wrongSid 'callerSid') -and
+    (Has-Property $wrongSid 'expectedSid') -and
+    -not [string]::IsNullOrWhiteSpace([string]$wrongSid.callerSid) -and
+    -not [string]::IsNullOrWhiteSpace([string]$wrongSid.expectedSid) -and
+    -not [string]::Equals([string]$wrongSid.callerSid, [string]$wrongSid.expectedSid, [StringComparison]::OrdinalIgnoreCase)
+
+$nonPoolProcessName = [IO.Path]::GetFileNameWithoutExtension([string]$nonPool.processImage)
+$nonPoolProcessTokenBound = @($processes | Where-Object {
+        (Has-Property $_ 'UserSid') -and
+        -not [string]::IsNullOrWhiteSpace([string]$_.UserSid) -and
+        -not [string]::Equals([string]$_.UserSid, $poolSid, [StringComparison]::OrdinalIgnoreCase) -and
+        ((Has-Property $_ 'Path') -and [string]::Equals([string]$_.Path, [string]$nonPool.processImage, [StringComparison]::OrdinalIgnoreCase) -or
+            (Has-Property $_ 'Name') -and [string]::Equals(([string]$_.Name).Replace('.exe', ''), $nonPoolProcessName, [StringComparison]::OrdinalIgnoreCase))
+    }).Count -gt 0
+
 $authorizedSidBound = $null -ne $authorized -and
     [string]::Equals([string]$authorized.callerSid, [string]$authorized.expectedSid, [StringComparison]::OrdinalIgnoreCase) -and
     [string]::Equals([string]$authorized.callerSid, $poolSid, [StringComparison]::OrdinalIgnoreCase)
@@ -486,6 +503,7 @@ Add-Check 'authorized-token-steps' $authorizedTokenSteps 'Impersonation, token r
 Add-Check 'authorized-stage-hresults' $authorizedStageHresultsSuccessful 'Authorized activation, interface, and method HRESULTs are explicitly captured in the response record and are all S_OK.'
 Add-Check 'wrong-sid-method-denial' (
     $null -ne $wrongSid -and
+    $wrongSidCaseBound -and
     [bool]$wrongSid.sidMatchesExpected -eq $false -and
     [int]$wrongSid.errorHresult -eq -2147024891 -and
     [int]$wrongSid.invocationCount -gt 0 -and
@@ -496,6 +514,7 @@ Add-Check 'nonpool-activation-denial' (
     [int]$nonPool.invocationCountDelta -eq 0 -and
     [bool]$nonPool.methodReached -eq $false -and
     -not [string]::IsNullOrWhiteSpace([string]$nonPool.processImage)) 'The non-pool process is denied before interface/method entry with no counter advance.'
+Add-Check 'nonpool-process-token' $nonPoolProcessTokenBound 'The independently measured non-pool process evidence has a matching process identity and a SID different from the dedicated worker pool.'
 Add-Check 'nonpool-client-correlation' (
     (Has-Property $nonPool 'clientRecordId') -and
     (Has-Property $nonPoolTest 'clientRecordId') -and

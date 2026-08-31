@@ -99,6 +99,10 @@ try {
     $badServiceOnlyCollectorOutputPath = Join-Path $testOutputDirectory 'bad-service-only-collector-output.json'
     $badWrongResponsePath = Join-Path $temporaryDirectory 'bad-wrong-response.json'
     $badWrongOutputPath = Join-Path $testOutputDirectory 'bad-wrong-output.json'
+    $badWrongSidPath = Join-Path $temporaryDirectory 'bad-wrong-sid.json'
+    $badWrongSidOutputPath = Join-Path $testOutputDirectory 'bad-wrong-sid-output.json'
+    $badProcessPath = Join-Path $temporaryDirectory 'bad-process.json'
+    $badProcessOutputPath = Join-Path $testOutputDirectory 'bad-process-output.json'
     $badAuthorizedResponsePath = Join-Path $temporaryDirectory 'bad-authorized-response.json'
     $badAuthorizedOutputPath = Join-Path $testOutputDirectory 'bad-authorized-output.json'
 
@@ -123,7 +127,10 @@ try {
             methodReached = $false
             processImage = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
         })
-    Write-JsonFixture $processPath @([pscustomobject]@{ Name = 'php-cgi.exe'; UserSid = $poolSid })
+    Write-JsonFixture $processPath @(
+        [pscustomobject]@{ Name = 'php-cgi.exe'; UserSid = $poolSid }
+        [pscustomobject]@{ Name = 'powershell.exe'; Path = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'; UserSid = 'S-1-5-21-unauthorized' }
+    )
     Write-JsonFixture $collectorPath ([pscustomobject]@{
             CollectedUtc = $collectorCollectedUtc.ToString('o')
             CollectorInvocationId = $collectorInvocationId
@@ -221,7 +228,7 @@ try {
     Assert-True ($LASTEXITCODE -eq 0) 'complete attestation fixture must pass.'
     $good = Get-Content -LiteralPath $goodOutputPath -Raw | ConvertFrom-Json
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
-    Assert-True (@($good.Checks).Count -eq 19) 'attestation must emit all nineteen checks as an array.'
+    Assert-True (@($good.Checks).Count -eq 20) 'attestation must emit all twenty checks as an array.'
     Assert-True ($good.SourceHashes.Count -eq 14) 'attestation must hash every source file and verifier script.'
 
     Write-JsonFixture $badAuthorizedResponsePath ([pscustomobject]@{
@@ -250,6 +257,28 @@ try {
     $missingAuthorizedArguments += @('-OutputPath', (Join-Path $testOutputDirectory 'missing-authorized-output.json'), '-FailOnIncomplete')
     & powershell.exe @missingAuthorizedArguments | Out-Null
     Assert-True ($LASTEXITCODE -eq 2) 'a missing authorized response must fail closed with exit 2.'
+
+    $badWrongSid = Get-Content -LiteralPath $wrongPath -Raw | ConvertFrom-Json
+    $badWrongSid.expectedSid = $badWrongSid.callerSid
+    Write-JsonFixture $badWrongSidPath $badWrongSid
+    $badWrongSidArguments = $commonArguments.Clone()
+    $badWrongSidArguments[$badWrongSidArguments.IndexOf('-WrongSidEvidencePath') + 1] = $badWrongSidPath
+    $badWrongSidArguments += @('-OutputPath', $badWrongSidOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badWrongSidArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'a wrong-SID fixture with equal caller and expected SID must fail closed with exit 2.'
+    $badWrongSidReport = Get-Content -LiteralPath $badWrongSidOutputPath -Raw | ConvertFrom-Json
+    $wrongSidIdentityCheck = $badWrongSidReport.Checks | Where-Object { $_.Name -eq 'wrong-sid-method-denial' }
+    Assert-True (-not [bool]$wrongSidIdentityCheck.Passed) 'equal caller and expected SIDs must fail the wrong-SID method check.'
+
+    Write-JsonFixture $badProcessPath @([pscustomobject]@{ Name = 'php-cgi.exe'; UserSid = $poolSid })
+    $badProcessArguments = $commonArguments.Clone()
+    $badProcessArguments[$badProcessArguments.IndexOf('-ProcessEvidencePath') + 1] = $badProcessPath
+    $badProcessArguments += @('-OutputPath', $badProcessOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badProcessArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'a non-pool denial without matching non-pool token evidence must fail closed with exit 2.'
+    $badProcessReport = Get-Content -LiteralPath $badProcessOutputPath -Raw | ConvertFrom-Json
+    $nonPoolTokenCheck = $badProcessReport.Checks | Where-Object { $_.Name -eq 'nonpool-process-token' }
+    Assert-True (-not [bool]$nonPoolTokenCheck.Passed) 'missing non-pool process token evidence must fail its check.'
 
     $duplicateOutputArguments = $commonArguments.Clone()
     $duplicateOutputArguments += @('-OutputPath', $goodOutputPath)
