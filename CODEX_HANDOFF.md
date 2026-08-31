@@ -31,9 +31,12 @@ production-service preservation. The capacity matrix is under
 `artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-imap-capacity-matrix.md`.
 
 Performance remains **RED** and no general speedup or winner is claimed. Next
-slice: run paired durable SMTP acceptance through the disposable C++ service,
-then prepare the 100k SEARCH/SORT fixture. Repeated-wave IMAP, delivery/restore
-timing, installer rollback, registered COM, SEC-18, and soak gates remain open.
+slice: prepare the 100k SEARCH/SORT fixture. A first durable SMTP cell passed
+100/100 on both implementations with exact SQL/Data accounting; C++ p50/p95
+were `6.678/10.555 ms` and Net10 `4.716/8.605 ms`, both near `19.28`
+messages/s. This remains a single descriptive cell. Larger SMTP,
+delivery/restore timing, repeated-wave IMAP, installer rollback, registered
+COM, SEC-18, and soak gates remain open.
 
 ## Historical continuation (2026-08-31, disposable legacy C++ service)
 

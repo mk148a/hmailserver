@@ -43,6 +43,14 @@ Performance remains **RED** because legacy C++ 500/1000-session capacity did
 not pass, and 100,000-message SEARCH/SORT, durable SMTP/delivery,
 backup/restore timing, and 24-hour leak acceptance remain open.
 
+The first service-backed durable SMTP cell also passed on the same paired
+fixture: 100/100 accepted messages for both implementations, with exact
+SQL/Data post-run accounting. C++ p50/p95 were `6.678/10.555 ms` at `19.274`
+messages/s; Net10 was `4.716/8.605 ms` at `19.287` messages/s. This is one
+descriptive 100-message cell, not a general performance claim. Evidence is
+under `artifacts/benchmarks/paired-cpp-net10-20260901-service/smtp-cpp-100/`
+and `smtp-net10-100/`.
+
 ## Historical status (2026-08-31, disposable legacy C++ service)
 
 Code/test commit `76902911e` adds an explicit disposable-only legacy startup
