@@ -9391,3 +9391,27 @@ UNBOUND, wrong-manifest, wrong-database/Data, stale-executable,
 missing-attestation, and mixed-run inputs. Then attest/lease the complete launch
 payload/config and relevant environment, extend SQL fingerprinting beyond
 `hm_messages`, and run acceptance-sized loads.
+
+## Current authoritative status (2026-08-31, aggregate provenance guard)
+
+Code/test commit `89ad75a53` closes the recorded aggregate provenance gap.
+`generate-paired-performance-report.py` now rejects source reports that are
+unbound, assigned to the wrong implementation, tied to different fixture
+bytes, database/Data roots, executable paths/hashes, or run IDs, or missing a
+passing pre-launch SQL/Data/message/executable attestation. It also rehashes
+the current C++ and Net10 executable files before report generation. Focused
+negative coverage passes `8/8`; benchmark input-safety remains PASS.
+
+The SMTP acceptance producer now executes the shared run-start attestation
+immediately before process launch and records it consistently in JSON, CSV,
+and Markdown. A fresh disposable 5708/6000 fixture produced passing C++ and
+Net10 `1/1` SMTP smokes with exact SQL/Data accounting and passing validators.
+These are integration smokes, not latency/throughput evidence. Full Debug is
+`2772 passed, 90 skipped, 5 failed`; the five failures remain the existing
+registered local-server COM `E_NOINTERFACE` checks. Performance remains **RED**.
+
+Current next slice: add one trusted run descriptor and orchestration command
+that bind a fresh shared run ID, fixture hash, timestamp, expected artifact
+slots, and raw artifact hashes. Then make the report generator recompute and
+validate sample cardinality, percentiles, throughput, timeout/settle settings,
+and workload labels before it emits any comparison table, ratio, or chart.

@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, aggregate provenance guard)
+
+Code/test commit `89ad75a53` makes the paired report generator fail closed on
+unbound or cross-run inputs. It hashes the exact fixture manifest, rehashes the
+current C++ and Net10 executables, and requires every source report to match the
+fixture ID, manifest hash, implementation slot, disposable database/Data root,
+executable path/hash, run-start SQL version/message fingerprint, run-start Data
+fingerprint, and one shared non-empty run ID. Negative coverage passes `8/8`
+for wrong manifest/DB/Data/executable, missing/drifted attestation, changed
+fixture bytes, stale executable files, wrong implementation, and mixed runs.
+
+The SMTP acceptance runner now creates the same attestation immediately before
+launch and carries it through JSON, CSV, and Markdown. On a fresh disposable
+5708/6000 fixture, C++ and Net10 each passed a `1/1` SMTP smoke with exact
+SQL/Data accounting; both artifact validators passed. This proves producer to
+aggregator compatibility, not performance. Full Debug remains `2772 passed,
+90 skipped, 5 failed`; all five are the existing registered local-server COM
+`E_NOINTERFACE` failures. Nothing was pushed.
+
+Security/performance review still blocks publication from mutable top-level
+run IDs or unchecked summary fields. Next slice: create one trusted run
+descriptor/orchestrator that binds the shared run ID, creation time, fixture,
+expected artifact slots, and raw artifact hashes. Then recompute sample counts,
+percentiles, throughput, and fixed workload parameters before any chart or
+ratio is emitted. Release and performance gates remain **RED**.
+
 ## Current authoritative continuation (2026-08-28, indexing-disabled TEXT parity)
 
 Code/test commit `48c3bea66` restores legacy IMAP `SEARCH TEXT` behavior when
