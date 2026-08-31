@@ -13,6 +13,8 @@ param(
     [int]$ReadinessTimeoutSeconds = 60,
     [ValidateRange(0, 60)]
     [int]$PostWorkloadSettleSeconds = 5,
+    [ValidateRange(0, 1000)]
+    [int]$LaunchStaggerMilliseconds = 0,
     [string]$OutputDirectory = "",
     [string]$BenchmarkStagingRoot = "",
     [string]$BenchmarkDatabase = "",
@@ -242,7 +244,7 @@ internal sealed class HMailServerLiveImapTagResponse
 
 public static class HMailServerLiveImapProbe
 {
-    public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds, string profile)
+    public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds, string profile, int launchStaggerMilliseconds)
     {
         int originalMinWorkerThreads;
         int originalMinCompletionPortThreads;
@@ -258,6 +260,7 @@ public static class HMailServerLiveImapProbe
                 var ready = 0;
                 for (var index = 0; index < count; index++)
                 {
+                    var sessionIndex = index;
                     tasks[index] = Task.Run(() =>
                     {
                         if (Interlocked.Increment(ref ready) == count)
@@ -265,6 +268,10 @@ public static class HMailServerLiveImapProbe
                             startBarrier.Set();
                         }
                         startBarrier.Wait();
+                        if (launchStaggerMilliseconds > 0)
+                        {
+                            Thread.Sleep(sessionIndex * launchStaggerMilliseconds);
+                        }
                         return RunOne(timeoutMilliseconds, profile);
                     });
                 }
@@ -656,6 +663,7 @@ $probeConfiguration = [pscustomobject]@{
     concurrentSessionsPerWave = $Concurrency
     waves = $Waves
     socketTimeoutMilliseconds = $TimeoutMilliseconds
+    launchStaggerMilliseconds = $LaunchStaggerMilliseconds
     fanOut = "one TCP client and one sequential IMAP session per sample"
 }
 
@@ -719,7 +727,7 @@ try {
                 if ($null -eq $workloadStartedUtc) {
                     $workloadStartedUtc = $waveStartedUtc
                 }
-                $waveResults = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds, $Profile))
+                $waveResults = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds, $Profile, $LaunchStaggerMilliseconds))
                 $waveEndedUtc = [DateTimeOffset]::UtcNow
                 $workloadEndedUtc = $waveEndedUtc
                 $workloadSeconds += ($waveEndedUtc - $waveStartedUtc).TotalSeconds
@@ -884,6 +892,7 @@ $csvSamples = $report.samples | ForEach-Object {
         sqlMaxPoolSize = $report.sqlConnectionSettings.maxPoolSize
         sqlConnectionTimeoutSeconds = $report.sqlConnectionSettings.connectionTimeoutSeconds
         probeFanOut = $report.probeConfiguration.fanOut
+        launchStaggerMilliseconds = $report.probeConfiguration.launchStaggerMilliseconds
         runStartAttestationStatus = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { "UNBOUND" }
         runStartDataSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { $null }
         runStartMessageSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { $null }
@@ -926,6 +935,7 @@ $markdown = @(
     "Concurrency: $($report.concurrency)",
     "Waves / requested sessions: $($report.waves) / $($report.requestedSessions)",
     "Timeout: $($report.timeoutMilliseconds) ms",
+    "Launch stagger: $($report.probeConfiguration.launchStaggerMilliseconds) ms per session index",
     "Post-workload settle: $($report.postWorkloadSettleSeconds) seconds",
     "",
     "| Scenario | Completed | Success | Errors | Timeouts | p50 ms | p95 ms | p99 ms | Workload s | Throughput/s |",

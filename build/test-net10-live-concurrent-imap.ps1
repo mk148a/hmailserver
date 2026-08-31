@@ -5,6 +5,8 @@ param(
     [int]$ExpectedConcurrency = 1000,
     [ValidateRange(1, 100)]
     [int]$ExpectedWaves = 1,
+    [ValidateRange(0, 1000)]
+    [int]$ExpectedLaunchStaggerMilliseconds = 0,
     [switch]$AllowFailedReport
 )
 
@@ -131,12 +133,23 @@ elseif ($report.sqlConnectionSettings.provider -cne "legacy native hMailServer S
     $null -ne $report.sqlConnectionSettings.maxPoolSize) {
     throw "C++ concurrent IMAP report has an invalid native SQL settings attestation."
 }
+$launchStagger = if ($null -ne $report.probeConfiguration -and
+    @($report.probeConfiguration.PSObject.Properties.Name) -contains "launchStaggerMilliseconds") {
+    [int]$report.probeConfiguration.launchStaggerMilliseconds
+} else {
+    0
+}
+if ($launchStagger -ne $ExpectedLaunchStaggerMilliseconds) {
+    throw "Expected launch stagger $ExpectedLaunchStaggerMilliseconds ms, got $launchStagger ms."
+}
 if ($null -eq $report.probeConfiguration -or
     [string]::IsNullOrWhiteSpace([string]$report.probeConfiguration.scheduler) -or
     [string]::IsNullOrWhiteSpace([string]$report.probeConfiguration.perSessionCommands) -or
     [string]::IsNullOrWhiteSpace([string]$report.probeConfiguration.fanOut) -or
     [int]$report.probeConfiguration.concurrentSessionsPerWave -ne $ExpectedConcurrency -or
-    [int]$report.probeConfiguration.waves -ne $ExpectedWaves) {
+    [int]$report.probeConfiguration.waves -ne $ExpectedWaves -or
+    $launchStagger -lt 0 -or
+    $launchStagger -gt 1000) {
     throw "Concurrent IMAP report is missing the IMAP query/session fan-out attestation."
 }
 $expectedCommands = switch ($profile) {
