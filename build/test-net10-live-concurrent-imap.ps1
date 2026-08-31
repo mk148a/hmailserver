@@ -26,7 +26,7 @@ if ($report.implementation -notin @("net10", "cpp")) {
 }
 $profilePropertyPresent = @($report.PSObject.Properties.Name) -contains "profile"
 $profile = if ($profilePropertyPresent) { [string]$report.profile } else { "Full" }
-if ($profile -notin @("Admission", "AuthSelect", "Full")) {
+if ($profile -notin @("Admission", "AuthSelect", "Search", "Sort", "Full")) {
     throw "Unexpected IMAP benchmark profile: $profile"
 }
 if ($report.implementation -eq "cpp") {
@@ -142,6 +142,8 @@ if ($null -eq $report.probeConfiguration -or
 $expectedCommands = switch ($profile) {
     "Admission" { "greeting; LOGOUT" }
     "AuthSelect" { "greeting; LOGIN; SELECT INBOX; LOGOUT" }
+    "Search" { "greeting; LOGIN; SELECT INBOX; SEARCH; LOGOUT" }
+    "Sort" { "greeting; LOGIN; SELECT INBOX; SORT; LOGOUT" }
     default { "greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT" }
 }
 if (($profilePropertyPresent -and $report.probeConfiguration.profile -ne $profile) -or

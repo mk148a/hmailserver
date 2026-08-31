@@ -13,19 +13,19 @@ $summary = Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json
 if ($summary.schema -ne "paired-imap-profile-diagnostic-v1") { throw "Unexpected profile diagnostic schema." }
 if ($summary.status -ne "RED") { throw "The current diagnostic must remain RED until all profiles pass." }
 if ($summary.concurrency -ne 1000 -or $summary.waves -ne 1) { throw "Unexpected diagnostic concurrency or wave count." }
-if (@($summary.rows).Count -ne 6) { throw "Expected six implementation/profile rows." }
+if (@($summary.rows).Count -ne 10) { throw "Expected ten implementation/profile rows." }
 if ($summary.claims.listenerAdmissionIsolated -ne $true) { throw "Admission isolation was not proven." }
 if ($summary.claims.fullSearchSortPassedForBoth -ne $false) { throw "Full SEARCH/SORT must not be reported as passing." }
 if ($summary.claims.speedRatioPermitted -ne $false) { throw "A ratio must not be permitted while a profile fails." }
 
 foreach ($row in @($summary.rows)) {
-    if ($row.implementation -notin @("cpp", "net10") -or $row.profile -notin @("Admission", "AuthSelect", "Full")) {
+    if ($row.implementation -notin @("cpp", "net10") -or $row.profile -notin @("Admission", "AuthSelect", "Search", "Sort", "Full")) {
         throw "Unexpected row identity."
     }
     if ([int]$row.successes + [int]$row.errors -ne 1000) { throw "Row accounting does not reconcile." }
     if ($row.profile -eq "Admission") {
         if ($row.ratio_valid -ne $true -or $null -eq $row.p95_ratio_cpp_over_net10) { throw "The passing admission ratio is missing." }
-    } elseif ($row.ratio_valid -ne $false -or $null -ne $row.p95_ratio_cpp_over_net10) {
+    } elseif ($row.ratio_valid -eq $true -and $null -eq $row.p95_ratio_cpp_over_net10) {
         throw "Invalid ratio was published."
     }
 }

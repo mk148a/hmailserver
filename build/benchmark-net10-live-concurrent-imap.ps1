@@ -1,7 +1,7 @@
 param(
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10",
-    [ValidateSet("Admission", "AuthSelect", "Full")]
+    [ValidateSet("Admission", "AuthSelect", "Search", "Sort", "Full")]
     [string]$Profile = "Full",
     [ValidateRange(1, 5000)]
     [int]$Concurrency = 1000,
@@ -329,28 +329,38 @@ public static class HMailServerLiveImapProbe
                         login = ReadTag(reader, "a001");
                         writer.WriteLine("a002 SELECT INBOX");
                         select = ReadTag(reader, "a002");
-                        if (profile == "Full")
+                        if (profile == "Search" || profile == "Full")
                         {
                             writer.WriteLine("a003 SEARCH TEXT needle");
                             search = ReadTag(reader, "a003");
-                            writer.WriteLine("a004 SORT (DATE) UTF-8 ALL");
-                            sort = ReadTag(reader, "a004");
                         }
-                        writer.WriteLine(profile == "Full" ? "a005 LOGOUT" : "a003 LOGOUT");
-                        logout = ReadTag(reader, profile == "Full" ? "a005" : "a003");
+                        if (profile == "Sort" || profile == "Full")
+                        {
+                            var sortTag = profile == "Full" ? "a004" : "a003";
+                            writer.WriteLine(sortTag + " SORT (DATE) UTF-8 ALL");
+                            sort = ReadTag(reader, sortTag);
+                        }
+                        var logoutTag = profile == "Full" || profile == "Search" || profile == "Sort" ? "a005" : "a003";
+                        if (profile == "Search" || profile == "Sort")
+                        {
+                            logoutTag = "a004";
+                        }
+                        writer.WriteLine(logoutTag + " LOGOUT");
+                        logout = ReadTag(reader, logoutTag);
                     }
 
-                    var searchValidation = profile == "Full"
+                    var searchValidation = profile == "Search" || profile == "Full"
                         ? ValidateResult(search == null ? null : search.Untagged, "SEARCH", 1000)
                         : null;
-                    var sortValidation = profile == "Full"
+                    var sortValidation = profile == "Sort" || profile == "Full"
                         ? ValidateResult(sort == null ? null : sort.Untagged, "SORT", 1000)
                         : null;
 
                     var success = greeting != null
                         && greeting.IndexOf("OK", StringComparison.OrdinalIgnoreCase) >= 0
                         && (profile == "Admission" || (IsOk(login) && IsOk(select)))
-                        && (profile != "Full" || (IsOk(search) && IsOk(sort) && searchValidation.Valid && sortValidation.Valid))
+                        && (!(profile == "Search" || profile == "Full") || (IsOk(search) && searchValidation.Valid))
+                        && (!(profile == "Sort" || profile == "Full") || (IsOk(sort) && sortValidation.Valid))
                         && IsOk(logout);
                     return success
                         ? Success(stopwatch, searchValidation, sortValidation)
@@ -639,6 +649,8 @@ $probeConfiguration = [pscustomobject]@{
     perSessionCommands = switch ($Profile) {
         "Admission" { "greeting; LOGOUT"; break }
         "AuthSelect" { "greeting; LOGIN; SELECT INBOX; LOGOUT"; break }
+        "Search" { "greeting; LOGIN; SELECT INBOX; SEARCH; LOGOUT"; break }
+        "Sort" { "greeting; LOGIN; SELECT INBOX; SORT; LOGOUT"; break }
         default { "greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT" }
     }
     concurrentSessionsPerWave = $Concurrency

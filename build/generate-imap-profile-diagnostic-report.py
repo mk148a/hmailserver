@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-PROFILES = ("Admission", "AuthSelect", "Full")
+PROFILES = ("Admission", "AuthSelect", "Search", "Sort", "Full")
 IMPLEMENTATIONS = ("cpp", "net10")
 
 
@@ -175,7 +175,7 @@ def main() -> int:
         f"Status: **{gate}**",
         "",
         "This report uses one disposable fixture, 1,000 concurrent sessions, and one wave.",
-        "The profiles isolate listener admission, SQL-backed authentication/SELECT, and full SEARCH/SORT.",
+        "The profiles isolate listener admission, SQL-backed authentication/SELECT, SEARCH, SORT, and full SEARCH/SORT.",
         "",
         "| Profile | C++ success | Net10 success | C++ p95 ms | Net10 p95 ms | Ratio valid |",
         "| --- | ---: | ---: | ---: | ---: | :---: |",
