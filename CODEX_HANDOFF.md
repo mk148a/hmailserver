@@ -100,6 +100,13 @@ caller-token, wrong-SID/process, graph-completeness, and broker runtime proof
 are absent. Next code slice: require independently measured wrong-SID and
 non-pool process-token identity in the attester.
 
+That SEC-18 slice is complete in code/test commit `06b157c15`: wrong-SID
+caller/expected inequality and non-pool process-token identity are now required,
+with focused negative coverage. Full Net10 remains `2773 passed, 90 skipped,
+5 failed` for the same registered-COM activation failures. Next code slice:
+require canonical installed-Application graph content, not only declared
+counts and equal fixture hashes.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and

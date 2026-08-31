@@ -117,6 +117,12 @@ identity and installed-graph completeness remain open. See
 `build/attest-sec18-denial-evidence.ps1` and
 `build/test-sec18-denial-evidence-attestation.ps1`.
 
+The next SEC-18 attestation slice requires the wrong-SID case to contain
+distinct caller/expected SIDs and the non-pool case to match an independently
+measured process identity whose SID differs from the dedicated pool. Negative
+fixtures cover both failures. This remains evidence validation, not live COM
+proof; canonical installed-graph content validation remains open.
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

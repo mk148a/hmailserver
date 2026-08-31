@@ -98,6 +98,12 @@ hardening slice only. It does not prove a live COM caller, wrong-SID process
 identity, or complete installed Application graph. Those remain separate
 release blockers.
 
+The SEC-18 denial attester additionally requires explicit caller/expected SID
+inequality for the method-level wrong-SID case and a matching non-pool process
+token record with a SID different from the dedicated pool. Focused negative
+fixtures pass. This still does not provide live COM evidence; canonical
+installed-graph content validation remains open.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator
