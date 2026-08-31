@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-31, disposable legacy C++ service)
+
+Code/test commit `76902911e` adds an explicit disposable-only legacy startup
+path. The default C++ behavior is unchanged: `_tWinMain` still registers the
+installed AppID, and normal service startup still uses `hMailServer`. With the
+explicit `/DisposableBenchmark` and validated `/ServiceName=` options, a
+Release x64 C++ build skips the installed AppID write and binds the SCM entry
+point to a unique disposable service name. The source behavior is anchored at
+`hmailserver/source/Server/hMailServer/hMailServer.cpp::_tWinMain`,
+`StartServiceInitialization`, and `ServiceMain`.
+
+The new disposable service runner created, started, exercised, stopped, and
+deleted `hMailServerPerfCpp20260901` against the disposable SQL/Data fixture.
+The worker PID and executable, SQL database, and loopback listeners
+`127.0.0.1:2525`, `:1143`, and `:25110` were observed; installed Application
+registry state remained unchanged. Evidence is in
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/service/`.
+
+This removes the prior “C++ cannot run as a service” environment blocker, but
+does not establish a performance winner. The release performance gate remains
+**RED** until the same service-backed C++ and Net10 workloads pass the complete
+matrix, including 100,000-message SEARCH/SORT, 1,000 concurrent IMAP, delivery,
+backup/restore timing, and 24-hour leak acceptance. The full Net10 suite is
+`2773 passed, 90 skipped, 5 failed`; the five existing failures are registered
+local-server COM activation checks returning `E_NOINTERFACE`.
+
 ## Current authoritative status (2026-08-31, SEC-18 graph raw-value attestation)
 
 Code/test commit `38d6f96e3` independently validates the canonical raw registry
@@ -39,11 +65,12 @@ Report and charts:
 - [profile-p95-latency.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/report/profile-p95-latency.png)
 - [profile-throughput.png](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/report/profile-throughput.png)
 
-The C++ process is still a disposable standalone `/Debug` process rather than
-an installed service, and the corpus is below the required 100,000 messages.
-No production source, COM registration, service, database, or Data directory
-was changed. The initial query-state gap was then closed only in the disposable
-Net10 fixture before the indexed rerun.
+The C++ process used for this diagnostic was a disposable standalone `/Debug`
+process; the separate service acceptance above now closes that launch gap. The
+corpus is still below the required 100,000 messages. No production source, COM
+registration, service, database, or Data directory was changed. The initial
+query-state gap was then closed only in the disposable Net10 fixture before the
+indexed rerun.
 
 The read-only SQL state collector in `5676f6a82` found that the paired C++
 database has no Net10 indexing tables, while the Net10 database has Full-Text
@@ -61,7 +88,8 @@ for Full. The indexed report is
 with the corresponding
 [query-state evidence](artifacts/benchmarks/paired-cpp-net10-20260831-query-indexed-diagnostic/query-state/imap-query-state.md).
 The performance gate remains **RED** because the paired Search and Full
-acceptance conditions still fail and C++ is not an installed service.
+acceptance conditions still fail; the installed-service launch gap is now
+closed only for disposable testing.
 
 The threshold matrix in code/test commit `bdccabb08` ran Search and Full at
 100/500/1000 sessions on the indexed disposable fixture. Net10 passed every
@@ -90,9 +118,9 @@ validator. Against the same 1,000-message SQL/Data fixture and the same
 `USER/PASS/STAT/LIST/UIDL/RETR 1/QUIT` sequence, both implementations passed
 5/5 iterations and reported mailbox rows `1000/1000`. Net10 total p50 was
 `91.739 ms`; C++ `/Debug` was `102.670 ms`. These are acceptance diagnostics,
-not a release performance winner: the C++ target is not an installed service,
-the corpus is 1,000 rather than 100,000 messages, and only five iterations
-were run. See the [POP3 report](artifacts/benchmarks/paired-cpp-net10-20260831-pop3-large-mailbox/report/POP3_LARGE_MAILBOX_COMPARISON.md).
+not a release performance winner: that historical run used `/Debug`, the
+corpus is 1,000 rather than 100,000 messages, and only five iterations were
+run. See the [POP3 report](artifacts/benchmarks/paired-cpp-net10-20260831-pop3-large-mailbox/report/POP3_LARGE_MAILBOX_COMPARISON.md).
 
 ## Installer/rollback acceptance status (2026-08-31)
 

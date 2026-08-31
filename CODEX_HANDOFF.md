@@ -1,5 +1,34 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, disposable legacy C++ service)
+
+Code/test commit `76902911e` closes the disposable legacy C++ service launch
+blocker without changing default legacy behavior or installed COM identity.
+The opt-in `/DisposableBenchmark` flag skips only the unconditional AppID write
+and validated `/ServiceName=` binds SCM dispatch/control to a unique disposable
+service. Exact legacy references are
+`hmailserver/source/Server/hMailServer/hMailServer.cpp::_tWinMain`,
+`StartServiceInitialization`, and `ServiceMain`.
+
+The Release x64 binary was run as `hMailServerPerfCpp20260901` under
+`NT AUTHORITY\LocalService`, with a temporary login only in the disposable
+database. It reached the SQL/Data-backed loopback listeners on ports 2525,
+1143, and 25110; the worker PID/executable was captured; service and SQL
+access were removed after the run; and the installed registry snapshot was
+unchanged. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/service/`.
+
+Performance remains **RED**. The next slice is service-backed paired protocol
+and SMTP acceptance, followed by the full capacity matrix. Do not infer a
+speedup from earlier `/Debug` or Net10-only records. The 100k mailbox, 1k
+IMAP, delivery/restore timing, installer rollback, registered COM, SEC-18, and
+24-hour soak gates remain open.
+
+## Historical continuation
+
+The sections below are retained as historical records; their older “next
+slice” statements are superseded by the current entry above.
+
 ## Current authoritative continuation (2026-08-31, SEC-18 graph raw-value attestation)
 
 Code/test commit `38d6f96e3` independently validates the canonical raw registry

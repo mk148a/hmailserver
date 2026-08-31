@@ -1,0 +1,47 @@
+﻿{
+    "schema":  "disposable-cpp-service-start-v1",
+    "status":  "PASS",
+    "startedUtc":  "2026-08-31T20:29:44.8724719+00:00",
+    "endedUtc":  "2026-08-31T20:29:50.0861480+00:00",
+    "executable":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe",
+    "executableSha256":  "B3DF9E8BBF4BEDB1102C94DF7C86356E1FEABCBC02A18E8EABEB1EA1453D09B8",
+    "stagingRoot":  "C:\\hmail-perf-pair-service-20260901\\cpp",
+    "database":  "hmail_perf_pair_cpp_fullmatrix_20260831",
+    "serviceName":  "hMailServerPerfCpp20260901",
+    "serviceAccount":  "NT AUTHORITY\\LocalService",
+    "commandLine":  "\"C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe\" /DisposableBenchmark /ServiceName=hMailServerPerfCpp20260901 RunAsService",
+    "listenerBind":  "127.0.0.1",
+    "ports":  [
+                  2525,
+                  1143,
+                  25110
+              ],
+    "worker":  {
+                   "pid":  37604,
+                   "executable":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe",
+                   "processName":  "hMailServer.exe",
+                   "commandLine":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe /DisposableBenchmark /ServiceName=hMailServerPerfCpp20260901 RunAsService"
+               },
+    "preflight":  {
+                      "targetExecutable":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe",
+                      "targetBin":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin",
+                      "registryInstallLocations":  [
+
+                                                   ],
+                      "registryInstallLocationMismatchAccepted":  true,
+                      "serviceState":  "missing",
+                      "iniPath":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.ini",
+                      "failures":  [
+
+                                   ],
+                      "passed":  true
+                  },
+    "readinessFailures":  [
+
+                          ],
+    "cleanupFailures":  [
+
+                        ],
+    "installedRegistryUnchanged":  true,
+    "productionServiceUntouched":  true
+}

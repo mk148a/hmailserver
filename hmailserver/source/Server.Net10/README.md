@@ -1,3 +1,28 @@
+## Current authoritative status (2026-08-31, disposable legacy C++ service)
+
+Code/test commit `76902911e` adds an explicit disposable-only legacy startup
+path while preserving the installed C++ defaults. `/DisposableBenchmark` skips
+the legacy `_tWinMain` AppID write only for the opt-in benchmark, and validated
+`/ServiceName=` binds `StartServiceInitialization` and `ServiceMain` to a
+unique disposable SCM service name. The legacy references are
+`source/Server/hMailServer/hMailServer.cpp::_tWinMain`,
+`StartServiceInitialization`, and `ServiceMain`.
+
+The disposable runner created and deleted `hMailServerPerfCpp20260901` around
+a real Release x64 worker using the same disposable SQL/Data fixture and
+loopback SMTP/IMAP/POP3 ports. Worker PID/executable evidence and an unchanged
+installed Application registry snapshot are recorded under
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/service/`.
+
+The previous standalone `/Debug` limitation is closed for disposable service
+acceptance. It is not a performance release-gate pass: service-backed paired
+protocol/load matrix, 100,000-message SEARCH/SORT, 1,000 concurrent IMAP,
+delivery/backup/restore timing, and 24-hour leak soak remain open. Full Net10
+is `2773 passed, 90 skipped, 5 failed`; the five failures remain registered
+local-server COM activation `E_NOINTERFACE` checks. Release remains **RED**.
+
+Older sections below are historical.
+
 ## Current authoritative parity status (2026-08-22, Settings.Scripting parent reauthentication)
 
 Code/test commit `d1cde1af2` adds the live administrator check required before

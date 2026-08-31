@@ -1,4 +1,32 @@
 
+## Current authoritative next slice (2026-08-31, disposable legacy C++ service)
+
+The C++ service launch blocker is closed in code/test commit `76902911e`.
+Legacy `hMailServer.cpp::_tWinMain` retains its default AppID registration and
+the installed `hMailServer` service contract. Only the explicit disposable
+`/DisposableBenchmark` mode skips the AppID write, and validated
+`/ServiceName=` lets a unique disposable SCM service invoke the legacy
+`StartServiceInitialization`/`ServiceMain` path. The focused source/preflight
+tests, Release x64 build, and real disposable service start/stop/delete
+acceptance pass. No installed Application registry state changed.
+
+The exact legacy behavior is documented at
+`hmailserver/source/Server/hMailServer/hMailServer.cpp:192-308,367-410`,
+`hmailserver/source/Server/Common/Util/ServiceManager.cpp:25-87`, and
+`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:76-128`.
+Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/service/`.
+
+Next slice: run the existing matched SMTP/IMAP/POP3 and durable SMTP runners
+against the disposable service-backed C++ path, then compare with Net10. Do
+not publish a speedup until both sides pass identical scenarios. The 100,000-
+message mailbox, 1,000-session capacity, delivery/backup/restore timing,
+registered COM, installer rollback, SEC-18 caller proof, and 24-hour soak gates
+remain open.
+
+Entries below this point are historical records. Their older “current next
+slice” statements are superseded by this entry.
+
 ## Current authoritative next slice (2026-08-31, SEC-18 graph raw-value attestation)
 
 The installed Application graph raw-value attestation slice is complete in
