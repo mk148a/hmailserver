@@ -24,7 +24,14 @@ were:
 These are one 100-session observation, not a release-wide performance claim.
 The paired artifacts are under
 `artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-cpp-100/`
-and `concurrent-net10-100/`. The next cells are 500 and 1,000 sessions.
+and `concurrent-net10-100/`. The complete capacity matrix is documented in
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-imap-capacity-matrix.md`.
+
+The 500-session cell was C++ `189/500` versus Net10 `500/500`; the 1,000-session
+cell was C++ `186/1000` versus Net10 `1000/1000`. C++ failures were socket
+timeouts/refusals under load, while both disposable service wrappers completed
+cleanup and preserved production state. These failed legacy cells remain part
+of the acceptance record and invalidate a general speedup claim.
 
 The Net10 fixture required a disposable-only correction before indexing:
 `hm_messages.messagefilename` was repointed from the copied source path to the
@@ -32,9 +39,9 @@ matching copied staging Data root in both disposable databases. The Net10
 Full-Text backfill then passed `1000/1000` and produced the indexed state used
 by this cell. No production database or Data directory was used.
 
-Performance remains **RED** until 500/1000-session capacity, 100,000-message
-SEARCH/SORT, durable SMTP/delivery, backup/restore timing, and 24-hour leak
-acceptance pass with equivalent evidence.
+Performance remains **RED** because legacy C++ 500/1000-session capacity did
+not pass, and 100,000-message SEARCH/SORT, durable SMTP/delivery,
+backup/restore timing, and 24-hour leak acceptance remain open.
 
 ## Historical status (2026-08-31, disposable legacy C++ service)
 

@@ -23,10 +23,17 @@ the matching copied staging Data root, then the Full-Text backfill opt-in
 passed `1000/1000`. The earlier empty-SEARCH result was therefore fixture
 preparation evidence, not a valid capacity result.
 
-Next slice: run 500 and 1,000 service-backed concurrent IMAP cells, preserving
-all failures. Performance remains **RED**; 100k SEARCH/SORT, durable SMTP,
-delivery/restore timing, installer rollback, registered COM, SEC-18, and soak
-gates remain open.
+The 500-session cell was C++ `189/500` versus Net10 `500/500`; the 1,000-session
+cell was C++ `186/1000` versus Net10 `1000/1000`. C++ failures were socket
+timeouts/refusals under load. Both C++ service wrappers still passed exact
+loopback/fixture checks, SQL principal cleanup, service deletion, and
+production-service preservation. The capacity matrix is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-imap-capacity-matrix.md`.
+
+Performance remains **RED** and no general speedup or winner is claimed. Next
+slice: run paired durable SMTP acceptance through the disposable C++ service,
+then prepare the 100k SEARCH/SORT fixture. Repeated-wave IMAP, delivery/restore
+timing, installer rollback, registered COM, SEC-18, and soak gates remain open.
 
 ## Historical continuation (2026-08-31, disposable legacy C++ service)
 

@@ -18,10 +18,17 @@ is valid. The Net10 disposable Full-Text backfill passed `1000/1000` after all
 1,000 `hm_messages.messagefilename` values were corrected to the copied
 staging Data root.
 
-Next slice: run service-backed concurrent IMAP at 500 and 1,000 sessions with
-repeated waves. Performance remains **RED** until those cells, 100,000-message
-SEARCH/SORT, durable SMTP/delivery, backup/restore timing, installer rollback,
-registered COM, SEC-18, and 24-hour soak gates pass.
+The 500-session cell was C++ `189/500` versus Net10 `500/500`; the 1,000-session
+cell was C++ `186/1000` versus Net10 `1000/1000`. The C++ failures were
+socket timeouts/refusals under load, and are retained as valid RED acceptance
+evidence. The C++ service wrapper passed cleanup, SQL principal removal,
+service deletion, and production-state preservation in both runs. The full
+matrix is under `artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-imap-capacity-matrix.md`.
+
+No overall performance ratio or winner is valid. Next slice: paired durable
+SMTP acceptance through the disposable C++ service, followed by the 100,000-
+message SEARCH/SORT fixture. Repeated-wave IMAP, delivery/restore timing,
+installer rollback, registered COM, SEC-18, and 24-hour soak remain open.
 
 Entries below this point are historical records.
 
