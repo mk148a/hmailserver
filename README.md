@@ -67,6 +67,18 @@ correctness defect. Legacy source mapping is documented in the
 No listener, SQL, ACL, or production behavior was changed, and no overall
 speedup claim is valid. Performance remains **RED**.
 
+## Current POP3 large-mailbox acceptance (2026-08-31)
+
+Code/test commit `84a11e4c6` makes the existing disposable POP3 large-mailbox
+runner manifest-bound for both legacy C++ and Net10 and adds a focused v2
+validator. Against the same 1,000-message SQL/Data fixture and the same
+`USER/PASS/STAT/LIST/UIDL/RETR 1/QUIT` sequence, both implementations passed
+5/5 iterations and reported mailbox rows `1000/1000`. Net10 total p50 was
+`91.739 ms`; C++ `/Debug` was `102.670 ms`. These are acceptance diagnostics,
+not a release performance winner: the C++ target is not an installed service,
+the corpus is 1,000 rather than 100,000 messages, and only five iterations
+were run. See the [POP3 report](artifacts/benchmarks/paired-cpp-net10-20260831-pop3-large-mailbox/report/POP3_LARGE_MAILBOX_COMPARISON.md).
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

@@ -57,6 +57,16 @@ No production listener, SQL, ACL, or legacy behavior change is justified.
 Next slice: complete disposable POP3 large-mailbox acceptance or record its
 environment blocker, then proceed to installer/rollback acceptance.
 
+The POP3 slice is complete in code/test commit `84a11e4c6`. The same disposable
+fixture and wire sequence passed 5/5 for C++ and Net10 with mailbox rows
+`1000/1000`; total p50 was C++ `102.670 ms` and Net10 `91.739 ms`. The runner
+and validator are manifest-bound and the source mapping is in
+`artifacts/benchmarks/paired-cpp-net10-20260831-pop3-large-mailbox/report/POP3_LARGE_MAILBOX_COMPARISON.md`.
+This is not a general performance winner or release-gate closure because the
+C++ target is standalone `/Debug`, the corpus is 1,000 messages, and soak and
+installed-service evidence remain open. Next slice: complete installer/rollback
+acceptance in disposable resources or record the exact environment blocker.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and

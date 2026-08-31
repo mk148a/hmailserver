@@ -57,6 +57,15 @@ disposable workload, not proof of a Net10 query defect. No production listener,
 SQL, or ACL change is justified. See
 `artifacts/benchmarks/paired-cpp-net10-20260831-ramp-diagnostic/report/IMAP_CAPACITY_FAILURE_DIAGNOSTIC.md`.
 
+The next disposable POP3 slice is complete in code/test commit `84a11e4c6`.
+The runner now selects either the manifest-bound C++ `/Debug` binary or Net10
+and records the same `USER/PASS/STAT/LIST/UIDL/RETR 1/QUIT` sequence. Both
+implementations passed 5/5 iterations against the same 1,000-row mailbox and
+Data tree; total p50 was C++ `102.670 ms` and Net10 `91.739 ms`. This closes
+the tested disposable POP3 mailbox acceptance gap, not the 100,000-message,
+installed-service, 24-hour soak, or overall performance gates. See
+`artifacts/benchmarks/paired-cpp-net10-20260831-pop3-large-mailbox/report/POP3_LARGE_MAILBOX_COMPARISON.md`.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator
