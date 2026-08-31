@@ -99,6 +99,8 @@ try {
     $badServiceOnlyCollectorOutputPath = Join-Path $testOutputDirectory 'bad-service-only-collector-output.json'
     $badWrongResponsePath = Join-Path $temporaryDirectory 'bad-wrong-response.json'
     $badWrongOutputPath = Join-Path $testOutputDirectory 'bad-wrong-output.json'
+    $badAuthorizedResponsePath = Join-Path $temporaryDirectory 'bad-authorized-response.json'
+    $badAuthorizedOutputPath = Join-Path $testOutputDirectory 'bad-authorized-output.json'
 
     'fixture rollback script' | Set-Content -LiteralPath $rollbackPath -Encoding UTF8
     'fixture collector script' | Set-Content -LiteralPath $collectorScriptPath -Encoding UTF8
@@ -221,6 +223,33 @@ try {
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
     Assert-True (@($good.Checks).Count -eq 19) 'attestation must emit all nineteen checks as an array.'
     Assert-True ($good.SourceHashes.Count -eq 14) 'attestation must hash every source file and verifier script.'
+
+    Write-JsonFixture $badAuthorizedResponsePath ([pscustomobject]@{
+            correlationId = $authorizedCorrelation
+            activationHresult = -2147024891
+            interfaceHresult = 0
+            methodHresult = 0
+        })
+    $badAuthorizedArguments = $commonArguments.Clone()
+    $badAuthorizedArguments[$badAuthorizedArguments.IndexOf('-AuthorizedResponsePath') + 1] = $badAuthorizedResponsePath
+    $badAuthorizedArguments += @('-OutputPath', $badAuthorizedOutputPath, '-FailOnIncomplete')
+    & powershell.exe @badAuthorizedArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'non-S_OK authorized HRESULTs must fail closed with exit 2.'
+    $badAuthorizedReport = Get-Content -LiteralPath $badAuthorizedOutputPath -Raw | ConvertFrom-Json
+    $authorizedHresultCheck = $badAuthorizedReport.Checks | Where-Object { $_.Name -eq 'authorized-stage-hresults' }
+    Assert-True (-not [bool]$authorizedHresultCheck.Passed) 'non-S_OK authorized HRESULTs must fail their check.'
+
+    $missingAuthorizedArguments = @()
+    for ($argumentIndex = 0; $argumentIndex -lt $commonArguments.Count; $argumentIndex++) {
+        if ($commonArguments[$argumentIndex] -eq '-AuthorizedResponsePath') {
+            $argumentIndex++
+            continue
+        }
+        $missingAuthorizedArguments += $commonArguments[$argumentIndex]
+    }
+    $missingAuthorizedArguments += @('-OutputPath', (Join-Path $testOutputDirectory 'missing-authorized-output.json'), '-FailOnIncomplete')
+    & powershell.exe @missingAuthorizedArguments | Out-Null
+    Assert-True ($LASTEXITCODE -eq 2) 'a missing authorized response must fail closed with exit 2.'
 
     $duplicateOutputArguments = $commonArguments.Clone()
     $duplicateOutputArguments += @('-OutputPath', $goodOutputPath)

@@ -329,7 +329,7 @@ $authorizedMatrixCorrelation = $authorizedCorrelation -and [string]::Equals(
     [string]$authorized.correlationId,
     [string]$authorizedTest.correlationId,
     [StringComparison]::Ordinal)
-$authorizedResponseCorrelation = $null -eq $authorizedResponse -or (
+$authorizedResponseCorrelation = $null -ne $authorizedResponse -and (
     (Has-Property $authorizedResponse 'correlationId') -and
     [string]::Equals([string]$authorized.correlationId, [string]$authorizedResponse.correlationId, [StringComparison]::Ordinal))
 $wrongSidCorrelation = $null -ne $wrongSidTest -and
@@ -341,10 +341,14 @@ $wrongSidCorrelation = $null -ne $wrongSidTest -and
         [string]::Equals([string]$wrongSid.correlationId, [string]$wrongSidResponse.correlationId, [StringComparison]::Ordinal)))
 
 $authorizedStageFields = @('activationHresult', 'interfaceHresult', 'methodHresult')
-$authorizedStageSource = if ($null -ne $authorizedResponse) { $authorizedResponse } else { $authorizedTest.serverEvidence }
+$authorizedStageSource = $authorizedResponse
 $authorizedStageFieldsPresent = @($authorizedStageFields | Where-Object {
         Has-Property $authorizedStageSource $_
     }).Count -eq $authorizedStageFields.Count
+$authorizedStageHresultsSuccessful = $authorizedStageFieldsPresent -and
+    [int]$authorizedStageSource.activationHresult -eq 0 -and
+    [int]$authorizedStageSource.interfaceHresult -eq 0 -and
+    [int]$authorizedStageSource.methodHresult -eq 0
 
 $poolSid = if (Has-Property $matrix.runtime 'poolSid') { [string]$matrix.runtime.poolSid } else { $null }
 $authorizedSidBound = $null -ne $authorized -and
@@ -479,7 +483,7 @@ Add-Check 'source-files-present' (@($sourceHashes | Where-Object { -not $_.Prese
 Add-Check 'authorized-correlation-bound' ($authorizedCorrelation -and $authorizedMatrixCorrelation -and $authorizedResponseCorrelation) 'The authorized server and response records share one non-empty correlation id.'
 Add-Check 'authorized-effective-sid' $authorizedSidBound 'The authorized server caller SID matches the configured pool SID.'
 Add-Check 'authorized-token-steps' $authorizedTokenSteps 'Impersonation, token read, revert, and residual-token cleanup are exact.'
-Add-Check 'authorized-stage-hresults' $authorizedStageFieldsPresent 'Activation, interface, and method HRESULTs are explicitly captured in the authorized response record.'
+Add-Check 'authorized-stage-hresults' $authorizedStageHresultsSuccessful 'Authorized activation, interface, and method HRESULTs are explicitly captured in the response record and are all S_OK.'
 Add-Check 'wrong-sid-method-denial' (
     $null -ne $wrongSid -and
     [bool]$wrongSid.sidMatchesExpected -eq $false -and
