@@ -9479,3 +9479,23 @@ COM `E_NOINTERFACE` activation failures. Performance remains **RED** because
 the descriptor-bound acceptance matrix, C++ 1,000-session recovery, POP3
 acceptance, and long-soak evidence are still open. Next slice: run the fresh
 sealed-descriptor C++/.NET10 matrix and regenerate the report.
+## Authoritative current status (2026-08-31, sealed RED performance matrix)
+
+Descriptor `8a8612db-39cd-48e5-9051-0c34b5af8d98` is sealed against the fresh
+ordered disposable fixture and all required raw JSON/CSV/Markdown companions.
+Protocol acceptance passed 200/200 for SMTP, IMAP, and POP3 on C++ and Net10;
+500-message durable SMTP acceptance passed 500/500 on both implementations.
+
+Concurrent IMAP did not meet acceptance: C++ passed 100/100 but reached only
+329/500 and 219/1000; Net10 reached 91/100 and timed out at 500/1000. The
+Net10 20-wave soak stopped before wave 4 at 3,000/20,000 completed sessions
+and recorded a worker exit. The hardened harness now preserves this as an
+explicit failed artifact (`780494249`), and descriptor sealing handles an
+OPEN JSON without a pre-existing `sealedUtc` property (`18f900b1d`). No
+performance ratio, winner, or chart is valid; performance remains **RED**.
+
+Focused tooling coverage is `16/16`, input-safety and AST checks pass, and
+full Debug remains `2772 passed, 90 skipped, 5 failed` because of the existing
+registered COM `E_NOINTERFACE` checks. Next slice: isolate and fix the
+high-concurrency IMAP listener/resource failures, then rerun the complete
+descriptor-bound matrix on a fresh disposable fixture.

@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, sealed RED matrix)
+
+The fresh ordered disposable fixture run descriptor
+`8a8612db-39cd-48e5-9051-0c34b5af8d98` is `SEALED` and binds one fixture,
+run ID, and all 11 JSON/CSV/Markdown artifact hashes. Protocol passed 200/200
+for SMTP, IMAP, and POP3 on C++ and Net10. SMTP durable acceptance passed
+500/500 on both sides.
+
+Concurrent IMAP failed at every acceptance level beyond the small C++ smoke:
+C++ was 100/100, 329/500, and 219/1000; Net10 was 91/100, 0/500, and 0/1000.
+The Net10 20-wave soak stopped before wave 4 and recorded 3,000/20,000
+completed sessions, 7,000 timeouts, and a worker exit. The aggregate generator
+intentionally refuses a performance winner when required gates fail. Commit
+`780494249` records process-exit failure metadata and validates partial failed
+waves; `18f900b1d` makes descriptor sealing durable. Performance is **RED**.
+
+Focused tooling tests pass (`16/16` descriptor tests, input-safety, AST,
+ordered artifact validators). Full Debug remains `2772 passed, 90 skipped,
+5 failed`; all five are the existing registered local-server COM
+`E_NOINTERFACE` activation checks.
+
+Next slice: diagnose and correct the Net10 and legacy high-concurrency IMAP
+listener/resource failures using a fresh disposable fixture, then rerun the
+sealed matrix. Do not publish a speed ratio until both implementations pass
+the same required levels and soak.
+
 ## Current authoritative continuation (2026-08-31, IMAP completion parity)
 
 Code/test commit `7c3f009bc` aligns Net10 non-UID IMAP SEARCH and SORT tagged
