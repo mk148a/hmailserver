@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, IMAP completion parity)
+
+Code/test commit `7c3f009bc` aligns Net10 non-UID IMAP SEARCH and SORT tagged
+completion text with legacy `IMAPCommandSEARCH::ExecuteCommand`: both now end
+with `OK Search completed`. The exact legacy path is
+`hmailserver/source/Server/IMAP/IMAPConnection.cpp` (SORT maps to the shared
+handler) and `hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-148`.
+The Net10 production symbols are `ImapSearchCommandHandler.HandleAsync` and
+`ImapSortCommandHandler.HandleAsync`; the live protocol producer now includes
+both `legacyCompletionTagMatches` values in its success condition.
+
+Focused handler/session/TCP coverage is `64/64` PASS. Full Debug remains
+`2772 passed, 90 skipped, 5 failed`; all five are the existing registered
+local-server COM `E_NOINTERFACE` activation checks. Performance remains
+**RED**, and no full descriptor-bound matrix has been run yet.
+
+Next slice: create and seal a descriptor for a fresh disposable fixture, run
+the complete C++/.NET10 protocol, 100/500/1,000-session IMAP, 500-message
+SMTP, and 20-wave soak matrix, and generate the sanitized tables/charts.
+
 ## Current authoritative continuation (2026-08-31, sealed run descriptor)
 
 Code/test commit `a71a5963f` adds `build/new-paired-performance-run.ps1` and

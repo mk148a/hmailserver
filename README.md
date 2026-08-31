@@ -24,6 +24,12 @@ emit a comparison table, ratio, or chart. No new acceptance-sized matrix has
 been run through this boundary yet, so the table below remains historical
 diagnostic evidence.
 
+Code/test commit `7c3f009bc` closes the observable IMAP completion-text gap:
+legacy `IMAPCommandSEARCH::ExecuteCommand` emits `OK Search completed` for
+non-UID SEARCH and SORT, and Net10 now emits the same text. Focused handler,
+session, and TCP coverage passes `64/64`; the live protocol producer now fails
+an otherwise passing sample if either legacy completion tag does not match.
+
 | Scenario | Legacy C++ p95 | .NET 10 p95 | Result |
 | --- | ---: | ---: | --- |
 | SMTP command | 3.92 ms | 0.69 ms | Net10 5.67x faster |

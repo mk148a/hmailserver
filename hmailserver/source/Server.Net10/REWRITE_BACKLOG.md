@@ -9461,3 +9461,21 @@ test Net10's observable IMAP completion-text mismatch against legacy `OK Search
 completed`; then execute a fresh descriptor-bound C++/.NET10 protocol,
 100/500/1,000 IMAP, 500-message SMTP, and 20-wave soak matrix followed by
 sanitized report generation.
+
+## Current authoritative status (2026-08-31, IMAP completion-text parity)
+
+Code/test commit `7c3f009bc` closes the observable non-UID IMAP completion-text
+gap. Legacy `IMAPCommandSEARCH::ExecuteCommand` in
+`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-148` emits
+`OK Search completed` for both SEARCH and SORT; `IMAPConnection.cpp` maps SORT
+to that shared handler. Net10 `ImapSearchCommandHandler.HandleAsync` and
+`ImapSortCommandHandler.HandleAsync` now preserve that exact tagged text, and
+the live protocol producer includes both `legacyCompletionTagMatches` values in
+the sample success condition.
+
+Focused handler/session/TCP coverage is `64/64` PASS. Full Debug remains
+`2772 passed, 90 skipped, 5 failed`, with the same five registered local-server
+COM `E_NOINTERFACE` activation failures. Performance remains **RED** because
+the descriptor-bound acceptance matrix, C++ 1,000-session recovery, POP3
+acceptance, and long-soak evidence are still open. Next slice: run the fresh
+sealed-descriptor C++/.NET10 matrix and regenerate the report.
