@@ -2,7 +2,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$FixtureManifest,
     [string]$OutputDirectory = "",
-    [ValidateSet("protocol", "concurrent-imap")]
+    [ValidateSet("protocol", "concurrent-imap", "smtp")]
     [string]$Workload = "protocol",
     [int]$Iterations = 25,
     [ValidateSet("Admission", "AuthSelect", "Search", "Sort", "Full")]
@@ -19,6 +19,10 @@ param(
     [int]$LaunchStaggerMilliseconds = 0,
     [ValidateRange(1, 5000)]
     [int]$SqlMaxPoolSize = 100,
+    [ValidateRange(1, 100000)]
+    [int]$MessageCount = 100,
+    [ValidateRange(1, 60)]
+    [int]$PostAcceptanceTimeoutSeconds = 10,
     [ValidateRange(5, 300)]
     [int]$ReadinessTimeoutSeconds = 60,
     [string]$RunId = "",
@@ -147,11 +151,17 @@ if ($OutputDirectory -notmatch '(?i)\\artifacts\\benchmarks\\paired-cpp-net10-[a
 }
 $workloadScript = if ($Workload -eq "protocol") {
     Join-Path $PSScriptRoot "benchmark-net10-live-protocol.ps1"
-} else {
+} elseif ($Workload -eq "concurrent-imap") {
     Join-Path $PSScriptRoot "benchmark-net10-live-concurrent-imap.ps1"
+} else {
+    Join-Path $PSScriptRoot "benchmark-net10-live-smtp-acceptance.ps1"
 }
 $childOutputDirectory = Join-Path $OutputDirectory $Workload
-$childJsonName = if ($Workload -eq "protocol") { "net10-live-protocol.json" } else { "live-concurrent-imap.json" }
+$childJsonName = switch ($Workload) {
+    "protocol" { "net10-live-protocol.json"; break }
+    "concurrent-imap" { "live-concurrent-imap.json"; break }
+    default { "cpp-smtp-message-acceptance.json" }
+}
 
 $productionService = Get-ServiceRecord "hMailServer"
 if ($null -ne $productionService -and $productionService.state -ne "Stopped") {
@@ -230,8 +240,7 @@ try {
         )
         if ($Workload -eq "protocol") {
             $childArgs += @('-Iterations', $Iterations)
-        }
-        else {
+        } elseif ($Workload -eq "concurrent-imap") {
             $childArgs += @(
                 '-Profile', $Profile,
                 '-Concurrency', $Concurrency,
@@ -240,6 +249,12 @@ try {
                 '-PostWorkloadSettleSeconds', $PostWorkloadSettleSeconds,
                 '-LaunchStaggerMilliseconds', $LaunchStaggerMilliseconds,
                 '-SqlMaxPoolSize', $SqlMaxPoolSize
+            )
+        } else {
+            $childArgs += @(
+                '-MessageCount', $MessageCount,
+                '-PostAcceptanceTimeoutSeconds', $PostAcceptanceTimeoutSeconds,
+                '-PostWorkloadSettleSeconds', $PostWorkloadSettleSeconds
             )
         }
         if (-not [string]::IsNullOrWhiteSpace($RunId)) { $childArgs += @('-RunId', $RunId) }
@@ -286,9 +301,17 @@ finally {
 $endUtc = [DateTimeOffset]::UtcNow
 $productionAfter = Get-ServiceRecord "hMailServer"
 $productionUntouched = ($null -eq $productionAfter -and $null -eq $productionService) -or ($null -ne $productionService -and $null -ne $productionAfter -and $productionService.state -eq $productionAfter.state -and $productionService.processId -eq $productionAfter.processId)
-$reportStem = if ($Workload -eq "protocol") { "disposable-cpp-service-protocol" } else { "disposable-cpp-service-concurrent-imap" }
+$reportStem = switch ($Workload) {
+    "protocol" { "disposable-cpp-service-protocol"; break }
+    "concurrent-imap" { "disposable-cpp-service-concurrent-imap"; break }
+    default { "disposable-cpp-service-smtp" }
+}
 $report = [pscustomobject]@{
-    schema = if ($Workload -eq "protocol") { "disposable-cpp-service-protocol-v1" } else { "disposable-cpp-service-concurrent-imap-v1" }
+    schema = switch ($Workload) {
+        "protocol" { "disposable-cpp-service-protocol-v1"; break }
+        "concurrent-imap" { "disposable-cpp-service-concurrent-imap-v1"; break }
+        default { "disposable-cpp-service-smtp-v1" }
+    }
     workload = $Workload
     status = if ($readinessFailures.Count -eq 0 -and $cleanupFailures.Count -eq 0 -and $null -ne $childReport -and $childReport.status -eq "PASS") { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
