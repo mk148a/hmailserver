@@ -106,6 +106,17 @@ SQL/Data round-trip acceptance is **ENVIRONMENT-BLOCKED** because the required
 isolated SQL connection and explicit isolated-create opt-in were not configured;
 no database or Data directory was touched. See the [restore dry-run audit](artifacts/migration/restore-dry-run-audit-20260831.md).
 
+## SEC-18 authorized-result gate (2026-08-31)
+
+The SEC-18 attester now requires a supplied authorized response whose
+activation, interface, and method HRESULTs are all `S_OK`; missing responses
+and non-success HRESULTs fail closed. Focused attestation, staging inventory,
+registry-binary, and worker-token tests pass. This closes only the evidence
+validator gap; it does not create a live COM caller proof. Wrong-SID/process
+identity and installed-graph completeness remain open. See
+`build/attest-sec18-denial-evidence.ps1` and
+`build/test-sec18-denial-evidence-attestation.ps1`.
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

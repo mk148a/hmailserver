@@ -92,6 +92,14 @@ create opt-in is configured; no database or Data path was touched. See
 `artifacts/migration/restore-dry-run-audit-20260831.md`. Continue with the
 round trip only after a disposable SQL/Data target is independently proven.
 
+SEC-18 evidence validation was hardened in code/test commit `47f3ea05c`:
+authorized evidence now requires a response record and three `S_OK` HRESULTs;
+missing and non-success responses are covered by negative tests. No production
+COM identity or machine state changed. The gate remains RED because live
+caller-token, wrong-SID/process, graph-completeness, and broker runtime proof
+are absent. Next code slice: require independently measured wrong-SID and
+non-pool process-token identity in the attester.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and

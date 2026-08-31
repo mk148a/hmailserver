@@ -91,6 +91,13 @@ passed `121/121`. Populated SQL/Data restore and backup round-trip remain
 no database or Data directory was touched. See
 `artifacts/migration/restore-dry-run-audit-20260831.md`.
 
+SEC-18 attestation now fails closed unless the authorized response is present
+and activation/interface/method HRESULTs are all `S_OK`; focused denial,
+inventory, registry-binary, and worker-token tests pass. This is a validator
+hardening slice only. It does not prove a live COM caller, wrong-SID process
+identity, or complete installed Application graph. Those remain separate
+release blockers.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator
