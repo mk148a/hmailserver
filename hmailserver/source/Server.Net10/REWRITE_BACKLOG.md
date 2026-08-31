@@ -1,5 +1,31 @@
 
-## Current authoritative next slice (2026-08-31, disposable legacy C++ service)
+## Current authoritative next slice (2026-09-01, service-backed concurrent IMAP)
+
+Code/test commit `29008f60b` completes the benchmark-only service-backed
+concurrent IMAP runner. It starts legacy C++ through a unique disposable SCM
+service, passes the externally owned worker PID into the concurrent workload,
+and keeps service lifecycle and temporary SQL principal cleanup in the
+orchestrator. It does not change the installed service, AppID, COM identity,
+or production state.
+
+The first valid paired cell used the manifest-bound 1,000-message/Data corpus,
+matching SQL Server fixture, loopback `127.0.0.1:1143`, `Full` profile, and 100
+sessions. C++ and Net10 passed `100/100`; SEARCH and SORT returned exact
+`1..1000` results. C++ p50/p95/p99 were `2696.204/4334.200/4377.055 ms` and
+`22.717` sessions/s; Net10 was `528.348/629.023/641.604 ms` and `148.932`
+sessions/s. This is one descriptive cell only; no overall performance winner
+is valid. The Net10 disposable Full-Text backfill passed `1000/1000` after all
+1,000 `hm_messages.messagefilename` values were corrected to the copied
+staging Data root.
+
+Next slice: run service-backed concurrent IMAP at 500 and 1,000 sessions with
+repeated waves. Performance remains **RED** until those cells, 100,000-message
+SEARCH/SORT, durable SMTP/delivery, backup/restore timing, installer rollback,
+registered COM, SEC-18, and 24-hour soak gates pass.
+
+Entries below this point are historical records.
+
+## Historical next slice (2026-08-31, disposable legacy C++ service)
 
 The C++ service launch blocker is closed in code/test commit `76902911e`.
 Legacy `hMailServer.cpp::_tWinMain` retains its default AppID registration and

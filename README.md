@@ -1,7 +1,42 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-08-31, disposable legacy C++ service)
+## Current authoritative status (2026-09-01, service-backed concurrent IMAP)
+
+Code/test commit `29008f60b` adds an external-worker mode to the benchmark-only
+concurrent IMAP runner. The disposable orchestrator starts the legacy C++
+binary through a unique SCM service, passes its verified worker PID to the
+workload runner, and owns service stop/delete and temporary SQL principal
+cleanup. The installed `hMailServer` service and Application registration are
+not modified.
+
+The first valid paired capacity cell used the same manifest-bound 1,000-message
+corpus, copied Data trees, SQL Server instance, loopback `127.0.0.1:1143`,
+`Full` IMAP profile, and 100 sessions. Both implementations passed `100/100`
+with SEARCH and SORT returning the exact `1..1000` sequence. Observed values
+were:
+
+| Implementation | p50 ms | p95 ms | p99 ms | Throughput/s | Result |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Legacy C++ service | 2696.204 | 4334.200 | 4377.055 | 22.717 | 100/100 PASS |
+| .NET 10 | 528.348 | 629.023 | 641.604 | 148.932 | 100/100 PASS |
+
+These are one 100-session observation, not a release-wide performance claim.
+The paired artifacts are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-service/concurrent-cpp-100/`
+and `concurrent-net10-100/`. The next cells are 500 and 1,000 sessions.
+
+The Net10 fixture required a disposable-only correction before indexing:
+`hm_messages.messagefilename` was repointed from the copied source path to the
+matching copied staging Data root in both disposable databases. The Net10
+Full-Text backfill then passed `1000/1000` and produced the indexed state used
+by this cell. No production database or Data directory was used.
+
+Performance remains **RED** until 500/1000-session capacity, 100,000-message
+SEARCH/SORT, durable SMTP/delivery, backup/restore timing, and 24-hour leak
+acceptance pass with equivalent evidence.
+
+## Historical status (2026-08-31, disposable legacy C++ service)
 
 Code/test commit `76902911e` adds an explicit disposable-only legacy startup
 path. The default C++ behavior is unchanged: `_tWinMain` still registers the

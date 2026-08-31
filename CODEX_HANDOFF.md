@@ -1,6 +1,34 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-08-31, disposable legacy C++ service)
+## Current authoritative continuation (2026-09-01, service-backed concurrent IMAP)
+
+Code/test commit `29008f60b` adds a bounded external-worker mode for the
+benchmark-only concurrent IMAP runner. The disposable C++ orchestrator creates
+a unique SCM service using `/DisposableBenchmark /ServiceName=... RunAsService`,
+passes the real worker PID to the workload runner, and verifies loopback
+ownership, exact legacy `hm_tcpipports` rows, SQL/Data/executable provenance,
+temporary SQL principal cleanup, service deletion, and production-service
+preservation.
+
+The first valid paired capacity cell used the same manifest-bound 1,000-message
+fixture, staging Data copies, SQL Server, loopback IMAP port, `Full` profile,
+and 100 sessions. C++ and Net10 both passed `100/100`; SEARCH and SORT each
+returned the exact `1..1000` sequence. C++ p50/p95/p99 were
+`2696.204/4334.200/4377.055 ms` at `22.717` sessions/s. Net10 was
+`528.348/629.023/641.604 ms` at `148.932` sessions/s. This is a single
+descriptive cell and does not authorize a general speedup claim.
+
+The Net10 disposable database was corrected to point all 1,000 message rows at
+the matching copied staging Data root, then the Full-Text backfill opt-in
+passed `1000/1000`. The earlier empty-SEARCH result was therefore fixture
+preparation evidence, not a valid capacity result.
+
+Next slice: run 500 and 1,000 service-backed concurrent IMAP cells, preserving
+all failures. Performance remains **RED**; 100k SEARCH/SORT, durable SMTP,
+delivery/restore timing, installer rollback, registered COM, SEC-18, and soak
+gates remain open.
+
+## Historical continuation (2026-08-31, disposable legacy C++ service)
 
 Code/test commit `76902911e` closes the disposable legacy C++ service launch
 blocker without changing default legacy behavior or installed COM identity.
