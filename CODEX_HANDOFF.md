@@ -15,6 +15,17 @@ Next slice: rerun C++ and Net10 at 500 and 1000 sessions using the attested
 30-second timeout and fixed SQL settings on a fresh disposable fixture, then
 collect SQL-side waits and connection evidence.
 
+The v2 follow-up diagnostics on the same disposable postfix fixture used
+loopback ports, a 30-second socket timeout, and explicit Net10 pool 500. Net10
+passed `500/500` but with p95 `27792.686 ms`, then timed out `1000/1000`.
+Legacy C++ completed `227/500` and `363/1000`. The C++ reports now attest its
+native SQL layer without claiming Microsoft.Data.SqlClient settings. All runs
+had clean shutdown and no runtime failures. The performance gate remains RED.
+
+Next slice: capture SQL-side waits and connection usage during a fresh,
+descriptor-bound 500/1000 rerun, then regenerate the sealed matrix only if all
+required samples and soak evidence pass.
+
 ## Current authoritative continuation (2026-08-31, bounded retry backoff)
 
 Code/test commit `605bb1cf0` adds bounded exponential retry backoff to

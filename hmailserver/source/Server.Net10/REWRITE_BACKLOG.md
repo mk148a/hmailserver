@@ -33,6 +33,14 @@ Next slice: rerun both implementations at 500 and 1000 sessions with the
 attested 30-second timeout and fixed SQL settings on a fresh disposable
 fixture, then capture SQL-side wait/connection evidence.
 
+The follow-up v2 diagnostics used the same disposable postfix fixture,
+loopback ports, 30-second socket timeout, and explicit Net10 pool 500. Net10
+passed `500/500` at p50 `26778.192 ms` and p95 `27792.686 ms`, but timed out
+`1000/1000`. Legacy C++ completed `227/500` and `363/1000`; its attestation
+correctly identifies the native legacy SQL layer. Both implementations had
+clean shutdown and no runtime failures. These results confirm severe
+queueing/resource contention, not a capacity fix or performance superiority.
+
 ## Historical authoritative status (2026-08-27, manifest-bound benchmark artifacts)
 
 Code/test commit `61bf5ec6e` makes the core live benchmark evidence

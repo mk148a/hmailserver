@@ -44,6 +44,15 @@ with explicit `Max Pool Size=500` and 30-second socket timeout passed `100/100`
 size alone is not a proven capacity fix. The required 500/1000 levels and soak
 remain unproven; the performance gate remains **RED**.
 
+The follow-up v2 runs used the same disposable postfix fixture, loopback
+ports, 30-second socket timeout, and explicit Net10 pool 500. Net10 passed
+`500/500` at p50 `26778.192 ms` and p95 `27792.686 ms`, but timed out `1000/1000`
+at the 1,000-session level. Legacy C++ completed `227/500` and `363/1000`;
+its reports correctly identify the native legacy SQL layer rather than claiming
+Net10 pool settings. Both implementations had clean process shutdown and no
+runtime failures. These are diagnostic capacity results, not a speed claim or
+a release-gate pass.
+
 > **Revalidation required:** the table below is retained as historical
 > diagnostic evidence. Its original generator did not independently recompute
 > sample cardinality, percentiles, throughput, or bind raw report bytes to a
