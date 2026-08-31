@@ -33,6 +33,17 @@ concurrent sessions completed `0/1000` and 500 completed `0/500`, but the
 worker remained alive and shut down cleanly; 100 completed `8/100`. The
 remaining failure is capacity/SQL contention, not an unhandled backfill crash.
 
+Benchmark tooling commit `7f70890fd` upgrades the concurrent IMAP artifact to
+`live-concurrent-imap-v2`. Reports now attest the effective Net10 SQL
+provider/database/pooling/max-pool/timeout settings and the exact per-session
+fan-out (`one TCP client; greeting, LOGIN, SELECT, SEARCH, SORT, LOGOUT`). On
+the disposable postfix fixture, an acceptance-shaped 100-session diagnostic
+with explicit `Max Pool Size=500` and 30-second socket timeout passed `100/100`
+(p50 `5241.172 ms`, p95 `5309.501 ms`) with clean shutdown. Comparable
+5-second probes were `0/100` with pool 100 and `59/100` with pool 500, so pool
+size alone is not a proven capacity fix. The required 500/1000 levels and soak
+remain unproven; the performance gate remains **RED**.
+
 > **Revalidation required:** the table below is retained as historical
 > diagnostic evidence. Its original generator did not independently recompute
 > sample cardinality, percentiles, throughput, or bind raw report bytes to a

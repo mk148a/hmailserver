@@ -1,5 +1,20 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, load attestation)
+
+Tooling commit `7f70890fd` adds `live-concurrent-imap-v2` attestation for the
+effective Net10 SQL provider/database/pooling/max-pool/timeout settings and
+the exact IMAP probe fan-out. The disposable diagnostic with explicit pool 500
+and 30-second socket timeout passed `100/100`, p50 `5241.172 ms`, p95
+`5309.501 ms`, with clean worker shutdown. Five-second diagnostics were
+`0/100` at pool 100 and `59/100` at pool 500. The result points to queueing or
+resource contention and does not clear the gate. Required 500/1000 loads and
+the soak remain RED.
+
+Next slice: rerun C++ and Net10 at 500 and 1000 sessions using the attested
+30-second timeout and fixed SQL settings on a fresh disposable fixture, then
+collect SQL-side waits and connection evidence.
+
 ## Current authoritative continuation (2026-08-31, bounded retry backoff)
 
 Code/test commit `605bb1cf0` adds bounded exponential retry backoff to

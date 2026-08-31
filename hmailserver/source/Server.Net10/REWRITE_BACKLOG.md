@@ -15,6 +15,24 @@ Next slice: capture effective SQL pool configuration and IMAP query/session
 fan-out on a fresh disposable fixture, then rerun the failed acceptance levels
 without weakening failure accounting.
 
+## Current authoritative status (2026-08-31, load attestation)
+
+Tooling commit `7f70890fd` upgrades the concurrent IMAP artifact to
+`live-concurrent-imap-v2`. Reports now attest the effective Net10 SQL
+provider/database/pooling/max-pool/timeout settings and the exact IMAP
+per-session fan-out. On the disposable postfix fixture, Net10 with explicit
+`Max Pool Size=500` and the acceptance-shaped 30-second socket timeout passed
+`100/100` with p50 `5241.172 ms`, p95 `5309.501 ms`, no readiness/runtime/
+shutdown failures, and clean worker shutdown. Diagnostic 5-second runs were
+`0/100` at pool 100 and `59/100` at pool 500. This is evidence of
+queueing/resource contention, not a capacity fix or a C++/Net10 performance
+claim. Required 500/1000 levels and the soak remain open; performance is
+**RED**.
+
+Next slice: rerun both implementations at 500 and 1000 sessions with the
+attested 30-second timeout and fixed SQL settings on a fresh disposable
+fixture, then capture SQL-side wait/connection evidence.
+
 ## Historical authoritative status (2026-08-27, manifest-bound benchmark artifacts)
 
 Code/test commit `61bf5ec6e` makes the core live benchmark evidence
