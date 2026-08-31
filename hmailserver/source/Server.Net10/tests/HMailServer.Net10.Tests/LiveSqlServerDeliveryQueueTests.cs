@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using HMailServer.Core.Abstractions;
@@ -167,6 +169,144 @@ public sealed class LiveSqlServerDeliveryQueueTests
         }
     }
 
+    [TestMethod]
+    public async Task DisposableDeliveryQueueRealTcp451RetainsRetryState()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DELIVERY_DIAGNOSTIC"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            Assert.Inconclusive("Set HMAILSERVER_NET10_LIVE_SQL_DELIVERY_DIAGNOSTIC=1 to run the disposable TCP 451 retry diagnostic.");
+        }
+
+        var connectionString = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_CONNECTION");
+        var dataRoot = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(dataRoot))
+        {
+            Assert.Inconclusive("HMAILSERVER_NET10_LIVE_SQL_CONNECTION and HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT are required.");
+        }
+
+        var isolatedDataRoot = ValidateDisposableDataRoot(dataRoot);
+        var parsedConnectionString = new SqlConnectionStringBuilder(connectionString);
+        if (!IsDisposableDatabaseName(parsedConnectionString.InitialCatalog))
+        {
+            Assert.Fail("The live delivery diagnostic accepts only a parsed hmail_perf_* database and a canonical C:\\hmail-perf-* Data root.");
+        }
+
+        var marker = "live-delivery-tcp-451-" + Guid.NewGuid().ToString("N");
+        var fromAddress = marker + "@perf.test";
+        var pathResolver = new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(isolatedDataRoot));
+        var connectionFactory = new SqlServerConnectionFactory(connectionString);
+        var queueWriter = new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
+        var messageData = Encoding.ASCII.GetBytes(
+            "From: " + fromAddress + "\r\nTo: unreachable@retry.test\r\nSubject: tcp 451 retry\r\n\r\nretry body\r\n");
+
+        try
+        {
+            await queueWriter.EnqueueAsync(
+                new SmtpQueueWriteRequest(
+                    fromAddress,
+                    [new SmtpResolvedRecipient("unreachable@retry.test", "unreachable@retry.test", 0, false)],
+                    messageData,
+                    DateTimeOffset.UtcNow),
+                CancellationToken.None);
+
+            await using var sink = await TransientSmtp451Sink.StartAsync();
+            var endpoint = new RemoteSmtpEndpoint(
+                "loopback-retry.invalid",
+                sink.Port,
+                RemoteSmtpConnectionSecurity.None,
+                ConnectionAddress: IPAddress.Loopback.ToString(),
+                EnforceLocalEndpointGuard: false);
+            var dispatcher = new RemoteDeliveryTargetDispatcher(
+                new FixedEndpointResolver(endpoint),
+                new DeliveryMessageContentSource(pathResolver),
+                new SmtpRemoteDeliveryClient(new TcpRemoteSmtpTransportFactory()),
+                new RemoteDeliveryOptions("mail.local.test", TimeSpan.FromSeconds(30)));
+            var statusObserver = new RecordingStatusObserver();
+            var processor = new DeliveryQueueProcessor(
+                new SqlServerDeliveryQueueLeaseStore(connectionFactory),
+                new SqlServerDeliveryQueueMessageStore(connectionFactory),
+                new FixedRetryTargetResolver(),
+                dispatcher,
+                new SqlServerDeliveryQueueRecipientStore(connectionFactory),
+                new NoopBounceStore(),
+                statusObserver: statusObserver);
+            var options = new DeliveryQueueProcessorOptions(
+                LeaseOwner: "live-delivery-tcp-451-" + Guid.NewGuid().ToString("N"),
+                BatchSize: 1,
+                LeaseDuration: TimeSpan.FromMinutes(2),
+                RetryDelay: TimeSpan.FromSeconds(30),
+                MaxRetries: 4,
+                MaxRetryDelay: TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(1, await processor.RunBatchAsync(options, CancellationToken.None));
+            await sink.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+            var evidence = await ReadRetryEvidenceAsync(connectionString, fromAddress);
+
+            Assert.IsTrue(sink.SawEhloOrHelo);
+            Assert.IsTrue(sink.SawMailFrom);
+            Assert.IsTrue(sink.SawRecipient);
+            Assert.IsTrue(sink.Saw451ResponseSent);
+            Assert.IsFalse(sink.SawData, "A 451 RCPT reply must stop before DATA.");
+            Assert.AreEqual(1, evidence.QueuedCount);
+            Assert.AreEqual(1, evidence.MessageType);
+            Assert.AreEqual(0, evidence.Locked);
+            Assert.IsTrue(evidence.LeaseOwnerIsNull);
+            Assert.AreEqual(1, evidence.RetryCount);
+            Assert.IsTrue(evidence.NextTryUtc > DateTime.UtcNow.AddSeconds(10));
+            Assert.AreEqual(1, evidence.RecipientCount);
+            CollectionAssert.Contains(
+                statusObserver.Events.Select(static item => item.Kind).ToList(),
+                DeliveryQueueStatusEventKind.TargetDeliveryDeferred);
+            CollectionAssert.Contains(
+                statusObserver.Events.Select(static item => item.Kind).ToList(),
+                DeliveryQueueStatusEventKind.MessageDeferred);
+
+            await WriteTcp451ReportIfRequestedAsync(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_TCP451_OUTPUT"),
+                parsedConnectionString.InitialCatalog,
+                isolatedDataRoot,
+                evidence,
+                sink,
+                statusObserver);
+        }
+        finally
+        {
+            await CleanupMessagesAsync(connectionString, isolatedDataRoot, string.Empty, fromAddress, pathResolver);
+        }
+    }
+
+    private static string ValidateDisposableDataRoot(string dataRoot)
+    {
+        var fullPath = Path.GetFullPath(dataRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!fullPath.StartsWith(@"C:\hmail-perf-", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new AssertFailedException("The live delivery diagnostic accepts only C:\\hmail-perf-* Data roots.");
+        }
+
+        for (var current = new DirectoryInfo(fullPath); current is not null; current = current.Parent)
+        {
+            if ((current.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new AssertFailedException("The live delivery diagnostic rejects reparse-point Data roots.");
+            }
+
+            if (string.Equals(current.FullName, current.Root.FullName.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+            {
+                break;
+            }
+        }
+
+        return fullPath;
+    }
+
+    private static bool IsDisposableDatabaseName(string databaseName) =>
+        databaseName.Length > "hmail_perf_".Length
+        && databaseName.StartsWith("hmail_perf_", StringComparison.OrdinalIgnoreCase)
+        && databaseName.Skip("hmail_perf_".Length).All(static character => char.IsLetterOrDigit(character) || character == '_');
+
     private static int ReadBoundedInt(string name, int defaultValue, int minimum, int maximum)
     {
         var value = Environment.GetEnvironmentVariable(name);
@@ -204,7 +344,7 @@ public sealed class LiveSqlServerDeliveryQueueTests
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         await using var command = new SqlCommand(
-            "SELECT COUNT_BIG(*), MAX(CAST(messagelocked AS int)), MAX(messagecurnooftries), MAX(messagenexttrytime), MAX(CASE WHEN messageleaseowner IS NULL THEN 1 ELSE 0 END) FROM hm_messages WHERE messagefrom = @MessageFrom; SELECT COUNT_BIG(*) FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid = r.recipientmessageid WHERE m.messagefrom = @MessageFrom;",
+            "SELECT COUNT_BIG(*), MAX(CAST(messagetype AS int)), MAX(CAST(messagelocked AS int)), MAX(messagecurnooftries), MAX(messagenexttrytime), MAX(CASE WHEN messageleaseowner IS NULL THEN 1 ELSE 0 END) FROM hm_messages WHERE messagefrom = @MessageFrom; SELECT COUNT_BIG(*) FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid = r.recipientmessageid WHERE m.messagefrom = @MessageFrom;",
             connection);
         command.Parameters.AddWithValue("@MessageFrom", marker);
         await using var reader = await command.ExecuteReaderAsync();
@@ -213,8 +353,9 @@ public sealed class LiveSqlServerDeliveryQueueTests
             Convert.ToInt64(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture),
             Convert.ToInt32(reader.GetValue(1), System.Globalization.CultureInfo.InvariantCulture),
             Convert.ToInt32(reader.GetValue(2), System.Globalization.CultureInfo.InvariantCulture),
-            DateTime.SpecifyKind(reader.GetDateTime(3), DateTimeKind.Utc),
-            Convert.ToInt32(reader.GetValue(4), System.Globalization.CultureInfo.InvariantCulture) == 1);
+            Convert.ToInt32(reader.GetValue(3), System.Globalization.CultureInfo.InvariantCulture),
+            DateTime.SpecifyKind(reader.GetDateTime(4), DateTimeKind.Utc),
+            Convert.ToInt32(reader.GetValue(5), System.Globalization.CultureInfo.InvariantCulture) == 1);
         await reader.NextResultAsync();
         await reader.ReadAsync();
         return evidence with { RecipientCount = Convert.ToInt64(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture) };
@@ -265,6 +406,37 @@ public sealed class LiveSqlServerDeliveryQueueTests
                 File.Delete(path);
             }
         }
+
+        await using (var verify = new SqlCommand(
+                   "SELECT COUNT_BIG(*) FROM hm_messages WHERE messagefrom IN (@LocalFrom, @RetryFrom); SELECT COUNT_BIG(*) FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid = r.recipientmessageid WHERE m.messagefrom IN (@LocalFrom, @RetryFrom);",
+                   connection))
+        {
+            verify.Parameters.AddWithValue("@LocalFrom", localFrom);
+            verify.Parameters.AddWithValue("@RetryFrom", retryFrom);
+            await using var reader = await verify.ExecuteReaderAsync();
+            await reader.ReadAsync();
+            if (Convert.ToInt64(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture) != 0)
+            {
+                throw new InvalidOperationException("Disposable delivery cleanup left message rows behind.");
+            }
+
+            await reader.NextResultAsync();
+            await reader.ReadAsync();
+            if (Convert.ToInt64(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture) != 0)
+            {
+                throw new InvalidOperationException("Disposable delivery cleanup left recipient rows behind.");
+            }
+        }
+
+        foreach (var file in files)
+        {
+            var accountAddress = file.AccountId == 1 ? "test@perf.test" : null;
+            var path = resolver.Resolve(file.FileName, file.AccountId, file.FolderId, accountAddress);
+            if (path is not null && File.Exists(path))
+            {
+                throw new IOException("Disposable delivery cleanup left a message file behind: " + path);
+            }
+        }
     }
 
     private static async Task WriteReportIfRequestedAsync(
@@ -309,6 +481,58 @@ public sealed class LiveSqlServerDeliveryQueueTests
         await File.WriteAllTextAsync(Path.ChangeExtension(fullPath, ".md"), markdown);
     }
 
+    private static async Task WriteTcp451ReportIfRequestedAsync(
+        string? outputPath,
+        string database,
+        string dataRoot,
+        RetryEvidence evidence,
+        TransientSmtp451Sink sink,
+        RecordingStatusObserver statusObserver)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            throw new InvalidOperationException("The TCP 451 report path must include a directory.");
+        }
+
+        Directory.CreateDirectory(directory);
+        var report = new
+        {
+            schema = "net10-live-tcp-451-retry-v1",
+            status = "PASS",
+            generatedUtc = DateTimeOffset.UtcNow,
+            database,
+            dataRoot,
+            smtpReply = 451,
+            sawEhloOrHelo = sink.SawEhloOrHelo,
+            sawMailFrom = sink.SawMailFrom,
+            sawRecipient = sink.SawRecipient,
+            saw451ResponseSent = sink.Saw451ResponseSent,
+            sawData = sink.SawData,
+            messageType = evidence.MessageType,
+            queuedCount = evidence.QueuedCount,
+            locked = evidence.Locked,
+            leaseOwnerIsNull = evidence.LeaseOwnerIsNull,
+            retryCount = evidence.RetryCount,
+            nextTryUtc = evidence.NextTryUtc,
+            recipientCount = evidence.RecipientCount,
+            deferredEvents = statusObserver.Events.Count(static item => item.Kind is DeliveryQueueStatusEventKind.TargetDeliveryDeferred or DeliveryQueueStatusEventKind.MessageDeferred)
+        };
+        await File.WriteAllTextAsync(fullPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+        await File.WriteAllTextAsync(
+            Path.ChangeExtension(fullPath, ".csv"),
+            "status,smtp_reply,message_type,queued_count,locked,lease_owner_is_null,retry_count,recipient_count,saw_data,deferred_events\nPASS,451," + evidence.MessageType + "," + evidence.QueuedCount + "," + evidence.Locked + "," + evidence.LeaseOwnerIsNull + "," + evidence.RetryCount + "," + evidence.RecipientCount + "," + sink.SawData + "," + report.deferredEvents + "\n");
+        await File.WriteAllTextAsync(
+            Path.ChangeExtension(fullPath, ".md"),
+            $"# Net10 TCP 451 retry state\n\n- Result: `PASS`\n- SMTP reply: `451`\n- SQL database: `{database}`\n- Data root: `{dataRoot}`\n- Queue state: `messagetype={evidence.MessageType}`, `queued={evidence.QueuedCount}`, `locked={evidence.Locked}`, `leaseOwnerIsNull={evidence.LeaseOwnerIsNull}`\n- Retry state: `retryCount={evidence.RetryCount}`, `recipientCount={evidence.RecipientCount}`, `nextTryUtc={evidence.NextTryUtc:O}`\n- Protocol guard: EHLO/HELO, MAIL FROM, and RCPT observed; `451` sent; DATA observed: `{sink.SawData}`\n- Deferred status events: `{report.deferredEvents}`\n\nThis is Net10 component-level disposable evidence. It is not paired C++ evidence and does not clear the production performance gate.\n\nJSON: `{fullPath}`\n");
+    }
+
     private static double Percentile(double[] values, double percentile)
     {
         if (values.Length == 0) return 0;
@@ -324,6 +548,7 @@ public sealed class LiveSqlServerDeliveryQueueTests
 
     private sealed record RetryEvidence(
         long QueuedCount = 0,
+        int MessageType = 0,
         int Locked = 0,
         int RetryCount = 0,
         DateTime NextTryUtc = default,
@@ -353,6 +578,119 @@ public sealed class LiveSqlServerDeliveryQueueTests
             [new DeliveryTargetBatch(
                 new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:retry.test", "retry.test"),
                 message.Recipients)]);
+    }
+
+    private sealed class FixedEndpointResolver : IRemoteSmtpEndpointResolver
+    {
+        private readonly RemoteSmtpEndpoint _endpoint;
+
+        public FixedEndpointResolver(RemoteSmtpEndpoint endpoint)
+        {
+            _endpoint = endpoint;
+        }
+
+        public ValueTask<RemoteSmtpEndpoint> ResolveAsync(
+            DeliveryTarget target,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(_endpoint);
+    }
+
+    private sealed class TransientSmtp451Sink : IAsyncDisposable
+    {
+        private readonly TcpListener _listener;
+        private readonly Task _runTask;
+        private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private TransientSmtp451Sink(TcpListener listener)
+        {
+            _listener = listener;
+            _runTask = RunAsync();
+        }
+
+        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
+
+        public Task Completion => _completion.Task;
+
+        public bool SawEhloOrHelo { get; private set; }
+
+        public bool SawMailFrom { get; private set; }
+
+        public bool SawRecipient { get; private set; }
+
+        public bool Saw451ResponseSent { get; private set; }
+
+        public bool SawData { get; private set; }
+
+        public static ValueTask<TransientSmtp451Sink> StartAsync()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            return ValueTask.FromResult(new TransientSmtp451Sink(listener));
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _listener.Stop();
+            try
+            {
+                await _runTask.ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task RunAsync()
+        {
+            try
+            {
+                using var client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false);
+                using var reader = new StreamReader(client.GetStream(), Encoding.ASCII, false, 1024, leaveOpen: true);
+                using var writer = new StreamWriter(client.GetStream(), Encoding.ASCII, 1024, leaveOpen: true)
+                {
+                    NewLine = "\r\n",
+                    AutoFlush = true
+                };
+
+                writer.WriteLine("220 loopback-retry.invalid ESMTP");
+                var line = await reader.ReadLineAsync().ConfigureAwait(false);
+                if (line is not null && (line.StartsWith("EHLO ", StringComparison.OrdinalIgnoreCase)
+                    || line.StartsWith("HELO ", StringComparison.OrdinalIgnoreCase)))
+                {
+                    SawEhloOrHelo = true;
+                    writer.WriteLine("250 loopback-retry.invalid");
+                }
+
+                line = await reader.ReadLineAsync().ConfigureAwait(false);
+                if (line is not null && line.StartsWith("MAIL FROM:", StringComparison.OrdinalIgnoreCase))
+                {
+                    SawMailFrom = true;
+                    writer.WriteLine("250 sender accepted");
+                }
+
+                line = await reader.ReadLineAsync().ConfigureAwait(false);
+                if (line is not null && line.StartsWith("RCPT TO:", StringComparison.OrdinalIgnoreCase))
+                {
+                    SawRecipient = true;
+                    Saw451ResponseSent = true;
+                    writer.WriteLine("451 temporary recipient failure");
+                }
+
+                while ((line = await reader.ReadLineAsync().ConfigureAwait(false)) is not null)
+                {
+                    if (line.Equals("DATA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SawData = true;
+                    }
+                }
+
+                _completion.TrySetResult(true);
+            }
+            catch (Exception exception)
+            {
+                _completion.TrySetException(exception);
+            }
+        }
     }
 
     private sealed class AlwaysTransientDispatcher : IDeliveryTargetDispatcher
