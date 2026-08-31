@@ -2,7 +2,23 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$FixtureManifest,
     [string]$OutputDirectory = "",
+    [ValidateSet("protocol", "concurrent-imap")]
+    [string]$Workload = "protocol",
     [int]$Iterations = 25,
+    [ValidateSet("Admission", "AuthSelect", "Search", "Sort", "Full")]
+    [string]$Profile = "Full",
+    [ValidateRange(1, 5000)]
+    [int]$Concurrency = 1000,
+    [ValidateRange(1, 100)]
+    [int]$Waves = 1,
+    [ValidateRange(500, 30000)]
+    [int]$TimeoutMilliseconds = 5000,
+    [ValidateRange(0, 60)]
+    [int]$PostWorkloadSettleSeconds = 5,
+    [ValidateRange(0, 1000)]
+    [int]$LaunchStaggerMilliseconds = 0,
+    [ValidateRange(1, 5000)]
+    [int]$SqlMaxPoolSize = 100,
     [ValidateRange(5, 300)]
     [int]$ReadinessTimeoutSeconds = 60,
     [string]$RunId = "",
@@ -123,14 +139,19 @@ if ($database -notmatch '^hmail_perf_pair_cpp_[a-z0-9_]+$') {
     throw "Fixture C++ database is not disposable: $database"
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
-    $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\paired-cpp-net10-20260901-service\protocol-cpp-service"
+    $OutputDirectory = Join-Path $repoRoot ("artifacts\benchmarks\paired-cpp-net10-20260901-service\{0}-cpp-service" -f $Workload)
 }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 if ($OutputDirectory -notmatch '(?i)\\artifacts\\benchmarks\\paired-cpp-net10-[a-z0-9_-]+(?:\\[^\\]+)?$') {
     throw "OutputDirectory is outside the repository benchmark artifact boundary: $OutputDirectory"
 }
-$protocolScript = Join-Path $PSScriptRoot "benchmark-net10-live-protocol.ps1"
-$childOutputDirectory = Join-Path $OutputDirectory "protocol"
+$workloadScript = if ($Workload -eq "protocol") {
+    Join-Path $PSScriptRoot "benchmark-net10-live-protocol.ps1"
+} else {
+    Join-Path $PSScriptRoot "benchmark-net10-live-concurrent-imap.ps1"
+}
+$childOutputDirectory = Join-Path $OutputDirectory $Workload
+$childJsonName = if ($Workload -eq "protocol") { "net10-live-protocol.json" } else { "live-concurrent-imap.json" }
 
 $productionService = Get-ServiceRecord "hMailServer"
 if ($null -ne $productionService -and $productionService.state -ne "Stopped") {
@@ -196,22 +217,35 @@ try {
 
     if ($readinessFailures.Count -eq 0) {
         $childArgs = @(
-            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $protocolScript,
+            '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $workloadScript,
             '-Implementation', 'cpp',
             '-FixtureManifest', $FixtureManifest,
             '-OutputDirectory', $childOutputDirectory,
             '-BenchmarkStagingRoot', $stagingRoot,
             '-BenchmarkDatabase', $database,
             '-BenchmarkServiceExecutable', $serviceExe,
-            '-Iterations', $Iterations,
             '-ReadinessTimeoutSeconds', $ReadinessTimeoutSeconds,
             '-ExternalServiceProcessId', $servicePid,
             '-ExternalServiceName', $ServiceName
         )
+        if ($Workload -eq "protocol") {
+            $childArgs += @('-Iterations', $Iterations)
+        }
+        else {
+            $childArgs += @(
+                '-Profile', $Profile,
+                '-Concurrency', $Concurrency,
+                '-Waves', $Waves,
+                '-TimeoutMilliseconds', $TimeoutMilliseconds,
+                '-PostWorkloadSettleSeconds', $PostWorkloadSettleSeconds,
+                '-LaunchStaggerMilliseconds', $LaunchStaggerMilliseconds,
+                '-SqlMaxPoolSize', $SqlMaxPoolSize
+            )
+        }
         if (-not [string]::IsNullOrWhiteSpace($RunId)) { $childArgs += @('-RunId', $RunId) }
         & powershell.exe @childArgs 2>&1 | Out-Host
         $childExitCode = $LASTEXITCODE
-        $childJsonPath = Join-Path $childOutputDirectory "net10-live-protocol.json"
+        $childJsonPath = Join-Path $childOutputDirectory $childJsonName
         if (Test-Path -LiteralPath $childJsonPath -PathType Leaf) {
             $childReport = Get-Content -LiteralPath $childJsonPath -Raw | ConvertFrom-Json
         }
@@ -252,8 +286,10 @@ finally {
 $endUtc = [DateTimeOffset]::UtcNow
 $productionAfter = Get-ServiceRecord "hMailServer"
 $productionUntouched = ($null -eq $productionAfter -and $null -eq $productionService) -or ($null -ne $productionService -and $null -ne $productionAfter -and $productionService.state -eq $productionAfter.state -and $productionService.processId -eq $productionAfter.processId)
+$reportStem = if ($Workload -eq "protocol") { "disposable-cpp-service-protocol" } else { "disposable-cpp-service-concurrent-imap" }
 $report = [pscustomobject]@{
-    schema = "disposable-cpp-service-protocol-v1"
+    schema = if ($Workload -eq "protocol") { "disposable-cpp-service-protocol-v1" } else { "disposable-cpp-service-concurrent-imap-v1" }
+    workload = $Workload
     status = if ($readinessFailures.Count -eq 0 -and $cleanupFailures.Count -eq 0 -and $null -ne $childReport -and $childReport.status -eq "PASS") { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
@@ -279,12 +315,12 @@ $report = [pscustomobject]@{
     sqlPrincipalCreatedAndRemoved = $sqlPrincipalCreated -and [int](Get-SqlScalar "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.server_principals WHERE name = N'$principalSql';") -eq 0
     productionServiceUntouched = $productionUntouched
 }
-$jsonPath = Join-Path $OutputDirectory "disposable-cpp-service-protocol.json"
-$markdownPath = Join-Path $OutputDirectory "disposable-cpp-service-protocol.md"
+$jsonPath = Join-Path $OutputDirectory ($reportStem + ".json")
+$markdownPath = Join-Path $OutputDirectory ($reportStem + ".md")
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 @(
-    "# Disposable C++ Service Protocol Benchmark",
+    "# Disposable C++ Service $Workload Benchmark",
     "",
     "- Status: **$($report.status)**",
     "- Fixture: $($report.fixtureId) ($($report.fixtureManifestSha256))",
@@ -293,12 +329,12 @@ $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $jsonPath -Encodin
     "- Database: $database",
     "- Data root: $stagingRoot\Data",
     "- Bind/ports: 127.0.0.1 / SMTP 2525, IMAP 1143, POP3 25110",
-    "- Protocol report: $(Join-Path $childOutputDirectory 'net10-live-protocol.json')",
+    "- Workload report: $(Join-Path $childOutputDirectory $childJsonName)",
     "- Production service untouched: $productionUntouched",
     "- SQL principal removed: $($report.sqlPrincipalCreatedAndRemoved)",
     "- Readiness failures: $($readinessFailures.Count)",
     "- Cleanup failures: $($cleanupFailures.Count)"
 ) | Set-Content -LiteralPath $markdownPath -Encoding UTF8
 
-if ($report.status -ne "PASS") { throw "Disposable C++ service protocol benchmark failed. See $jsonPath" }
+if ($report.status -ne "PASS") { throw "Disposable C++ service $Workload benchmark failed. See $jsonPath" }
 Write-Output ($report | ConvertTo-Json -Depth 12)

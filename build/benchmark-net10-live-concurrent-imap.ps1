@@ -22,10 +22,19 @@ param(
     [string]$FixtureManifest = "",
     [string]$RunId = "",
     [ValidateRange(1, 5000)]
-    [int]$SqlMaxPoolSize = 100
+    [int]$SqlMaxPoolSize = 100,
+    [int]$ExternalServiceProcessId = 0,
+    [string]$ExternalServiceName = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($ExternalServiceProcessId -gt 0 -and $Implementation -ne "cpp") {
+    throw "ExternalServiceProcessId is supported only for the legacy C++ implementation."
+}
+if ($ExternalServiceProcessId -gt 0 -and $ExternalServiceName -notmatch '^[A-Za-z0-9_.-]{1,255}$') {
+    throw "ExternalServiceName must be supplied and must be a disposable SCM service name."
+}
 
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
 . (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
@@ -683,11 +692,12 @@ $runStartAttestation = $null
 $workloadStartedUtc = $null
 $workloadEndedUtc = $null
 $workloadSeconds = 0.0
+$externalService = $ExternalServiceProcessId -gt 0
 
 $provenance = Get-LiveBenchmarkProvenance -FixtureManifest $FixtureManifest -RunId $RunId -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe -Ports ([ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 })
 
 if ($Implementation -eq "cpp") {
-    $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
+    $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database -DisposableRegistrationGuarded:$externalService
     $readinessFailures = @($preflight.failures)
 }
 
@@ -695,7 +705,22 @@ if ($null -eq $preflight -or $preflight.passed) {
     if ($provenance.manifestBound) {
         $runStartAttestation = Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe
     }
-    $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+    if ($externalService) {
+        $process = Get-Process -Id $ExternalServiceProcessId -ErrorAction SilentlyContinue
+        if ($null -eq $process) {
+            $readinessFailures += "External disposable C++ service worker PID $ExternalServiceProcessId is not running."
+        }
+        else {
+            $workerRecord = Get-CimInstance Win32_Process -Filter "ProcessId=$ExternalServiceProcessId" -ErrorAction SilentlyContinue
+            if ($null -eq $workerRecord -or
+                -not [string]::Equals([IO.Path]::GetFullPath([string]$workerRecord.ExecutablePath), [IO.Path]::GetFullPath($serviceExe), [StringComparison]::OrdinalIgnoreCase)) {
+                $readinessFailures += "External service worker PID $ExternalServiceProcessId is not the approved legacy executable."
+            }
+        }
+    }
+    else {
+        $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+    }
 }
 try {
     if ($null -ne $process) {
@@ -787,10 +812,10 @@ try {
     }
 }
 finally {
-    if ($null -ne $process -and (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+    if (-not $externalService -and $null -ne $process -and (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
         try { Stop-Process -Id $process.Id -Force } catch { $shutdownFailures += "Unable to stop launched process $($process.Id): $($_.Exception.Message)" }
     }
-    if ($null -ne $process) {
+    if (-not $externalService -and $null -ne $process) {
         $shutdownFailures += @(Wait-ForShutdown $process.Id)
     }
 }
@@ -853,6 +878,9 @@ $report = [pscustomobject]@{
     isolationPreflight = $preflight
     executableProvenance = $provenance.executableProvenance
     runStartAttestation = $runStartAttestation
+    serviceBacked = $externalService
+    externalServiceName = if ($externalService) { $ExternalServiceName } else { $null }
+    externalServiceProcessId = if ($externalService) { $ExternalServiceProcessId } else { $null }
     samples = @($results | ForEach-Object {
         [pscustomobject]@{
             wave = $_.Wave

@@ -26,6 +26,10 @@ Assert-Parses $runnerPath
 Assert-Parses $protocolPath
 
 Assert-Contains $runner '[string]$FixtureManifest' 'fixture input'
+Assert-Contains $runner '[string]$Workload = "protocol"' 'workload selector'
+Assert-Contains $runner 'benchmark-net10-live-concurrent-imap.ps1' 'concurrent IMAP child runner'
+Assert-Contains $runner "'-Concurrency', $Concurrency" 'concurrent IMAP child arguments'
+Assert-Contains $runner 'disposable-cpp-service-concurrent-imap-v1' 'concurrent IMAP report schema'
 Assert-Contains $runner 'Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation cpp' 'fixture binding'
 Assert-Contains $runner 'NT AUTHORITY\LocalService' 'dedicated service identity'
 Assert-Contains $runner 'CREATE LOGIN [$principal] FROM WINDOWS' 'disposable SQL login provisioning'
