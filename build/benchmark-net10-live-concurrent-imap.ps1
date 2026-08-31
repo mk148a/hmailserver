@@ -588,6 +588,7 @@ $readinessFailures = @()
 $shutdownFailures = @()
 $results = [System.Collections.Generic.List[object]]::new()
 $waveMetrics = [System.Collections.Generic.List[object]]::new()
+$runtimeFailures = [System.Collections.Generic.List[string]]::new()
 $preflight = $null
 $provenance = $null
 $runStartAttestation = $null
@@ -612,14 +613,23 @@ try {
     if ($null -ne $process) {
         $readinessFailures = @(Wait-ForReadiness $process.Id)
         if ($readinessFailures.Count -eq 0) {
-            $metricProcess = Get-Process -Id $process.Id
-            $before = [pscustomobject]@{
-                privateBytes = [long]$metricProcess.PrivateMemorySize64
-                handles = [int]$metricProcess.Handles
-                threads = [int]$metricProcess.Threads.Count
+            $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+            if ($null -eq $metricProcess) {
+                $runtimeFailures.Add("Launched process $($process.Id) exited before workload start.")
+            } else {
+                $before = [pscustomobject]@{
+                    privateBytes = [long]$metricProcess.PrivateMemorySize64
+                    handles = [int]$metricProcess.Handles
+                    threads = [int]$metricProcess.Threads.Count
+                }
             }
-            for ($wave = 1; $wave -le $Waves; $wave++) {
-                $metricProcess = Get-Process -Id $process.Id
+            if ($null -ne $metricProcess) {
+                for ($wave = 1; $wave -le $Waves; $wave++) {
+                $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
+                if ($null -eq $metricProcess) {
+                    $runtimeFailures.Add("Launched process $($process.Id) exited before wave $wave started.")
+                    break
+                }
                 $waveBefore = [pscustomobject]@{
                     privateBytes = [long]$metricProcess.PrivateMemorySize64
                     handles = [int]$metricProcess.Handles
@@ -683,6 +693,7 @@ try {
                     processAfterImmediate = $afterImmediate
                     processAfterSettle = $after
                 })
+                }
             }
         }
     }
@@ -720,7 +731,7 @@ $summary = [pscustomobject]@{
 $report = [pscustomobject]@{
     schema = "live-concurrent-imap-v1"
     implementation = $Implementation
-    status = if ($summary.errors -eq 0 -and $summary.completed -eq $requestedSessions -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0) { "PASS" } else { "FAIL" }
+    status = if ($summary.errors -eq 0 -and $summary.completed -eq $requestedSessions -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $runtimeFailures.Count -eq 0) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
     workloadStartedUtc = if ($null -ne $workloadStartedUtc) { $workloadStartedUtc.ToString("o") } else { $null }
@@ -746,6 +757,7 @@ $report = [pscustomobject]@{
     processBefore = $before
     processAfterImmediate = $afterImmediate
     processAfter = $after
+    runtimeFailures = @($runtimeFailures)
     waveMetrics = $waveMetrics
     isolationPreflight = $preflight
     executableProvenance = $provenance.executableProvenance

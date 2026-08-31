@@ -49,16 +49,36 @@ if ($waves -ne $ExpectedWaves) {
     throw "Expected $ExpectedWaves wave(s), got $waves."
 }
 $expectedSessions = $ExpectedConcurrency * $ExpectedWaves
+$runtimeFailureCount = if (@($report.PSObject.Properties.Name) -contains "runtimeFailures") { @($report.runtimeFailures).Count } else { 0 }
+$partialFailureAllowed = $AllowFailedReport -and $report.status -eq "FAIL" -and $runtimeFailureCount -gt 0
 $samples = @($report.samples)
 if ($samples.Count -gt 0) {
+    $sawIncompleteWave = $false
     foreach ($wave in 1..$ExpectedWaves) {
         $waveSamples = @($samples | Where-Object wave -eq $wave)
         $sessions = @($waveSamples | ForEach-Object { [int]$_.session } | Sort-Object -Unique)
-        if ($waveSamples.Count -ne $ExpectedConcurrency -or
-            $sessions.Count -ne $ExpectedConcurrency -or
-            $sessions[0] -ne 1 -or
-            $sessions[-1] -ne $ExpectedConcurrency) {
-            throw "Wave $wave does not contain an exact 1..$ExpectedConcurrency session sequence."
+        if ($waveSamples.Count -eq 0) {
+            if ($report.status -eq "PASS" -or -not $AllowFailedReport) {
+                throw "Wave $wave is missing from the concurrent IMAP sample sequence."
+            }
+            $sawIncompleteWave = $true
+            continue
+        }
+        if ($sawIncompleteWave) {
+            throw "Wave $wave contains samples after an incomplete prior wave."
+        }
+        $waveComplete = $waveSamples.Count -eq $ExpectedConcurrency -and
+            $sessions.Count -eq $ExpectedConcurrency -and
+            $sessions[0] -eq 1 -and
+            $sessions[-1] -eq $ExpectedConcurrency
+        if (-not $waveComplete) {
+            if ($report.status -eq "PASS" -or -not $AllowFailedReport -or
+                $sessions.Count -ne $waveSamples.Count -or
+                $sessions[0] -ne 1 -or
+                $sessions[-1] -ne $waveSamples.Count) {
+                throw "Wave $wave does not contain an exact 1..$ExpectedConcurrency session sequence."
+            }
+            $sawIncompleteWave = $true
         }
         if (@($waveSamples | Where-Object { $_.ok -and $_.timedOut }).Count -ne 0) {
             throw "Wave $wave contains a sample marked both successful and timed out."
@@ -66,10 +86,14 @@ if ($samples.Count -gt 0) {
     }
 }
 if ($report.readinessFailures.Count -eq 0) {
-    if ($report.summary.completed -ne $expectedSessions) {
+    if (-not $partialFailureAllowed -and $report.summary.completed -ne $expectedSessions) {
         throw "Expected $expectedSessions completed samples, got $($report.summary.completed)."
     }
-    if (($report.summary.successes + $report.summary.errors) -ne $expectedSessions) {
+    if ($partialFailureAllowed) {
+        if (($report.summary.successes + $report.summary.errors) -ne $report.summary.completed) {
+            throw "Success/error accounting does not equal the completed sample count."
+        }
+    } elseif (($report.summary.successes + $report.summary.errors) -ne $expectedSessions) {
         throw "Success/error accounting does not equal the requested concurrency."
     }
 }
@@ -97,6 +121,9 @@ if (@($report.PSObject.Properties.Name) -notcontains "readinessFailures" -or @($
 if ($report.status -eq "PASS" -and ($report.readinessFailures.Count -ne 0 -or $report.shutdownFailures.Count -ne 0)) {
     throw "A passing concurrent IMAP artifact cannot contain readiness or shutdown failures."
 }
+if ($report.status -eq "PASS" -and @($report.PSObject.Properties.Name) -contains "runtimeFailures" -and @($report.runtimeFailures).Count -ne 0) {
+    throw "A passing concurrent IMAP artifact cannot contain runtime failures."
+}
 if ($report.status -eq "PASS" -and $report.summary.errors -ne 0) {
     throw "A passing concurrent IMAP artifact cannot contain errors."
 }
@@ -120,7 +147,7 @@ if ($report.status -eq "PASS") {
         throw "Concurrent IMAP throughput does not reconcile with the workload-only duration."
     }
 }
-if ([int]$report.summary.completed -gt 0 -and (
+if (-not $partialFailureAllowed -and [int]$report.summary.completed -gt 0 -and (
         $null -eq $report.processBefore -or
         $null -eq $report.processAfterImmediate -or
         $null -eq $report.processAfter -or
