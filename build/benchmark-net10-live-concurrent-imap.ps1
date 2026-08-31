@@ -1,6 +1,8 @@
 param(
     [ValidateSet("net10", "cpp")]
     [string]$Implementation = "net10",
+    [ValidateSet("Admission", "AuthSelect", "Full")]
+    [string]$Profile = "Full",
     [ValidateRange(1, 5000)]
     [int]$Concurrency = 1000,
     [ValidateRange(1, 100)]
@@ -240,7 +242,7 @@ internal sealed class HMailServerLiveImapTagResponse
 
 public static class HMailServerLiveImapProbe
 {
-    public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds)
+    public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds, string profile)
     {
         int originalMinWorkerThreads;
         int originalMinCompletionPortThreads;
@@ -263,7 +265,7 @@ public static class HMailServerLiveImapProbe
                             startBarrier.Set();
                         }
                         startBarrier.Wait();
-                        return RunOne(timeoutMilliseconds);
+                        return RunOne(timeoutMilliseconds, profile);
                     });
                 }
 
@@ -291,7 +293,7 @@ public static class HMailServerLiveImapProbe
         }
     }
 
-    private static HMailServerLiveImapProbeResult RunOne(int timeoutMilliseconds)
+    private static HMailServerLiveImapProbeResult RunOne(int timeoutMilliseconds, string profile)
     {
         var stopwatch = Stopwatch.StartNew();
         try
@@ -311,36 +313,52 @@ public static class HMailServerLiveImapProbe
                 using (var writer = new StreamWriter(stream) { NewLine = "\r\n", AutoFlush = true })
                 {
                     var greeting = reader.ReadLine();
-                    writer.WriteLine("a001 LOGIN test@perf.test test");
-                    var login = ReadTag(reader, "a001");
-                    writer.WriteLine("a002 SELECT INBOX");
-                    var select = ReadTag(reader, "a002");
-                    writer.WriteLine("a003 SEARCH TEXT needle");
-                    var search = ReadTag(reader, "a003");
-                    writer.WriteLine("a004 SORT (DATE) UTF-8 ALL");
-                    var sort = ReadTag(reader, "a004");
-                    writer.WriteLine("a005 LOGOUT");
-                    var logout = ReadTag(reader, "a005");
+                    HMailServerLiveImapTagResponse login = null;
+                    HMailServerLiveImapTagResponse select = null;
+                    HMailServerLiveImapTagResponse search = null;
+                    HMailServerLiveImapTagResponse sort = null;
+                    HMailServerLiveImapTagResponse logout;
+                    if (profile == "Admission")
+                    {
+                        writer.WriteLine("a001 LOGOUT");
+                        logout = ReadTag(reader, "a001");
+                    }
+                    else
+                    {
+                        writer.WriteLine("a001 LOGIN test@perf.test test");
+                        login = ReadTag(reader, "a001");
+                        writer.WriteLine("a002 SELECT INBOX");
+                        select = ReadTag(reader, "a002");
+                        if (profile == "Full")
+                        {
+                            writer.WriteLine("a003 SEARCH TEXT needle");
+                            search = ReadTag(reader, "a003");
+                            writer.WriteLine("a004 SORT (DATE) UTF-8 ALL");
+                            sort = ReadTag(reader, "a004");
+                        }
+                        writer.WriteLine(profile == "Full" ? "a005 LOGOUT" : "a003 LOGOUT");
+                        logout = ReadTag(reader, profile == "Full" ? "a005" : "a003");
+                    }
 
-                    var searchValidation = ValidateResult(search == null ? null : search.Untagged, "SEARCH", 1000);
-                    var sortValidation = ValidateResult(sort == null ? null : sort.Untagged, "SORT", 1000);
+                    var searchValidation = profile == "Full"
+                        ? ValidateResult(search == null ? null : search.Untagged, "SEARCH", 1000)
+                        : null;
+                    var sortValidation = profile == "Full"
+                        ? ValidateResult(sort == null ? null : sort.Untagged, "SORT", 1000)
+                        : null;
 
                     var success = greeting != null
                         && greeting.IndexOf("OK", StringComparison.OrdinalIgnoreCase) >= 0
-                        && IsOk(login)
-                        && IsOk(select)
-                        && IsOk(search)
-                        && IsOk(sort)
-                        && IsOk(logout)
-                        && searchValidation.Valid
-                        && sortValidation.Valid;
+                        && (profile == "Admission" || (IsOk(login) && IsOk(select)))
+                        && (profile != "Full" || (IsOk(search) && IsOk(sort) && searchValidation.Valid && sortValidation.Valid))
+                        && IsOk(logout);
                     return success
                         ? Success(stopwatch, searchValidation, sortValidation)
                         : Failure(
                             stopwatch,
                             false,
                             "IMAP response failure: greetingOk=" + (greeting != null)
-                            + " loginOk=" + IsOk(login) + " selectOk=" + IsOk(select)
+                            + " profile=" + profile + " loginOk=" + IsOk(login) + " selectOk=" + IsOk(select)
                             + " searchOk=" + IsOk(search) + " sortOk=" + IsOk(sort)
                             + " logoutOk=" + IsOk(logout)
                             + " resultError=" + CombineValidationErrors(searchValidation, sortValidation),
@@ -617,7 +635,12 @@ else {
 }
 $probeConfiguration = [pscustomobject]@{
     scheduler = "Task.Run with a ManualResetEventSlim start barrier"
-    perSessionCommands = "greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT"
+    profile = $Profile
+    perSessionCommands = switch ($Profile) {
+        "Admission" { "greeting; LOGOUT"; break }
+        "AuthSelect" { "greeting; LOGIN; SELECT INBOX; LOGOUT"; break }
+        default { "greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT" }
+    }
     concurrentSessionsPerWave = $Concurrency
     waves = $Waves
     socketTimeoutMilliseconds = $TimeoutMilliseconds
@@ -684,7 +707,7 @@ try {
                 if ($null -eq $workloadStartedUtc) {
                     $workloadStartedUtc = $waveStartedUtc
                 }
-                $waveResults = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds))
+                $waveResults = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds, $Profile))
                 $waveEndedUtc = [DateTimeOffset]::UtcNow
                 $workloadEndedUtc = $waveEndedUtc
                 $workloadSeconds += ($waveEndedUtc - $waveStartedUtc).TotalSeconds
@@ -776,6 +799,7 @@ $summary = [pscustomobject]@{
 $report = [pscustomobject]@{
     schema = "live-concurrent-imap-v2"
     implementation = $Implementation
+    profile = $Profile
     status = if ($summary.errors -eq 0 -and $summary.completed -eq $requestedSessions -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $runtimeFailures.Count -eq 0) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")

@@ -24,6 +24,11 @@ if ($report.schema -ne "live-concurrent-imap-v2") {
 if ($report.implementation -notin @("net10", "cpp")) {
     throw "Unexpected implementation: $($report.implementation)"
 }
+$profilePropertyPresent = @($report.PSObject.Properties.Name) -contains "profile"
+$profile = if ($profilePropertyPresent) { [string]$report.profile } else { "Full" }
+if ($profile -notin @("Admission", "AuthSelect", "Full")) {
+    throw "Unexpected IMAP benchmark profile: $profile"
+}
 if ($report.implementation -eq "cpp") {
     if ($null -eq $report.isolationPreflight) {
         throw "C++ concurrent IMAP reports must include the legacy registry/config isolation preflight."
@@ -133,6 +138,15 @@ if ($null -eq $report.probeConfiguration -or
     [int]$report.probeConfiguration.concurrentSessionsPerWave -ne $ExpectedConcurrency -or
     [int]$report.probeConfiguration.waves -ne $ExpectedWaves) {
     throw "Concurrent IMAP report is missing the IMAP query/session fan-out attestation."
+}
+$expectedCommands = switch ($profile) {
+    "Admission" { "greeting; LOGOUT" }
+    "AuthSelect" { "greeting; LOGIN; SELECT INBOX; LOGOUT" }
+    default { "greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT" }
+}
+if (($profilePropertyPresent -and $report.probeConfiguration.profile -ne $profile) -or
+    $report.probeConfiguration.perSessionCommands -ne $expectedCommands) {
+    throw "Concurrent IMAP report profile command attestation is invalid."
 }
 if ($report.dataRoot -notmatch '^C:\\hmail-perf-' -or $report.dataRoot -match '(?i)hmailserver57|production') {
     throw "The report Data root is not an isolated benchmark root: $($report.dataRoot)"
