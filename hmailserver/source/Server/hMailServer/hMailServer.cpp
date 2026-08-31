@@ -27,6 +27,54 @@
 
 using namespace HM;
 
+namespace
+{
+   bool HasCommandParameter(const std::vector<String> &parameters, const String &expected)
+   {
+      for (std::vector<String>::const_iterator parameter = parameters.begin(); parameter != parameters.end(); ++parameter)
+      {
+         if (parameter->CompareNoCase(expected) == 0)
+            return true;
+      }
+
+      return false;
+   }
+
+   bool IsServiceNameCharacter(TCHAR value)
+   {
+      return (value >= 'a' && value <= 'z') ||
+         (value >= 'A' && value <= 'Z') ||
+         (value >= '0' && value <= '9') ||
+         value == '-' || value == '_' || value == '.';
+   }
+
+   String GetServiceNameFromCommandLine(const std::vector<String> &parameters)
+   {
+      const String prefix = _T("/ServiceName=");
+      for (std::vector<String>::const_iterator parameter = parameters.begin(); parameter != parameters.end(); ++parameter)
+      {
+         if (parameter->size() <= prefix.size() || parameter->compare(0, prefix.size(), prefix) != 0)
+            continue;
+
+         String value = parameter->substr(prefix.size());
+         bool valid = true;
+         for (String::const_iterator character = value.begin(); character != value.end(); ++character)
+         {
+            if (!IsServiceNameCharacter(*character))
+            {
+               valid = false;
+               break;
+            }
+         }
+
+         if (valid && value.size() < 256)
+            return value;
+      }
+
+      return String(_T("hMailServer"));
+   }
+}
+
 // Declarations of some extremely global 
 // functions and variables.
 void InitializeApplication();
@@ -42,6 +90,8 @@ SERVICE_STATUS_HANDLE   ServiceStatusHandle;
 DWORD WINAPI StartServiceInitialization(LPVOID vd);
 
 bool DEBUG_MODE = false;
+bool DISPOSABLE_BENCHMARK_MODE = false;
+String SERVICE_NAME = _T("hMailServer");
 
 #ifdef _DEBUG
 #define DEBUG_NEW new(_NORMAL_BLOCK, __FILE__, __LINE__)
@@ -189,12 +239,17 @@ extern "C" int WINAPI _tWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstan
    if (!vecParams.empty())
       sLastParam = vecParams[vecParams.size() - 1];
 
+   DISPOSABLE_BENCHMARK_MODE = HasCommandParameter(vecParams, _T("/DisposableBenchmark"));
+   SERVICE_NAME = GetServiceNameFromCommandLine(vecParams);
+
    _AtlModule.InitializeCom();
 
    // Register app id so that client can create instances
    // of us even when running as a service under the local
-   // system account.
-   _AtlModule.RegisterAppID();
+   // system account. Disposable protocol benchmarks opt out
+   // explicitly because they do not register the installed COM graph.
+   if (!DISPOSABLE_BENCHMARK_MODE)
+      _AtlModule.RegisterAppID();
 
    // Run registration / unregistration of the server and service.
    bool bRegisterService = sLastParam.CompareNoCase(_T("/Register")) == 0;
@@ -314,7 +369,7 @@ DWORD WINAPI StartServiceInitialization(LPVOID vd)
 
    SERVICE_TABLE_ENTRY   DispatchTable[] = 
    { 
-      { _T("hMailServer"), ServiceMain }, 
+      { const_cast<LPTSTR>(SERVICE_NAME.c_str()), ServiceMain },
       { NULL,          NULL        } 
    }; 
 
@@ -343,7 +398,7 @@ ServiceMain(DWORD /*dwArgc*/, LPTSTR* /*lpszArgv*/)
    // MSDN: 
    // The ServiceMain function of a new service should immediately call the RegisterServiceCtrlHandler 
    // function to register a control handler function with the control dispatcher.
-   ServiceStatusHandle = RegisterServiceCtrlHandler(_T("hMailServer"), ServiceController); 
+   ServiceStatusHandle = RegisterServiceCtrlHandler(SERVICE_NAME.c_str(), ServiceController);
 
    // Then it immediately calls the SetServiceStatus function to notify the 
    // service control manager that its status is SERVICE_START_PENDING. 

@@ -83,7 +83,8 @@ function Get-CppIsolationPreflight {
     param(
         [string]$TargetExecutable,
         [string]$ExpectedStagingRoot,
-        [string]$ExpectedDatabase
+        [string]$ExpectedDatabase,
+        [switch]$DisposableRegistrationGuarded
     )
 
     $failures = [System.Collections.Generic.List[string]]::new()
@@ -92,7 +93,7 @@ function Get-CppIsolationPreflight {
     $normalizedTargetBin = $targetBin.TrimEnd('\')
     foreach ($location in $registryLocations) {
         $configuredBin = [IO.Path]::GetFullPath((Join-Path $location.installLocation "Bin")).TrimEnd('\')
-        if (-not [string]::Equals($configuredBin, $normalizedTargetBin, [StringComparison]::OrdinalIgnoreCase)) {
+        if (-not [string]::Equals($configuredBin, $normalizedTargetBin, [StringComparison]::OrdinalIgnoreCase) -and -not $DisposableRegistrationGuarded) {
             $failures.Add("Legacy C++ launch refused: $($location.view) HKLM hMailServer InstallLocation resolves to '$configuredBin', not the disposable target '$normalizedTargetBin'.")
         }
     }
@@ -122,6 +123,7 @@ function Get-CppIsolationPreflight {
         targetExecutable = [IO.Path]::GetFullPath($TargetExecutable)
         targetBin = $targetBin
         registryInstallLocations = $registryLocations
+        registryInstallLocationMismatchAccepted = [bool]$DisposableRegistrationGuarded
         serviceState = $serviceState
         iniPath = $iniPath
         failures = $failures.ToArray()
