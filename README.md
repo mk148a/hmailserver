@@ -98,6 +98,14 @@ conflict on whether the legacy Application AppID/service is present. A fresh,
 single-invocation inventory and separately registered disposable caller probe
 are required. See the [SEC-18 evidence audit](artifacts/sec18-staging/SEC18-EVIDENCE-AUDIT-20260831.md).
 
+## Restore dry-run audit (2026-08-31)
+
+The read-only restore planner, containment, execution-gate, metadata, and
+integrity tests passed `121/121` using the built Net10 test assembly. Populated
+SQL/Data round-trip acceptance is **ENVIRONMENT-BLOCKED** because the required
+isolated SQL connection and explicit isolated-create opt-in were not configured;
+no database or Data directory was touched. See the [restore dry-run audit](artifacts/migration/restore-dry-run-audit-20260831.md).
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

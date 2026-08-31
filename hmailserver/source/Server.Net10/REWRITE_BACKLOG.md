@@ -83,6 +83,14 @@ presence, so neither can be treated as a fresh cutover baseline. The gate is
 and genuine non-pool caller records exist. See
 `artifacts/sec18-staging/SEC18-EVIDENCE-AUDIT-20260831.md`.
 
+Restore dry-run validation was rerun on 2026-08-31 with the built test
+assembly: planner, containment, execution-gate, metadata, and integrity tests
+passed `121/121`. Populated SQL/Data restore and backup round-trip remain
+**ENVIRONMENT-BLOCKED** because the approved isolated SQL connection and
+`HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE=1` were absent;
+no database or Data directory was touched. See
+`artifacts/migration/restore-dry-run-audit-20260831.md`.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator

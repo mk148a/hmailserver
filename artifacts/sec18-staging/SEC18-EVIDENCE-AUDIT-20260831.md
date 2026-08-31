@@ -42,6 +42,10 @@ caller-token evidence and both leave the gate `Incomplete`. This conflict makes
 the pair unsuitable for a registration or cutover decision until a fresh,
 single-invocation inventory is captured and independently correlated.
 
+The current host may still contain residual AppID registry values without a
+complete legacy service/CLSID/COM graph. Such remnants are not a usable rollback
+baseline and must not be described as a successful legacy registration.
+
 ## Why Self-Tests Are Not Live Proof
 
 - `get-sec18-worker-token-evidence.ps1:62-63,117-118` reads the primary token of
@@ -52,6 +56,10 @@ single-invocation inventory is captured and independently correlated.
 - `attest-sec18-denial-evidence.ps1:440-454,481-504` validates the shape,
   freshness, correlation, and failure semantics of supplied evidence fixtures;
   it cannot create independent caller-token evidence.
+- The attestation fixtures do not independently prove live caller identity:
+  authorized response fields are optional, and wrong-SID/non-pool checks rely
+  on supplied records rather than a separately measured caller token. The
+  attester is therefore a fixture validator, not live COM proof.
 - `WebAdminSessionBrokerCallerGuard.cs:72-110` provides the guarded
   impersonation/revert operation, but no registered out-of-process caller has
   exercised it in this evidence set.

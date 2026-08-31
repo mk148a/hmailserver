@@ -85,6 +85,13 @@ and service presence, so they cannot be combined as a cutover baseline. See
 slice: disposable restore dry-run/round-trip or its exact blocker; return to
 SEC-18 only with one fresh correlated inventory and a disposable caller probe.
 
+The next restore dry-run slice is now bounded: five read-only restore test
+classes passed `121/121` through bundled `dotnet vstest`. Populated SQL/Data
+round-trip is environment-blocked because no isolated connection or explicit
+create opt-in is configured; no database or Data path was touched. See
+`artifacts/migration/restore-dry-run-audit-20260831.md`. Continue with the
+round trip only after a disposable SQL/Data target is independently proven.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and
