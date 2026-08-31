@@ -7,6 +7,7 @@ namespace HMailServer.Service;
 public sealed class MessageSearchBackfillHostedService : BackgroundService
 {
     private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MaxRetryDelay = TimeSpan.FromSeconds(30);
 
     private readonly MessageSearchBackfillOptions _options;
     private readonly MessageSearchBackfillProcessor _processor;
@@ -31,6 +32,7 @@ public sealed class MessageSearchBackfillHostedService : BackgroundService
             .WaitForBootstrapAsync(stoppingToken)
             .ConfigureAwait(false);
 
+        var retryDelay = IdleDelay;
         while (!stoppingToken.IsCancellationRequested)
         {
             int processed;
@@ -47,11 +49,13 @@ public sealed class MessageSearchBackfillHostedService : BackgroundService
                 _logger.LogWarning(
                     exception,
                     "Message search backfill batch failed; retrying after {RetryDelay}.",
-                    IdleDelay);
-                await Task.Delay(IdleDelay, stoppingToken).ConfigureAwait(false);
+                    retryDelay);
+                await Task.Delay(retryDelay, stoppingToken).ConfigureAwait(false);
+                retryDelay = NextRetryDelay(retryDelay);
                 continue;
             }
 
+            retryDelay = IdleDelay;
             if (processed == 0)
             {
                 await Task.Delay(IdleDelay, stoppingToken).ConfigureAwait(false);
@@ -61,5 +65,15 @@ public sealed class MessageSearchBackfillHostedService : BackgroundService
                 _logger.LogDebug("Indexed {MessageCount} queued messages for SQL Server Full-Text Search.", processed);
             }
         }
+    }
+
+    private static TimeSpan NextRetryDelay(TimeSpan retryDelay)
+    {
+        if (retryDelay >= MaxRetryDelay)
+        {
+            return MaxRetryDelay;
+        }
+
+        return TimeSpan.FromTicks(Math.Min(MaxRetryDelay.Ticks, retryDelay.Ticks * 2));
     }
 }

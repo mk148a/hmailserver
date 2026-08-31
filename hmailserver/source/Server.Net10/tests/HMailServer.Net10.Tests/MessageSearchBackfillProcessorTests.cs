@@ -3,7 +3,7 @@ using HMailServer.Core.Abstractions;
 using HMailServer.Indexing;
 using HMailServer.Service;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace HMailServer.Net10.Tests;
 
@@ -89,7 +89,7 @@ public sealed class MessageSearchBackfillProcessorTests
     }
 
     [TestMethod]
-    public async Task HostedService_RetriesTransientBatchFailureWithoutStoppingHost()
+    public async Task HostedService_UsesExponentialRetryDelayForTransientBatchFailures()
     {
         var administrationStore = new ThrowingAdministrationStore();
         var processor = new MessageSearchBackfillProcessor(
@@ -99,21 +99,83 @@ public sealed class MessageSearchBackfillProcessorTests
             administrationStore);
         var readiness = new ServerReadinessSignal();
         readiness.SetBootstrapComplete();
+        var logger = new CapturingLogger<MessageSearchBackfillHostedService>();
         var service = new MessageSearchBackfillHostedService(
             MessageSearchBackfillOptions.Default("worker-1"),
             processor,
-            NullLogger<MessageSearchBackfillHostedService>.Instance,
+            logger,
             readiness);
         using var cancellation = new CancellationTokenSource();
 
         await service.StartAsync(cancellation.Token);
         await administrationStore.FirstCall.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await administrationStore.SecondCall.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await administrationStore.ResetRetryCall.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await logger.ThreeRetryDelaysLogged.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
+        CollectionAssert.AreEqual(
+            new[] { TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(2) },
+            logger.RetryDelays.ToArray());
         Assert.IsFalse(service.ExecuteTask?.IsFaulted ?? true);
 
         cancellation.Cancel();
         await service.StopAsync(CancellationToken.None);
+    }
+
+    private sealed class CapturingLogger<T> : ILogger<T>
+    {
+        private readonly object _sync = new();
+        private readonly List<TimeSpan> _retryDelays = [];
+
+        public TaskCompletionSource<bool> ThreeRetryDelaysLogged { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public IReadOnlyList<TimeSpan> RetryDelays
+        {
+            get
+            {
+                lock (_sync)
+                {
+                    return [.. _retryDelays];
+                }
+            }
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(
+            LogLevel logLevel,
+            EventId eventId,
+            TState state,
+            Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            if (state is not IEnumerable<KeyValuePair<string, object?>> values)
+            {
+                return;
+            }
+
+            foreach (var pair in values)
+            {
+                if (pair.Key != "RetryDelay" || pair.Value is not TimeSpan retryDelay)
+                {
+                    continue;
+                }
+
+                lock (_sync)
+                {
+                    _retryDelays.Add(retryDelay);
+                    if (_retryDelays.Count == 3)
+                    {
+                        ThreeRetryDelaysLogged.TrySetResult(true);
+                    }
+                }
+
+                return;
+            }
+        }
     }
 
     private static MessageSearchDocument CreateDocument()
@@ -219,6 +281,9 @@ public sealed class MessageSearchBackfillProcessorTests
         public TaskCompletionSource<bool> SecondCall { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
+        public TaskCompletionSource<bool> ResetRetryCall { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public ValueTask<bool> IsEnabledAsync(CancellationToken cancellationToken)
         {
             var call = Interlocked.Increment(ref _calls);
@@ -229,6 +294,14 @@ public sealed class MessageSearchBackfillProcessorTests
             else if (call == 2)
             {
                 SecondCall.TrySetResult(true);
+            }
+            else if (call == 3)
+            {
+                return ValueTask.FromResult(true);
+            }
+            else if (call == 4)
+            {
+                ResetRetryCall.TrySetResult(true);
             }
 
             throw new TimeoutException("Synthetic SQL connection-pool timeout.");
