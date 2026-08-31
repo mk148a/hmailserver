@@ -62,6 +62,29 @@ function Get-ListeningPids {
         ForEach-Object { [int]$_.OwningProcess })
 }
 
+function Get-TcpIpPortPreflight {
+    param([string]$Database)
+
+    $query = "SET NOCOUNT ON; SELECT CONCAT(portprotocol, '|', portnumber, '|', portaddress1, '|', COALESCE(CONVERT(varchar(32), portaddress2), 'NULL')) FROM hm_tcpipports ORDER BY portprotocol, portnumber, portaddress1;"
+    $observed = @(& sqlcmd.exe -S localhost -E -b -d $Database -h-1 -W -s '|' -Q $query 2>&1 |
+        ForEach-Object { ([string]$_).Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    if ($LASTEXITCODE -ne 0) {
+        throw "Could not read hm_tcpipports from disposable database '$Database'."
+    }
+    $expected = @('1|2525|2130706433|NULL', '3|25110|2130706433|NULL', '5|1143|2130706433|NULL')
+    $observedSorted = @($observed | Sort-Object)
+    $expectedSorted = @($expected | Sort-Object)
+    [pscustomobject]@{
+        status = if (($observedSorted -join "`n") -ceq ($expectedSorted -join "`n")) { 'PASS' } else { 'FAIL' }
+        expected = $expectedSorted
+        observed = $observedSorted
+        database = $Database
+        bind = '127.0.0.1'
+        ports = [ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 }
+    }
+}
+
 function Wait-ForServiceReadiness {
     param([string]$Name, [int]$ExpectedProcessId)
 
@@ -118,6 +141,10 @@ if ($null -ne (Get-ServiceRecord $ServiceName)) {
 }
 $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database -DisposableRegistrationGuarded
 if (-not $preflight.passed) { throw (($preflight.failures) -join [Environment]::NewLine) }
+$portPreflight = Get-TcpIpPortPreflight $database
+if ($portPreflight.status -ne 'PASS') {
+    throw "Disposable hm_tcpipports rows do not exactly match loopback SMTP/IMAP/POP3: $($portPreflight.observed -join ', ')"
+}
 
 $principal = "NT AUTHORITY\LOCAL SERVICE"
 $principalSql = $principal.Replace("'", "''")
@@ -246,6 +273,7 @@ $report = [pscustomobject]@{
     childReport = $childReport
     childExitCode = $childExitCode
     preflight = $preflight
+    tcpipPortPreflight = $portPreflight
     readinessFailures = @($readinessFailures)
     cleanupFailures = @($cleanupFailures)
     sqlPrincipalCreatedAndRemoved = $sqlPrincipalCreated -and [int](Get-SqlScalar "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.server_principals WHERE name = N'$principalSql';") -eq 0
