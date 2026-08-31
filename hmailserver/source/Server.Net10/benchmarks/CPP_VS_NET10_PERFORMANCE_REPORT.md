@@ -1,5 +1,17 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Current paired SMTP local-delivery readback (2026-09-01)
+
+Code/test commit `6361a8074` added opt-in readback to the service-backed SMTP
+runner. On manifest
+`A83052CA61D7F3853E97522D3F72DDA595DB61811511435D3030E4E230E8B07E`, C++ and
+Net10 each accepted 25/25 messages and proved 25 `hm_messages` rows, 25 Data
+files, zero recipient rows, and correct Inbox/type-2 placement. C++ timing was
+`6.845/10.835/46.054 ms` p50/p95/p99 at `18.706` messages/s; Net10 was
+`5.336/29.166/67.014 ms` at `18.099`. This bounded cell is descriptive only;
+the release gate remains **RED**. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`.
+
 ## Current paired 100k IMAP acceptance (2026-09-01)
 
 Code/test commit `434dac735` completed a valid service-backed C++ versus Net10

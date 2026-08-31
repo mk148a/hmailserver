@@ -1,6 +1,31 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-01, paired 100k IMAP acceptance)
+## Current authoritative continuation (2026-09-01, paired SMTP local-delivery readback)
+
+Code/test commit `6361a8074` adds opt-in exact local-delivery readback to the
+paired SMTP acceptance runner. On manifest
+`A83052CA61D7F3853E97522D3F72DDA595DB61811511435D3030E4E230E8B07E`, the real
+disposable C++ service and Net10 service each accepted 25/25 messages and
+verified one `hm_messages` row plus one Data file per unique marker. All rows
+were `messagetype=2`, Inbox/account 1, `test@perf.test`, with zero recipient
+rows; both runs cleaned their marker rows/files and their disposable service or
+SQL principal afterwards. C++ p50/p95/p99 were `6.845/10.835/46.054 ms` at
+`18.706` messages/s; Net10 was `5.336/29.166/67.014 ms` at `18.099`.
+
+Legacy anchors inspected were `SMTPConnection.cpp::HandleSMTPFinalizationTaskCompleted_`,
+`SMTPDeliveryManager.cpp::GetNextMessage_`, `SMTPDeliverer.cpp::DeliverMessage`,
+and `ExternalDelivery.cpp::RescheduleDelivery_`. Net10 anchors were
+`SmtpSession.HandleDataAsync`, `SqlServerSmtpQueueWriter.EnqueueAsync`,
+`DeliveryQueueProcessor.ProcessOneAsync`, and
+`SqlServerDeliveryQueueLeaseStore.CompleteAsync`. This closes only the bounded
+local-delivery readback cell. Retry/defer, larger delivery/queue waves, C++
+500/1000-session capacity, backup/restore, installer/COM, SEC-18, and soak
+remain open; performance is **RED** and no general winner is claimed.
+
+The compact report is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`.
+
+## Historical continuation (2026-09-01, paired 100k IMAP acceptance)
 
 Code/test commit `434dac735` adds manifest-bound corpus sizing to the paired
 fixture and concurrent IMAP acceptance runner. The first valid paired

@@ -1,5 +1,16 @@
 # .NET 10 Benchmark Pack
 
+## Current paired SMTP local-delivery readback (2026-09-01)
+
+The service-backed C++ and Net10 SMTP runners each accepted 25/25 messages on
+the same disposable manifest-bound fixture and proved exact local-delivery
+readback: 25 type-2 Inbox rows, 25 Data files, and zero recipient rows per
+implementation. C++ p50/p95/p99 were `6.845/10.835/46.054 ms` at `18.706`
+messages/s; Net10 was `5.336/29.166/67.014 ms` at `18.099`. This is bounded
+evidence, not a general winner claim. The release gate is **RED**. Compact
+CSV/Markdown/SVG evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`.
+
 ## Current paired acceptance (2026-09-01)
 
 The first valid paired 100,000-message IMAP SEARCH/SORT acceptance used the

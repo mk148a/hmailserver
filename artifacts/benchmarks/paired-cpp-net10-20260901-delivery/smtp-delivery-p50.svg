@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="300" viewBox="0 0 720 300" role="img" aria-labelledby="title desc">
+  <title id="title">Paired SMTP local-delivery p50 latency</title>
+  <desc id="desc">Legacy C++ service 6.845 milliseconds and .NET 10 5.336 milliseconds.</desc>
+  <rect width="720" height="300" fill="#ffffff"/>
+  <text x="36" y="34" font-family="Arial, sans-serif" font-size="20" fill="#202124">SMTP local-delivery p50 (ms)</text>
+  <line x1="120" y1="245" x2="680" y2="245" stroke="#6b7280"/>
+  <line x1="120" y1="55" x2="120" y2="245" stroke="#6b7280"/>
+  <rect x="190" y="86" width="140" height="159" fill="#2563eb"/>
+  <rect x="450" y="121" width="140" height="124" fill="#0f766e"/>
+  <text x="213" y="270" font-family="Arial, sans-serif" font-size="16" fill="#202124">C++</text>
+  <text x="480" y="270" font-family="Arial, sans-serif" font-size="16" fill="#202124">.NET 10</text>
+  <text x="226" y="78" font-family="Arial, sans-serif" font-size="16" fill="#202124">6.845</text>
+  <text x="486" y="113" font-family="Arial, sans-serif" font-size="16" fill="#202124">5.336</text>
+  <text x="122" y="260" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">0</text>
+  <text x="650" y="260" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">8 ms</text>
+</svg>

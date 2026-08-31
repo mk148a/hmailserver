@@ -1,5 +1,32 @@
 
-## Current authoritative next slice (2026-09-01, larger SMTP/delivery acceptance)
+## Current authoritative next slice (2026-09-01, controlled transient retry)
+
+The bounded SMTP local-delivery slice is complete in code/test commit
+`6361a8074`. A fresh manifest-bound disposable fixture was exercised through
+the real C++ SCM service and Net10 service: 25/25 SMTP messages were accepted
+and each side proved exact SQL/Data local-delivery readback (`messagetype=2`,
+Inbox/account 1, `test@perf.test`, zero recipient rows, one unique Data file
+per marker). Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`; this is a
+correctness/timing cell only and performance remains **RED**.
+
+Legacy persistence/queue anchors are
+`Server/SMTP/SMTPConnection.cpp::HandleSMTPFinalizationTaskCompleted_`,
+`Server/SMTP/SMTPDeliveryManager.cpp::GetNextMessage_`,
+`Server/SMTP/SMTPDeliverer.cpp::DeliverMessage`, and
+`Server/SMTP/ExternalDelivery.cpp::RescheduleDelivery_`. Net10 anchors are
+`SmtpSession.HandleDataAsync`, `SqlServerSmtpQueueWriter.EnqueueAsync`,
+`DeliveryQueueProcessor.ProcessOneAsync`, and
+`SqlServerDeliveryQueueLeaseStore.CompleteAsync`.
+
+Next smallest independent slice: paired transient `451` retry/defer state
+classification against a controlled loopback sink, with no SMTP trust or
+production delivery changes. After that, run larger paired SMTP and
+delivery/queue waves with per-message SQL/Data readback. The C++ 500/1000
+capacity failures, backup/restore and installer rollback, registered COM,
+SEC-18, AD/master-user, DKIM/DMARC/SPF, and 24-hour soak gates remain open.
+
+## Historical next slice (2026-09-01, larger SMTP/delivery acceptance)
 
 Code/test commit `434dac735` completes manifest-bound 100,000-message paired
 IMAP SEARCH/SORT acceptance support. The disposable C++ orchestrator still

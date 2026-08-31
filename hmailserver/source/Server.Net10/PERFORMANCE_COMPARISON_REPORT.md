@@ -1,5 +1,17 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current paired SMTP local-delivery readback (2026-09-01)
+
+The real disposable C++ service and Net10 service each accepted 25/25 SMTP
+messages on the same isolated SQL/Data manifest and proved 25 type-2 Inbox
+rows, 25 Data files, and zero recipient rows. C++ p50/p95/p99 were
+`6.845/10.835/46.054 ms` at `18.706` messages/s; Net10 was
+`5.336/29.166/67.014 ms` at `18.099`. This is a bounded correctness/timing
+cell only. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`; the release gate
+remains **RED** pending retry/defer, larger delivery/queue, capacity, restore,
+installer/COM, and soak acceptance.
+
 ## Current paired 100k acceptance (2026-09-01)
 
 Code/test commit `434dac735` completed the first valid service-backed paired

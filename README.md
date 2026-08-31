@@ -1,7 +1,41 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, paired 100k IMAP acceptance)
+## Current authoritative status (2026-09-01, paired SMTP local-delivery readback)
+
+Code/test commit `6361a8074` adds opt-in, manifest-bound local-delivery
+readback to the paired SMTP acceptance runner. On one fresh disposable
+SQL/Data fixture, the real C++ service and Net10 service each accepted 25/25
+messages and produced exactly one `hm_messages` row plus one Data file per
+marker, with `messagetype=2`, Inbox placement, account `test@perf.test`, and
+zero recipient rows. The compact comparison and chart are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`.
+
+| Implementation | p50 ms | p95 ms | p99 ms | Throughput/s | Wire/readback |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Legacy C++ service | 6.845 | 10.835 | 46.054 | 18.706 | 25/25 PASS |
+| .NET 10 | 5.336 | 29.166 | 67.014 | 18.099 | 25/25 PASS |
+
+This is a 25-message correctness and timing cell, not a general performance
+winner claim. The performance release gate remains **RED** because transient
+retry/defer, larger SMTP/delivery/queue waves, C++ 500/1000-session capacity,
+backup/restore timing, installer/COM lifecycle, and 24-hour leak acceptance
+remain open. Exact legacy anchors are
+`Server/SMTP/SMTPConnection.cpp::HandleSMTPFinalizationTaskCompleted_`,
+`Server/SMTP/SMTPDeliveryManager.cpp::GetNextMessage_`,
+`Server/SMTP/SMTPDeliverer.cpp::DeliverMessage`, and
+`Server/SMTP/ExternalDelivery.cpp::RescheduleDelivery_`; the Net10 path is
+`SmtpSession.HandleDataAsync`, `SqlServerSmtpQueueWriter.EnqueueAsync`,
+`DeliveryQueueProcessor.ProcessOneAsync`, and
+`SqlServerDeliveryQueueLeaseStore.CompleteAsync`.
+
+The paired fixture manifest SHA-256 is
+`A83052CA61D7F3853E97522D3F72DDA595DB61811511435D3030E4E230E8B07E`.
+Both runs used only disposable databases, copied Data roots, loopback ports,
+and a disposable legacy SCM service. No production service, database, Data
+directory, COM registration, or DCOM ACL was changed.
+
+![Paired SMTP local-delivery p50](artifacts/benchmarks/paired-cpp-net10-20260901-delivery/smtp-delivery-p50.svg)
 
 Code/test commit `434dac735` adds manifest-bound corpus sizing to the
 benchmark-only paired fixture and concurrent IMAP runner. The disposable
