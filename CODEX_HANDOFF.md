@@ -23,6 +23,13 @@ Next slice: add explicit SQL/indexing-state evidence to these query profiles,
 then reassess a minimal Net10 capacity fix without weakening live ACL
 revalidation or failure accounting.
 
+The read-only query-state collector in `5676f6a82` found C++ with no indexing
+tables and Net10 with Full-Text objects but indexing disabled, `0/1000` search
+documents, and queue `0`. The query-profile capacity results are therefore not
+valid steady-state evidence yet. Prepare only the disposable Net10 index,
+capture the state again, and rerun the query profiles before considering a
+production change.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and

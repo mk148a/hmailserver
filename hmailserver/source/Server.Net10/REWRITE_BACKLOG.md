@@ -17,6 +17,12 @@ resource contention is dominant. The C++ target remains a standalone `/Debug`
 process, not a registered service, so installed-service/native acceptance is
 still environment-blocked. Performance remains **RED**.
 
+The read-only collector in code/test commit `5676f6a82` recorded C++ with no
+Net10 indexing tables and Net10 with Full-Text objects present but indexing
+disabled, `0/1000` search documents, and queue `0`. This makes the current
+Net10 SEARCH/FULL results invalid for a capacity conclusion until a disposable
+Net10 index is prepared and the query profiles are rerun.
+
 Next slice: add a benchmark-only SQL fan-out diagnostic that separates
 steady-state indexed SEARCH/SORT from missing-index/backfill conditions at
 100/500/1000 sessions, retaining live ACL revalidation and complete failure

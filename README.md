@@ -30,6 +30,14 @@ No production source, COM registration, service, database, or Data directory
 was changed. Next slice: isolate SQL fan-out and backfill/indexing state before
 any performance implementation change.
 
+The read-only SQL state collector in `5676f6a82` found that the paired C++
+database has no Net10 indexing tables, while the Net10 database has Full-Text
+objects but `0/1000` search documents, indexing disabled, and an empty queue.
+Therefore the current Search/Full failures cannot be treated as pure capacity
+evidence until a disposable Net10 index is prepared and the profiles are
+rerun. The state report is
+[imap-query-state.md](artifacts/benchmarks/paired-cpp-net10-20260831-query-diagnostic/query-state/imap-query-state.md).
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic
