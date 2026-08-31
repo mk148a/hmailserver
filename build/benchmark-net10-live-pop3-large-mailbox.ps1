@@ -1,4 +1,6 @@
 param(
+    [ValidateSet("net10", "cpp")]
+    [string]$Implementation = "net10",
     [ValidateRange(1, 25)]
     [int]$Iterations = 5,
     [ValidateRange(1, 3000)]
@@ -8,16 +10,33 @@ param(
     [string]$OutputDirectory = "",
     [string]$BenchmarkStagingRoot = "C:\hmail-perf-pair-20260811_1748\net10",
     [string]$BenchmarkDatabase = "hmail_perf_pair_net10_20260811_1748",
-    [string]$BenchmarkServiceExecutable = ""
+    [string]$BenchmarkServiceExecutable = "",
+    [string]$FixtureManifest = "",
+    [string]$RunId = ""
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Get-Item $PSScriptRoot).Parent.FullName
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
+$provenanceScript = Join-Path $PSScriptRoot "live-benchmark-provenance.ps1"
+if (Test-Path -LiteralPath $provenanceScript -PathType Leaf) { . $provenanceScript }
 $serviceExe = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260810_152708\LiveListenerHost\bin\Release\net10.0-windows\LiveListenerHost.exe"
+$argumentList = "90"
+if ($Implementation -eq "cpp") {
+    $serviceExe = "C:\hmail-perf-cpp-ascii-20260810\Bin\hMailServer.exe"
+    $BenchmarkStagingRoot = "C:\hmail-perf-cpp-ascii-20260810"
+    $BenchmarkDatabase = "hmail_perf_cpp_sql_20260810_152708"
+    $argumentList = "/Debug"
+}
 if (-not [string]::IsNullOrWhiteSpace($BenchmarkServiceExecutable)) {
-    Assert-ApprovedBenchmarkExecutable -Path $BenchmarkServiceExecutable -Implementation net10 -RepositoryRoot $repoRoot
+    Assert-ApprovedBenchmarkExecutable -Path $BenchmarkServiceExecutable -Implementation $Implementation -RepositoryRoot $repoRoot
     $serviceExe = [IO.Path]::GetFullPath($BenchmarkServiceExecutable)
+}
+if (-not [string]::IsNullOrWhiteSpace($FixtureManifest)) {
+    $fixture = Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot
+    $BenchmarkDatabase = $fixture.database
+    $BenchmarkStagingRoot = Split-Path -Parent $fixture.dataRoot
+    if ($null -ne $fixture.executable) { $serviceExe = [IO.Path]::GetFullPath($fixture.executable) }
 }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\live-cpp-net10-20260811\net10-pop3-large-mailbox"
@@ -192,7 +211,7 @@ $samples = [System.Collections.Generic.List[object]]::new()
 $readinessFailures = [System.Collections.Generic.List[string]]::new()
 $shutdownFailures = [System.Collections.Generic.List[string]]::new()
 try {
-    $process = Start-Process -FilePath $serviceExe -ArgumentList "90" -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+    $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($ReadinessTimeoutSeconds)
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
         if (-not (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) { $readinessFailures.Add("Live listener host exited before POP3 readiness."); break }
@@ -227,8 +246,10 @@ $endUtc = [DateTimeOffset]::UtcNow
 $successful = @($samples | Where-Object ok)
 $mailboxRows = Get-MailboxRowCount
 $report = [pscustomobject]@{
-    schema = "live-pop3-large-mailbox-v1"
-    implementation = "net10"
+    schema = "live-pop3-large-mailbox-v2"
+    implementation = $Implementation
+    runId = $RunId
+    fixtureManifest = if ([string]::IsNullOrWhiteSpace($FixtureManifest)) { $null } else { [IO.Path]::GetFullPath($FixtureManifest) }
     status = if ($readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $successful.Count -eq $Iterations -and $mailboxRows -eq $ExpectedMessages) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
     endedUtc = $endUtc.ToString("o")
@@ -260,7 +281,7 @@ $markdownPath = Join-Path $OutputDirectory "net10-live-pop3-large-mailbox.md"
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
 $samples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 @(
-    "# .NET 10 live POP3 large-mailbox acceptance",
+    "# $Implementation live POP3 large-mailbox acceptance",
     "",
     "Status: $($report.status)",
     "Mailbox: $($report.mailboxRowsAfterRun)/$($report.expectedMessages) rows",
