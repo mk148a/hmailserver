@@ -7,8 +7,10 @@ import hashlib
 import json
 import math
 import os
+import re
 import stat
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +78,153 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest().upper()
+
+
+def fixture_id(fixture: dict[str, Any], manifest_path: Path) -> str:
+    value = str(fixture.get("fixtureId") or manifest_path.parent.name)
+    require(
+        re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", value) is not None,
+        "Fixture ID is missing or invalid.",
+    )
+    return value
+
+
+def normalized_path(value: Any) -> str:
+    try:
+        path_value = os.fspath(value)
+    except TypeError as error:
+        raise ValueError("Required path is missing.") from error
+    require(isinstance(path_value, str) and path_value.strip() != "", "Required path is missing.")
+    return os.path.normcase(os.path.abspath(path_value))
+
+
+def validate_fixture_executables(
+    fixture: dict[str, Any], net10_executable_argument: Path
+) -> tuple[Path, Path]:
+    cpp_executable = Path(fixture["cppExecutable"]).resolve()
+    net10_executable = net10_executable_argument.resolve()
+    require(cpp_executable.is_file(), "Fixture C++ executable is missing.")
+    require(net10_executable.is_file(), "Net10 Release executable is missing.")
+    require(
+        normalized_path(net10_executable) == normalized_path(fixture["net10Executable"]),
+        "Net10 executable path does not match the fixture manifest.",
+    )
+    require(
+        sha256(cpp_executable) == str(fixture["cppExecutableSha256"]).upper(),
+        "Fixture C++ executable changed after provisioning.",
+    )
+    require(
+        sha256(net10_executable) == str(fixture["net10ExecutableSha256"]).upper(),
+        "Fixture Net10 executable changed after provisioning.",
+    )
+    return cpp_executable, net10_executable
+
+
+def validate_bound_report(
+    report: dict[str, Any],
+    implementation: str,
+    fixture: dict[str, Any],
+    manifest_path: Path,
+    manifest_sha256: str,
+) -> str:
+    expected_fixture_id = fixture_id(fixture, manifest_path)
+    expected_database = str(fixture[f"{implementation}Database"])
+    expected_database_version = int(fixture[f"{implementation}DatabaseVersion"])
+    expected_data_root = normalized_path(fixture[f"{implementation}DataRoot"])
+    expected_executable = normalized_path(fixture[f"{implementation}Executable"])
+    expected_executable_sha256 = str(fixture[f"{implementation}ExecutableSha256"]).upper()
+
+    require(
+        report.get("provenanceStatus") == "MANIFEST_BOUND",
+        f"{implementation} report is not MANIFEST_BOUND.",
+    )
+    require(
+        report.get("implementation") == implementation,
+        f"{implementation} report implementation does not match its input slot.",
+    )
+    try:
+        run_id = str(uuid.UUID(str(report.get("runId"))))
+    except (ValueError, AttributeError) as error:
+        raise ValueError(f"{implementation} report runId is missing or invalid.") from error
+    require(run_id != str(uuid.UUID(int=0)), f"{implementation} report runId is empty.")
+    require(
+        report.get("fixtureId") == expected_fixture_id,
+        f"{implementation} report fixture ID does not match the fixture manifest.",
+    )
+    require(
+        str(report.get("manifestSha256", "")).upper() == manifest_sha256,
+        f"{implementation} report manifest SHA-256 does not match the fixture manifest.",
+    )
+    require(
+        report.get("database") == expected_database,
+        f"{implementation} report database does not match the fixture manifest.",
+    )
+    require(
+        normalized_path(report.get("dataRoot")) == expected_data_root,
+        f"{implementation} report Data root does not match the fixture manifest.",
+    )
+
+    executable = report.get("executableProvenance")
+    require(isinstance(executable, dict), f"{implementation} executable provenance is missing.")
+    require(
+        normalized_path(executable.get("path")) == expected_executable,
+        f"{implementation} report executable path does not match the fixture manifest.",
+    )
+    require(
+        str(executable.get("sha256", "")).upper() == expected_executable_sha256
+        and str(executable.get("expectedSha256", "")).upper() == expected_executable_sha256,
+        f"{implementation} report executable SHA-256 does not match the fixture manifest.",
+    )
+    require(int(executable.get("length", 0)) > 0, f"{implementation} executable length is invalid.")
+
+    attestation = report.get("runStartAttestation")
+    require(isinstance(attestation, dict), f"{implementation} run-start attestation is missing.")
+    require(attestation.get("status") == "PASS", f"{implementation} run-start attestation did not pass.")
+    require(
+        str(attestation.get("manifestSha256", "")).upper() == manifest_sha256,
+        f"{implementation} run-start manifest SHA-256 does not match.",
+    )
+    require(
+        attestation.get("database") == expected_database
+        and int(attestation.get("databaseVersion", -1)) == expected_database_version,
+        f"{implementation} run-start database identity does not match.",
+    )
+    require(
+        int(attestation.get("messageRowCount", -1)) == int(fixture["messageParity"]["rowCount"])
+        and str(attestation.get("messageSha256", "")).upper()
+        == str(fixture["messageParity"]["sha256"]).upper(),
+        f"{implementation} run-start message fingerprint does not match.",
+    )
+    require(
+        int(attestation.get("dataFileCount", -1)) == int(fixture["dataParity"]["fileCount"])
+        and int(attestation.get("dataBytes", -1)) == int(fixture["dataParity"]["bytes"])
+        and str(attestation.get("dataSha256", "")).upper()
+        == str(fixture["dataParity"]["sha256"]).upper(),
+        f"{implementation} run-start Data fingerprint does not match.",
+    )
+    require(
+        str(attestation.get("executableSha256", "")).upper() == expected_executable_sha256,
+        f"{implementation} run-start executable SHA-256 does not match.",
+    )
+    require(
+        attestation.get("descendantReparsePoints") is False,
+        f"{implementation} run-start Data tree contains or did not check reparse points.",
+    )
+    return run_id
+
+
+def validate_report_set(
+    reports: list[tuple[str, dict[str, Any]]],
+    fixture: dict[str, Any],
+    manifest_path: Path,
+) -> str:
+    manifest_sha256 = sha256(manifest_path)
+    run_ids = {
+        validate_bound_report(report, implementation, fixture, manifest_path, manifest_sha256)
+        for implementation, report in reports
+    }
+    require(len(run_ids) == 1, "Paired performance inputs contain mixed run IDs.")
+    return next(iter(run_ids))
 
 
 def git_text(repository: Path, *args: str) -> str:
@@ -428,7 +577,9 @@ def main() -> None:
     require(int(fixture["net10DatabaseVersion"]) == 6000, "Net10 database is not version 6000.")
     require(legacy_build.get("status") == "PASS", "Legacy Release build did not pass.")
     require(legacy_build.get("postBuildRegistrationDisabled") is True, "Legacy build allowed post-build registration.")
-    require(args.net10_executable.is_file(), "Net10 Release executable is missing.")
+    cpp_executable, net10_executable = validate_fixture_executables(
+        fixture, args.net10_executable
+    )
 
     protocol = {
         implementation: load_json(input_root / f"protocol-{implementation}" / "net10-live-protocol.json")
@@ -454,6 +605,21 @@ def main() -> None:
         for implementation in ("cpp", "net10")
     }
     soak = load_json(input_root / "soak-net10-1000x20" / "live-concurrent-imap.json")
+
+    paired_run_id = validate_report_set(
+        [
+            *((implementation, report) for implementation, report in protocol.items()),
+            *(
+                (implementation, report)
+                for implementation, reports in concurrent.items()
+                for report in reports.values()
+            ),
+            *((implementation, report) for implementation, report in smtp.items()),
+            ("net10", soak),
+        ],
+        fixture,
+        args.fixture_manifest.resolve(),
+    )
 
     for implementation, report in protocol.items():
         require(report.get("schema") == "live-protocol-v1", "Unexpected protocol schema.")
@@ -487,7 +653,7 @@ def main() -> None:
     require(tested_commit == legacy_build["sourceCommit"], "Legacy build commit does not match the tested commit.")
     cpp_hash = legacy_build["executableSha256"].upper()
     require(cpp_hash == fixture["cppExecutableSha256"].upper(), "Fixture C++ executable hash mismatch.")
-    net10_hash = sha256(args.net10_executable.resolve())
+    net10_hash = sha256(net10_executable)
 
     protocol_rows: list[dict[str, Any]] = []
     for implementation, report in protocol.items():
@@ -712,6 +878,9 @@ def main() -> None:
             "branch": branch,
             "commit": tested_commit,
             "repositoryHeadAtGeneration": repository_head,
+            "runId": paired_run_id,
+            "fixtureId": fixture_id(fixture, args.fixture_manifest.resolve()),
+            "manifestSha256": sha256(args.fixture_manifest.resolve()),
             "cpp": {
                 "configuration": legacy_build["configuration"],
                 "platform": legacy_build["platform"],

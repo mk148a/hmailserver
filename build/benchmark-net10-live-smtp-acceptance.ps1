@@ -431,6 +431,7 @@ $afterImmediate = $null
 $after = $null
 $preflight = $null
 $provenance = $null
+$runStartAttestation = $null
 $workloadStartedUtc = $null
 $workloadEndedUtc = $null
 
@@ -446,6 +447,9 @@ if ($Implementation -eq "cpp") {
 }
 
 if ($null -eq $preflight -or $preflight.passed) {
+    if ($provenance.manifestBound) {
+        $runStartAttestation = Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe
+    }
     $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
 }
 try {
@@ -560,6 +564,7 @@ $report = [pscustomobject]@{
     processAfter = $after
     isolationPreflight = $preflight
     executableProvenance = $provenance.executableProvenance
+    runStartAttestation = $runStartAttestation
     fixture = [pscustomobject]@{
         identity = $fixtureIdentity
         database = $database
@@ -593,6 +598,9 @@ $csvSamples = $samples | ForEach-Object {
         database = $report.database
         dataRoot = $report.dataRoot
         executableSha256 = $report.executableProvenance.sha256
+        runStartAttestationStatus = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { "UNBOUND" }
+        runStartDataSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { $null }
+        runStartMessageSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { $null }
         scenario = $_.scenario
         sequence = $_.sequence
         ok = $_.ok
@@ -615,6 +623,9 @@ $markdown = @(
     "Fixture ID: $($report.fixtureId)",
     "Fixture manifest SHA-256: $($report.manifestSha256)",
     "Executable SHA-256: $($report.executableProvenance.sha256)",
+    "Run-start attestation: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { 'UNBOUND' })",
+    "Run-start Data SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { '' })",
+    "Run-start message SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { '' })",
     "Requested/accepted: $($report.requestedMessages) / $($report.acceptedMessages)",
     "p50/p95/p99: $($report.p50_ms) / $($report.p95_ms) / $($report.p99_ms) ms",
     "Throughput: $($report.throughput_messages_per_second) messages/s",

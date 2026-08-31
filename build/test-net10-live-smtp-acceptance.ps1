@@ -15,6 +15,7 @@ if ($reports.Count -ne 1) {
 $report = Get-Content -LiteralPath $reports[0].FullName -Raw | ConvertFrom-Json
 $reportBaseName = [IO.Path]::GetFileNameWithoutExtension($reports[0].Name)
 Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath (Join-Path $InputDirectory "$reportBaseName.csv") -MarkdownPath (Join-Path $InputDirectory "$reportBaseName.md")
+Assert-LiveBenchmarkRunStartArtifact -Report $report -CsvPath (Join-Path $InputDirectory "$reportBaseName.csv") -MarkdownPath (Join-Path $InputDirectory "$reportBaseName.md")
 if ($report.schema -ne "live-smtp-message-acceptance-v1") {
     throw "Unexpected SMTP acceptance report schema: $($report.schema)"
 }
