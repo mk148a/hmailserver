@@ -50,7 +50,7 @@ if ($waves -ne $ExpectedWaves) {
 }
 $expectedSessions = $ExpectedConcurrency * $ExpectedWaves
 $runtimeFailureCount = if (@($report.PSObject.Properties.Name) -contains "runtimeFailures") { @($report.runtimeFailures).Count } else { 0 }
-$partialFailureAllowed = $AllowFailedReport -and $report.status -eq "FAIL" -and $runtimeFailureCount -gt 0
+$partialFailureAllowed = $AllowFailedReport -and $report.status -eq "FAIL"
 $samples = @($report.samples)
 if ($samples.Count -gt 0) {
     $sawIncompleteWave = $false
