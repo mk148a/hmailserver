@@ -1,6 +1,34 @@
 hMailServer
 ===========
 
+## Current IMAP profile diagnostic (2026-08-31, RED)
+
+Code/test commit `0e0da1fc9` adds benchmark-only `Admission`, `AuthSelect`,
+and `Full` profiles so listener admission can be measured separately from
+SQL-backed authentication, SELECT, SEARCH, and SORT. A fresh disposable
+5708/6000 fixture preserves the same 1,000-message logical corpus and 1,000-file
+Data tree for the current-head C++ and Net10 builds.
+
+At 1,000 concurrent sessions, admission passed `1000/1000` for both sides.
+The C++/Net10 admission p95 values were `785.501/1050.048 ms`; this isolated
+ratio is descriptive only. `AuthSelect` was C++ `979/1000` versus Net10
+`1000/1000`, and `Full SEARCH/SORT` was C++ `223/1000` versus Net10 `0/1000`
+with timeouts. No full-load speedup or overall winner is claimed. The
+performance release gate remains **RED**.
+
+Report and charts:
+
+- [PROFILE_DIAGNOSTIC.md](artifacts/benchmarks/paired-cpp-net10-20260831-profile-diagnostic/report/PROFILE_DIAGNOSTIC.md)
+- [profile-success-count.png](artifacts/benchmarks/paired-cpp-net10-20260831-profile-diagnostic/report/profile-success-count.png)
+- [profile-p95-latency.png](artifacts/benchmarks/paired-cpp-net10-20260831-profile-diagnostic/report/profile-p95-latency.png)
+- [profile-throughput.png](artifacts/benchmarks/paired-cpp-net10-20260831-profile-diagnostic/report/profile-throughput.png)
+
+The C++ process is still a disposable standalone `/Debug` process rather than
+an installed service, and the corpus is below the required 100,000 messages.
+No production source, COM registration, service, database, or Data directory
+was changed. Next slice: isolate SQL fan-out and backfill/indexing state before
+any performance implementation change.
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

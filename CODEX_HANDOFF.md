@@ -1,5 +1,26 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, IMAP profile isolation)
+
+Code/test commit `0e0da1fc9` adds benchmark-only `Admission`, `AuthSelect`, and
+`Full` IMAP profiles. The fresh disposable fixture preserves exact 1,000-message
+and 1,000-file Data parity across C++ schema 5708 and Net10 schema 6000.
+
+At 1,000 sessions, both implementations passed admission `1000/1000`. C++
+`AuthSelect` was `979/1000` and Net10 `1000/1000`; C++ full SEARCH/SORT was
+`223/1000` and Net10 `0/1000` with timeouts. No full-load ratio or winner is
+valid. The profile diagnostic and charts are under
+`artifacts/benchmarks/paired-cpp-net10-20260831-profile-diagnostic/report/`.
+
+Performance remains **RED**. The C++ executable is a standalone `/Debug`
+process rather than an installed service, the corpus is 1,000 rather than
+100,000 messages, and SQL fan-out, POP3, queue/delivery, restore, installer,
+registered COM, SEC-18, and soak gates remain open.
+
+Next slice: create the SQL fan-out diagnostic for indexed versus incomplete
+SEARCH/SORT state, then reassess a minimal Net10 capacity fix without weakening
+live ACL revalidation or failure accounting.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and

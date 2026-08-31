@@ -1,3 +1,25 @@
+## Current authoritative status (2026-08-31, IMAP profile isolation)
+
+Code/test commit `0e0da1fc9` adds and validates benchmark-only admission,
+authentication/SELECT, and full SEARCH/SORT profiles. On one fresh disposable
+5708/6000 fixture with exact 1,000-message/Data parity, both implementations
+passed admission `1000/1000`. C++ `AuthSelect` passed `979/1000` while Net10
+passed `1000/1000`; C++ full SEARCH/SORT passed `223/1000` while Net10 passed
+`0/1000` with timeouts. The diagnostic correctly publishes no invalid ratio;
+the isolated admission p95 ratio is descriptive and is not an overall winner.
+
+This confirms that the observed high-load failure is beyond listener admission,
+but does not identify whether SQL query fan-out, indexing/backfill state, or
+resource contention is dominant. The C++ target remains a standalone `/Debug`
+process, not a registered service, so installed-service/native acceptance is
+still environment-blocked. Performance remains **RED**.
+
+Next slice: add a benchmark-only SQL fan-out diagnostic that separates
+steady-state indexed SEARCH/SORT from missing-index/backfill conditions at
+100/500/1000 sessions, retaining live ACL revalidation and complete failure
+accounting. Do not change production listener limits, SQL schema, or ACL cache
+semantics until the evidence identifies a bounded fix.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator
