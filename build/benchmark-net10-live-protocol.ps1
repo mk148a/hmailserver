@@ -10,10 +10,19 @@ param(
     [string]$FixtureManifest = "",
     [string]$RunId = "",
     [ValidateSet("net10", "cpp")]
-    [string]$Implementation = "net10"
+    [string]$Implementation = "net10",
+    [int]$ExternalServiceProcessId = 0,
+    [string]$ExternalServiceName = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($ExternalServiceProcessId -gt 0 -and $Implementation -ne "cpp") {
+    throw "ExternalServiceProcessId is supported only for the legacy C++ implementation."
+}
+if ($ExternalServiceProcessId -gt 0 -and $ExternalServiceName -notmatch '^[A-Za-z0-9_.-]{1,255}$') {
+    throw "ExternalServiceName must be supplied and must be a disposable SCM service name."
+}
 
 . (Join-Path $PSScriptRoot "live-cpp-isolation-preflight.ps1")
 . (Join-Path $PSScriptRoot "live-imap-result-validation.ps1")
@@ -434,11 +443,12 @@ $after = $null
 $preflight = $null
 $provenance = $null
 $runStartAttestation = $null
+$externalService = $ExternalServiceProcessId -gt 0
 
 $provenance = Get-LiveBenchmarkProvenance -FixtureManifest $FixtureManifest -RunId $RunId -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe -Ports ([ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 })
 
 if ($Implementation -eq "cpp") {
-    $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database
+    $preflight = Get-CppIsolationPreflight -TargetExecutable $serviceExe -ExpectedStagingRoot $stagingRoot -ExpectedDatabase $database -DisposableRegistrationGuarded:$externalService
     $readinessFailures = @($preflight.failures)
 }
 
@@ -446,7 +456,22 @@ if ($null -eq $preflight -or $preflight.passed) {
     if ($provenance.manifestBound) {
         $runStartAttestation = Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot -Database $database -DataRoot $dataRoot -ServiceExecutable $serviceExe
     }
-    $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+    if ($externalService) {
+        $process = Get-Process -Id $ExternalServiceProcessId -ErrorAction SilentlyContinue
+        if ($null -eq $process) {
+            $readinessFailures += "External disposable C++ service worker PID $ExternalServiceProcessId is not running."
+        }
+        else {
+            $workerRecord = Get-CimInstance Win32_Process -Filter "ProcessId=$ExternalServiceProcessId" -ErrorAction SilentlyContinue
+            if ($null -eq $workerRecord -or
+                -not [string]::Equals([IO.Path]::GetFullPath([string]$workerRecord.ExecutablePath), [IO.Path]::GetFullPath($serviceExe), [StringComparison]::OrdinalIgnoreCase)) {
+                $readinessFailures += "External service worker PID $ExternalServiceProcessId is not the approved legacy executable."
+            }
+        }
+    }
+    else {
+        $process = Start-Process -FilePath $serviceExe -ArgumentList $argumentList -WorkingDirectory (Split-Path -Parent $serviceExe) -PassThru -WindowStyle Hidden
+    }
 }
 try {
     if ($null -ne $process) {
@@ -494,10 +519,10 @@ try {
     }
 }
 finally {
-    if ($null -ne $process -and (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+    if (-not $externalService -and $null -ne $process -and (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
         try { Stop-Process -Id $process.Id -Force } catch { $shutdownFailures += "Unable to stop launched process $($process.Id): $($_.Exception.Message)" }
     }
-    if ($null -ne $process) {
+    if (-not $externalService -and $null -ne $process) {
         $shutdownFailures += @(Wait-ForShutdown $process.Id)
     }
 }
@@ -541,7 +566,10 @@ $report = [pscustomobject]@{
     executableProvenance = $provenance.executableProvenance
     runStartAttestation = $runStartAttestation
     samples = $samples
-    comHostedService = if ($Implementation -eq "net10") { "not started; installed AppID preserved" } else { "legacy /Debug path; AppID hash checked separately" }
+    serviceBacked = $externalService
+    externalServiceName = if ($externalService) { $ExternalServiceName } else { $null }
+    externalServiceProcessId = if ($externalService) { $ExternalServiceProcessId } else { $null }
+    comHostedService = if ($Implementation -eq "net10") { "not started; installed AppID preserved" } elseif ($externalService) { "disposable SCM service; service wrapper owns cleanup" } else { "legacy /Debug path; AppID hash checked separately" }
     productionSafety = if ($Implementation -eq "cpp") {
         "loopback-only; legacy registry/config resolution and executable provenance were preflighted; disposable SQL/Data roots required"
     } else {
