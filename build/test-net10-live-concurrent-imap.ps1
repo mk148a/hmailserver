@@ -5,6 +5,8 @@ param(
     [int]$ExpectedConcurrency = 1000,
     [ValidateRange(1, 100)]
     [int]$ExpectedWaves = 1,
+    [ValidateRange(1, 1000000)]
+    [int]$ExpectedMessageCount = 1000,
     [ValidateRange(0, 1000)]
     [int]$ExpectedLaunchStaggerMilliseconds = 0,
     [switch]$AllowFailedReport
@@ -107,8 +109,8 @@ if ($report.readinessFailures.Count -eq 0) {
 elseif ($report.summary.completed -ne 0 -or $report.summary.successes -ne 0 -or $report.summary.errors -ne 0) {
     throw "A readiness failure must prevent workload samples from starting."
 }
-if ($report.messageCount -ne 1000) {
-    throw "Expected the paired 1,000-message corpus, got $($report.messageCount)."
+if ($report.messageCount -ne $ExpectedMessageCount) {
+    throw "Expected the paired $ExpectedMessageCount-message corpus, got $($report.messageCount)."
 }
 if ($report.bind -ne "127.0.0.1" -or $report.port -ne 1143) {
     throw "Concurrent IMAP must run on 127.0.0.1:1143."

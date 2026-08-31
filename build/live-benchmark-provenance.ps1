@@ -265,11 +265,11 @@ function Read-LiveBenchmarkFixtureManifest {
         }
     }
 
-    if ($null -eq $manifest.dataParity -or [int]$manifest.dataParity.fileCount -ne 1000 -or [long]$manifest.dataParity.bytes -le 0 -or $manifest.dataParity.exact -ne $true -or $manifest.dataParity.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw "Fixture manifest does not prove the exact 1,000-file Data corpus."
+    if ($null -eq $manifest.dataParity -or [int]$manifest.dataParity.fileCount -lt 1 -or [long]$manifest.dataParity.bytes -le 0 -or $manifest.dataParity.exact -ne $true -or $manifest.dataParity.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
+        throw "Fixture manifest does not prove a positive exact-file Data corpus."
     }
-    if ($null -eq $manifest.messageParity -or [int]$manifest.messageParity.rowCount -ne 1000 -or $manifest.messageParity.exact -ne $true -or $manifest.messageParity.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
-        throw "Fixture manifest does not prove the exact 1,000-message corpus."
+    if ($null -eq $manifest.messageParity -or [long]$manifest.messageParity.rowCount -lt 1 -or $manifest.messageParity.exact -ne $true -or $manifest.messageParity.sha256 -notmatch '^[0-9A-Fa-f]{64}$') {
+        throw "Fixture manifest does not prove a positive exact-message corpus."
     }
 
     $cppExecutable = Assert-LiveBenchmarkExecutablePath -Path (Get-LiveBenchmarkManifestProperty $manifest "cppExecutable") -Implementation cpp -RepositoryRoot $RepositoryRoot
@@ -572,11 +572,13 @@ function Assert-LiveBenchmarkRunStartArtifact {
     )
 
     $attestation = $Report.runStartAttestation
+    $expectedDataFileCount = if (@($Report.PSObject.Properties.Name) -contains "dataFileCount") { [int]$Report.dataFileCount } else { 1000 }
+    $expectedMessageCount = if (@($Report.PSObject.Properties.Name) -contains "messageCount") { [long]$Report.messageCount } else { 1000 }
     if ($null -eq $attestation -or $attestation.status -cne "PASS" -or
         $attestation.manifestSha256 -cne $Report.manifestSha256 -or
         $attestation.database -cne $Report.database -or
-        [int]$attestation.dataFileCount -ne 1000 -or
-        [long]$attestation.messageRowCount -ne 1000 -or
+        [int]$attestation.dataFileCount -ne $expectedDataFileCount -or
+        [long]$attestation.messageRowCount -ne $expectedMessageCount -or
         $attestation.dataSha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
         $attestation.messageSha256 -notmatch '^[0-9A-Fa-f]{64}$' -or
         $attestation.executableSha256 -cne $Report.executableProvenance.sha256 -or

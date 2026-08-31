@@ -21,6 +21,8 @@ param(
     [int]$SqlMaxPoolSize = 100,
     [ValidateRange(1, 100000)]
     [int]$MessageCount = 100,
+    [ValidateRange(1, 1000000)]
+    [int]$CorpusMessageCount = 1000,
     [ValidateRange(1, 60)]
     [int]$PostAcceptanceTimeoutSeconds = 10,
     [ValidateRange(5, 300)]
@@ -248,7 +250,8 @@ try {
                 '-TimeoutMilliseconds', $TimeoutMilliseconds,
                 '-PostWorkloadSettleSeconds', $PostWorkloadSettleSeconds,
                 '-LaunchStaggerMilliseconds', $LaunchStaggerMilliseconds,
-                '-SqlMaxPoolSize', $SqlMaxPoolSize
+                '-SqlMaxPoolSize', $SqlMaxPoolSize,
+                '-ExpectedMessageCount', $CorpusMessageCount
             )
         } else {
             $childArgs += @(
@@ -323,6 +326,7 @@ $report = [pscustomobject]@{
     executableSha256 = (Get-FileHash -LiteralPath $serviceExe -Algorithm SHA256).Hash
     stagingRoot = $stagingRoot
     database = $database
+    corpusMessageCount = $CorpusMessageCount
     serviceName = $ServiceName
     serviceAccount = $ServiceAccount
     commandLine = $binPath

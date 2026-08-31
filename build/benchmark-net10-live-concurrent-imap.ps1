@@ -21,6 +21,8 @@ param(
     [string]$BenchmarkServiceExecutable = "",
     [string]$FixtureManifest = "",
     [string]$RunId = "",
+    [ValidateRange(0, 1000000)]
+    [int]$ExpectedMessageCount = 0,
     [ValidateRange(1, 5000)]
     [int]$SqlMaxPoolSize = 100,
     [int]$ExternalServiceProcessId = 0,
@@ -74,6 +76,15 @@ if (-not [string]::IsNullOrWhiteSpace($FixtureManifest)) {
     }
     $database = $fixtureBinding.database
     $stagingRoot = $fixtureStagingRoot
+}
+if ($ExpectedMessageCount -eq 0) {
+    $ExpectedMessageCount = if ($null -ne $fixtureBinding) { [int]$fixtureBinding.expectedMessageFingerprint.rowCount } else { 1000 }
+}
+elseif ($null -ne $fixtureBinding -and $ExpectedMessageCount -ne [int]$fixtureBinding.expectedMessageFingerprint.rowCount) {
+    throw "ExpectedMessageCount does not match the fixture manifest."
+}
+if ($ExpectedMessageCount -lt 1) {
+    throw "ExpectedMessageCount must be positive."
 }
 Assert-ApprovedBenchmarkExecutable -Path $serviceExe -Implementation $Implementation -RepositoryRoot $repoRoot
 
@@ -253,7 +264,7 @@ internal sealed class HMailServerLiveImapTagResponse
 
 public static class HMailServerLiveImapProbe
 {
-    public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds, string profile, int launchStaggerMilliseconds)
+    public static HMailServerLiveImapProbeResult[] RunMany(int count, int timeoutMilliseconds, string profile, int launchStaggerMilliseconds, int expectedMessageCount)
     {
         int originalMinWorkerThreads;
         int originalMinCompletionPortThreads;
@@ -281,7 +292,7 @@ public static class HMailServerLiveImapProbe
                         {
                             Thread.Sleep(sessionIndex * launchStaggerMilliseconds);
                         }
-                        return RunOne(timeoutMilliseconds, profile);
+                        return RunOne(timeoutMilliseconds, profile, expectedMessageCount);
                     });
                 }
 
@@ -309,7 +320,7 @@ public static class HMailServerLiveImapProbe
         }
     }
 
-    private static HMailServerLiveImapProbeResult RunOne(int timeoutMilliseconds, string profile)
+    private static HMailServerLiveImapProbeResult RunOne(int timeoutMilliseconds, string profile, int expectedMessageCount)
     {
         var stopwatch = Stopwatch.StartNew();
         try
@@ -366,10 +377,10 @@ public static class HMailServerLiveImapProbe
                     }
 
                     var searchValidation = profile == "Search" || profile == "Full"
-                        ? ValidateResult(search == null ? null : search.Untagged, "SEARCH", 1000)
+                        ? ValidateResult(search == null ? null : search.Untagged, "SEARCH", expectedMessageCount)
                         : null;
                     var sortValidation = profile == "Sort" || profile == "Full"
-                        ? ValidateResult(sort == null ? null : sort.Untagged, "SORT", 1000)
+                        ? ValidateResult(sort == null ? null : sort.Untagged, "SORT", expectedMessageCount)
                         : null;
 
                     var success = greeting != null
@@ -752,7 +763,7 @@ try {
                 if ($null -eq $workloadStartedUtc) {
                     $workloadStartedUtc = $waveStartedUtc
                 }
-                $waveResults = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds, $Profile, $LaunchStaggerMilliseconds))
+                $waveResults = @([HMailServerLiveImapProbe]::RunMany($Concurrency, $TimeoutMilliseconds, $Profile, $LaunchStaggerMilliseconds, $ExpectedMessageCount))
                 $waveEndedUtc = [DateTimeOffset]::UtcNow
                 $workloadEndedUtc = $waveEndedUtc
                 $workloadSeconds += ($waveEndedUtc - $waveStartedUtc).TotalSeconds
@@ -859,7 +870,8 @@ $report = [pscustomobject]@{
     bind = "127.0.0.1"
     port = 1143
     ports = $provenance.ports
-    messageCount = 1000
+    messageCount = $ExpectedMessageCount
+    dataFileCount = if ($null -ne $fixtureBinding) { [int]$fixtureBinding.expectedDataFingerprint.fileCount } else { 1000 }
     concurrency = $Concurrency
     waves = $Waves
     requestedSessions = $requestedSessions

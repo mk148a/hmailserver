@@ -30,6 +30,14 @@ public sealed class LiveSqlServerSmtpQueueWriterTests
             Assert.Inconclusive("HMAILSERVER_NET10_LIVE_SQL_CONNECTION and HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT are required.");
         }
 
+        var expectedMessages = 1000;
+        var expectedMessagesValue = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_FTS_EXPECTED_MESSAGES");
+        if (!string.IsNullOrWhiteSpace(expectedMessagesValue)
+            && (!int.TryParse(expectedMessagesValue, out expectedMessages) || expectedMessages < 1))
+        {
+            Assert.Fail("HMAILSERVER_NET10_LIVE_SQL_FTS_EXPECTED_MESSAGES must be a positive integer.");
+        }
+
         if (!dataRoot.StartsWith(@"C:\hmail-perf-", StringComparison.OrdinalIgnoreCase)
             || connectionString.IndexOf("Database=hmail_perf_", StringComparison.OrdinalIgnoreCase) < 0)
         {
@@ -66,7 +74,8 @@ public sealed class LiveSqlServerSmtpQueueWriterTests
                 RetryDelay: TimeSpan.FromSeconds(1),
                 MaxAttempts: 3);
             var processed = 0;
-            for (var batch = 0; batch < 16; batch++)
+            var maxBatches = (expectedMessages + options.BatchSize - 1) / options.BatchSize + 1;
+            for (var batch = 0; batch < maxBatches; batch++)
             {
                 var count = await processor.RunBatchAsync(options, CancellationToken.None);
                 processed += count;
@@ -76,7 +85,7 @@ public sealed class LiveSqlServerSmtpQueueWriterTests
                 }
             }
 
-            Assert.AreEqual(1000, processed, "The disposable message corpus must be fully backfilled before live SEARCH acceptance.");
+            Assert.AreEqual(expectedMessages, processed, "The disposable message corpus must be fully backfilled before live SEARCH acceptance.");
 
             var request = new ImapSearchRequest(
                 AccountId: 1,
@@ -102,7 +111,7 @@ public sealed class LiveSqlServerSmtpQueueWriterTests
                     matches.Add(identity);
                 }
 
-                if (matches.Count == 1000)
+                if (matches.Count == expectedMessages)
                 {
                     break;
                 }
@@ -110,8 +119,8 @@ public sealed class LiveSqlServerSmtpQueueWriterTests
                 await Task.Delay(TimeSpan.FromMilliseconds(500));
             }
 
-            Assert.AreEqual(1000, matches.Count, "The indexed disposable corpus must return all needle-bearing messages.");
-            Assert.AreEqual(1000, matches.Select(identity => identity.MessageId).Distinct().Count());
+            Assert.AreEqual(expectedMessages, matches.Count, "The indexed disposable corpus must return all needle-bearing messages.");
+            Assert.AreEqual(expectedMessages, matches.Select(identity => identity.MessageId).Distinct().Count());
         }
         finally
         {

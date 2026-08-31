@@ -8,6 +8,8 @@ param(
     [string]$LegacyBinPath = "",
     [string]$Net10BinPath = "",
     [string]$UpgradeScriptPath = "",
+    [ValidateRange(1000, 1000000)]
+    [int]$TargetMessageCount = 1000,
     [string]$Stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMdd_HHmmss')
 )
 
@@ -118,6 +120,116 @@ function Get-DirectoryManifest {
         fileCount = @($rows).Count
         bytes = (Get-ChildItem -LiteralPath $fullRoot -File -Recurse | Measure-Object Length -Sum).Sum
         sha256 = $digest
+    }
+}
+
+function Invoke-SqlMessageCorpusPreparation {
+    param(
+        [string]$Database,
+        [string]$DataRoot,
+        [int]$TargetCount
+    )
+
+    $safeDatabase = $Database.Replace("'", "''")
+    $safeDataRoot = $DataRoot.Replace("'", "''")
+    $query = @"
+USE [$Database];
+SET NOCOUNT ON;
+DECLARE @keep TABLE (messageid bigint NOT NULL PRIMARY KEY);
+INSERT INTO @keep (messageid)
+SELECT TOP (1000) messageid FROM hm_messages ORDER BY messageid;
+DELETE FROM hm_message_metadata
+WHERE metadata_messageid NOT IN (SELECT messageid FROM @keep);
+DELETE FROM hm_messagerecipients
+WHERE recipientmessageid NOT IN (SELECT messageid FROM @keep);
+IF OBJECT_ID(N'dbo.hm_message_search_queue', N'U') IS NOT NULL
+    EXEC sp_executesql N'DELETE FROM hm_message_search_queue WHERE messageid NOT IN (SELECT TOP (1000) messageid FROM hm_messages ORDER BY messageid);';
+IF OBJECT_ID(N'dbo.hm_message_search_documents', N'U') IS NOT NULL
+    EXEC sp_executesql N'DELETE FROM hm_message_search_documents WHERE messageid NOT IN (SELECT TOP (1000) messageid FROM hm_messages ORDER BY messageid);';
+DELETE FROM hm_messages
+WHERE messageid NOT IN (SELECT messageid FROM @keep);
+
+IF (SELECT COUNT_BIG(*) FROM hm_messages) <> 1000
+    THROW 51000, 'Benchmark base corpus must contain exactly 1000 messages.', 1;
+
+DECLARE @target bigint = $TargetCount;
+DECLARE @extra bigint = @target - 1000;
+IF @extra > 0
+BEGIN
+    DECLARE @numbers TABLE (message_number bigint NOT NULL PRIMARY KEY);
+    INSERT INTO @numbers (message_number)
+    SELECT TOP (@extra)
+        CONVERT(bigint, ROW_NUMBER() OVER (ORDER BY (SELECT NULL))) + 1000
+    FROM sys.all_objects AS a
+    CROSS JOIN sys.all_objects AS b;
+
+        SET IDENTITY_INSERT hm_messages ON;
+        INSERT INTO hm_messages
+        (
+            messageid, messageaccountid, messagefolderid, messagefilename,
+            messagetype, messagefrom, messagesize, messagecurnooftries,
+            messagenexttrytime, messageflags, messagecreatetime, messagelocked,
+            messageuid, messageruleforcedrouteid, messagerulebindaddress
+        )
+        SELECT
+            n.message_number, t.messageaccountid, t.messagefolderid,
+            N'$safeDataRoot\perf.test\test\message-' + RIGHT(N'000000' + CONVERT(nvarchar(20), n.message_number), 6) + N'.eml',
+            t.messagetype, t.messagefrom, t.messagesize, t.messagecurnooftries,
+            t.messagenexttrytime, t.messageflags,
+            DATEADD(second, CONVERT(int, n.message_number), CONVERT(datetime, '2026-01-01T00:00:00', 126)),
+            t.messagelocked,
+            n.message_number, t.messageruleforcedrouteid, t.messagerulebindaddress
+        FROM @numbers AS n
+        INNER JOIN hm_messages AS t ON t.messageid = ((n.message_number - 1) % 1000) + 1;
+        SET IDENTITY_INSERT hm_messages OFF;
+
+        INSERT INTO hm_message_metadata
+        (
+            metadata_accountid, metadata_folderid, metadata_messageid,
+            metadata_dateutc, metadata_from, metadata_subject, metadata_to, metadata_cc
+        )
+        SELECT
+            t.metadata_accountid, t.metadata_folderid, n.message_number,
+            DATEADD(second, CONVERT(int, n.message_number), CONVERT(datetime2, '2026-01-01T00:00:00', 126)),
+            t.metadata_from, t.metadata_subject, t.metadata_to, t.metadata_cc
+        FROM @numbers AS n
+        INNER JOIN hm_message_metadata AS t ON t.metadata_messageid = ((n.message_number - 1) % 1000) + 1;
+
+        INSERT INTO hm_messagerecipients
+        (
+            recipientmessageid, recipientaddress, recipientlocalaccountid,
+            recipientoriginaladdress
+        )
+        SELECT
+            n.message_number, t.recipientaddress, t.recipientlocalaccountid,
+            t.recipientoriginaladdress
+        FROM @numbers AS n
+        INNER JOIN hm_messagerecipients AS t ON t.recipientmessageid = ((n.message_number - 1) % 1000) + 1;
+END;
+IF (SELECT COUNT_BIG(*) FROM hm_messages) <> @target
+    THROW 51001, 'Benchmark target corpus count was not reached.', 1;
+"@
+    & sqlcmd.exe -S localhost -E -b -d $Database -Q $query
+    if ($LASTEXITCODE -ne 0) {
+        throw "sqlcmd failed to prepare the $TargetCount-message corpus for $Database."
+    }
+}
+
+function Expand-MessageFileCorpus {
+    param(
+        [string]$DataRoot,
+        [int]$TargetCount
+    )
+
+    $messageDirectory = Join-Path $DataRoot 'perf.test\test'
+    $templates = @(Get-ChildItem -LiteralPath $messageDirectory -File -Filter '*.eml' | Sort-Object Name)
+    if ($templates.Count -ne 1000) {
+        throw "Benchmark Data source must contain exactly 1000 message files before expansion: $messageDirectory"
+    }
+    for ($index = 1001; $index -le $TargetCount; $index++) {
+        $source = $templates[($index - 1) % $templates.Count]
+        $destination = Join-Path $messageDirectory ('message-{0:D6}.eml' -f $index)
+        Copy-Item -LiteralPath $source.FullName -Destination $destination -Force
     }
 }
 
@@ -290,6 +402,11 @@ WHERE CHARINDEX(N'\Data\', messagefilename) > 0;
 
     Copy-Item -LiteralPath $SourceDataRoot -Destination (Join-Path $cppRoot 'Data') -Recurse -Force
     Copy-Item -LiteralPath $SourceDataRoot -Destination (Join-Path $net10Root 'Data') -Recurse -Force
+    foreach ($database in @($cppDatabase, $net10Database)) {
+        $side = if ($database -eq $cppDatabase) { 'cpp' } else { 'net10' }
+        Expand-MessageFileCorpus -DataRoot (Join-Path $fullOutputRoot "$side\Data") -TargetCount $TargetMessageCount
+        Invoke-SqlMessageCorpusPreparation -Database $database -DataRoot (Join-Path $fullOutputRoot "$side\Data") -TargetCount $TargetMessageCount
+    }
 
     $cppBin = Join-Path $cppRoot 'Bin'
     $net10Bin = Join-Path $net10Root 'Bin'
