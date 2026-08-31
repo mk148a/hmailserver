@@ -16,7 +16,9 @@ param(
     [string]$BenchmarkDatabase = "",
     [string]$BenchmarkServiceExecutable = "",
     [string]$FixtureManifest = "",
-    [string]$RunId = ""
+    [string]$RunId = "",
+    [ValidateRange(1, 5000)]
+    [int]$SqlMaxPoolSize = 100
 )
 
 $ErrorActionPreference = "Stop"
@@ -563,7 +565,7 @@ function Get-Percentile {
 }
 
 if ($Implementation -eq "net10") {
-    $env:HMAILSERVER_SQLSERVER_CONNECTION = "Server=localhost;Database=$database;Integrated Security=True;TrustServerCertificate=True;"
+    $env:HMAILSERVER_SQLSERVER_CONNECTION = "Server=localhost;Database=$database;Integrated Security=True;TrustServerCertificate=True;Max Pool Size=$SqlMaxPoolSize;"
     $env:HMAILSERVER_DATA_DIRECTORY = Join-Path $stagingRoot "Data"
     $env:HMAILSERVER_INITIALIZATION_FILE = Join-Path $stagingRoot "hMailServer.ini"
     $env:HMAILSERVER_SMTP_ENABLED = "true"
@@ -577,6 +579,26 @@ if ($Implementation -eq "net10") {
     $env:HMAILSERVER_POP3_PORT = "25110"
     $env:HMAILSERVER_EXTERNAL_FETCH_ENABLED = "false"
     $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
+}
+
+$sqlConnectionSettings = [pscustomobject]@{
+    appliesTo = $Implementation
+    provider = "Microsoft.Data.SqlClient"
+    server = "localhost"
+    database = $database
+    integratedSecurity = $true
+    trustServerCertificate = $true
+    pooling = $true
+    maxPoolSize = if ($Implementation -eq "net10") { $SqlMaxPoolSize } else { $null }
+    connectionTimeoutSeconds = 15
+}
+$probeConfiguration = [pscustomobject]@{
+    scheduler = "Task.Run with a ManualResetEventSlim start barrier"
+    perSessionCommands = "greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT"
+    concurrentSessionsPerWave = $Concurrency
+    waves = $Waves
+    socketTimeoutMilliseconds = $TimeoutMilliseconds
+    fanOut = "one TCP client and one sequential IMAP session per sample"
 }
 
 $process = $null
@@ -729,7 +751,7 @@ $summary = [pscustomobject]@{
 }
 
 $report = [pscustomobject]@{
-    schema = "live-concurrent-imap-v1"
+    schema = "live-concurrent-imap-v2"
     implementation = $Implementation
     status = if ($summary.errors -eq 0 -and $summary.completed -eq $requestedSessions -and $readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $runtimeFailures.Count -eq 0) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
@@ -752,6 +774,8 @@ $report = [pscustomobject]@{
     timeoutMilliseconds = $TimeoutMilliseconds
     postWorkloadSettleSeconds = $PostWorkloadSettleSeconds
     summary = $summary
+    sqlConnectionSettings = $sqlConnectionSettings
+    probeConfiguration = $probeConfiguration
     readinessFailures = @($readinessFailures)
     shutdownFailures = @($shutdownFailures)
     processBefore = $before
@@ -798,6 +822,9 @@ $csvSamples = $report.samples | ForEach-Object {
         database = $report.database
         dataRoot = $report.dataRoot
         executableSha256 = $report.executableProvenance.sha256
+        sqlMaxPoolSize = $report.sqlConnectionSettings.maxPoolSize
+        sqlConnectionTimeoutSeconds = $report.sqlConnectionSettings.connectionTimeoutSeconds
+        probeFanOut = $report.probeConfiguration.fanOut
         runStartAttestationStatus = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { "UNBOUND" }
         runStartDataSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { $null }
         runStartMessageSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { $null }
@@ -831,6 +858,9 @@ $markdown = @(
     "Fixture ID: $($report.fixtureId)",
     "Fixture manifest SHA-256: $($report.manifestSha256)",
     "Executable SHA-256: $($report.executableProvenance.sha256)",
+    "SQL provider/server/database: $($report.sqlConnectionSettings.provider) / $($report.sqlConnectionSettings.server) / $($report.sqlConnectionSettings.database)",
+    "SQL pooling/max pool/timeout: $($report.sqlConnectionSettings.pooling) / $($report.sqlConnectionSettings.maxPoolSize) / $($report.sqlConnectionSettings.connectionTimeoutSeconds) seconds",
+    "IMAP probe fan-out: $($report.probeConfiguration.fanOut)",
     "Run-start attestation: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { 'UNBOUND' })",
     "Run-start Data SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { '' })",
     "Run-start message SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { '' })",

@@ -18,7 +18,7 @@ if (-not (Test-Path -LiteralPath $jsonPath -PathType Leaf)) {
 $report = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
 Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath (Join-Path $InputDirectory "live-concurrent-imap.csv") -MarkdownPath (Join-Path $InputDirectory "live-concurrent-imap.md")
 Assert-LiveBenchmarkRunStartArtifact -Report $report -CsvPath (Join-Path $InputDirectory "live-concurrent-imap.csv") -MarkdownPath (Join-Path $InputDirectory "live-concurrent-imap.md")
-if ($report.schema -ne "live-concurrent-imap-v1") {
+if ($report.schema -ne "live-concurrent-imap-v2") {
     throw "Unexpected concurrent IMAP report schema: $($report.schema)"
 }
 if ($report.implementation -notin @("net10", "cpp")) {
@@ -108,6 +108,26 @@ if ($report.bind -ne "127.0.0.1" -or $report.port -ne 1143) {
 }
 if ($report.database -notmatch '^hmail_perf_[a-z0-9_]+$' -or $report.database -match '(?i)hmaildb_test5700|production') {
     throw "The report database is not an isolated benchmark database: $($report.database)"
+}
+if ($null -eq $report.sqlConnectionSettings -or
+    $report.sqlConnectionSettings.provider -cne "Microsoft.Data.SqlClient" -or
+    $report.sqlConnectionSettings.server -cne "localhost" -or
+    $report.sqlConnectionSettings.database -cne $report.database -or
+    $report.sqlConnectionSettings.pooling -ne $true -or
+    $report.sqlConnectionSettings.connectionTimeoutSeconds -ne 15) {
+    throw "Concurrent IMAP report is missing the effective SQL connection settings attestation."
+}
+if ($report.implementation -eq "net10" -and
+    ([int]$report.sqlConnectionSettings.maxPoolSize -lt 1 -or [int]$report.sqlConnectionSettings.maxPoolSize -gt 5000)) {
+    throw "Net10 concurrent IMAP report has an invalid SQL max pool size attestation."
+}
+if ($null -eq $report.probeConfiguration -or
+    [string]::IsNullOrWhiteSpace([string]$report.probeConfiguration.scheduler) -or
+    [string]::IsNullOrWhiteSpace([string]$report.probeConfiguration.perSessionCommands) -or
+    [string]::IsNullOrWhiteSpace([string]$report.probeConfiguration.fanOut) -or
+    [int]$report.probeConfiguration.concurrentSessionsPerWave -ne $ExpectedConcurrency -or
+    [int]$report.probeConfiguration.waves -ne $ExpectedWaves) {
+    throw "Concurrent IMAP report is missing the IMAP query/session fan-out attestation."
 }
 if ($report.dataRoot -notmatch '^C:\\hmail-perf-' -or $report.dataRoot -match '(?i)hmailserver57|production') {
     throw "The report Data root is not an isolated benchmark root: $($report.dataRoot)"

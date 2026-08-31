@@ -463,7 +463,7 @@ def validate_concurrent_workload(
     *,
     require_pass: bool,
 ) -> None:
-    require(report.get("schema") == "live-concurrent-imap-v1", "Unexpected concurrent IMAP schema.")
+    require(report.get("schema") == "live-concurrent-imap-v2", "Unexpected concurrent IMAP schema.")
     require(require_integer(report.get("concurrency"), "Concurrent IMAP concurrency") == expected_concurrency, "Concurrent IMAP level mismatch.")
     require(require_integer(report.get("waves"), "Concurrent IMAP waves") == expected_waves, "Concurrent IMAP wave count mismatch.")
     requested = expected_concurrency * expected_waves
@@ -472,6 +472,22 @@ def validate_concurrent_workload(
     require(require_integer(report.get("postWorkloadSettleSeconds"), "Concurrent IMAP postWorkloadSettleSeconds") == 5, "Concurrent IMAP settle interval must be five seconds.")
     require(require_integer(report.get("messageCount"), "Concurrent IMAP messageCount") == 1000, "Concurrent IMAP corpus is not 1,000 messages.")
     require(report.get("bind") == "127.0.0.1" and require_integer(report.get("port"), "Concurrent IMAP port") == 1143, "Concurrent IMAP is not on the approved loopback port.")
+    sql_settings = report.get("sqlConnectionSettings")
+    require(isinstance(sql_settings, dict), "Concurrent IMAP SQL connection settings are missing.")
+    require(sql_settings.get("provider") == "Microsoft.Data.SqlClient", "Concurrent IMAP SQL provider is not attested.")
+    require(sql_settings.get("server") == "localhost", "Concurrent IMAP SQL server is not attested as localhost.")
+    require(sql_settings.get("database") == report.get("database"), "Concurrent IMAP SQL database attestation does not match the report.")
+    require(sql_settings.get("integratedSecurity") is True and sql_settings.get("trustServerCertificate") is True, "Concurrent IMAP SQL security settings are not attested.")
+    require(sql_settings.get("pooling") is True, "Concurrent IMAP SQL pooling is not attested.")
+    require_integer(sql_settings.get("maxPoolSize"), "Concurrent IMAP SQL maxPoolSize")
+    require(require_integer(sql_settings.get("connectionTimeoutSeconds"), "Concurrent IMAP SQL connectionTimeoutSeconds") == 15, "Concurrent IMAP SQL connection timeout must be 15 seconds.")
+    probe = report.get("probeConfiguration")
+    require(isinstance(probe, dict), "Concurrent IMAP probe configuration is missing.")
+    require(isinstance(probe.get("scheduler"), str) and probe["scheduler"], "Concurrent IMAP scheduler attestation is missing.")
+    require(isinstance(probe.get("perSessionCommands"), str) and probe["perSessionCommands"], "Concurrent IMAP per-session command attestation is missing.")
+    require(isinstance(probe.get("fanOut"), str) and probe["fanOut"], "Concurrent IMAP fan-out attestation is missing.")
+    require(require_integer(probe.get("concurrentSessionsPerWave"), "Concurrent IMAP probe concurrency") == expected_concurrency, "Concurrent IMAP probe concurrency attestation is wrong.")
+    require(require_integer(probe.get("waves"), "Concurrent IMAP probe waves") == expected_waves, "Concurrent IMAP probe wave attestation is wrong.")
     samples = report.get("samples")
     require(isinstance(samples, list) and len(samples) == requested, "Concurrent IMAP sample count mismatch.")
     wave_sessions: dict[int, set[int]] = {}

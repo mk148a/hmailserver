@@ -208,7 +208,7 @@ class PairedPerformanceProvenanceTests(unittest.TestCase):
         workload_seconds = float(waves)
         requested = concurrency * waves
         return {
-            "schema": "live-concurrent-imap-v1",
+            "schema": "live-concurrent-imap-v2",
             "status": "PASS",
             "concurrency": concurrency,
             "waves": waves,
@@ -218,6 +218,25 @@ class PairedPerformanceProvenanceTests(unittest.TestCase):
             "messageCount": 1000,
             "bind": "127.0.0.1",
             "port": 1143,
+            "database": "hmail_perf_net10_fixture",
+            "sqlConnectionSettings": {
+                "provider": "Microsoft.Data.SqlClient",
+                "server": "localhost",
+                "database": "hmail_perf_net10_fixture",
+                "integratedSecurity": True,
+                "trustServerCertificate": True,
+                "pooling": True,
+                "maxPoolSize": 100,
+                "connectionTimeoutSeconds": 15,
+            },
+            "probeConfiguration": {
+                "scheduler": "Task.Run with a ManualResetEventSlim start barrier",
+                "perSessionCommands": "greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT",
+                "concurrentSessionsPerWave": concurrency,
+                "waves": waves,
+                "socketTimeoutMilliseconds": 30000,
+                "fanOut": "one TCP client and one sequential IMAP session per sample",
+            },
             "readinessFailures": [],
             "shutdownFailures": [],
             "workloadStartedUtc": wave_metrics[0]["startedUtc"],
