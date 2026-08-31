@@ -1,3 +1,15 @@
+
+## Current authoritative next slice (2026-08-31, SEC-18 graph attestation)
+
+The installed Application graph-content attestation slice is complete in
+code/test commit `622402ee7`. It now requires the canonical 22 registry paths
+in both Registry64 and Registry32 views, all 44 snapshot keys, complete
+readback, and the canonical collector validation flags; a mutated canonical
+path is rejected by the focused negative fixture. The next repository slice is
+exact canonical registry-value/raw-readback attestation. The live SEC-18 caller
+token, registered COM/DCOM, restore/installer, and performance gates remain
+environment-blocked or RED.
+
 ## Current authoritative status (2026-08-31, IMAP query profile isolation)
 
 Code/test commit `0b462ef7c` adds and validates benchmark-only admission,

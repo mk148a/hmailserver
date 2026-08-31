@@ -1,6 +1,22 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-08-31, SEC-18 graph attestation)
+
+Code/test commit `622402ee7` hardens the SEC-18 installed Application graph
+attestation to require the canonical 22 registry paths in both Registry64 and
+Registry32 views, all 44 snapshot keys, complete readback, and the collector's
+canonical validation flags. A negative fixture with a mutated canonical path is
+rejected even when its counts and hash are retained. Focused SEC-18 validators
+pass.
+
+The full Net10 suite remains `2773 passed, 90 skipped, 5 failed` (`2868` total).
+The five failures are existing registered local-server COM activation checks
+returning `E_NOINTERFACE` (`0x80004002`). SEC-18 live caller-token evidence,
+registered out-of-process COM, disposable restore/installer baselines, and the
+performance release gates remain open. No production registration, DCOM ACL,
+service, database, or Data directory was changed.
+
 ## Current IMAP profile diagnostic (2026-08-31, RED)
 
 Code/test commit `0b462ef7c` adds benchmark-only `Admission`, `AuthSelect`,

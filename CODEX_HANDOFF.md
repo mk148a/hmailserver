@@ -1,5 +1,19 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, SEC-18 graph attestation)
+
+Code/test commit `622402ee7` hardens installed Application graph evidence to
+require the canonical 22 paths in both registry views, all 44 snapshot keys,
+complete readback, and canonical collector validation flags. The focused
+attestation test passes and rejects a fixture with one mutated canonical path.
+
+Full Net10 remains `2773 passed, 90 skipped, 5 failed`; the five failures are
+registered local-server COM activation checks returning `E_NOINTERFACE`. The
+next independent repository slice is exact canonical registry-value/raw-
+readback attestation. Live SEC-18 caller proof, registered COM/DCOM,
+restore/installer baselines, and performance acceptance remain open.
+
+
 ## Current authoritative continuation (2026-08-31, IMAP query profile isolation)
 
 Code/test commit `0b462ef7c` adds benchmark-only `Admission`, `AuthSelect`,
