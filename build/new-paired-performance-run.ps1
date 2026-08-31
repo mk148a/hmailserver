@@ -108,6 +108,9 @@ if ($Seal) {
         $slot[0].artifacts.csv = Get-Sha256 $artifactPaths.csv
         $slot[0].artifacts.markdown = Get-Sha256 $artifactPaths.markdown
     }
+    if (@($descriptor.PSObject.Properties.Name) -notcontains "sealedUtc") {
+        $descriptor | Add-Member -NotePropertyName sealedUtc -NotePropertyValue $null
+    }
     $descriptor.status = "SEALED"
     $descriptor.sealedUtc = [DateTimeOffset]::UtcNow.ToString("o")
     $descriptor | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $descriptorPath -Encoding UTF8
@@ -131,6 +134,7 @@ $descriptor = [ordered]@{
     status = "OPEN"
     runId = Get-RunGuid $RunId
     createdUtc = [DateTimeOffset]::UtcNow.ToString("o")
+    sealedUtc = $null
     fixtureId = $fixture.fixtureId
     manifestSha256 = Get-Sha256 $FixtureManifest
     inputRoot = $inputRoot
