@@ -1,5 +1,20 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, post-fix load evidence)
+
+After `a3e14d83e`, a fresh Release disposable fixture was rebuilt and Net10
+100/500/1000 concurrent IMAP loads were rerun. Results were `8/100`, `0/500`,
+and `0/1000`; all failed artifacts were validated and the launched worker
+remained alive with clean shutdown and no `runtimeFailures`. The previous
+backfill SQL-pool timeout no longer terminates the host, but it also does not
+solve the high-load capacity/SQL contention gate. Full Debug remains
+`2773 passed, 90 skipped, 5 failed` with the existing registered COM
+`E_NOINTERFACE` checks. Performance is **RED**.
+
+Next slice: inspect SQL pool usage and IMAP command concurrency with a fresh
+fixture, prove whether configuration or query/session fan-out is the limiting
+factor, and rerun the acceptance levels without weakening failure accounting.
+
 ## Current authoritative continuation (2026-08-31, backfill failure isolation)
 
 The ordered sealed matrix reproduced a Net10 worker exit under concurrent IMAP

@@ -9516,3 +9516,15 @@ RED: C++ concurrent IMAP was 100/100, 329/500, and 219/1000; Net10 was
 before the worker exit. Next slice: rerun high-concurrency IMAP and the
 20-wave soak on a fresh disposable fixture and capture post-fix SQL-pool and
 worker-lifecycle evidence.
+## Authoritative current status (2026-08-31, post-fix load evidence)
+
+With `a3e14d83e` in the Release Service binary, fresh Net10 disposable
+concurrent IMAP runs produced `8/100`, `0/500`, and `0/1000` successful
+sessions. The worker stayed alive and shut down cleanly, so the previous
+background indexing crash is isolated, but the high-load acceptance gate is
+still RED due to capacity/SQL contention. Full Debug is `2773 passed, 90
+skipped, 5 failed` with the existing registered COM `E_NOINTERFACE` failures.
+
+Next slice: attest SQL connection-pool usage and IMAP session/query fan-out on
+a fresh disposable fixture, then rerun the required levels with unchanged
+failure accounting.

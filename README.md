@@ -26,6 +26,11 @@ the existing idle delay while preserving cancellation. Focused coverage is
 `5/5`; this prevents indexing failure from taking down the service but does
 not yet prove the IMAP high-load gate.
 
+Post-fix disposable load evidence confirms the distinction: Net10 1000
+concurrent sessions completed `0/1000` and 500 completed `0/500`, but the
+worker remained alive and shut down cleanly; 100 completed `8/100`. The
+remaining failure is capacity/SQL contention, not an unhandled backfill crash.
+
 > **Revalidation required:** the table below is retained as historical
 > diagnostic evidence. Its original generator did not independently recompute
 > sample cardinality, percentiles, throughput, or bind raw report bytes to a
