@@ -1,0 +1,21 @@
+{
+  "schema": "net10-live-tcp-451-retry-v1",
+  "status": "PASS",
+  "generatedUtc": "2026-08-31T23:42:18.8407188+00:00",
+  "database": "hmail_perf_pair_net10_20260831_225556",
+  "dataRoot": "C:\\hmail-perf-pair-delivery-20260901\\net10\\Data",
+  "smtpReply": 451,
+  "sawEhloOrHelo": true,
+  "sawMailFrom": true,
+  "sawRecipient": true,
+  "saw451ResponseSent": true,
+  "sawData": false,
+  "messageType": 1,
+  "queuedCount": 1,
+  "locked": 0,
+  "leaseOwnerIsNull": true,
+  "retryCount": 1,
+  "nextTryUtc": "2026-08-31T23:42:48.823Z",
+  "recipientCount": 1,
+  "deferredEvents": 2
+}

@@ -19,9 +19,17 @@ Legacy persistence/queue anchors are
 `DeliveryQueueProcessor.ProcessOneAsync`, and
 `SqlServerDeliveryQueueLeaseStore.CompleteAsync`.
 
-Next smallest independent slice: paired transient `451` retry/defer state
-classification against a controlled loopback sink, with no SMTP trust or
-production delivery changes. After that, run larger paired SMTP and
+Net10 component-level TCP `451` retry/defer evidence is now complete in
+code/test commit `d43163307`: a controlled loopback sink returned `451`, and
+SQL readback proved transient classification, retained recipient, unlocked
+lease, retry count `1`, future next-try, and no DATA. JSON/CSV/Markdown
+evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
+This does not provide C++ parity or service-worker acceptance.
+
+Next smallest independent slice: paired C++/Net10 transient `451` retry/defer
+state classification against the same controlled loopback sink, with no SMTP
+trust or production delivery changes. After that, run larger paired SMTP and
 delivery/queue waves with per-message SQL/Data readback. The C++ 500/1000
 capacity failures, backup/restore and installer rollback, registered COM,
 SEC-18, AD/master-user, DKIM/DMARC/SPF, and 24-hour soak gates remain open.

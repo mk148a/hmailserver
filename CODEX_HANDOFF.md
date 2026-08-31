@@ -25,6 +25,23 @@ remain open; performance is **RED** and no general winner is claimed.
 The compact report is under
 `artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`.
 
+## Current component evidence (2026-09-01, Net10 TCP 451 retry state)
+
+Code/test commit `d43163307` hardens the disposable SQL/Data guard and cleanup
+and adds a test-only loopback SMTP sink. The sink returned a real `451` at
+RCPT; Net10 sent no DATA, classified the result as transient, and persisted
+one retained queue row with `messagetype=1`, `messagelocked=0`, null lease
+owner, retry count `1`, future next-try time, and one retained recipient. The
+processor emitted both deferred status events. JSON/CSV/Markdown evidence is
+under `artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
+
+This is component-level Net10 evidence, not a paired C++ result, service-worker
+acceptance, or release clearance. The next slice is paired C++/Net10 `451`
+classification and state acceptance against the same controlled loopback sink;
+performance remains **RED**. The test intentionally disables the local-endpoint
+guard only for its controlled loopback fixture and must not be treated as proof
+of production egress/SSRF policy.
+
 ## Historical continuation (2026-09-01, paired 100k IMAP acceptance)
 
 Code/test commit `434dac735` adds manifest-bound corpus sizing to the paired

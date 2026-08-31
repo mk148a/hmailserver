@@ -1,5 +1,14 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current Net10 TCP 451 retry-state evidence (2026-09-01)
+
+The disposable Net10 component test passed a real loopback TCP `451` through
+remote delivery and SQL queue deferral. It proved type-1 retention, unlocked
+lease, retry count `1`, future next-try, retained recipient, and no DATA. It
+does not provide paired C++ evidence or a performance result; the gate remains
+**RED**. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
+
 ## Current paired SMTP local-delivery readback (2026-09-01)
 
 The real disposable C++ service and Net10 service each accepted 25/25 SMTP

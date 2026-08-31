@@ -37,6 +37,15 @@ directory, COM registration, or DCOM ACL was changed.
 
 ![Paired SMTP local-delivery p50](artifacts/benchmarks/paired-cpp-net10-20260901-delivery/smtp-delivery-p50.svg)
 
+The follow-up Net10 component test sent a real TCP `451` from a loopback sink
+through `SmtpRemoteDeliveryClient`, `RemoteDeliveryTargetDispatcher`, and
+`DeliveryQueueProcessor`. SQL readback proved `messagetype=1`, unlocked lease,
+cleared lease owner, retry count `1`, future `messagenexttrytime`, and one
+retained recipient; the sink observed EHLO/MAIL/RCPT and no DATA. Evidence is
+under `artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
+This is Net10 component-level evidence only. A paired C++/Net10 retry result,
+larger delivery waves, and retry recovery remain open; performance is **RED**.
+
 Code/test commit `434dac735` adds manifest-bound corpus sizing to the
 benchmark-only paired fixture and concurrent IMAP runner. The disposable
 orchestrator starts the legacy C++ binary through a unique SCM service, passes

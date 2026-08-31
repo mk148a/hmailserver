@@ -1,5 +1,15 @@
 # .NET 10 Benchmark Pack
 
+## Current Net10 TCP 451 retry-state evidence (2026-09-01)
+
+A disposable opt-in test exercised a real loopback SMTP `451` through the
+Net10 remote client and delivery queue. Readback proved `messagetype=1`, an
+unlocked cleared lease, retry count `1`, future next-try, one retained
+recipient, two deferred status events, and no DATA. This is component-level
+correctness evidence only; paired C++ retry and performance acceptance remain
+open and the gate is **RED**. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
+
 ## Current paired SMTP local-delivery readback (2026-09-01)
 
 The service-backed C++ and Net10 SMTP runners each accepted 25/25 messages on
