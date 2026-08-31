@@ -74,6 +74,15 @@ service, registry, COM, DCOM, SQL, or Data mutation was attempted. The exact
 blocker and required isolated evidence are recorded in
 `artifacts/migration/installer-rollback-preflight-20260831.md`.
 
+SEC-18 evidence was audited read-only on 2026-08-31. The repository safety
+validators pass and the disposable VM record proves the dedicated IIS worker
+token, but independent COM caller-token evidence is absent. The two same-day
+inventory JSON records also conflict on legacy Application AppID/service
+presence, so neither can be treated as a fresh cutover baseline. The gate is
+**RED / INCOMPLETE** until one correlated inventory plus authorized, wrong-SID,
+and genuine non-pool caller records exist. See
+`artifacts/sec18-staging/SEC18-EVIDENCE-AUDIT-20260831.md`.
+
 ## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator

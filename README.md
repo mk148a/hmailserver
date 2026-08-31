@@ -88,6 +88,16 @@ registered legacy service/COM rollback baseline. No machine-wide service,
 registry, COM, database, or Data mutation was attempted. Details and the exact
 continuation requirements are in the [installer/rollback preflight report](artifacts/migration/installer-rollback-preflight-20260831.md).
 
+## SEC-18 evidence audit (2026-08-31)
+
+The existing disposable IIS staging artifacts and SEC-18 safety/self-test set
+were audited read-only. The four repository validators pass, and the VM record
+proves a dedicated IIS worker-token capture. SEC-18 remains **RED**: no
+independent COM caller-token evidence exists, and two same-day inventory files
+conflict on whether the legacy Application AppID/service is present. A fresh,
+single-invocation inventory and separately registered disposable caller probe
+are required. See the [SEC-18 evidence audit](artifacts/sec18-staging/SEC18-EVIDENCE-AUDIT-20260831.md).
+
 ## Current performance gate (2026-08-31, RED)
 
 ### Current HEAD paired diagnostic

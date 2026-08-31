@@ -76,6 +76,15 @@ refresh SEC-18 evidence and complete any remaining isolated denial tests, or
 continue installer rollback only after a disposable registered-service clone
 exists.
 
+The 2026-08-31 SEC-18 evidence audit is complete and remains **RED /
+INCOMPLETE**. The four repository safety validators pass and the VM artifact
+proves a dedicated IIS worker token, but no independent COM caller-token proof
+exists. The `-vm` and `-registered` inventories also conflict on legacy AppID
+and service presence, so they cannot be combined as a cutover baseline. See
+`artifacts/sec18-staging/SEC18-EVIDENCE-AUDIT-20260831.md`. Next independent
+slice: disposable restore dry-run/round-trip or its exact blocker; return to
+SEC-18 only with one fresh correlated inventory and a disposable caller probe.
+
 ## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
 Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and
