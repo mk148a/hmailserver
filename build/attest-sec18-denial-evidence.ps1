@@ -265,6 +265,147 @@ function Test-ExactStringSet {
     return @($expectedSet | Where-Object { $_ -notin $actualSet }).Count -eq 0
 }
 
+function ConvertFrom-Utf16RawValue {
+    param([object]$Value)
+
+    if ($null -eq $Value -or [int]$Value.Kind -ne 1) {
+        return $null
+    }
+
+    try {
+        $bytes = [Convert]::FromBase64String([string]$Value.RawBytesBase64)
+        if ($bytes.Length -lt 2 -or ($bytes.Length % 2) -ne 0 -or $bytes[$bytes.Length - 1] -ne 0 -or $bytes[$bytes.Length - 2] -ne 0) {
+            return $null
+        }
+
+        $text = [Text.Encoding]::Unicode.GetString($bytes)
+        if ($text.Length -lt 1 -or $text[$text.Length - 1] -ne [char]0) {
+            return $null
+        }
+
+        $decoded = $text.Substring(0, $text.Length - 1)
+        if ($decoded.IndexOf([char]0) -ge 0) {
+            return $null
+        }
+
+        return $decoded
+    }
+    catch {
+        return $null
+    }
+}
+
+function ConvertTo-Utf16RawValue {
+    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Value)
+
+    return [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($Value + [char]0))
+}
+
+function Test-InstalledGraphRawValues {
+    param(
+        [Parameter(Mandatory = $true)][object]$Graph
+    )
+
+    $classId = '{D6567EF8-0A6C-48E7-9288-A2463123C2F3}'
+    $appId = '{5EDEC473-39E0-43F6-A234-1947071721C8}'
+    $typeLib = '{DB241B59-A1B1-4C59-98FC-8D101A2995F2}'
+    $interfaceId = '{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}'
+    $registry32AbsentPaths = @(
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\ProgID',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\VersionIndependentProgID',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\Programmable',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\LocalServer32',
+        'Software\Classes\CLSID\{D6567EF8-0A6C-48E7-9288-A2463123C2F3}\TypeLib'
+    )
+    $snapshots = @($Graph.Snapshots)
+    $getSnapshot = {
+        param([string]$View, [string]$Path)
+        @($snapshots | Where-Object { [string]$_.View -ceq $View -and [string]$_.KeyPath -ceq $Path }) | Select-Object -First 1
+    }
+    $getValue = {
+        param([object]$Snapshot, [string]$Name)
+        if ($null -eq $Snapshot) { return $null }
+        @($Snapshot.Values | Where-Object { [string]$_.Name -ceq $Name }) | Select-Object -First 1
+    }
+    $valueMatches = {
+        param([object]$Snapshot, [string]$Name, [string]$Expected)
+        $value = & $getValue $Snapshot $Name
+        return $null -ne $value -and [int]$value.Kind -eq 1 -and
+            [string]::Equals([string]$value.RawBytesBase64, (ConvertTo-Utf16RawValue $Expected), [StringComparison]::Ordinal)
+    }
+    $valueSetMatches = {
+        param([object]$Snapshot, [object[]]$Expected)
+        if ($null -eq $Snapshot) { return $false }
+        $actual = @($Snapshot.Values)
+        if ($actual.Count -ne $Expected.Count) { return $false }
+        foreach ($expectedValue in $Expected) {
+            if (-not (& $valueMatches $Snapshot $expectedValue.Name $expectedValue.Value)) { return $false }
+        }
+        return $true
+    }
+
+    $referenceLocalServer = & $getSnapshot 'Registry64' ("Software\Classes\CLSID\$classId\LocalServer32")
+    $referenceValue = & $getValue $referenceLocalServer ''
+    $referenceText = ConvertFrom-Utf16RawValue $referenceValue
+    if ($null -eq $referenceText -or $referenceText.Length -lt 3 -or $referenceText[0] -ne '"' -or $referenceText[$referenceText.Length - 1] -ne '"') {
+        return $false
+    }
+    $referenceModule = $referenceText.Substring(1, $referenceText.Length - 2)
+
+    foreach ($view in @('Registry64', 'Registry32')) {
+        $prefix = 'Software\Classes\'
+        $expectedModule = $referenceModule
+        $localServer = & $getSnapshot $view ("${prefix}CLSID\$classId\LocalServer32")
+        $typeLibWin64 = & $getSnapshot $view ("${prefix}TypeLib\$typeLib\1.0\0\win64")
+        if ($view -eq 'Registry64') {
+            $localServerValue = & $getValue $localServer ''
+            $typeLibValue = & $getValue $typeLibWin64 ''
+            $localServerText = ConvertFrom-Utf16RawValue $localServerValue
+            $typeLibText = ConvertFrom-Utf16RawValue $typeLibValue
+            if ($null -eq $localServerText -or $localServerText.Length -lt 3 -or $localServerText[0] -ne '"' -or $localServerText[$localServerText.Length - 1] -ne '"' -or
+                -not [string]::Equals($typeLibText, $expectedModule, [StringComparison]::OrdinalIgnoreCase)) {
+                return $false
+            }
+        }
+        $expectedHelpDir = [IO.Path]::GetDirectoryName($expectedModule)
+        $expectedByPath = @{
+            "${prefix}hMailServer.Application.1" = @(@{ Name = ''; Value = 'Application Class' })
+            "${prefix}hMailServer.Application.1\CLSID" = @(@{ Name = ''; Value = $classId })
+            "${prefix}hMailServer.Application" = @(@{ Name = ''; Value = 'Application Class' })
+            "${prefix}hMailServer.Application\CLSID" = @(@{ Name = ''; Value = $classId })
+            "${prefix}hMailServer.Application\CurVer" = @(@{ Name = ''; Value = 'hMailServer.Application.1' })
+            "${prefix}CLSID\$classId" = @(@{ Name = ''; Value = 'Application Class' }, @{ Name = 'AppID'; Value = $appId })
+            "${prefix}CLSID\$classId\ProgID" = @(@{ Name = ''; Value = 'hMailServer.Application.1' })
+            "${prefix}CLSID\$classId\VersionIndependentProgID" = @(@{ Name = ''; Value = 'hMailServer.Application' })
+            "${prefix}CLSID\$classId\Programmable" = @()
+            "${prefix}CLSID\$classId\LocalServer32" = @(@{ Name = ''; Value = '"' + $expectedModule + '"' })
+            "${prefix}CLSID\$classId\TypeLib" = @(@{ Name = ''; Value = $typeLib })
+            "${prefix}AppID\$appId" = @(@{ Name = ''; Value = 'hMailServer' }, @{ Name = 'LocalService'; Value = 'hMailServer' })
+            "${prefix}AppID\hMailServer.EXE" = @(@{ Name = 'AppID'; Value = $appId })
+            "${prefix}TypeLib\$typeLib" = @()
+            "${prefix}TypeLib\$typeLib\1.0" = @(@{ Name = ''; Value = 'hMailServer Type Library' })
+            "${prefix}TypeLib\$typeLib\1.0\0" = @()
+            "${prefix}TypeLib\$typeLib\1.0\0\win64" = @(@{ Name = ''; Value = $expectedModule })
+            "${prefix}TypeLib\$typeLib\1.0\FLAGS" = @(@{ Name = ''; Value = '0' })
+            "${prefix}TypeLib\$typeLib\1.0\HELPDIR" = @(@{ Name = ''; Value = $expectedHelpDir })
+            "${prefix}Interface\$interfaceId" = @(@{ Name = ''; Value = 'IInterfaceApplication' })
+            "${prefix}Interface\$interfaceId\ProxyStubClsid32" = @(@{ Name = ''; Value = '{00020424-0000-0000-C000-000000000046}' })
+            "${prefix}Interface\$interfaceId\TypeLib" = @(@{ Name = ''; Value = $typeLib }, @{ Name = 'Version'; Value = '1.0' })
+        }
+        foreach ($path in $expectedByPath.Keys) {
+            $snapshot = & $getSnapshot $view $path
+            if ($view -eq 'Registry32' -and $registry32AbsentPaths -contains $path) {
+                if ($null -eq $snapshot -or [bool]$snapshot.Present -or @($snapshot.Values).Count -ne 0) { return $false }
+                continue
+            }
+            if ($null -eq $snapshot -or -not [bool]$snapshot.Present -or -not (& $valueSetMatches $snapshot $expectedByPath[$path])) { return $false }
+        }
+    }
+
+    return $true
+}
+
 $checks = New-Object 'System.Collections.Generic.List[object]'
 $matrix = Read-JsonFile $MatrixReportPath
 $authorized = Read-JsonFile $AuthorizedEvidencePath
@@ -393,6 +534,9 @@ $expectedInstalledGraphKeyPaths = @(
     'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\TypeLib'
 )
 $graphEvidenceCandidates = @($baselineGraph, $postGraph)
+$graphRawValuesComplete = @($graphEvidenceCandidates | Where-Object {
+        Test-InstalledGraphRawValues $_
+    }).Count -eq 2
 $graphEvidenceComplete = @($graphEvidenceCandidates | Where-Object {
         (Has-Property $_ 'SchemaVersion') -and [int]$_.SchemaVersion -eq 1 -and
         (Has-Property $_ 'EvidenceKind') -and [string]::Equals([string]$_.EvidenceKind, 'SEC18-InstalledApplicationGraph', [StringComparison]::Ordinal) -and
@@ -405,6 +549,7 @@ $graphEvidenceComplete = @($graphEvidenceCandidates | Where-Object {
         (Has-Property $_.CanonicalValidation 'DirectSubkeysValidated') -and [bool]$_.CanonicalValidation.DirectSubkeysValidated -and
         (Has-Property $_.CanonicalValidation 'Registry32AsymmetryValidated') -and [bool]$_.CanonicalValidation.Registry32AsymmetryValidated -and
         (Has-Property $_.CanonicalValidation 'InstallationPathsValidated') -and [bool]$_.CanonicalValidation.InstallationPathsValidated -and
+        $graphRawValuesComplete -and
         @($_.Snapshots).Count -eq ($expectedInstalledGraphKeyPaths.Count * 2) -and
         (@($_.Snapshots | ForEach-Object { "$($_.View)|$($_.KeyPath)" } | Sort-Object) -join "`n") -ceq
         (@('Registry64','Registry32' | ForEach-Object { $view = $_; $expectedInstalledGraphKeyPaths | ForEach-Object { "$view|$_" } } | Sort-Object) -join "`n")
@@ -579,6 +724,7 @@ Add-Check 'cleanup-verified' (
 Add-Check 'cleanup-provenance' $cleanupProvenance 'Rollback completed successfully and its exact script hash/name are bound to the cleanup evidence.'
 Add-Check 'attester-provenance' ($rollbackSourcePresent -and $attesterSourcePresent) 'The rollback script and attester script are present in the hashed source set.'
 Add-Check 'collector-provenance' $collectorScriptSourcePresent 'The collector implementation is present in the hashed source set.'
+Add-Check 'installed-application-graph-raw-values' $graphRawValuesComplete 'Both graph snapshots contain the exact canonical registry value names, types, and raw UTF-16 bytes.'
 $baselineHash = Get-SnapshotHash $baselineGraph
 $postHash = Get-SnapshotHash $postGraph
 Add-Check 'installed-application-graph-unchanged' (

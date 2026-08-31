@@ -229,31 +229,13 @@ try {
         'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\ProxyStubClsid32',
         'Software\Classes\Interface\{2C1A3EF1-115F-4029-BB33-D9CCA4BB0DE8}\TypeLib'
     )
-    $graphSnapshots = foreach ($view in @('Registry64', 'Registry32')) {
-        foreach ($keyPath in $graphKeyPaths) {
-            [pscustomobject]@{ View = $view; KeyPath = $keyPath; Present = $true }
-        }
-    }
-    $graphEvidence = [pscustomobject]@{
-        SchemaVersion = 1
-        EvidenceKind = 'SEC18-InstalledApplicationGraph'
-        GraphPathCount = 22
-        SnapshotCount = 44
-        Snapshots = @($graphSnapshots)
-        CanonicalValidation = [pscustomobject]@{
-            Complete = $true
-            FixedValuesValidated = $true
-            DirectSubkeysValidated = $true
-            Registry32AsymmetryValidated = $true
-            InstallationPathsValidated = $true
-        }
-        CanonicalExpectedContentsValidated = $true
-        CompleteReadback = $true
-    }
-    Write-JsonFixture $baselinePath $graphEvidence
+    $collectorScript = Join-Path $PSScriptRoot 'get-sec18-installed-application-graph-evidence.ps1'
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $collectorScript -OutputPath $baselinePath -ExpectedModulePath 'C:\hMailServer57-Test\Bin\hMailServer.exe' -OfflineFixture | Out-Null
+    Assert-True ($LASTEXITCODE -eq 0) 'the canonical graph collector fixture must be generated successfully.'
+    $graphEvidence = Get-Content -LiteralPath $baselinePath -Raw | ConvertFrom-Json
     Write-JsonFixture $postPath $graphEvidence
     $badGraph = $graphEvidence | ConvertTo-Json -Depth 20 | ConvertFrom-Json
-    $badGraph.Snapshots[0].KeyPath = 'Software\Classes\SEC18.InvalidGraphKey'
+    $badGraph.Snapshots[0].Values[0].RawBytesBase64 = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes('Tampered' + [char]0))
     Write-JsonFixture $badGraphPath $badGraph
 
     $commonArguments = @(
@@ -278,7 +260,7 @@ try {
     Assert-True ($LASTEXITCODE -eq 0) 'complete attestation fixture must pass.'
     $good = Get-Content -LiteralPath $goodOutputPath -Raw | ConvertFrom-Json
     Assert-True ([bool]$good.Gate.EvidenceReadyForIndependentReview) 'complete fixture must be review-ready.'
-    Assert-True (@($good.Checks).Count -eq 20) 'attestation must emit all twenty checks as an array.'
+    Assert-True (@($good.Checks).Count -eq 21) 'attestation must emit all twenty-one checks as an array.'
     Assert-True ($good.SourceHashes.Count -eq 14) 'attestation must hash every source file and verifier script.'
 
     Write-JsonFixture $badAuthorizedResponsePath ([pscustomobject]@{
@@ -335,10 +317,10 @@ try {
     $badGraphArguments[$badGraphArguments.IndexOf('-PostGraphPath') + 1] = $badGraphPath
     $badGraphArguments += @('-OutputPath', $badGraphOutputPath, '-FailOnIncomplete')
     & powershell.exe @badGraphArguments | Out-Null
-    Assert-True ($LASTEXITCODE -eq 2) 'a graph with matching counts and hash but a non-canonical key path must fail closed with exit 2.'
+    Assert-True ($LASTEXITCODE -eq 2) 'a graph with matching counts, hash, and collector flags but a tampered raw value must fail closed with exit 2.'
     $badGraphReport = Get-Content -LiteralPath $badGraphOutputPath -Raw | ConvertFrom-Json
     $graphCheck = $badGraphReport.Checks | Where-Object { $_.Name -eq 'installed-application-graph-unchanged' }
-    Assert-True (-not [bool]$graphCheck.Passed) 'a non-canonical graph key path must fail the installed graph check.'
+    Assert-True (-not [bool]$graphCheck.Passed) 'a tampered raw registry value must fail the installed graph check.'
 
     $duplicateOutputArguments = $commonArguments.Clone()
     $duplicateOutputArguments += @('-OutputPath', $goodOutputPath)
