@@ -205,6 +205,7 @@ using System.Globalization;
 using System.IO;
 using System.Net.Sockets;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -350,7 +351,14 @@ public static class HMailServerLiveImapProbe
         }
         catch (AggregateException exception)
         {
-            return Failure(stopwatch, exception.InnerException is TimeoutException, exception.Message);
+            var innerErrors = exception.Flatten().InnerExceptions
+                .Select(item => item.Message)
+                .Where(message => !string.IsNullOrWhiteSpace(message))
+                .ToArray();
+            return Failure(
+                stopwatch,
+                exception.Flatten().InnerExceptions.Any(item => item is TimeoutException),
+                innerErrors.Length == 0 ? exception.Message : string.Join(" | ", innerErrors));
         }
         catch (IOException exception)
         {
