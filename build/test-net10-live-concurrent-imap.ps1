@@ -110,16 +110,21 @@ if ($report.database -notmatch '^hmail_perf_[a-z0-9_]+$' -or $report.database -m
     throw "The report database is not an isolated benchmark database: $($report.database)"
 }
 if ($null -eq $report.sqlConnectionSettings -or
-    $report.sqlConnectionSettings.provider -cne "Microsoft.Data.SqlClient" -or
     $report.sqlConnectionSettings.server -cne "localhost" -or
-    $report.sqlConnectionSettings.database -cne $report.database -or
-    $report.sqlConnectionSettings.pooling -ne $true -or
-    $report.sqlConnectionSettings.connectionTimeoutSeconds -ne 15) {
+    $report.sqlConnectionSettings.database -cne $report.database) {
     throw "Concurrent IMAP report is missing the effective SQL connection settings attestation."
 }
-if ($report.implementation -eq "net10" -and
-    ([int]$report.sqlConnectionSettings.maxPoolSize -lt 1 -or [int]$report.sqlConnectionSettings.maxPoolSize -gt 5000)) {
-    throw "Net10 concurrent IMAP report has an invalid SQL max pool size attestation."
+if ($report.implementation -eq "net10") {
+    if ($report.sqlConnectionSettings.provider -cne "Microsoft.Data.SqlClient" -or
+        $report.sqlConnectionSettings.pooling -ne $true -or
+        $report.sqlConnectionSettings.connectionTimeoutSeconds -ne 15 -or
+        ([int]$report.sqlConnectionSettings.maxPoolSize -lt 1 -or [int]$report.sqlConnectionSettings.maxPoolSize -gt 5000)) {
+        throw "Net10 concurrent IMAP report has an invalid SQL connection settings attestation."
+    }
+}
+elseif ($report.sqlConnectionSettings.provider -cne "legacy native hMailServer SQL layer" -or
+    $null -ne $report.sqlConnectionSettings.maxPoolSize) {
+    throw "C++ concurrent IMAP report has an invalid native SQL settings attestation."
 }
 if ($null -eq $report.probeConfiguration -or
     [string]::IsNullOrWhiteSpace([string]$report.probeConfiguration.scheduler) -or

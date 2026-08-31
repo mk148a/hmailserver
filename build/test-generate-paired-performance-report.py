@@ -209,6 +209,7 @@ class PairedPerformanceProvenanceTests(unittest.TestCase):
         requested = concurrency * waves
         return {
             "schema": "live-concurrent-imap-v2",
+            "implementation": "net10",
             "status": "PASS",
             "concurrency": concurrency,
             "waves": waves,

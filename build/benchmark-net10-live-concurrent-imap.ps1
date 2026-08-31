@@ -581,16 +581,31 @@ if ($Implementation -eq "net10") {
     $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
 }
 
-$sqlConnectionSettings = [pscustomobject]@{
-    appliesTo = $Implementation
-    provider = "Microsoft.Data.SqlClient"
-    server = "localhost"
-    database = $database
-    integratedSecurity = $true
-    trustServerCertificate = $true
-    pooling = $true
-    maxPoolSize = if ($Implementation -eq "net10") { $SqlMaxPoolSize } else { $null }
-    connectionTimeoutSeconds = 15
+$sqlConnectionSettings = if ($Implementation -eq "net10") {
+    [pscustomobject]@{
+        appliesTo = "net10"
+        provider = "Microsoft.Data.SqlClient"
+        server = "localhost"
+        database = $database
+        integratedSecurity = $true
+        trustServerCertificate = $true
+        pooling = $true
+        maxPoolSize = $SqlMaxPoolSize
+        connectionTimeoutSeconds = 15
+    }
+}
+else {
+    [pscustomobject]@{
+        appliesTo = "cpp"
+        provider = "legacy native hMailServer SQL layer"
+        server = "localhost"
+        database = $database
+        integratedSecurity = $null
+        trustServerCertificate = $null
+        pooling = $null
+        maxPoolSize = $null
+        connectionTimeoutSeconds = $null
+    }
 }
 $probeConfiguration = [pscustomobject]@{
     scheduler = "Task.Run with a ManualResetEventSlim start barrier"
