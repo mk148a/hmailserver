@@ -1,11 +1,11 @@
 ﻿{
     "schema":  "disposable-cpp-service-protocol-v1",
     "status":  "PASS",
-    "startedUtc":  "2026-08-31T20:50:33.4835962+00:00",
-    "endedUtc":  "2026-08-31T20:50:43.3195057+00:00",
+    "startedUtc":  "2026-08-31T20:58:50.6618427+00:00",
+    "endedUtc":  "2026-08-31T20:59:00.2104339+00:00",
     "fixtureManifest":  "C:\\hmail-perf-pair-service-20260901\\paired-fixture.json",
     "fixtureId":  "hmail-perf-pair-service-20260901",
-    "fixtureManifestSha256":  "6B6B696877239D511C71F759D1A38D8CFB5836D23C85A2CE78E07D930068D919",
+    "fixtureManifestSha256":  "06EFCBA9520D478A6DAC7ABB7F09F3B63D015A0CD5ECA1EB4D0FD2CC8C38F9FD",
     "executable":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe",
     "executableSha256":  "B3DF9E8BBF4BEDB1102C94DF7C86356E1FEABCBC02A18E8EABEB1EA1453D09B8",
     "stagingRoot":  "C:\\hmail-perf-pair-service-20260901\\cpp",
@@ -13,7 +13,7 @@
     "serviceName":  "hMailServerPerfProtocol20260901",
     "serviceAccount":  "NT AUTHORITY\\LocalService",
     "commandLine":  "\"C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe\" /DisposableBenchmark /ServiceName=hMailServerPerfProtocol20260901 RunAsService",
-    "workerPid":  53168,
+    "workerPid":  35396,
     "listenerBind":  "127.0.0.1",
     "ports":  [
                   2525,
@@ -24,13 +24,13 @@
                         "schema":  "live-protocol-v1",
                         "implementation":  "cpp",
                         "status":  "PASS",
-                        "startedUtc":  "2026-08-31T20:50:37.0134551+00:00",
-                        "endedUtc":  "2026-08-31T20:50:41.2658618+00:00",
+                        "startedUtc":  "2026-08-31T20:58:54.4139105+00:00",
+                        "endedUtc":  "2026-08-31T20:58:58.3026930+00:00",
                         "database":  "hmail_perf_pair_cpp_20260831_head3",
-                        "runId":  "24164b34-1fb1-4e48-b2c6-031b8770df77",
+                        "runId":  "aabb017a-3881-4ff4-9a19-59a4047bab3a",
                         "provenanceStatus":  "MANIFEST_BOUND",
                         "fixtureId":  "hmail-perf-pair-service-20260901",
-                        "manifestSha256":  "6B6B696877239D511C71F759D1A38D8CFB5836D23C85A2CE78E07D930068D919",
+                        "manifestSha256":  "06EFCBA9520D478A6DAC7ABB7F09F3B63D015A0CD5ECA1EB4D0FD2CC8C38F9FD",
                         "dataRoot":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Data",
                         "bind":  "127.0.0.1",
                         "ports":  "SMTP 2525, IMAP 1143, POP3 25110",
@@ -41,27 +41,27 @@
                                             "iterations":  2,
                                             "successes":  2,
                                             "errors":  0,
-                                            "p50_ms":  10.252,
-                                            "p95_ms":  17.501,
-                                            "p99_ms":  18.145
+                                            "p50_ms":  8.164,
+                                            "p95_ms":  13.668,
+                                            "p99_ms":  14.158
                                         },
                                         {
                                             "scenario":  "imap",
                                             "iterations":  2,
                                             "successes":  2,
                                             "errors":  0,
-                                            "p50_ms":  287.433,
-                                            "p95_ms":  419.088,
-                                            "p99_ms":  430.79
+                                            "p50_ms":  186.901,
+                                            "p95_ms":  252.12,
+                                            "p99_ms":  257.918
                                         },
                                         {
                                             "scenario":  "pop3",
                                             "iterations":  2,
                                             "successes":  2,
                                             "errors":  0,
-                                            "p50_ms":  8.086,
-                                            "p95_ms":  8.804,
-                                            "p99_ms":  8.868
+                                            "p50_ms":  3.327,
+                                            "p95_ms":  3.785,
+                                            "p99_ms":  3.826
                                         }
                                     ],
                         "readinessFailures":  [
@@ -72,13 +72,13 @@
                                              ],
                         "processBefore":  {
                                               "threads":  76,
-                                              "privateBytes":  14577664,
-                                              "handles":  518
+                                              "privateBytes":  14524416,
+                                              "handles":  519
                                           },
                         "processAfter":  {
                                              "threads":  76,
-                                             "privateBytes":  15327232,
-                                             "handles":  518
+                                             "privateBytes":  15347712,
+                                             "handles":  521
                                          },
                         "isolationPreflight":  {
                                                    "targetExecutable":  "C:\\hmail-perf-pair-service-20260901\\cpp\\Bin\\hMailServer.exe",
@@ -104,8 +104,8 @@
                                                  },
                         "runStartAttestation":  {
                                                     "status":  "PASS",
-                                                    "observedUtc":  "2026-08-31T20:50:38.5381860+00:00",
-                                                    "manifestSha256":  "6B6B696877239D511C71F759D1A38D8CFB5836D23C85A2CE78E07D930068D919",
+                                                    "observedUtc":  "2026-08-31T20:58:55.8975312+00:00",
+                                                    "manifestSha256":  "06EFCBA9520D478A6DAC7ABB7F09F3B63D015A0CD5ECA1EB4D0FD2CC8C38F9FD",
                                                     "database":  "hmail_perf_pair_cpp_20260831_head3",
                                                     "databaseVersion":  5708,
                                                     "messageRowCount":  1000,
@@ -121,7 +121,7 @@
                                             "scenario":  "smtp",
                                             "iteration":  1,
                                             "ok":  true,
-                                            "ms":  18.306,
+                                            "ms":  14.28,
                                             "error":  "",
                                             "searchResponseIdentifier":  null,
                                             "searchResponseIdentifierValid":  null,
@@ -145,7 +145,7 @@
                                             "scenario":  "smtp",
                                             "iteration":  2,
                                             "ok":  true,
-                                            "ms":  2.199,
+                                            "ms":  2.049,
                                             "error":  "",
                                             "searchResponseIdentifier":  null,
                                             "searchResponseIdentifierValid":  null,
@@ -169,7 +169,7 @@
                                             "scenario":  "imap",
                                             "iteration":  1,
                                             "ok":  true,
-                                            "ms":  433.716,
+                                            "ms":  259.367,
                                             "error":  null,
                                             "searchResponseIdentifier":  "SEARCH",
                                             "searchResponseIdentifierValid":  true,
@@ -202,7 +202,7 @@
                                             "scenario":  "imap",
                                             "iteration":  2,
                                             "ok":  true,
-                                            "ms":  141.15,
+                                            "ms":  114.435,
                                             "error":  null,
                                             "searchResponseIdentifier":  "SEARCH",
                                             "searchResponseIdentifierValid":  true,
@@ -235,7 +235,7 @@
                                             "scenario":  "pop3",
                                             "iteration":  1,
                                             "ok":  true,
-                                            "ms":  8.884,
+                                            "ms":  3.836,
                                             "error":  "",
                                             "searchResponseIdentifier":  null,
                                             "searchResponseIdentifierValid":  null,
@@ -259,7 +259,7 @@
                                             "scenario":  "pop3",
                                             "iteration":  2,
                                             "ok":  true,
-                                            "ms":  7.288,
+                                            "ms":  2.817,
                                             "error":  "",
                                             "searchResponseIdentifier":  null,
                                             "searchResponseIdentifierValid":  null,
@@ -282,7 +282,7 @@
                                     ],
                         "serviceBacked":  true,
                         "externalServiceName":  "hMailServerPerfProtocol20260901",
-                        "externalServiceProcessId":  53168,
+                        "externalServiceProcessId":  35396,
                         "comHostedService":  "disposable SCM service; service wrapper owns cleanup",
                         "productionSafety":  "loopback-only; legacy registry/config resolution and executable provenance were preflighted; disposable SQL/Data roots required"
                     },
@@ -301,6 +301,26 @@
                                    ],
                       "passed":  true
                   },
+    "tcpipPortPreflight":  {
+                               "status":  "PASS",
+                               "expected":  [
+                                                "1|2525|2130706433|NULL",
+                                                "3|25110|2130706433|NULL",
+                                                "5|1143|2130706433|NULL"
+                                            ],
+                               "observed":  [
+                                                "1|2525|2130706433|NULL",
+                                                "3|25110|2130706433|NULL",
+                                                "5|1143|2130706433|NULL"
+                                            ],
+                               "database":  "hmail_perf_pair_cpp_20260831_head3",
+                               "bind":  "127.0.0.1",
+                               "ports":  {
+                                             "smtp":  2525,
+                                             "imap":  1143,
+                                             "pop3":  25110
+                                         }
+                           },
     "readinessFailures":  [
 
                           ],

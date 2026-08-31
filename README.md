@@ -28,6 +28,11 @@ Reports are under
 `artifacts/benchmarks/paired-cpp-net10-20260901-service/protocol-cpp-service/`
 and `.../protocol-net10/`.
 
+The disposable service runner also verifies the exact legacy SQL listener rows
+before startup: protocol 1 on 2525, protocol 3 on 25110, and protocol 5 on
+1143, each bound to `127.0.0.1` (`portaddress1=2130706433`). A mismatch fails
+closed and is recorded in the service protocol report.
+
 This removes the prior “C++ cannot run as a service” environment blocker, but
 does not establish a performance winner. The release performance gate remains
 **RED** until the same service-backed C++ and Net10 workloads pass the complete

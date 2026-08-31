@@ -1,9 +1,9 @@
 ﻿# Disposable C++ Service Protocol Benchmark
 
 - Status: **PASS**
-- Fixture: hmail-perf-pair-service-20260901 (6B6B696877239D511C71F759D1A38D8CFB5836D23C85A2CE78E07D930068D919)
+- Fixture: hmail-perf-pair-service-20260901 (06EFCBA9520D478A6DAC7ABB7F09F3B63D015A0CD5ECA1EB4D0FD2CC8C38F9FD)
 - Service: hMailServerPerfProtocol20260901 (created, exercised, stopped, and deleted)
-- Worker PID: 53168
+- Worker PID: 35396
 - Database: hmail_perf_pair_cpp_20260831_head3
 - Data root: C:\hmail-perf-pair-service-20260901\cpp\Data
 - Bind/ports: 127.0.0.1 / SMTP 2525, IMAP 1143, POP3 25110
