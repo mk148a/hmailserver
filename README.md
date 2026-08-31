@@ -53,6 +53,15 @@ Net10 pool settings. Both implementations had clean process shutdown and no
 runtime failures. These are diagnostic capacity results, not a speed claim or
 a release-gate pass.
 
+An SQL DMV sample taken during a separate Net10 pool-500 500-session run
+recorded 92 to 447 concurrent requests for the target database, with
+`ASYNC_NETWORK_IO` as the observed request wait type. That run still passed
+`500/500` but measured p50 `23204.878 ms`, p95 `23707.578 ms`, and throughput
+`20.892/s`. The raw disposable sample is under
+`artifacts/benchmarks/paired-cpp-net10-20260831-session-attested/sql-dmv-net10-500-pwsh/`.
+This is SQL-side evidence of result-stream/fan-out pressure, not proof of
+Net10 superiority or a cleared 1,000-session gate.
+
 > **Revalidation required:** the table below is retained as historical
 > diagnostic evidence. Its original generator did not independently recompute
 > sample cardinality, percentiles, throughput, or bind raw report bytes to a

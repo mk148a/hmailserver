@@ -29,6 +29,14 @@ queueing/resource contention, not a capacity fix or a C++/Net10 performance
 claim. Required 500/1000 levels and the soak remain open; performance is
 **RED**.
 
+An SQL DMV sample during a separate Net10 pool-500 500-session run recorded
+92 to 447 concurrent target-database requests, with `ASYNC_NETWORK_IO` as the
+observed wait type. That run passed `500/500` at p50 `23204.878 ms`, p95
+`23707.578 ms`, and throughput `20.892/s`. The raw disposable sample is under
+`artifacts/benchmarks/paired-cpp-net10-20260831-session-attested/sql-dmv-net10-500-pwsh/`.
+This points to SQL result-stream/fan-out pressure; it does not clear the
+1,000-session gate.
+
 Next slice: rerun both implementations at 500 and 1000 sessions with the
 attested 30-second timeout and fixed SQL settings on a fresh disposable
 fixture, then capture SQL-side wait/connection evidence.

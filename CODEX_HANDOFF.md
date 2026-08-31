@@ -26,6 +26,13 @@ Next slice: capture SQL-side waits and connection usage during a fresh,
 descriptor-bound 500/1000 rerun, then regenerate the sealed matrix only if all
 required samples and soak evidence pass.
 
+SQL DMV sampling during a separate Net10 pool-500 500-session run observed
+92 to 447 target-database requests and `ASYNC_NETWORK_IO` waits. The run
+passed `500/500` at p50 `23204.878 ms`, p95 `23707.578 ms`, throughput
+`20.892/s`; raw disposable samples are under
+`artifacts/benchmarks/paired-cpp-net10-20260831-session-attested/sql-dmv-net10-500-pwsh/`.
+This is evidence of SQL result-stream/fan-out pressure, not a release pass.
+
 ## Current authoritative continuation (2026-08-31, bounded retry backoff)
 
 Code/test commit `605bb1cf0` adds bounded exponential retry backoff to
