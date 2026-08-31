@@ -1,0 +1,126 @@
+{
+  "schema": "paired-cpp-net10-performance-diagnostic-v1",
+  "gate": "RED",
+  "fixtureId": "hmail-perf-pair-head2-20260831",
+  "manifestSha256": "1C70EAA0B1F8715565F4919440AE27F75DCB50369243EB2FAE36C8AC246AAF22",
+  "runId": "075748d6-2812-4ac2-a1c6-c3c472323656",
+  "sourceCommit": "b00eb7e5231908cef94a281e639e3b2d35bf76ca",
+  "cppExecutableSha256": "9B426FBD0222D6E651240849832819AA67B7045A3593940DF1EA32890845F209",
+  "protocol": [
+    {
+      "scenario": "smtp",
+      "cppStatus": "PASS",
+      "cppSuccesses": 200,
+      "cppErrors": 0,
+      "cppP50Ms": 1.078,
+      "cppP95Ms": 1.421,
+      "cppP99Ms": 2.331,
+      "net10Status": "PASS",
+      "net10Successes": 200,
+      "net10Errors": 0,
+      "net10P50Ms": 0.704,
+      "net10P95Ms": 0.979,
+      "net10P99Ms": 10.432,
+      "cppOverNet10P95Ratio": 1.451481
+    },
+    {
+      "scenario": "imap",
+      "cppStatus": "PASS",
+      "cppSuccesses": 200,
+      "cppErrors": 0,
+      "cppP50Ms": 123.044,
+      "cppP95Ms": 138.237,
+      "cppP99Ms": 154.835,
+      "net10Status": "PASS",
+      "net10Successes": 200,
+      "net10Errors": 0,
+      "net10P50Ms": 116.254,
+      "net10P95Ms": 187.811,
+      "net10P99Ms": 222.095,
+      "cppOverNet10P95Ratio": 0.736043
+    },
+    {
+      "scenario": "pop3",
+      "cppStatus": "PASS",
+      "cppSuccesses": 200,
+      "cppErrors": 0,
+      "cppP50Ms": 2.307,
+      "cppP95Ms": 2.967,
+      "cppP99Ms": 3.976,
+      "net10Status": "PASS",
+      "net10Successes": 200,
+      "net10Errors": 0,
+      "net10P50Ms": 13.642,
+      "net10P95Ms": 15.752,
+      "net10P99Ms": 27.781,
+      "cppOverNet10P95Ratio": 0.188357
+    }
+  ],
+  "concurrentImap": [
+    {
+      "concurrency": 100,
+      "cppStatus": "PASS",
+      "cppSuccesses": 100,
+      "cppErrors": 0,
+      "cppP95Ms": 4235.93,
+      "net10Status": "PASS",
+      "net10Successes": 100,
+      "net10Errors": 0,
+      "net10P95Ms": 4643.037,
+      "cppOverNet10P95Ratio": 0.912319
+    },
+    {
+      "concurrency": 500,
+      "cppStatus": "FAIL",
+      "cppSuccesses": 225,
+      "cppErrors": 275,
+      "cppP95Ms": 9400.495,
+      "net10Status": "PASS",
+      "net10Successes": 500,
+      "net10Errors": 0,
+      "net10P95Ms": 19300.879,
+      "cppOverNet10P95Ratio": null
+    },
+    {
+      "concurrency": 1000,
+      "cppStatus": "FAIL",
+      "cppSuccesses": 225,
+      "cppErrors": 775,
+      "cppP95Ms": 9306.799,
+      "net10Status": "FAIL",
+      "net10Successes": 224,
+      "net10Errors": 776,
+      "net10P95Ms": 47165.268,
+      "cppOverNet10P95Ratio": null
+    }
+  ],
+  "smtp": {
+    "rows": [
+      {
+        "implementation": "cpp",
+        "status": "PASS",
+        "accepted": 500,
+        "p50Ms": 6.549,
+        "p95Ms": 12.827,
+        "p99Ms": 14.309,
+        "throughput": 19.393
+      },
+      {
+        "implementation": "net10",
+        "status": "PASS",
+        "accepted": 500,
+        "p50Ms": 3.888,
+        "p95Ms": 5.359,
+        "p99Ms": 6.464,
+        "throughput": 20.097
+      }
+    ],
+    "cppOverNet10P95Ratio": 2.393544
+  },
+  "limitations": [
+    "No ratio or winner is published for a failed scenario.",
+    "The C++ executable is a disposable standalone /Debug process, not an installed Windows service.",
+    "The corpus contains 1,000 messages; the 100,000-message acceptance gate remains open.",
+    "A 24-hour service soak and full queue/remote-delivery matrix remain open."
+  ]
+}

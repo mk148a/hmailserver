@@ -1,14 +1,14 @@
 # Current State
-- UTC and local timestamp: 2026-08-31T15:39:58Z / 2026-08-31T18:39:58+03:00
+- UTC and local timestamp: 2026-08-31T16:35:00Z / 2026-08-31T19:35:00+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `9217686da` (documentation commit follows code/test `058a9f6f7`)
+- Current HEAD: documentation commit at the current tip (parent code/test `aaee76c4c`)
 - Last successfully pushed commit: `55eff58bb`
-- Latest focused-test result: `BackupArchiveIdentityTests` `13/13` PASS; Release ComInterop build `0` warnings, `0` errors for `net10.0` and `net10.0-windows`.
+- Latest focused-test result: diagnostic report generator and validator PASS; current-HEAD C++ Release build PASS with source commit `b00eb7e52319`, registration disabled.
 - Latest full Net10 result: Debug `2773 passed, 90 skipped, 5 failed` (`2868` total); all five failures are existing registered local-server COM activation checks returning `E_NOINTERFACE` (`0x80004002`).
-- Opt-in tests passed/skipped/blocked: ordered protocol and durable SMTP acceptance PASS; concurrent IMAP 500 diagnostic PASS but 1000 and soak FAIL; 90 standard opt-in tests skipped; POP3 large-mailbox, restore/installer rollback, registered COM, SEC-18 caller proof, AD/SSPI, and lifecycle acceptance blocked or unproven.
-- Current bounded slice: close the Release ComInterop CA1416 build blocker with Windows platform annotations; performance gate remains RED.
-- Completed milestones: disposable paired 5708/6000 fixture; exact Data/message parity; protocol and SMTP durable acceptance; sealed descriptor; input containment; live SEARCH/SORT checks; benchmark provenance and attestation; SQL wait evidence; indexing failure isolation and bounded retry backoff.
+- Opt-in tests passed/skipped/blocked: current paired protocol 200/200 and durable SMTP 500/500 PASS for both; concurrent IMAP C++ 100/100, 225/500, 225/1000 and Net10 100/100, 500/500, 224/1000; 90 standard opt-in tests skipped; POP3 large-mailbox, restore/installer rollback, registered COM, SEC-18 caller proof, AD/SSPI, and lifecycle acceptance blocked or unproven.
+- Current bounded slice: publish current-HEAD paired performance diagnostic evidence without invalid ratios; performance gate remains RED.
+- Completed milestones: current-HEAD disposable C++ build; paired 5708/6000 fixture; exact Data/message parity; protocol and SMTP durable acceptance; sealed descriptor; input containment; live SEARCH/SORT checks; benchmark provenance and attestation; SQL wait evidence; indexing failure isolation and bounded retry backoff; diagnostic charts and validator.
 - Open production blockers: registered out-of-process COM activation and Administrator compatibility; high-concurrency IMAP capacity and 20-wave/24-hour soak; full performance matrix/charts; POP3 large-mailbox; remote delivery/retry, queue, TLS/DNS, restore, installer/service/Data rollback; SEC-18 caller proof and plaintext PHP session credentials; AD/master-user; DKIM/DMARC/SPF; and unresolved P1 security findings.
 - Environment-blocked work: isolated registered COM/DCOM evidence, disposable restore/installer clone, AD/SSPI credentials, production-equivalent lifecycle, and long-duration soak infrastructure are unavailable; no production registration or DCOM ACL changes are permitted.
 - Protected/do-not-touch areas: production service/SQL/Data; installed Application COM/DCOM registration; production IIS/firewall; dirty `AGENTS.md`; pre-existing SEC-18, migration, benchmark, staging, and deleted/untracked artifacts.
-- Next three independent slices: isolated registered COM activation evidence or blocker record; fresh descriptor-bound SQL wait plus 500/1000 IMAP rerun; POP3 large-mailbox and installer/rollback acceptance in disposable resources.
+- Next three independent slices: isolate/resolve the C++ installed-service and native listener acceptance gap; fix Net10 1000-session resource pressure and rerun the paired gate; complete POP3 large-mailbox and installer/rollback acceptance in disposable resources.

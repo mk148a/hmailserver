@@ -3,20 +3,25 @@ hMailServer
 
 ## Current performance gate (2026-08-31, RED)
 
-### Latest sealed acceptance attempt
+### Current HEAD paired diagnostic
 
-Run descriptor `8a8612db-39cd-48e5-9051-0c34b5af8d98` was sealed against a
-fresh ordered disposable 5708/6000 fixture. Protocol acceptance passed 200/200
-for SMTP, IMAP, and POP3 on both implementations. Durable SMTP acceptance also
-passed 500/500 on both implementations, with exact SQL/Data accounting.
+The fresh disposable fixture `hmail-perf-pair-head2-20260831` uses the same
+1,000-message logical corpus and 1,000-file Data tree for a current-HEAD
+legacy C++ Release build (`b00eb7e52319`) and the Net10 Release build. Both
+protocol runs passed 200/200 for SMTP, IMAP, and POP3. Durable SMTP acceptance
+passed 500/500 for both implementations with exact SQL/Data accounting.
 
-The required concurrent IMAP and soak gates did not pass: C++ achieved
-100/100, 329/500, and 219/1000 sessions; Net10 achieved 91/100, 0/500, and
-0/1000. The 20-wave Net10 soak completed only 3,000/20,000 sessions before
-the worker exited. The report generator therefore correctly emits no speed
-ratio or winner, and no current performance chart is published. The harness
-now records process-exit failures in JSON/CSV/Markdown (`780494249`), and run
-descriptor sealing is covered by `18f900b1d`. Performance remains **RED**.
+The concurrent IMAP gate is still RED: C++ passed 100/100 but only 225/500
+and 225/1000; Net10 passed 100/100 and 500/500 but only 224/1000. No ratio or
+winner is published for 500 or 1000 because the paired acceptance condition
+failed. The current raw diagnostic report and charts are
+[`PERFORMANCE_DIAGNOSTIC.md`](artifacts/benchmarks/paired-cpp-net10-20260831-head2/report/PERFORMANCE_DIAGNOSTIC.md),
+[`concurrent-imap.png`](artifacts/benchmarks/paired-cpp-net10-20260831-head2/report/concurrent-imap.png),
+and [`protocol-p95.png`](artifacts/benchmarks/paired-cpp-net10-20260831-head2/report/protocol-p95.png).
+Protocol and SMTP p95 values are descriptive measurements only; they do not
+clear the release gate. The corpus is 1,000 messages, not the required
+100,000-message mailbox, and the C++ run is a disposable standalone `/Debug`
+process rather than an installed service. Performance remains **RED**.
 
 Release build follow-up commit `058a9f6f7` annotates the Windows-only backup
 snapshot ACL/SID path and its COM `LoadBackup` entry point with the supported

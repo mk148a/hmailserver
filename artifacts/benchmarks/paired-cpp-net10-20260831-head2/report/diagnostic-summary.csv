@@ -1,0 +1,7 @@
+category,scenario,cppStatus,cppSuccesses,cppErrors,cppP95Ms,net10Status,net10Successes,net10Errors,net10P95Ms,cppOverNet10P95Ratio
+protocol,smtp,PASS,200,0,1.421,PASS,200,0,0.979,1.451481
+protocol,imap,PASS,200,0,138.237,PASS,200,0,187.811,0.736043
+protocol,pop3,PASS,200,0,2.967,PASS,200,0,15.752,0.188357
+concurrent-imap,100,PASS,100,0,4235.93,PASS,100,0,4643.037,0.912319
+concurrent-imap,500,FAIL,225,275,9400.495,PASS,500,0,19300.879,
+concurrent-imap,1000,FAIL,225,775,9306.799,FAIL,224,776,47165.268,

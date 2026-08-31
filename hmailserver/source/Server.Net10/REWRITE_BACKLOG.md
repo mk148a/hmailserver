@@ -1,19 +1,33 @@
-## Current authoritative status (2026-08-31, Release build health)
+## Current authoritative status (2026-08-31, current-HEAD paired diagnostic)
 
-Code/test commit `058a9f6f7` annotates the Windows-only backup snapshot
-ACL/SID path and the COM `BackupManager.LoadBackup` entry point with the
-supported Windows platform contract. Focused `BackupArchiveIdentityTests`
-pass `13/13`; the complete Release build passes with `0` warnings and `0`
-errors for both ComInterop target frameworks. The Release CA1416 build blocker
-is closed. This does not change COM identity, registration, DCOM permissions,
-or backup behavior. Registered out-of-process COM activation remains unproven,
-and the performance gate remains **RED** because the 1,000-session and soak
-acceptance levels still fail.
+Code/test commit `aaee76c4c` adds a separate diagnostic comparison generator
+and validator. It accepts failed load levels for evidence, but publishes a
+latency ratio only when both implementations pass the same scenario. A fresh
+disposable fixture was rebuilt from current HEAD `b00eb7e52319` using a clean
+legacy C++ Release x64 build with post-build registration disabled. The
+fixture preserves SQL schema 5708 for C++ and 6000 for Net10, plus exact
+1,000-message and 1,000-file Data parity.
 
-Next slice: prove registered out-of-process COM activation only in an isolated
-disposable registration, or record the exact environment blocker; then return
-to fresh descriptor-bound 500/1000 IMAP and soak evidence without publishing a
-speed ratio.
+Both implementations passed 200/200 SMTP, IMAP, and POP3 protocol samples and
+500/500 durable SMTP acceptance with exact SQL/Data accounting. Concurrent IMAP
+passed C++ `100/100`, `225/500`, `225/1000` and Net10 `100/100`, `500/500`,
+`224/1000`. C++ failures are active loopback connection refusals; the legacy
+source calls `TCPServer::InitAcceptor` with `acceptor_.listen()` without an
+explicit backlog at `source/Server/Common/TCPIP/TCPServer.cpp:52-95`, while
+`SessionManager::CreateSession` applies no configured cap when
+`maximapconnections=0`. No 500/1000 ratio or winner is valid. The diagnostic
+report and charts are under
+`artifacts/benchmarks/paired-cpp-net10-20260831-head2/report/`.
+
+The performance gate remains **RED**. The C++ executable is standalone
+`/Debug`, not an installed service; the corpus is 1,000 rather than 100,000
+messages; Net10 1,000-session resource pressure, 24-hour soak, POP3 large
+mailbox, delivery/queue, restore, installer, registered COM, and SEC-18 gates
+remain open.
+
+Next slice: obtain isolated installed-service/native C++ acceptance evidence or
+record the exact environment blocker, then fix and rerun Net10/C++ 1,000-session
+capacity without weakening failure accounting.
 
 ## Current authoritative status (2026-08-31, bounded backoff follow-up)
 

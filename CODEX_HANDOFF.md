@@ -1,20 +1,29 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-08-31, Release build health)
+## Current authoritative continuation (2026-08-31, current-HEAD paired diagnostic)
 
-Code/test commit `058a9f6f7` annotates the Windows-only backup snapshot
-ACL/SID path and COM `BackupManager.LoadBackup` entry point with the supported
-Windows platform contract. Focused `BackupArchiveIdentityTests` pass `13/13`;
-the complete Release build passes with `0` warnings and `0` errors for both
-ComInterop target frameworks. The Release CA1416 blocker is closed without
-changing COM identity, registration, DCOM permissions, or backup behavior.
+Code/test commit `aaee76c4c` adds a diagnostic C++/.NET 10 report generator and
+validator that keeps failed load levels visible and suppresses invalid ratios.
+Current HEAD `b00eb7e52319` was rebuilt as a clean disposable legacy C++ Release
+x64 binary with post-build registration disabled. A new fixture has exact
+1,000-message/Data parity and the 5708 C++ / 6000 Net10 schema boundary.
 
-Full Debug remains `2773 passed, 90 skipped, 5 failed`, with the five existing
-registered local-server COM `E_NOINTERFACE` activation checks. Performance is
-still **RED**: Net10 1,000-session IMAP and the required soak are not green.
-Next slice: use only an isolated disposable registration to prove registered
-out-of-process COM activation, or record the exact environment blocker; then
-continue fresh descriptor-bound 500/1000 IMAP and soak evidence.
+Protocol acceptance passed 200/200 for SMTP, IMAP, and POP3 on both sides;
+durable SMTP acceptance passed 500/500 with exact SQL/Data accounting. IMAP
+concurrency was C++ `100/100`, `225/500`, `225/1000`; Net10 `100/100`,
+`500/500`, `224/1000`. No 500/1000 ratio or winner is valid. The C++ source
+evidence is `TCPServer::InitAcceptor` at
+`source/Server/Common/TCPIP/TCPServer.cpp:52-95` (`acceptor_.listen()` without
+an explicit backlog), with no configured IMAP cap in the fixture
+(`maximapconnections=0`).
+
+Performance remains **RED**. The standalone C++ `/Debug` process is not an
+installed service, the corpus is 1,000 rather than 100,000 messages, and
+Net10 1,000-session capacity, 24-hour soak, POP3, queue/delivery, restore,
+installer, registered COM, and SEC-18 gates remain open.
+
+Next slice: prove isolated installed-service/native C++ acceptance or record
+the blocker, then fix and rerun the Net10/C++ 1,000-session capacity gate.
 
 ## Current authoritative continuation (2026-08-31, load attestation)
 
