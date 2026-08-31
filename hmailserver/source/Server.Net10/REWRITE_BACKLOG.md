@@ -1,14 +1,15 @@
 
-## Current authoritative next slice (2026-08-31, SEC-18 graph attestation)
+## Current authoritative next slice (2026-08-31, SEC-18 graph raw-value attestation)
 
-The installed Application graph-content attestation slice is complete in
-code/test commit `622402ee7`. It now requires the canonical 22 registry paths
-in both Registry64 and Registry32 views, all 44 snapshot keys, complete
-readback, and the canonical collector validation flags; a mutated canonical
-path is rejected by the focused negative fixture. The next repository slice is
-exact canonical registry-value/raw-readback attestation. The live SEC-18 caller
-token, registered COM/DCOM, restore/installer, and performance gates remain
-environment-blocked or RED.
+The installed Application graph raw-value attestation slice is complete in
+code/test commit `38d6f96e3`. It independently requires the canonical raw
+registry value names, REG_SZ type, and UTF-16 NUL-terminated bytes for all 22
+paths in both views, while preserving the legacy Registry32 asymmetry. A
+tampered raw value is rejected even with counts, hash, and collector flags
+retained. The next slices are the isolated installer/service rollback drill,
+populated restore round-trip, and fresh SEC-18 caller-token evidence when
+their disposable prerequisites exist. The live SEC-18, restore/installer, and
+performance gates remain environment-blocked or RED.
 
 ## Current authoritative status (2026-08-31, IMAP query profile isolation)
 

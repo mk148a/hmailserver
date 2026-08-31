@@ -1,14 +1,13 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-08-31, SEC-18 graph attestation)
+## Current authoritative status (2026-08-31, SEC-18 graph raw-value attestation)
 
-Code/test commit `622402ee7` hardens the SEC-18 installed Application graph
-attestation to require the canonical 22 registry paths in both Registry64 and
-Registry32 views, all 44 snapshot keys, complete readback, and the collector's
-canonical validation flags. A negative fixture with a mutated canonical path is
-rejected even when its counts and hash are retained. Focused SEC-18 validators
-pass.
+Code/test commit `38d6f96e3` independently validates the canonical raw registry
+value names, REG_SZ type, and UTF-16 NUL-terminated bytes for all installed
+Application graph paths in both Registry64 and Registry32 views. It preserves
+the legacy Registry32 asymmetry and rejects a tampered raw value even when
+counts, hash, and collector flags are retained. Focused SEC-18 validators pass.
 
 The full Net10 suite remains `2773 passed, 90 skipped, 5 failed` (`2868` total).
 The five failures are existing registered local-server COM activation checks
