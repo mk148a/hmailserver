@@ -9499,3 +9499,20 @@ full Debug remains `2772 passed, 90 skipped, 5 failed` because of the existing
 registered COM `E_NOINTERFACE` checks. Next slice: isolate and fix the
 high-concurrency IMAP listener/resource failures, then rerun the complete
 descriptor-bound matrix on a fresh disposable fixture.
+## Authoritative current status (2026-08-31, indexing failure isolation)
+
+The sealed ordered load reproduced a concrete Net10 worker exit: SQL pool
+acquisition timed out in `SqlServerMessageIndexingAdministrationStore.IsEnabledAsync`
+from `MessageSearchBackfillProcessor.RunBatchAsync`, and the hosted service's
+unhandled exception triggered the default `StopHost` behavior. Commit
+`a3e14d83e` now logs transient non-cancellation batch failures, waits the
+existing idle delay, and retries; focused coverage is `5/5` and full Debug is
+`2773 passed, 90 skipped, 5 failed` with the same registered COM
+`E_NOINTERFACE` failures.
+
+The change does not make the sealed performance run green. That run remains
+RED: C++ concurrent IMAP was 100/100, 329/500, and 219/1000; Net10 was
+91/100, 0/500, and 0/1000; the Net10 20-wave soak stopped at 3,000/20,000
+before the worker exit. Next slice: rerun high-concurrency IMAP and the
+20-wave soak on a fresh disposable fixture and capture post-fix SQL-pool and
+worker-lifecycle evidence.

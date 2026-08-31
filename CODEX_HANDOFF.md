@@ -1,5 +1,27 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-08-31, backfill failure isolation)
+
+The ordered sealed matrix reproduced a Net10 worker exit under concurrent IMAP
+load. Windows Application log evidence identified
+`MessageSearchBackfillHostedService.ExecuteAsync` calling
+`MessageSearchBackfillProcessor.RunBatchAsync`, where
+`SqlServerConnectionFactory.OpenAsync` timed out waiting for a SQL pool
+connection; the host's `StopHost` background-service policy then terminated
+the worker.
+
+Commit `a3e14d83e` catches non-cancellation batch failures, logs them, waits
+the existing two-second idle delay, and retries without changing indexing
+semantics or cancellation behavior. Focused `MessageSearchBackfillProcessor`
+coverage is `5/5` PASS. Full Debug is `2773 passed, 90 skipped, 5 failed`; the
+five existing registered COM local-server checks still return `E_NOINTERFACE`.
+
+This addresses one confirmed crash cause, not the acceptance gate itself. The
+sealed ordered results remain RED: C++ 100/100, 329/500, 219/1000; Net10
+91/100, 0/500, 0/1000; Net10 soak 3,000/20,000 before worker exit. Next slice:
+rerun the required high-concurrency and 20-wave soak loads on a fresh fixture
+after this fix, then inspect any remaining SQL-pool/resource failures.
+
 ## Current authoritative continuation (2026-08-31, sealed RED matrix)
 
 The fresh ordered disposable fixture run descriptor

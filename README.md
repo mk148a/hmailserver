@@ -18,6 +18,14 @@ ratio or winner, and no current performance chart is published. The harness
 now records process-exit failures in JSON/CSV/Markdown (`780494249`), and run
 descriptor sealing is covered by `18f900b1d`. Performance remains **RED**.
 
+The ordered load also captured the worker-exit cause in the Windows
+Application log: `MessageSearchBackfillHostedService` lost a SQL connection
+from the pool and the default `StopHost` policy terminated the Net10 process.
+Commit `a3e14d83e` now logs transient backfill batch failures and retries after
+the existing idle delay while preserving cancellation. Focused coverage is
+`5/5`; this prevents indexing failure from taking down the service but does
+not yet prove the IMAP high-load gate.
+
 > **Revalidation required:** the table below is retained as historical
 > diagnostic evidence. Its original generator did not independently recompute
 > sample cardinality, percentiles, throughput, or bind raw report bytes to a
