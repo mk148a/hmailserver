@@ -1,7 +1,8 @@
 
 ## Current authoritative next slice (2026-09-01, mixed-recipient remote delivery parity)
 
-Code/test commit `0d257b2bb` implements the bounded legacy behavior for a
+Code/test commit `b9b58e239` adds the bounded live acceptance for the legacy
+behavior implemented in `0d257b2bb` for a
 remote batch containing one accepted recipient and one transient `451`.
 Legacy `ExternalDelivery::CollectDeliveryResult_` and `RescheduleDelivery_`
 (`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:439-608`) delete the
@@ -13,16 +14,18 @@ accepted. Net10 now emits and validates per-recipient outcomes in
 in `DeliveryQueueProcessor.ProcessRecipientResultsAsync`.
 
 Focused delivery tests are `47/47 PASS`; SQL recipient-store tests are
-`1/1 PASS`. Full Debug Net10 is `2790 passed, 94 skipped, 5 failed / 2889`,
-with only the known registered-COM `E_NOINTERFACE` failures. This closes the
-unit-level implementation gap only. Fresh paired C++/Net10 two-recipient SQL
-readback and a C++ queue/remote throughput runner are still open; no general
-performance winner is claimed and the release gate remains **RED**.
+`1/1 PASS`; the live Net10 mixed-recipient SQL/TCP acceptance is `1/1 PASS`.
+Full Debug Net10 is `2790 passed, 95 skipped, 5 failed / 2890`, with only the
+known registered-COM `E_NOINTERFACE` failures. The C++ harness observed the
+expected mixed SMTP and SQL row transitions once, but repeat runs timed out
+before the first sink connection; its paired artifact is FAIL. The live paired
+gate therefore remains open, no general performance winner is claimed, and the
+release gate remains **RED**.
 
-**Next smallest independent slice:** execute a new manifest-bound paired
-two-recipient TCP/SQL acceptance with `250 + 451`, row-level SQL readback, and
-cleanup on both disposable implementations. Do not broaden to other delivery
-or Admin mutations in that slice.
+**Next smallest independent slice:** isolate C++ disposable service
+delivery startup/queue-scan repeatability on a fresh 1k fixture, preserving the
+existing mixed-recipient test and its cleanup guards. Do not broaden to other
+delivery or Admin mutations in that slice.
 
 ## Historical current slice (2026-09-01, paired POP3 parity evidence)
 

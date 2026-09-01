@@ -2,15 +2,19 @@
 
 ## Current delivery parity implementation status (2026-09-01)
 
-The implementation slice in `0d257b2bb` carries per-recipient remote SMTP
+The implementation slice in `b9b58e239` carries per-recipient remote SMTP
 outcomes. This matches legacy `ExternalDelivery::CollectDeliveryResult_` and
 `RescheduleDelivery_` (`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:439-608`)
 for a mixed batch: an accepted recipient is deleted while a transient `451`
 recipient remains scheduled for retry. Net10 coverage passes `47/47` focused
-delivery tests and `1/1` SQL recipient-store test.
+delivery tests and `1/1` SQL recipient-store test. The live Net10
+mixed-recipient SQL/TCP acceptance passes `1/1`, including DATA after
+`250 + 451`, row-level deletion/retention, retry, recovery, and Data-file
+cleanup. The C++ harness observed the same flow once, but repeat runs timed out
+before the first sink connection.
 
-This is correctness coverage, not a queue benchmark. No supported paired C++
-queue/remote throughput runner or fresh two-recipient SQL readback exists yet;
+This is correctness coverage, not a queue benchmark. Repeatable paired C++ SQL
+readback and a supported C++ queue/remote throughput runner are still missing;
 the performance gate remains **RED** and no winner claim is permitted.
 
 ## Current paired POP3 large-mailbox parity (2026-09-01, 25 iterations)

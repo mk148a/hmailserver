@@ -6,7 +6,7 @@ Scope: loopback IMAP `Full` profile (`greeting; LOGIN; SELECT INBOX; SEARCH; SOR
 
 ## Delivery parity implementation status
 
-The bounded implementation slice `0d257b2bb` follows legacy
+The bounded implementation slice `b9b58e239` follows legacy
 `ExternalDelivery::Perform`, `CollectDeliveryResult_`, and `RescheduleDelivery_`
 (`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:58-181,439-608`) for a
 mixed remote batch. With one `250` RCPT and one transient `451`, the legacy
@@ -16,9 +16,14 @@ outcomes through `SmtpRemoteDeliveryClient.SendAttemptAsync`,
 `RemoteDeliveryTargetDispatcher`, and `DeliveryQueueProcessor`.
 
 The focused implementation tests pass `47/47`, and the SQL recipient-store
-test passes `1/1`. This does not establish live C++/Net10 SQL row-level parity
-or queue throughput. Those remain release-gate work; the performance gate is
-**RED**, and this report makes no general speed or superiority claim.
+test passes `1/1`. The live Net10 mixed-recipient SQL/TCP acceptance passes
+`1/1`, including `250 + 451 -> DATA`, accepted-row deletion,
+transient-row retention, retry, recovery, and Data-file cleanup. The C++
+disposable harness observed the same flow once, but its paired artifact is
+FAIL because three subsequent service runs timed out before the first sink
+connection. Repeatable paired C++ SQL row-level parity and queue throughput
+remain release-gate work; the performance gate is **RED**, and this report
+makes no general speed or superiority claim.
 
 ## Decision
 

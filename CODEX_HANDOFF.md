@@ -2,7 +2,8 @@
 
 ## Current authoritative continuation (2026-09-01, mixed-recipient remote delivery parity)
 
-Code/test commit `0d257b2bb` closes one bounded legacy delivery gap. The C++
+Code/test commit `b9b58e239` adds one bounded legacy delivery acceptance slice;
+the production behavior it exercises was implemented in `0d257b2bb`. The C++
 reference path is `ExternalDelivery::Perform`, `DeliverToSingleDomain_`,
 `CollectDeliveryResult_`, and `RescheduleDelivery_`
 (`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:58-181,439-608`), with
@@ -17,12 +18,17 @@ Net10 now preserves those outcomes through
 `RemoteDeliveryTargetDispatcher`, and
 `DeliveryQueueProcessor.ProcessRecipientResultsAsync`. Focused delivery tests
 pass `47/47`; SQL recipient-store tests pass `1/1`. Full Debug Net10 is
-`2790 passed, 94 skipped, 5 failed / 2889`; the five known failures are
-registered local-server COM checks returning `E_NOINTERFACE`. Live paired
-C++/Net10 two-recipient SQL readback and queue throughput remain unproven, so
-the performance release gate is still **RED**. Next: run that fresh paired
-two-recipient acceptance slice, then add supported queue/remote throughput
-coverage.
+`2790 passed, 95 skipped, 5 failed / 2890`; the five known failures are
+registered local-server COM checks returning `E_NOINTERFACE`. The live Net10
+two-recipient SQL/TCP acceptance passes `1/1`, and its evidence shows DATA after
+`250 + 451`, accepted-row deletion, transient-row retention, retry state,
+recovery, and Data-file cleanup. The paired C++ harness observed the same full
+flow once, but three subsequent disposable service runs timed out before the
+first sink connection; the paired C++ artifact is therefore FAIL and
+repeatability remains unproven. Queue throughput also remains unproven, so the
+performance release gate is still **RED**. Next: isolate C++ service
+delivery startup/queue-scan repeatability, then add supported queue/remote
+throughput coverage.
 
 ## Current authoritative continuation (2026-09-01, paired POP3 parity evidence)
 
