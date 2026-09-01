@@ -1,33 +1,32 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, IMAP master-user runtime parity)
+## Current authoritative status (2026-09-01, IMAP SASL PLAIN runtime enforcement)
 
-The bounded IMAP master-user runtime parity slice is complete in code/test
-commit `faeefe133`. Legacy `PasswordValidator::ValidatePassword`
-(`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:34-189`) and
-`AccountLogon::Logon`
-(`hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-95`) validate the
-master but update last-logon only for the returned target account. Net10 now
-preserves that behavior in
-`hmailserver/source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerImapAccountAuthenticator.cs`.
-Master target lookup also applies active-domain/account filtering and
-case-insensitive domain-alias resolution, including last-`@` handling for
-quoted local parts.
+Code/test commit `cc802249e` closes the bounded runtime gap for the legacy
+`UseIMAPSASLPlain` setting. Legacy
+`IMAPCommandAUTHENTICATE::ExecuteCommand`
+(`hmailserver/source/Server/IMAP/IMAPCommandAUTHENTICATE.cpp:22-25`)
+rejects AUTHENTICATE before TLS, parsing, authentication, and auto-ban work
+when the setting is disabled. Legacy
+`IMAPCommandCapability::ExecuteCommand`
+(`hmailserver/source/Server/IMAP/IMAPCommandCapability.cpp:39`) omits
+`AUTH=PLAIN` in that state. Net10 now applies the persisted setting in
+`ImapSession.HandleAuthenticateAsync` and
+`ImapSession.FormatCapabilityResponseAsync`, with the SQL settings provider
+wired in `HMailServer.Service.Host`; `SASL-IR` and all unrelated protocol,
+SMTP trust, installed COM identity, direct activation, SQL schema, service,
+Data directory, and machine boundaries are unchanged.
 
-Focused unit/auth coverage passes `3/3`. The disposable SQL integration class
-contains success, invalid-master, invalid-target, inactive-target, target-alias,
-and target-only last-logon assertions, but its two tests were skipped here
-because the approved SQL connection and isolated-create environment variables
-were unset. Full Net10 Debug is `2774 passed, 94 skipped, 5 failed / 2873`;
-the five failures are the pre-existing registered local-server COM activation
-checks returning `E_NOINTERFACE`. Live AD/DC, SASL enforcement, COM, SEC-18,
-restore/rollback, performance, and soak gates remain open; release remains
-**RED**.
+Focused IMAP session coverage passes `54/54`; related authentication/settings
+coverage passes `101/101`. Full Net10 Debug is `2776 passed, 94 skipped, 5
+failed / 2875`; the five failures remain the known registered local-server
+COM activation checks returning `E_NOINTERFACE`. Native AD/SSPI, registered
+out-of-process COM, SEC-18 caller proof, restore/rollback, paired performance,
+and long-soak gates remain open; release remains **RED**.
 
-Next is fresh isolated SEC-18 caller-token evidence when IIS prerequisites are
-available, followed by real disposable AD/SSPI validation and paired
-queue/long-soak acceptance.
+Next is fresh correlated SEC-18 evidence when IIS prerequisites are available,
+then disposable native AD/SSPI acceptance and paired queue/long-soak work.
 
 ## Current isolated backup -> restore -> backup round-trip (2026-09-01)
 

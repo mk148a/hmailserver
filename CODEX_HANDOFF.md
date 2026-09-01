@@ -9892,3 +9892,29 @@ remains `2774 passed, 93 skipped, 5 failed / 2872`; release remains **RED**.
 Next slice: run a fresh correlated IIS/worker collector invocation on the
 isolated staging host, then obtain independent PHP/FastCGI-to-COM caller-token
 and denial evidence.
+
+## Current authoritative continuation (2026-09-01, IMAP SASL PLAIN runtime enforcement)
+
+Code/test commit `cc802249e` completes the bounded IMAP `UseIMAPSASLPlain`
+runtime slice. Legacy `IMAPCommandAUTHENTICATE::ExecuteCommand`
+(`hmailserver/source/Server/IMAP/IMAPCommandAUTHENTICATE.cpp:22-25`) returns
+the disabled-feature `NO` response before TLS/parser/authentication/auto-ban
+work, and `IMAPCommandCapability::ExecuteCommand`
+(`hmailserver/source/Server/IMAP/IMAPCommandCapability.cpp:39`) suppresses
+`AUTH=PLAIN`. Net10 applies this through
+`ImapSession.HandleAuthenticateAsync`,
+`ImapSession.FormatCapabilityResponseAsync`, and the `Host` settings-store
+provider; `SASL-IR` and unrelated protocol, SMTP trust, COM, SQL/Data, service,
+and machine boundaries were unchanged.
+
+Focused IMAP session tests pass `54/54`; related authentication/settings tests
+pass `101/101`. Full Net10 Debug is `2776 passed, 94 skipped, 5 failed / 2875`;
+the five failures are the existing registered local-server COM
+`E_NOINTERFACE` checks. Release remains **RED**. No production service, SQL or
+Data directory, COM registration, DCOM ACL, IIS, firewall, or untracked
+benchmark/staging artifact was changed or staged.
+
+Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
+the isolated staging prerequisites exist; then run disposable native AD/SSPI
+and socket-level IMAP master-auth acceptance, followed by paired queue and
+long-soak thresholds.

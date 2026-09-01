@@ -1,33 +1,30 @@
 
-## Current authoritative next slice (2026-09-01, IMAP master-user runtime parity)
+## Current authoritative next slice (2026-09-01, IMAP SASL PLAIN runtime enforcement)
 
-Code/test commit `faeefe133` closes one bounded runtime parity gap. Legacy
-`PasswordValidator::ValidatePassword`
-(`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:34-189`) validates
-the master account and returns the target, while `AccountLogon::Logon`
-(`hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-95`) updates
-last-logon only for that returned target. Net10
-`SqlServerImapAccountAuthenticator.AuthenticateAsync` now suppresses the
-master timestamp side effect, updates only the resolved target, and resolves
-authorization targets through active domain aliases with case-insensitive
-matching and last-`@` quoted-local-part handling. Installed COM identities and
-the IMAP protocol boundary are unchanged.
+Code/test commit `cc802249e` closes the bounded `UseIMAPSASLPlain` runtime
+gap. Legacy `IMAPCommandAUTHENTICATE::ExecuteCommand`
+(`hmailserver/source/Server/IMAP/IMAPCommandAUTHENTICATE.cpp:22-25`) rejects
+disabled AUTHENTICATE before TLS/parser/authentication/auto-ban work, while
+`IMAPCommandCapability::ExecuteCommand`
+(`hmailserver/source/Server/IMAP/IMAPCommandCapability.cpp:39`) omits
+`AUTH=PLAIN`. Net10 enforces the setting in
+`ImapSession.HandleAuthenticateAsync` and
+`ImapSession.FormatCapabilityResponseAsync`; `Host` reads it through the
+configured settings administration store. `SASL-IR`, installed COM identity,
+direct activation boundaries, SMTP trust, SQL schema, service, Data directory,
+and machine state are unchanged.
 
-Focused auth/unit coverage passes `3/3`. The new SQL integration coverage
-asserts direct and domain-alias target success, target-only timestamps, invalid
-master/target rejection, and inactive-target rejection. Its two opt-in tests
-were skipped on this host because the approved SQL connection and isolated
-database-create variables were unset; no database or Data directory was used.
-Full Net10 Debug is `2774 passed, 94 skipped, 5 failed / 2873`; the five
-failures remain the known registered COM `E_NOINTERFACE` activation checks.
-Live AD/DC remains environment-blocked, so this is not native SSPI acceptance.
-The release gate remains **RED**.
+Focused IMAP session coverage passes `54/54`; related authentication/settings
+coverage passes `101/101`. Full Net10 Debug is `2776 passed, 94 skipped, 5
+failed / 2875`; the five failures remain the known registered local-server COM
+`E_NOINTERFACE` activation checks. Native AD/SSPI, registered out-of-process
+COM, SEC-18 caller proof, restore/rollback, paired performance, and long-soak
+gates remain open. The release gate remains **RED**.
 
 Next smallest independent slice: refresh correlated SEC-18 IIS/worker and
-caller-token evidence on the isolated staging host when IIS prerequisites are
-available. After that, run the approved disposable AD/DC/native `LogonUser`
-matrix and socket-level IMAP master-auth cases, then continue paired queue and
-long-soak acceptance.
+caller-token evidence when the isolated staging prerequisites are available;
+then run disposable native AD/DC `LogonUser` and socket-level IMAP master-auth
+acceptance, followed by paired queue and long-soak thresholds.
 
 ## Historical continuation (2026-09-01, pre-master-parity status)
 
