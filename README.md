@@ -20,6 +20,9 @@ a universal latency/speed winner. The performance release gate remains **RED**
 pending queue/remote-delivery parity, POP3 coverage, long soak, and the other
 release gates. Full evidence, fixture hashes, and graphs are in
 `hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`.
+The latest full Net10 Debug run is `2786 passed, 94 skipped, 7 failed / 2887`:
+five registered-COM `E_NOINTERFACE` failures remain, and two scanner tests are
+blocked by endpoint protection denying access to temporary `.eml` files.
 
 ## Current authoritative status (2026-09-01, paired performance gate)
 
