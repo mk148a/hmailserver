@@ -27,11 +27,18 @@ The C++ production tree is intentionally unchanged: the evidence does not yet
 distinguish native SQL contention, synchronous IOCP callback work, and accept
 queue pressure. The benchmark runners now expose and record `WarmupSeconds`.
 
-Next smallest independent slice: add a read-only monitor correlating worker
-private bytes/handles/threads, TCP 1143 states, and disposable SQL request/wait
-DMVs with failed session timestamps. Only then consider a legacy-anchored C++
-source change. Queue/remote delivery, POP3, restore/rollback, registered COM,
-SEC-18, AD/SSPI, and 24-hour soak remain separate release blockers.
+The read-only monitor slice is now complete. Fresh C++ 500/1,000 Full-profile
+runs observed 76 worker threads, SQL active-request peaks of 1, and TCP
+established peaks of 490/411; both workloads still failed and cleanup passed.
+The evidence shows transport/session pressure but does not prove a leak or a
+single safe C++ source fix. Output is under the local disposable
+`artifacts/benchmarks/disposable-cpp-capacity-monitor/` directory.
+
+Next smallest independent slice: run the monitor across C++ Admission,
+AuthSelect, Search, Sort, and controlled ramps, then decide whether a
+legacy-anchored C++ change is justified. Queue/remote delivery, POP3,
+restore/rollback, registered COM, SEC-18, AD/SSPI, and 24-hour soak remain
+separate release blockers.
 
 ## Historical continuation (2026-09-01, root-private IMAP RENAME parity)
 

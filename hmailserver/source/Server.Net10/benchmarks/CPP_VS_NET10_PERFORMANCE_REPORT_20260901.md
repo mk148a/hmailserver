@@ -48,6 +48,27 @@ The 100-session row is a descriptive paired result. The 500- and 1,000-session
 latency/throughput numbers are not acceptance wins because the C++ side did
 not complete the requested workload.
 
+## Capacity Monitor Evidence
+
+The new disposable monitor was run against a fresh clean fixture at 100 ms
+sampling. It observed the actual C++ worker executable while the wrapper ran;
+SQL collection used read-only DMVs against the disposable database.
+
+| Sessions | Worker thread peak | Private bytes peak | Handles peak | Established TCP peak | CLOSE_WAIT peak | Active SQL requests peak | Workload |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | :---: |
+| 500 | 76 | 52,924,416 | 783 | 490 | 316 | 1 | FAIL |
+| 1,000 | 76 | 50,548,736 | 754 | 411 | 217 | 1 | FAIL |
+
+The worker stayed alive and cleanup completed. The monitor does not show a
+crash or a persistent resource leak. It does show a high number of short-lived
+TCP connections and `CLOSE_WAIT` entries during failed Full-profile runs. This
+is evidence for a transport/session pressure investigation, not proof that a
+specific C++ source line should be changed.
+
+Monitor JSON/CSV/Markdown output is retained locally under
+`artifacts/benchmarks/disposable-cpp-capacity-monitor/`; raw machine-specific
+paths are intentionally not committed.
+
 ## Graphs
 
 Legend: `C++` is the first bar; `.NET 10` is the second bar in each chart.

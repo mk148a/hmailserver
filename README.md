@@ -21,6 +21,13 @@ read-only worker/TCP/SQL correlation proves the bottleneck.
 The benchmark runners now expose `WarmupSeconds` and record it in the report,
 so readiness and workload start are explicit and reproducible.
 
+A read-only disposable C++ capacity monitor now correlates worker resources,
+TCP 1143 states, and SQL request/wait DMVs. In fresh 500/1,000-session runs
+the worker stayed at 76 threads, SQL active requests peaked at 1, and TCP
+established connections peaked at 490/411; the workload still failed. This
+does not prove a leak or justify a C++ source change. The next performance
+step is per-profile/ramp correlation before changing the legacy reference.
+
 ## Historical status (2026-09-01, root-private IMAP RENAME parity)
 
 The bounded slice after code/test commit `f6a3d15c2` implements root-level

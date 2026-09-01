@@ -9994,6 +9994,25 @@ states, and disposable SQL request/wait DMVs with failed session timestamps.
 Do not alter the legacy reference until that evidence identifies the
 bottleneck. No push was performed.
 
+## Current authoritative continuation (2026-09-01, C++ capacity monitor)
+
+Code/test commit `342b454e3` adds
+`build/monitor-disposable-cpp-imap-capacity.ps1`. It enforces the disposable
+fixture boundaries, refuses a running production-named service, samples the
+actual C++ worker, TCP 1143 states, and read-only SQL DMVs every 100 ms, and
+emits JSON/CSV/Markdown without changing production state.
+
+Fresh 500 and 1,000 Full-profile monitor runs both remained workload FAIL.
+The C++ worker stayed at 76 threads; SQL active requests peaked at 1; TCP
+established peaks were 490 and 411; private-byte peaks were 52,924,416 and
+50,548,736. Cleanup and production-service protection passed. This is not a
+crash/leak proof and does not justify modifying the legacy C++ reference.
+
+Next slice: run the monitor across C++ Admission, AuthSelect, Search, Sort,
+and controlled ramps to distinguish transport pressure from synchronous
+SEARCH/SORT work before considering a source-level change. No push was
+performed.
+
 ## Current authoritative continuation (2026-09-01, IMAP STORE \\Seen ACL evidence)
 
 The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
