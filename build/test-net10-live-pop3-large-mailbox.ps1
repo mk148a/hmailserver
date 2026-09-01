@@ -10,7 +10,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "live-benchmark-provenance.ps1")
 $jsonPath = Join-Path $InputDirectory "net10-live-pop3-large-mailbox.json"
+$csvPath = Join-Path $InputDirectory "net10-live-pop3-large-mailbox.csv"
+$markdownPath = Join-Path $InputDirectory "net10-live-pop3-large-mailbox.md"
 if (-not (Test-Path -LiteralPath $jsonPath -PathType Leaf)) {
     throw "POP3 large-mailbox JSON report is missing: $jsonPath"
 }
@@ -56,5 +59,9 @@ foreach ($sample in $samples) {
 }
 if (@($report.readinessFailures).Count -ne 0 -or @($report.shutdownFailures).Count -ne 0) {
     throw "POP3 report contains readiness or shutdown failures."
+}
+if ($report.provenanceStatus -eq "MANIFEST_BOUND") {
+    Assert-LiveBenchmarkManifestBoundArtifact -Report $report -CsvPath $csvPath -MarkdownPath $markdownPath
+    Assert-LiveBenchmarkRunStartArtifact -Report $report -CsvPath $csvPath -MarkdownPath $markdownPath
 }
 Write-Output "Validated $ExpectedImplementation POP3 large-mailbox artifact: $($report.successes)/$ExpectedIterations; mailbox $($report.mailboxRowsAfterRun)/$ExpectedMessages; status $($report.status)."

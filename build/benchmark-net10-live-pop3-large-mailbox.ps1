@@ -206,6 +206,12 @@ $env:HMAILSERVER_EXTERNAL_FETCH_ENABLED = "false"
 $env:HMAILSERVER_COM_LOCAL_SERVER_ENABLED = "false"
 
 $process = $null
+$provenance = Get-LiveBenchmarkProvenance -FixtureManifest $FixtureManifest -RunId $RunId -Implementation $Implementation -RepositoryRoot $repoRoot -Database $BenchmarkDatabase -DataRoot $dataRoot -ServiceExecutable $serviceExe -Ports ([ordered]@{ smtp = 2525; imap = 1143; pop3 = 25110 })
+$runStartAttestation = if ($provenance.manifestBound) {
+    Assert-LiveBenchmarkRunStartAttestation -FixtureManifest $FixtureManifest -Implementation $Implementation -RepositoryRoot $repoRoot -Database $BenchmarkDatabase -DataRoot $dataRoot -ServiceExecutable $serviceExe
+} else {
+    $null
+}
 $startUtc = [DateTimeOffset]::UtcNow
 $samples = [System.Collections.Generic.List[object]]::new()
 $readinessFailures = [System.Collections.Generic.List[string]]::new()
@@ -248,7 +254,10 @@ $mailboxRows = Get-MailboxRowCount
 $report = [pscustomobject]@{
     schema = "live-pop3-large-mailbox-v2"
     implementation = $Implementation
-    runId = $RunId
+    runId = $provenance.runId
+    provenanceStatus = if ($provenance.manifestBound) { "MANIFEST_BOUND" } else { "UNBOUND" }
+    fixtureId = $provenance.fixtureId
+    manifestSha256 = $provenance.manifestSha256
     fixtureManifest = if ([string]::IsNullOrWhiteSpace($FixtureManifest)) { $null } else { [IO.Path]::GetFullPath($FixtureManifest) }
     status = if ($readinessFailures.Count -eq 0 -and $shutdownFailures.Count -eq 0 -and $successful.Count -eq $Iterations -and $mailboxRows -eq $ExpectedMessages) { "PASS" } else { "FAIL" }
     startedUtc = $startUtc.ToString("o")
@@ -257,6 +266,8 @@ $report = [pscustomobject]@{
     dataRoot = $dataRoot
     endpoint = "127.0.0.1:25110"
     expectedMessages = $ExpectedMessages
+    messageCount = $ExpectedMessages
+    dataFileCount = if ($null -ne $fixture) { [int]$fixture.expectedDataFingerprint.fileCount } else { 1000 }
     mailboxRowsAfterRun = $mailboxRows
     iterations = $Iterations
     successes = $successful.Count
@@ -270,6 +281,8 @@ $report = [pscustomobject]@{
     retr_p50_ms = Get-Percentile @($successful | ForEach-Object retr_ms) 50
     readinessFailures = @($readinessFailures)
     shutdownFailures = @($shutdownFailures)
+    executableProvenance = $provenance.executableProvenance
+    runStartAttestation = $runStartAttestation
     samples = $samples
     productionSafety = "loopback-only; disposable SQL/Data roots required; no production service/DB/Data is used"
 }
@@ -279,16 +292,56 @@ $jsonPath = Join-Path $OutputDirectory "net10-live-pop3-large-mailbox.json"
 $csvPath = Join-Path $OutputDirectory "net10-live-pop3-large-mailbox.csv"
 $markdownPath = Join-Path $OutputDirectory "net10-live-pop3-large-mailbox.md"
 $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
-$samples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
+$csvSamples = $samples | ForEach-Object {
+    [pscustomobject]@{
+        runId = $report.runId
+        provenanceStatus = $report.provenanceStatus
+        fixtureId = $report.fixtureId
+        manifestSha256 = $report.manifestSha256
+        implementation = $report.implementation
+        database = $report.database
+        dataRoot = $report.dataRoot
+        executableSha256 = $report.executableProvenance.sha256
+        runStartAttestationStatus = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { "UNBOUND" }
+        runStartDataSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { $null }
+        runStartMessageSha256 = if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { $null }
+        scenario = $_.scenario
+        iteration = $_.iteration
+        ok = $_.ok
+        total_ms = $_.total_ms
+        stat_ms = $_.stat_ms
+        list_ms = $_.list_ms
+        uidl_ms = $_.uidl_ms
+        retr_ms = $_.retr_ms
+        stat_count = $_.stat_count
+        list_count = $_.list_count
+        uidl_count = $_.uidl_count
+        retr_lines = $_.retr_lines
+        error = $_.error
+    }
+}
+$csvSamples | Export-Csv -LiteralPath $csvPath -NoTypeInformation
 @(
     "# $Implementation live POP3 large-mailbox acceptance",
     "",
+    "Implementation: $($report.implementation)",
     "Status: $($report.status)",
+    "Database: $($report.database)",
+    "Data root: $($report.dataRoot)",
+    "Endpoint: $($report.endpoint)",
     "Mailbox: $($report.mailboxRowsAfterRun)/$($report.expectedMessages) rows",
     "Iterations: $($report.iterations); successes: $($report.successes); errors: $($report.errors)",
     "STAT/LIST/UIDL/RETR p50: $($report.total_p50_ms) / $($report.list_p50_ms) / $($report.uidl_p50_ms) / $($report.retr_p50_ms) ms",
+    "Run ID: $($report.runId)",
+    "Provenance: $($report.provenanceStatus)",
+    "Fixture ID: $($report.fixtureId)",
+    "Fixture manifest SHA-256: $($report.manifestSha256)",
+    "Executable SHA-256: $($report.executableProvenance.sha256)",
+    "Run-start attestation: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.status } else { 'UNBOUND' })",
+    "Run-start Data SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.dataSha256 } else { '' })",
+    "Run-start message SHA-256: $(if ($null -ne $report.runStartAttestation) { $report.runStartAttestation.messageSha256 } else { '' })",
     "",
-    "This is Net10-only large-mailbox evidence. No C++ ratio or winner is valid until the same isolated fixture and commands run on the legacy server."
+    "This is $($report.implementation)-only large-mailbox evidence. It does not calculate a C++/.NET 10 speed ratio."
 ) | Set-Content -LiteralPath $markdownPath -Encoding UTF8
 Write-Output "status=$($report.status); mailbox=$($report.mailboxRowsAfterRun)/$($report.expectedMessages); successes=$($report.successes); total_p50=$($report.total_p50_ms); list_p50=$($report.list_p50_ms); uidl_p50=$($report.uidl_p50_ms); retr_p50=$($report.retr_p50_ms)"
 Write-Output "JSON: $jsonPath"
