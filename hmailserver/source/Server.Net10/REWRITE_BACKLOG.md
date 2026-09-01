@@ -1,25 +1,30 @@
 
-## Current authoritative next slice (2026-09-01, IMAP STORE \\Seen ACL evidence)
+## Current authoritative next slice (2026-09-01, root-private IMAP RENAME parity)
 
-The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
-legacy IMAP STORE `\\Seen` authorization. Legacy `IMAPStore::DoAction`
-(`hmailserver/source/Server/IMAP/IMAPStore.cpp`) checks exact
-`PermissionWriteSeen` before flag mutation. Net10’s `ImapSession` already maps
-`\\Seen` to `ImapAclRights.WriteSeen` before invoking
-`ImapStoreCommandHandler`; no production behavior or COM/SQL/service boundary
-was changed in this slice.
+The bounded slice after code/test commit `f6a3d15c2` implements root-level
+private-folder IMAP `RENAME`. Legacy `IMAPCommandRENAME::ExecuteCommand` and
+`ConfirmPossibleToRename` in `hmailserver/source/Server/IMAP/IMAPCommandRename.cpp`
+require authentication and `PermissionDeleteMailbox`, reject INBOX, public or
+nested transitions and existing targets, then persist the existing folder row
+and return `OK Rename completed`. Net10 dispatches through
+`ImapRenameCommandHandler` to a transactional
+`SqlServerImapMailboxStore.RenameRootFolderAsync` and publishes the updated
+folder through `IImapFolderChangeTracker`. Nested/public/cross-parent and
+implicit-parent behavior remain intentionally out of scope.
 
-Focused IMAP STORE/ACL coverage passes `63/63`; related SQL mutation/ACL
-coverage passes `10/10`. Full Net10 Debug is `2781 passed, 94 skipped, 5
-failed / 2880`; the five failures remain the known registered local-server COM
-`E_NOINTERFACE` activation checks. Native AD/SSPI, registered out-of-process
-COM, SEC-18 caller proof, restore/rollback, paired performance, and long-soak
-gates remain open. The release gate remains **RED**.
+Focused RENAME/session and SQL-folder-store coverage passes `80/80`. Full
+Net10 Debug is `2788 passed, 94 skipped, 5 failed / 2887`; the five failures
+remain the known registered local-server COM `E_NOINTERFACE` activation checks.
+Native AD/SSPI, registered out-of-process COM, SEC-18 caller proof,
+restore/rollback, paired performance, and long-soak gates remain open. The
+`STORE FLAGS` per-flag authorization and ACL mutation timing findings remain
+separate security-hardening blockers. The release gate remains **RED**.
 
 Next smallest independent slice: refresh correlated SEC-18 IIS/worker and
 caller-token evidence when the isolated staging prerequisites are available;
 then run disposable native AD/DC `LogonUser` and socket-level IMAP master-auth
-acceptance, followed by the next legacy-anchored IMAP command ACL gap.
+acceptance, followed by `STORE FLAGS` per-flag authorization hardening and
+mutation-timing evidence.
 
 ## Historical continuation (2026-09-01, pre-master-parity status)
 

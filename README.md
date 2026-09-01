@@ -1,25 +1,28 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, IMAP STORE \\Seen ACL evidence)
+## Current authoritative status (2026-09-01, root-private IMAP RENAME parity)
 
-The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
-legacy IMAP STORE `\\Seen` authorization. Legacy `IMAPStore::DoAction`
-(`hmailserver/source/Server/IMAP/IMAPStore.cpp`) checks the exact
-`PermissionWriteSeen` bit before mutation; Net10’s
-`ImapSession` maps `\\Seen` to `ImapAclRights.WriteSeen` before invoking
-`ImapStoreCommandHandler`. The session behavior was already correct; this
-slice adds explicit regression evidence without changing production behavior.
+The bounded slice after code/test commit `f6a3d15c2` implements root-level
+private-folder IMAP `RENAME`. Legacy `IMAPCommandRENAME::ExecuteCommand` and
+`ConfirmPossibleToRename` in `hmailserver/source/Server/IMAP/IMAPCommandRename.cpp`
+require authentication and `PermissionDeleteMailbox`, reject INBOX, public or
+nested transitions and existing targets, then persist the existing folder row
+and return `OK Rename completed`. Net10 now dispatches through
+`ImapRenameCommandHandler` to a transactional
+`SqlServerImapMailboxStore.RenameRootFolderAsync`, preserving tracker updates.
+Nested/public/cross-parent and implicit-parent behavior remain out of scope.
 
-Focused IMAP STORE/ACL coverage passes `63/63`; related SQL mutation/ACL
-coverage passes `10/10`. Full Net10 Debug is `2781 passed, 94 skipped, 5
-failed / 2880`; the five failures remain the known registered local-server COM
-activation checks returning `E_NOINTERFACE`. Native AD/SSPI, registered
-out-of-process COM, SEC-18 caller proof, restore/rollback, paired performance,
-and long-soak gates remain open; release remains **RED**.
+Focused RENAME/session and SQL-folder-store coverage passes `80/80`. Full
+Net10 Debug is `2788 passed, 94 skipped, 5 failed / 2887`; the five failures
+remain the known registered local-server COM activation checks returning
+`E_NOINTERFACE`. Native AD/SSPI, registered out-of-process COM, SEC-18 caller
+proof, restore/rollback, paired performance, and long-soak gates remain open;
+release remains **RED**.
 
 Next is fresh correlated SEC-18 evidence when IIS prerequisites are available,
-then disposable native AD/SSPI acceptance and paired queue/long-soak work.
+then disposable native AD/SSPI acceptance and `STORE FLAGS` authorization
+hardening/evidence. Paired queue and long-soak work remain release blockers.
 
 ## Current isolated backup -> restore -> backup round-trip (2026-09-01)
 

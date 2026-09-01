@@ -9944,6 +9944,29 @@ the isolated staging prerequisites exist; then run disposable native AD/SSPI
 and socket-level IMAP master-auth acceptance, followed by the next
 legacy-anchored IMAP command ACL gap.
 
+## Current authoritative continuation (2026-09-01, root-private IMAP RENAME parity)
+
+Code/test commit `f6a3d15c2` implements the smallest unblocked RENAME slice:
+authenticated root-level private-folder rename only. Legacy
+`IMAPCommandRENAME::ExecuteCommand` and `ConfirmPossibleToRename` in
+`hmailserver/source/Server/IMAP/IMAPCommandRename.cpp` require
+`PermissionDeleteMailbox`, reject INBOX/public/nested transitions and target
+collisions, then persist the existing folder row and return `OK Rename
+completed`. Net10 dispatches through `ImapRenameCommandHandler` to the
+transactional `SqlServerImapMailboxStore.RenameRootFolderAsync`, preserving
+the folder change tracker. Public, nested, cross-parent, and implicit-parent
+behavior remain intentionally out of scope.
+
+Focused RENAME/session and SQL-folder-store tests pass `80/80`; full Net10
+Debug is `2788 passed, 94 skipped, 5 failed / 2887`. The five failures remain
+the known registered local-server COM `E_NOINTERFACE` checks. The `STORE
+FLAGS` per-flag authorization overreach and ACL mutation timing findings are
+separate security-hardening blockers. Release remains **RED**.
+
+Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
+the isolated prerequisites are available; then run disposable native AD/SSPI
+acceptance and harden/test `STORE FLAGS` authorization timing.
+
 ## Current authoritative continuation (2026-09-01, IMAP STORE \\Seen ACL evidence)
 
 The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
