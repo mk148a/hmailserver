@@ -9823,3 +9823,25 @@ checks. Release remains **RED**.
 
 Next slice: registered COM/Admin compatibility evidence without changing
 installed registration or DCOM permissions.
+
+## Current authoritative continuation (2026-09-01, COM factory boundary evidence)
+
+Code/test commit `2d3206ef1` adds
+`Factory_CreatesLegacyInterfaceThroughInProcessClassFactory` to
+`ComLocalServerHostTests`. It passes `1/1`, proving the managed factory can
+perform native COM QI/CreateInstance for a legacy interface in-process. The
+five registered local-server activation tests remain `E_NOINTERFACE`; the
+focused result is `1 passed, 5 failed / 6` and the full Debug result is `2774
+passed, 93 skipped, 5 failed / 2872`.
+
+Parity review confirms legacy ATL registration uses
+`RegisterClassObjects(CLSCTX_LOCAL_SERVER, REGCLS_MULTIPLEUSE |
+REGCLS_SUSPENDED)`. Net10 uses the same class-object shape. The remaining gap
+is custom-interface marshaling through a registered type-library/proxy
+environment. The attempted `in` to `ref` ABI-only change did not resolve it,
+so it was not included. No installed COM identity, registry, DCOM ACL,
+service, SQL, or Data state was changed.
+
+Registered out-of-process COM/Admin acceptance remains
+**ENVIRONMENT-BLOCKED** until a disposable registered legacy/type-library
+fixture exists. Next slice: isolated SEC-18 caller-token evidence.

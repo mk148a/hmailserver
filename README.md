@@ -34,6 +34,23 @@ performed. The release gate remains **RED**.
 Next is registered COM/Admin compatibility evidence without changing installed
 registration or DCOM permissions.
 
+## Current COM factory boundary evidence (2026-09-01)
+
+The focused COM run now passes the new in-process factory QI/CreateInstance
+check `1/1`; the five registered local-server activation checks still return
+`E_NOINTERFACE`. Legacy ATL uses `RegisterClassObjects` with
+`CLSCTX_LOCAL_SERVER` and `REGCLS_MULTIPLEUSE | REGCLS_SUSPENDED`; the Net10
+host registers the same local-server shape. The remaining gap is custom
+interface marshaling through the registered out-of-process type-library/proxy
+environment, not the installed IID/CLSID/AppID graph or direct-activation
+authorization. No production registration, registry, DCOM ACL, service, SQL,
+or Data change was made. Full Net10 Debug is `2774 passed, 93 skipped, 5
+failed / 2872`; release remains **RED**.
+
+Next is isolated SEC-18 caller-token evidence; registered COM/Admin acceptance
+remains environment-blocked until a disposable registered legacy/type-library
+environment is available.
+
 ## Current Net10 repeated IMAP resource acceptance (2026-09-01, 5 x 100)
 
 On the clean manifest-bound 100k disposable SQL/Data fixture, Net10 Admission

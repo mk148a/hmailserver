@@ -1,5 +1,5 @@
 
-## Current authoritative next slice (2026-09-01, registered COM/Admin evidence)
+## Current authoritative next slice (2026-09-01, SEC-18 caller-token evidence)
 
 The isolated backup -> restore -> backup round-trip fixture is complete. The
 real runtime passed `25/25` opt-in tests with zero failures against localhost
@@ -21,6 +21,16 @@ disposable registered legacy service/COM baseline and isolated SQL/Data clone
 exist. Next smallest independent slice: refresh registered COM/Admin
 compatibility evidence without changing installed registration or DCOM
 permissions.
+
+The safe COM factory boundary check is now complete: the focused run passes
+the in-process native QI/CreateInstance test `1/1`, while the five registered
+local-server activation checks remain `E_NOINTERFACE`. Legacy ATL and Net10
+both use suspended, multiple-use local-server class registration. The
+remaining failure requires a disposable registered type-library/proxy
+environment and is not fixed by changing the `in`/`ref` parameter alone.
+No installed COM identity, registry, DCOM ACL, service, SQL, or Data state was
+changed. Next smallest independent slice: complete SEC-18 caller-token
+evidence on the isolated IIS staging host.
 
 ## Historical current slice (2026-09-01, repeated-wave IMAP/resource acceptance)
 
