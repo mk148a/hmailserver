@@ -390,6 +390,14 @@ public sealed class LiveSqlServerDeliveryQueueTests
             Assert.IsTrue(statusObserver.Events.Any(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliveryDeferred));
             Assert.IsTrue(statusObserver.Events.Any(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliverySucceeded));
             Assert.IsFalse(File.Exists(messageFilePath));
+            await WriteTcp451RecoveryReportIfRequestedAsync(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DELIVERY_RECOVERY_REPORT"),
+                parsedConnectionString.InitialCatalog,
+                isolatedDataRoot,
+                retryEvidence,
+                finalState,
+                sink,
+                statusObserver);
         }
         finally
         {
@@ -659,6 +667,69 @@ public sealed class LiveSqlServerDeliveryQueueTests
         await File.WriteAllTextAsync(
             Path.ChangeExtension(fullPath, ".md"),
             $"# Net10 TCP 451 retry state\n\n- Result: `PASS`\n- SMTP reply: `451`\n- SQL database: `{database}`\n- Data root: `{dataRoot}`\n- Queue state: `messagetype={evidence.MessageType}`, `queued={evidence.QueuedCount}`, `locked={evidence.Locked}`, `leaseOwnerIsNull={evidence.LeaseOwnerIsNull}`\n- Retry state: `retryCount={evidence.RetryCount}`, `recipientCount={evidence.RecipientCount}`, `nextTryUtc={evidence.NextTryUtc:O}`\n- Protocol guard: EHLO/HELO, MAIL FROM, and RCPT observed; `451` sent; DATA observed: `{sink.SawData}`\n- Deferred status events: `{report.deferredEvents}`\n\nThis is Net10 component-level disposable evidence. It is not paired C++ evidence and does not clear the production performance gate.\n\nJSON: `{fullPath}`\n");
+    }
+
+    private static async Task WriteTcp451RecoveryReportIfRequestedAsync(
+        string? outputPath,
+        string database,
+        string dataRoot,
+        RetryEvidence initialEvidence,
+        MessageState finalState,
+        StatefulSmtpRecoverySink sink,
+        RecordingStatusObserver statusObserver)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            throw new InvalidOperationException("The TCP 451 recovery report path must include a directory.");
+        }
+
+        Directory.CreateDirectory(directory);
+        var deferredEvents = statusObserver.Events.Count(static item => item.Kind is DeliveryQueueStatusEventKind.TargetDeliveryDeferred or DeliveryQueueStatusEventKind.MessageDeferred);
+        var report = new
+        {
+            schema = "net10-live-tcp-451-recovery-v1",
+            status = "PASS",
+            generatedUtc = DateTimeOffset.UtcNow,
+            database,
+            dataRoot,
+            firstAttempt = new
+            {
+                smtpReply = 451,
+                initialEvidence.MessageType,
+                queuedCount = initialEvidence.QueuedCount,
+                initialEvidence.Locked,
+                initialEvidence.LeaseOwnerIsNull,
+                initialEvidence.RetryCount,
+                initialEvidence.NextTryUtc,
+                initialEvidence.RecipientCount,
+                saw451ResponseSent = sink.Saw451ResponseSent,
+                sawData = sink.SawDataBeforeRecovery
+            },
+            recoveryAttempt = new
+            {
+                smtpReply = 250,
+                sawRecoveryResponse = sink.SawRecoveryResponse,
+                sawData = sink.SawDataAfterRecovery
+            },
+            finalState,
+            deferredEvents,
+            succeededEvents = statusObserver.Events.Count(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliverySucceeded),
+            messageFileAbsent = true
+        };
+        await File.WriteAllTextAsync(fullPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+        await File.WriteAllTextAsync(
+            Path.ChangeExtension(fullPath, ".csv"),
+            "status,first_smtp_reply,recovery_smtp_reply,initial_queued_count,initial_retry_count,final_queued_count,final_recipient_count,saw_data_before_recovery,saw_data_after_recovery,deferred_events,succeeded_events\nPASS,451,250," + initialEvidence.QueuedCount + "," + initialEvidence.RetryCount + "," + finalState.QueuedCount + "," + finalState.RecipientCount + "," + sink.SawDataBeforeRecovery + "," + sink.SawDataAfterRecovery + "," + deferredEvents + "," + report.succeededEvents + "\n");
+        await File.WriteAllTextAsync(
+            Path.ChangeExtension(fullPath, ".md"),
+            $"# Net10 TCP 451 recovery\n\n- Result: `PASS`\n- SQL database: `{database}`\n- Data root: `{dataRoot}`\n- First attempt: `451`, queue=`{initialEvidence.QueuedCount}`, retry=`{initialEvidence.RetryCount}`, recipient=`{initialEvidence.RecipientCount}`, DATA before recovery=`{sink.SawDataBeforeRecovery}`\n- Recovery attempt: `250`, response observed=`{sink.SawRecoveryResponse}`, DATA observed=`{sink.SawDataAfterRecovery}`\n- Final state: queue=`{finalState.QueuedCount}`, recipients=`{finalState.RecipientCount}`, message file absent=`true`\n- Status events: deferred=`{deferredEvents}`, succeeded=`{report.succeededEvents}`\n\nThis is isolated Net10 retry-recovery evidence. It is not paired C++ evidence and does not clear the performance gate.\n\nJSON: `{fullPath}`\n");
     }
 
     private static double Percentile(double[] values, double percentile)

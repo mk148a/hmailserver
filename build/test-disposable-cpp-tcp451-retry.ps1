@@ -8,7 +8,8 @@ param(
     [ValidateRange(25000, 29999)]
     [int]$SinkPort = 26045,
     [ValidateRange(10, 300)]
-    [int]$TimeoutSeconds = 90
+    [int]$TimeoutSeconds = 90,
+    [switch]$Recovery
 )
 
 $ErrorActionPreference = "Stop"
@@ -98,6 +99,85 @@ function Start-TransientSink {
     }
 }
 
+function Start-RecoverySink {
+    param([int]$Port, [string]$StatePath, [string]$FirstStatePath)
+    Start-Job -ArgumentList $Port, $StatePath, $FirstStatePath -ScriptBlock {
+        param($SinkPort, $SinkStatePath, $SinkFirstStatePath)
+        $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $SinkPort)
+        $lines = [System.Collections.Generic.List[string]]::new()
+        $saw451 = $false
+        $sawData = $false
+        $sawRecovery = $false
+        $sawDataAfterRecovery = $false
+        $listener.Start()
+        try {
+            $client = $listener.AcceptTcpClient()
+            try {
+                $stream = $client.GetStream()
+                $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 4096, $true)
+                $writer = [IO.StreamWriter]::new($stream, [Text.Encoding]::ASCII, 4096, $true)
+                $writer.NewLine = "`r`n"
+                $writer.AutoFlush = $true
+                $writer.WriteLine("220 disposable retry sink")
+                while ($null -ne ($line = $reader.ReadLine())) {
+                    $lines.Add($line)
+                    if ($line -match '^(EHLO|HELO)') { $writer.WriteLine("250 disposable retry sink") }
+                    elseif ($line -match '^MAIL FROM:') { $writer.WriteLine("250 sender accepted") }
+                    elseif ($line -match '^RCPT TO:') { $writer.WriteLine("451 temporary recipient failure"); $saw451 = $true; break }
+                    elseif ($line -match '^DATA') { $sawData = $true; $writer.WriteLine("354 unexpected data") }
+                    else { $writer.WriteLine("250 ok") }
+                }
+                $reader.Dispose()
+                $writer.Dispose()
+            }
+            finally { $client.Dispose() }
+
+            [pscustomobject]@{
+                saw451 = $saw451
+                sawData = $sawData
+                lines = $lines.ToArray()
+            } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $SinkFirstStatePath -Encoding UTF8
+
+            $client = $listener.AcceptTcpClient()
+            try {
+                $stream = $client.GetStream()
+                $reader = [IO.StreamReader]::new($stream, [Text.Encoding]::ASCII, $false, 4096, $true)
+                $writer = [IO.StreamWriter]::new($stream, [Text.Encoding]::ASCII, 4096, $true)
+                $writer.NewLine = "`r`n"
+                $writer.AutoFlush = $true
+                $writer.WriteLine("220 disposable retry sink")
+                while ($null -ne ($line = $reader.ReadLine())) {
+                    $lines.Add($line)
+                    if ($line -match '^(EHLO|HELO)') { $writer.WriteLine("250 disposable retry sink") }
+                    elseif ($line -match '^MAIL FROM:') { $writer.WriteLine("250 sender accepted") }
+                    elseif ($line -match '^RCPT TO:') { $writer.WriteLine("250 recipient accepted"); $sawRecovery = $true }
+                    elseif ($line -match '^DATA') {
+                        $sawDataAfterRecovery = $true
+                        $writer.WriteLine("354 start mail input")
+                        while ($null -ne ($dataLine = $reader.ReadLine()) -and $dataLine -ne ".") { $lines.Add($dataLine) }
+                        $writer.WriteLine("250 message accepted")
+                        break
+                    }
+                    else { $writer.WriteLine("250 ok") }
+                }
+                $reader.Dispose()
+                $writer.Dispose()
+            }
+            finally { $client.Dispose() }
+        }
+        finally {
+            $listener.Stop()
+            [pscustomobject]@{
+                saw451 = $saw451
+                sawData = $sawData
+                sawRecovery = $sawRecovery
+                sawDataAfterRecovery = $sawDataAfterRecovery
+                lines = $lines.ToArray()
+            } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $SinkStatePath -Encoding UTF8
+        }
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "artifacts\benchmarks\paired-cpp-net10-20260901-delivery\cpp-tcp451-retry"
 }
@@ -110,7 +190,12 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $fixture = Read-LiveBenchmarkFixtureManifest -Path $FixtureManifest -Implementation cpp -RepositoryRoot $repoRoot
 $net10Evidence = Get-Content -LiteralPath $Net10EvidencePath -Raw | ConvertFrom-Json
 Assert-DisposableFixture $fixture
-if ($net10Evidence.status -ne "PASS" -or $net10Evidence.smtpReply -ne 451 -or -not $net10Evidence.saw451ResponseSent) {
+if ($Recovery) {
+    if ($net10Evidence.status -ne "PASS" -or $net10Evidence.firstAttempt.smtpReply -ne 451 -or -not $net10Evidence.firstAttempt.saw451ResponseSent -or $net10Evidence.recoveryAttempt.smtpReply -ne 250 -or -not $net10Evidence.recoveryAttempt.sawRecoveryResponse) {
+        throw "Net10 TCP 451 recovery evidence is not a PASS artifact with real 451 and 250 attempts."
+    }
+}
+elseif ($net10Evidence.status -ne "PASS" -or $net10Evidence.smtpReply -ne 451 -or -not $net10Evidence.saw451ResponseSent) {
     throw "Net10 TCP 451 evidence is not a PASS artifact with a real 451 response."
 }
 if ([string]::IsNullOrWhiteSpace($ServiceName)) { $ServiceName = "hMailPerfTcp451Cpp-$([Guid]::NewGuid().ToString('N').Substring(0, 12))" }
@@ -127,7 +212,9 @@ $routeName = "retry-$runId.test"
 $routeSql = $routeName.Replace("'", "''")
 $seedPath = Join-Path $fixture.dataRoot "perf.test\test\tcp451-$runId.eml"
 $seedPathSql = $seedPath.Replace("'", "''")
+$reportStem = if ($Recovery) { "paired-cpp-net10-tcp451-recovery" } else { "paired-cpp-net10-tcp451-retry" }
 $sinkStatePath = Join-Path $OutputDirectory "cpp-tcp451-sink-$runId.json"
+$sinkFirstStatePath = Join-Path $OutputDirectory "cpp-tcp451-first-$runId.json"
 $serviceCreated = $false
 $serviceStarted = $false
 $routeCreated = $false
@@ -142,7 +229,8 @@ $startUtc = [DateTimeOffset]::UtcNow
 try {
     $existingRoute = Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT(*) FROM hm_routes WHERE routedomainname=N'$routeSql';"
     if ([int]$existingRoute -ne 0) { throw "Generated route name already exists." }
-    $routeInsert = "INSERT INTO hm_routes (routedomainname,routedescription,routetargetsmthost,routetargetsmtport,routenooftries,routeminutesbetweentry,routealladdresses,routeuseauthentication,routeauthenticationusername,routeauthenticationpassword,routetreatsecurityaslocal,routeconnectionsecurity,routetreatsenderaslocaldomain) VALUES (N'$routeSql',N'disposable TCP 451',N'127.0.0.1',$SinkPort,4,1,1,0,N'',N'',0,0,0);"
+    $retryMinutes = if ($Recovery) { 0 } else { 1 }
+    $routeInsert = "INSERT INTO hm_routes (routedomainname,routedescription,routetargetsmthost,routetargetsmtport,routenooftries,routeminutesbetweentry,routealladdresses,routeuseauthentication,routeauthenticationusername,routeauthenticationpassword,routetreatsecurityaslocal,routeconnectionsecurity,routetreatsenderaslocaldomain) VALUES (N'$routeSql',N'disposable TCP 451',N'127.0.0.1',$SinkPort,4,$retryMinutes,1,0,N'',N'',0,0,0);"
     Invoke-SqlStrict $fixture.database $routeInsert | Out-Null
     $routeCreated = $true
     [IO.Directory]::CreateDirectory((Split-Path $seedPath)) | Out-Null
@@ -156,7 +244,12 @@ try {
     Invoke-SqlStrict master "CREATE LOGIN [NT AUTHORITY\LOCAL SERVICE] FROM WINDOWS;" | Out-Null
     Invoke-SqlStrict $fixture.database "CREATE USER [NT AUTHORITY\LOCAL SERVICE] FOR LOGIN [NT AUTHORITY\LOCAL SERVICE]; ALTER ROLE [db_owner] ADD MEMBER [NT AUTHORITY\LOCAL SERVICE];" | Out-Null
     $sqlPrincipalCreated = $true
-    $sinkJob = Start-TransientSink $SinkPort $sinkStatePath
+    $sinkJob = if ($Recovery) {
+        Start-RecoverySink -Port $SinkPort -StatePath $sinkStatePath -FirstStatePath $sinkFirstStatePath
+    }
+    else {
+        Start-TransientSink -Port $SinkPort -StatePath $sinkStatePath
+    }
     Start-Sleep -Milliseconds 500
     $binPath = '"{0}" /DisposableBenchmark /ServiceName={1} RunAsService' -f $fixture.executable, $ServiceName
     & sc.exe create $ServiceName binPath= $binPath start= demand type= own obj= 'NT AUTHORITY\LocalService' | Out-Null
@@ -172,14 +265,15 @@ try {
         if ($null -ne $service -and $service.state -eq "Running") { break }
     } while ([DateTime]::UtcNow -lt $deadline)
     if ($null -eq $service -or $service.state -ne "Running") { throw "Disposable C++ service did not reach Running." }
-    do { Start-Sleep -Milliseconds 500 } while (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline)
-    if (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf)) { throw "C++ service did not reach the transient sink before timeout." }
-    $sinkEvidence = Get-Content -LiteralPath $sinkStatePath -Raw | ConvertFrom-Json
+    $firstStateToWait = if ($Recovery) { $sinkFirstStatePath } else { $sinkStatePath }
+    do { Start-Sleep -Milliseconds 500 } while (-not (Test-Path -LiteralPath $firstStateToWait -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline)
+    if (-not (Test-Path -LiteralPath $firstStateToWait -PathType Leaf)) { throw "C++ service did not reach the transient sink before timeout." }
+    $firstSinkEvidence = Get-Content -LiteralPath $firstStateToWait -Raw | ConvertFrom-Json
     $row = @(& sqlcmd.exe -S localhost -E -b -d $fixture.database -h-1 -W -s '|' -Q "SET NOCOUNT ON; SELECT COUNT_BIG(*),MAX(CAST(messagetype AS int)),MAX(CAST(messagelocked AS int)),MAX(messagecurnooftries),MAX(messagenexttrytime),MAX(CASE WHEN r.recipientmessageid IS NULL THEN 0 ELSE 1 END) FROM hm_messages m LEFT JOIN hm_messagerecipients r ON r.recipientmessageid=m.messageid WHERE m.messagefrom=N'$fromSql';" 2>&1) | Where-Object { $_ -match '\|' } | Select-Object -Last 1
     if ($LASTEXITCODE -ne 0) { throw "C++ SQL evidence query failed." }
     $parts = ([string]$row).Trim().Split('|')
     if ($parts.Count -ne 6) { throw "C++ SQL evidence returned an unexpected shape: $row" }
-    $evidence = [ordered]@{
+    $initialEvidence = [ordered]@{
         queuedCount = [int64]$parts[0].Trim()
         messageType = [int]$parts[1].Trim()
         locked = [int]$parts[2].Trim()
@@ -187,11 +281,52 @@ try {
         nextTryUtc = ([DateTime]::Parse($parts[4].Trim())).ToUniversalTime().ToString('o')
         recipientCount = [int]$parts[5].Trim()
         dataFileExists = Test-Path -LiteralPath $seedPath -PathType Leaf
-        sink = $sinkEvidence
+        sink = $firstSinkEvidence
     }
-    Remove-Item -LiteralPath $sinkStatePath -Force -ErrorAction SilentlyContinue
-    if (-not $sinkEvidence.saw451 -or $sinkEvidence.sawData -or $evidence.queuedCount -ne 1 -or $evidence.messageType -ne 1 -or $evidence.locked -ne 0 -or $evidence.retryCount -ne 1 -or $evidence.recipientCount -ne 1 -or -not $evidence.dataFileExists) {
-        throw "C++ TCP 451 retry-state assertions failed."
+    if ($Recovery) {
+        do { Start-Sleep -Milliseconds 500 } while (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline)
+        if (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf)) { throw "C++ service did not complete the recovery attempt before timeout." }
+        $sinkEvidence = Get-Content -LiteralPath $sinkStatePath -Raw | ConvertFrom-Json
+        $finalMessageCount = [int64](Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM hm_messages WHERE messagefrom=N'$fromSql';")
+        $finalRecipientCount = [int64](Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid=r.recipientmessageid WHERE m.messagefrom=N'$fromSql';")
+        $evidence = [ordered]@{
+            queuedCount = $initialEvidence.queuedCount
+            messageType = $initialEvidence.messageType
+            locked = $initialEvidence.locked
+            retryCount = $initialEvidence.retryCount
+            nextTryUtc = $initialEvidence.nextTryUtc
+            recipientCount = $initialEvidence.recipientCount
+            dataFileExists = $initialEvidence.dataFileExists
+            initial = $initialEvidence
+            final = [ordered]@{
+                queuedCount = $finalMessageCount
+                recipientCount = $finalRecipientCount
+                dataFileExists = Test-Path -LiteralPath $seedPath -PathType Leaf
+            }
+            sink = $sinkEvidence
+        }
+        Remove-Item -LiteralPath $sinkFirstStatePath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $sinkStatePath -Force -ErrorAction SilentlyContinue
+        if (-not $firstSinkEvidence.saw451 -or $firstSinkEvidence.sawData -or -not $sinkEvidence.sawRecovery -or -not $sinkEvidence.sawDataAfterRecovery -or $initialEvidence.queuedCount -ne 1 -or $initialEvidence.messageType -ne 1 -or $initialEvidence.locked -ne 0 -or $initialEvidence.retryCount -ne 1 -or $initialEvidence.recipientCount -ne 1 -or -not $initialEvidence.dataFileExists -or $finalMessageCount -ne 0 -or $finalRecipientCount -ne 0 -or (Test-Path -LiteralPath $seedPath -PathType Leaf)) {
+            throw "C++ TCP 451 recovery-state assertions failed."
+        }
+    }
+    else {
+        $sinkEvidence = $firstSinkEvidence
+        $evidence = [ordered]@{
+            queuedCount = $initialEvidence.queuedCount
+            messageType = $initialEvidence.messageType
+            locked = $initialEvidence.locked
+            retryCount = $initialEvidence.retryCount
+            nextTryUtc = $initialEvidence.nextTryUtc
+            recipientCount = $initialEvidence.recipientCount
+            dataFileExists = $initialEvidence.dataFileExists
+            sink = $sinkEvidence
+        }
+        Remove-Item -LiteralPath $sinkStatePath -Force -ErrorAction SilentlyContinue
+        if (-not $sinkEvidence.saw451 -or $sinkEvidence.sawData -or $evidence.queuedCount -ne 1 -or $evidence.messageType -ne 1 -or $evidence.locked -ne 0 -or $evidence.retryCount -ne 1 -or $evidence.recipientCount -ne 1 -or -not $evidence.dataFileExists) {
+            throw "C++ TCP 451 retry-state assertions failed."
+        }
     }
 }
 catch {
@@ -215,6 +350,8 @@ finally {
         try { Invoke-SqlStrict $fixture.database "IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NT AUTHORITY\LOCAL SERVICE') DROP USER [NT AUTHORITY\LOCAL SERVICE];" | Out-Null; Invoke-SqlStrict master "IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name=N'NT AUTHORITY\LOCAL SERVICE') DROP LOGIN [NT AUTHORITY\LOCAL SERVICE];" | Out-Null } catch { $cleanupFailures.Add("SQL principal cleanup failed: $($_.Exception.Message)") }
     }
     Remove-Item -LiteralPath $seedPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $sinkFirstStatePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $sinkStatePath -Force -ErrorAction SilentlyContinue
 }
 
 $cleanupState = [ordered]@{
@@ -227,7 +364,7 @@ $cleanupState = [ordered]@{
 $cleanupPass = $cleanupFailures.Count -eq 0 -and @($cleanupState.Values | Where-Object { -not $_ }).Count -eq 0
 $endUtc = [DateTimeOffset]::UtcNow
 $report = [ordered]@{
-    schema = "paired-cpp-net10-tcp-451-retry-v1"
+    schema = if ($Recovery) { "paired-cpp-net10-tcp-451-recovery-v1" } else { "paired-cpp-net10-tcp-451-retry-v1" }
     status = if ($null -eq $runError -and $cleanupPass) { "PASS" } else { "FAIL" }
     generatedUtc = $endUtc.ToString('o')
     gitCommit = (git rev-parse HEAD).Trim()
@@ -240,11 +377,34 @@ $report = [ordered]@{
     cleanupFailures = @($cleanupFailures)
     error = $runError
 }
-$jsonPath = Join-Path $OutputDirectory "paired-cpp-net10-tcp451-retry.json"
-$csvPath = Join-Path $OutputDirectory "paired-cpp-net10-tcp451-retry.csv"
-$mdPath = Join-Path $OutputDirectory "paired-cpp-net10-tcp451-retry.md"
+$jsonPath = Join-Path $OutputDirectory "$reportStem.json"
+$csvPath = Join-Path $OutputDirectory "$reportStem.csv"
+$mdPath = Join-Path $OutputDirectory "$reportStem.md"
 $report | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $jsonPath -Encoding UTF8
-"implementation,status,smtp_reply,queued_count,message_type,locked,retry_count,recipient_count,data_file_exists`ncpp,$($report.status),451,$($evidence.queuedCount),$($evidence.messageType),$($evidence.locked),$($evidence.retryCount),$($evidence.recipientCount),$($evidence.dataFileExists)`nnet10,$($net10Evidence.status),451,$($net10Evidence.queuedCount),$($net10Evidence.messageType),$($net10Evidence.locked),$($net10Evidence.retryCount),$($net10Evidence.recipientCount),$(-not $net10Evidence.sawData)" | Set-Content -LiteralPath $csvPath -Encoding UTF8
+if ($Recovery) {
+    "implementation,status,first_smtp_reply,recovery_smtp_reply,initial_queued_count,initial_retry_count,initial_recipient_count,final_queued_count,final_recipient_count,final_data_file_exists`ncpp,$($report.status),451,250,$($evidence.initial.queuedCount),$($evidence.initial.retryCount),$($evidence.initial.recipientCount),$($evidence.final.queuedCount),$($evidence.final.recipientCount),$($evidence.final.dataFileExists)`nnet10,$($net10Evidence.status),451,250,$($net10Evidence.firstAttempt.queuedCount),$($net10Evidence.firstAttempt.retryCount),$($net10Evidence.firstAttempt.recipientCount),$($net10Evidence.finalState.QueuedCount),$($net10Evidence.finalState.RecipientCount),$($net10Evidence.messageFileAbsent)" | Set-Content -LiteralPath $csvPath -Encoding UTF8
+}
+else {
+    "implementation,status,smtp_reply,queued_count,message_type,locked,retry_count,recipient_count,data_file_exists`ncpp,$($report.status),451,$($evidence.queuedCount),$($evidence.messageType),$($evidence.locked),$($evidence.retryCount),$($evidence.recipientCount),$($evidence.dataFileExists)`nnet10,$($net10Evidence.status),451,$($net10Evidence.queuedCount),$($net10Evidence.messageType),$($net10Evidence.locked),$($net10Evidence.retryCount),$($net10Evidence.recipientCount),$(-not $net10Evidence.sawData)" | Set-Content -LiteralPath $csvPath -Encoding UTF8
+}
+if ($Recovery) {
+    @(
+        "# Paired C++ / .NET 10 TCP 451 recovery acceptance",
+        "",
+        "- Status: **$($report.status)**",
+        "- Sink: 127.0.0.1:$SinkPort, first RCPT reply 451, recovery RCPT reply 250, DATA expected only after recovery",
+        "- C++ initial state: queued=$($evidence.initial.queuedCount), retry=$($evidence.initial.retryCount), recipients=$($evidence.initial.recipientCount), Data file=$($evidence.initial.dataFileExists)",
+        "- C++ final state: queued=$($evidence.final.queuedCount), recipients=$($evidence.final.recipientCount), Data file=$($evidence.final.dataFileExists)",
+        "- Net10 initial state: queued=$($net10Evidence.firstAttempt.queuedCount), retry=$($net10Evidence.firstAttempt.retryCount), recipients=$($net10Evidence.firstAttempt.recipientCount), DATA before recovery=$($net10Evidence.firstAttempt.sawData)",
+        "- Net10 final state: queued=$($net10Evidence.finalState.QueuedCount), recipients=$($net10Evidence.finalState.RecipientCount), Data file absent=$($net10Evidence.messageFileAbsent)",
+        "- Cleanup: service=$($cleanupState.serviceAbsent), route=$($cleanupState.routeAbsent), message=$($cleanupState.messageAbsent), recipient=$($cleanupState.recipientAbsent), Data file=$($cleanupState.dataFileAbsent)",
+        "",
+        "This is bounded retry-recovery parity evidence. It is not throughput, soak, or release clearance.",
+        "",
+        "JSON: $jsonPath"
+    ) | Set-Content -LiteralPath $mdPath -Encoding UTF8
+}
+else {
 @(
     "# Paired C++ / .NET 10 TCP 451 retry acceptance",
     "",
@@ -258,5 +418,6 @@ $report | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $jsonPath -Encodin
     "",
     "JSON: $jsonPath"
 ) | Set-Content -LiteralPath $mdPath -Encoding UTF8
+}
 if ($report.status -ne "PASS") { throw "Paired TCP 451 retry acceptance failed. See $jsonPath" }
 Write-Output ($report | ConvertTo-Json -Depth 16)
