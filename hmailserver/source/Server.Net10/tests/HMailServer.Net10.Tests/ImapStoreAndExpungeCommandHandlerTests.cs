@@ -43,6 +43,20 @@ public sealed class ImapStoreAndExpungeCommandHandlerTests
     }
 
     [TestMethod]
+    public void StoreParser_FlagsWithoutSeenUseSetModeForLegacyClearing()
+    {
+        var request = new ImapStoreCommandParser().Parse(
+            accountId: 10,
+            folderId: 20,
+            arguments: "101 FLAGS (\\Flagged)",
+            useUid: false);
+
+        Assert.AreEqual(ImapStoreMode.Set, request.Mode);
+        Assert.AreEqual(ImapMessageFlags.Flagged, request.Flags);
+        Assert.AreEqual(0, request.Flags & ImapMessageFlags.Seen);
+    }
+
+    [TestMethod]
     public async Task StoreHandleAsync_ReturnsUpdatedFlagsWhenNotSilent()
     {
         var mutationStore = new CapturingMutationStore

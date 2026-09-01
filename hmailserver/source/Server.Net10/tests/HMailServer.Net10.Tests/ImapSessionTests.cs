@@ -193,6 +193,107 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_STORESeenDeniesWithoutWriteSeenBeforeMutation()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            new ImapMailboxSelection(
+                0,
+                20,
+                "#Public",
+                1,
+                0,
+                1,
+                2,
+                null,
+                IsReadOnly: false,
+                AclRights: ImapAclRights.Lookup | ImapAclRights.Read | ImapAclRights.WriteDeleted));
+        var mutationStore = new FakeMutationStore();
+        await using var stream = new DuplexMemoryStream("A001 STORE 1 +FLAGS (\\Seen)\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: mutationStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(
+            stream.GetOutputText(),
+            "A001 NO ACL: WriteSeen permission denied (Required for STORE command).\r\n");
+        Assert.IsNull(mutationStore.LastStoreRequest);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_STORESeenAllowsWithWriteSeenOnly()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            new ImapMailboxSelection(
+                0,
+                20,
+                "#Public",
+                1,
+                0,
+                1,
+                2,
+                null,
+                IsReadOnly: false,
+                AclRights: ImapAclRights.Lookup | ImapAclRights.Read | ImapAclRights.WriteSeen));
+        var mutationStore = new FakeMutationStore();
+        await using var stream = new DuplexMemoryStream("A001 STORE 1 +FLAGS (\\Seen)\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: mutationStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 OK STORE completed\r\n");
+        Assert.IsNotNull(mutationStore.LastStoreRequest);
+        Assert.IsFalse(mutationStore.LastStoreRequest.UseUid);
+        Assert.AreEqual(ImapStoreMode.Add, mutationStore.LastStoreRequest.Mode);
+        Assert.AreEqual(ImapMessageFlags.Seen, mutationStore.LastStoreRequest.Flags);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_UIDStoreSeenAllowsWithWriteSeenOnly()
+    {
+        var mailboxStore = new AclRevalidatingMailboxStore(
+            new ImapMailboxSelection(
+                0,
+                20,
+                "#Public",
+                1,
+                0,
+                1,
+                2,
+                null,
+                IsReadOnly: false,
+                AclRights: ImapAclRights.Lookup | ImapAclRights.Read | ImapAclRights.WriteSeen));
+        var mutationStore = new FakeMutationStore();
+        await using var stream = new DuplexMemoryStream("A001 UID STORE 101 +FLAGS (\\Seen)\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: mailboxStore,
+            mutationStore: mutationStore);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(AccountId: 100, FolderId: 20),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 OK STORE completed\r\n");
+        Assert.IsNotNull(mutationStore.LastStoreRequest);
+        Assert.IsTrue(mutationStore.LastStoreRequest.UseUid);
+        Assert.AreEqual(ImapStoreMode.Add, mutationStore.LastStoreRequest.Mode);
+        Assert.AreEqual(ImapMessageFlags.Seen, mutationStore.LastStoreRequest.Flags);
+    }
+
+    [TestMethod]
     public async Task RunAsync_EXPUNGEChecksSpecificAclRightBeyondAggregateWriteability()
     {
         var mailboxStore = new AclRevalidatingMailboxStore(
