@@ -45,6 +45,130 @@ function Get-ServiceRecord {
     }
 }
 
+function Get-SinkJobSnapshot {
+    param([System.Management.Automation.Job]$Job, [int]$Port, [string]$ReadyPath, [string]$FirstStatePath, [string]$StatePath)
+    $currentJob = if ($null -ne $Job) { Get-Job -Id $Job.Id -ErrorAction SilentlyContinue } else { $null }
+    $reason = if ($null -ne $currentJob) { @($currentJob.ChildJobs | ForEach-Object { $_.JobStateInfo.Reason } | Where-Object { $null -ne $_ } | Select-Object -First 1) } else { @() }
+    $errors = if ($null -ne $currentJob) { @($currentJob.ChildJobs | ForEach-Object { $_.Error | ForEach-Object { $_.ToString() } } | Select-Object -First 4) } else { @() }
+    $listener = @(Get-NetTCPConnection -State Listen -LocalAddress 127.0.0.1 -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1)
+    [ordered]@{
+        present = $null -ne $currentJob
+        state = if ($null -ne $currentJob) { [string]$currentJob.State } else { $null }
+        hasMoreData = if ($null -ne $currentJob) { [bool]$currentJob.HasMoreData } else { $false }
+        childStates = @($currentJob.ChildJobs | ForEach-Object { [string]$_.State })
+        failureType = if ($reason.Count -gt 0) { $reason[0].GetType().FullName } else { $null }
+        errors = $errors
+        listenerReady = $listener.Count -gt 0
+        readyMarkerPresent = Test-Path -LiteralPath $ReadyPath -PathType Leaf
+        firstStatePresent = Test-Path -LiteralPath $FirstStatePath -PathType Leaf
+        statePresent = Test-Path -LiteralPath $StatePath -PathType Leaf
+    }
+}
+
+function Get-SinkJobFailureMessage {
+    param([System.Management.Automation.Job]$Job, [string]$ExpectedStatePath = "")
+    $snapshot = Get-SinkJobSnapshot -Job $Job -Port $SinkPort -ReadyPath $sinkReadyPath -FirstStatePath $sinkFirstStatePath -StatePath $sinkStatePath
+    if ($snapshot.state -in @('Failed', 'Stopped', 'Disconnected')) {
+        $details = if ($snapshot.errors.Count -gt 0) { ($snapshot.errors -join ' | ') } else { 'no error stream details' }
+        return "Disposable SMTP sink Start-Job failed (state=$($snapshot.state); details=$details)."
+    }
+    if ($snapshot.state -eq 'Completed' -and -not [string]::IsNullOrWhiteSpace($ExpectedStatePath) -and -not (Test-Path -LiteralPath $ExpectedStatePath -PathType Leaf)) {
+        $details = if ($snapshot.errors.Count -gt 0) { ($snapshot.errors -join ' | ') } else { 'no error stream details' }
+        return "Disposable SMTP sink ended before expected state (details=$details)."
+    }
+    return $null
+}
+
+function Wait-SinkReady {
+    param([System.Management.Automation.Job]$Job, [int]$Port, [string]$ReadyPath, [DateTime]$Deadline)
+    do {
+        $failure = Get-SinkJobFailureMessage -Job $Job
+        if ($null -ne $failure) { throw $failure }
+        if ((Test-Path -LiteralPath $ReadyPath -PathType Leaf) -and @(Get-NetTCPConnection -State Listen -LocalAddress 127.0.0.1 -LocalPort $Port -ErrorAction SilentlyContinue).Count -gt 0) { return }
+        Start-Sleep -Milliseconds 50
+    } while ([DateTime]::UtcNow -lt $Deadline)
+    throw "Disposable SMTP sink did not become ready before timeout."
+}
+
+function Wait-SinkStateFile {
+    param([System.Management.Automation.Job]$Job, [int]$Port, [string]$StatePath, [DateTime]$Deadline, [string]$TimeoutMessage)
+    do {
+        $failure = Get-SinkJobFailureMessage -Job $Job -ExpectedStatePath $StatePath
+        if ($null -ne $failure) { throw $failure }
+        if (Test-Path -LiteralPath $StatePath -PathType Leaf) { return }
+        Start-Sleep -Milliseconds 100
+    } while ([DateTime]::UtcNow -lt $Deadline)
+    throw $TimeoutMessage
+}
+
+function Get-DisposableSqlRetrySnapshot {
+    param([string]$Database, [string]$MessageFromSql)
+    $snapshot = [ordered]@{
+        available = $false
+        messageCount = $null
+        messageType = $null
+        locked = $null
+        retryCount = $null
+        nextTryTimePresent = $null
+        recipientCount = $null
+        errorType = $null
+    }
+    try {
+        $query = "SET NOCOUNT ON; SELECT COUNT_BIG(*),MAX(CAST(messagetype AS int)),MAX(CAST(messagelocked AS int)),MAX(messagecurnooftries),CASE WHEN MAX(messagenexttrytime) IS NULL THEN 0 ELSE 1 END,COUNT_BIG(r.recipientmessageid) FROM hm_messages m LEFT JOIN hm_messagerecipients r ON r.recipientmessageid=m.messageid WHERE m.messagefrom=N'$MessageFromSql';"
+        $row = @(& sqlcmd.exe -S localhost -E -b -d $Database -h-1 -W -s '|' -Q $query 2>&1) | Where-Object { $_ -match '\|' } | Select-Object -Last 1
+        if ($LASTEXITCODE -ne 0) { throw [InvalidOperationException]::new('sqlcmd failed') }
+        $parts = ([string]$row).Trim().Split('|')
+        if ($parts.Count -ne 6) { throw [System.IO.InvalidDataException]::new('unexpected SQL snapshot shape') }
+        $snapshot.messageCount = [int64]$parts[0].Trim()
+        $snapshot.messageType = [int]$parts[1].Trim()
+        $snapshot.locked = [int]$parts[2].Trim()
+        $snapshot.retryCount = [int]$parts[3].Trim()
+        $snapshot.nextTryTimePresent = [int]$parts[4].Trim() -eq 1
+        $snapshot.recipientCount = [int64]$parts[5].Trim()
+        $snapshot.available = $true
+    }
+    catch {
+        $snapshot.errorType = $_.Exception.GetType().FullName
+    }
+    return $snapshot
+}
+
+function Get-DataFileSnapshot {
+    param([string]$Path)
+    try {
+        $item = Get-Item -LiteralPath $Path -ErrorAction SilentlyContinue
+        [ordered]@{
+            exists = $null -ne $item -and $item.PSIsContainer -eq $false
+            sizeBytes = if ($null -ne $item -and $item.PSIsContainer -eq $false) { [int64]$item.Length } else { $null }
+            contentCaptured = $false
+        }
+    }
+    catch {
+        [ordered]@{ exists = $false; sizeBytes = $null; contentCaptured = $false; errorType = $_.Exception.GetType().FullName }
+    }
+}
+
+function Write-TimeoutDiagnostic {
+    param([string]$Path, [string]$ReasonCode, [string]$ServiceName, [int]$Port, [System.Management.Automation.Job]$Job, [string]$ReadyPath, [string]$FirstStatePath, [string]$StatePath, [string]$Database, [string]$MessageFromSql, [string]$DataPath)
+    $service = Get-ServiceRecord $ServiceName
+    $diagnostic = [ordered]@{
+        schema = 'paired-cpp-net10-tcp451-timeout-diagnostic-v1'
+        generatedUtc = [DateTimeOffset]::UtcNow.ToString('o')
+        reasonCode = $ReasonCode
+        service = [ordered]@{
+            present = $null -ne $service
+            state = if ($null -ne $service) { $service.state } else { $null }
+            processId = if ($null -ne $service) { $service.processId } else { 0 }
+            startName = if ($null -ne $service) { $service.startName } else { $null }
+        }
+        sinkJob = Get-SinkJobSnapshot -Job $Job -Port $Port -ReadyPath $ReadyPath -FirstStatePath $FirstStatePath -StatePath $StatePath
+        sql = Get-DisposableSqlRetrySnapshot -Database $Database -MessageFromSql $MessageFromSql
+        dataFile = Get-DataFileSnapshot -Path $DataPath
+    }
+    $diagnostic | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $Path -Encoding UTF8
+    return $Path
+}
+
 function Assert-DisposableFixture {
     param($Fixture)
     if ($Fixture.database -notmatch '^hmail_perf_pair_cpp_[a-z0-9_]+$') { throw "C++ fixture database is not disposable." }
@@ -55,14 +179,16 @@ function Assert-DisposableFixture {
 }
 
 function Start-TransientSink {
-    param([int]$Port, [string]$StatePath)
-    Start-Job -ArgumentList $Port, $StatePath -ScriptBlock {
-        param($SinkPort, $SinkStatePath)
+    param([int]$Port, [string]$ReadyPath, [string]$StatePath)
+    try {
+        $job = Start-Job -ArgumentList $Port, $ReadyPath, $StatePath -ScriptBlock {
+        param($SinkPort, $SinkReadyPath, $SinkStatePath)
         $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $SinkPort)
         $lines = [System.Collections.Generic.List[string]]::new()
         $saw451 = $false
         $sawData = $false
         $listener.Start()
+        [ordered]@{ startedUtc = [DateTimeOffset]::UtcNow.ToString('o'); port = $SinkPort } | ConvertTo-Json | Set-Content -LiteralPath $SinkReadyPath -Encoding UTF8
         try {
             $client = $listener.AcceptTcpClient()
             try {
@@ -100,13 +226,20 @@ function Start-TransientSink {
                 lines = $lines.ToArray()
             } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $SinkStatePath -Encoding UTF8
         }
+        } -ErrorAction Stop
+        if ($null -eq $job) { throw [InvalidOperationException]::new('Start-Job returned no job') }
+        return $job
+    }
+    catch {
+        throw "Start-Job failed to create disposable transient sink ($($_.Exception.GetType().FullName))."
     }
 }
 
 function Start-RecoverySink {
-    param([int]$Port, [string]$StatePath, [string]$FirstStatePath, [switch]$MixedRecipients)
-    Start-Job -ArgumentList $Port, $StatePath, $FirstStatePath, $MixedRecipients.IsPresent -ScriptBlock {
-        param($SinkPort, $SinkStatePath, $SinkFirstStatePath, $UseMixedRecipients)
+    param([int]$Port, [string]$ReadyPath, [string]$StatePath, [string]$FirstStatePath, [switch]$MixedRecipients)
+    try {
+        $job = Start-Job -ArgumentList $Port, $ReadyPath, $StatePath, $FirstStatePath, $MixedRecipients.IsPresent -ScriptBlock {
+        param($SinkPort, $SinkReadyPath, $SinkStatePath, $SinkFirstStatePath, $UseMixedRecipients)
         $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $SinkPort)
         $lines = [System.Collections.Generic.List[string]]::new()
         $saw451 = $false
@@ -117,6 +250,7 @@ function Start-RecoverySink {
         $recoveryRecipientCount = 0
         $sawFirstAccepted = $false
         $listener.Start()
+        [ordered]@{ startedUtc = [DateTimeOffset]::UtcNow.ToString('o'); port = $SinkPort } | ConvertTo-Json | Set-Content -LiteralPath $SinkReadyPath -Encoding UTF8
         try {
             $client = $listener.AcceptTcpClient()
             try {
@@ -142,7 +276,13 @@ function Start-RecoverySink {
                             if (-not $UseMixedRecipients) { break }
                         }
                     }
-                    elseif ($line -match '^DATA') { $sawData = $true; $writer.WriteLine("354 unexpected data") }
+                    elseif ($line -match '^DATA') {
+                        $sawData = $true
+                        $writer.WriteLine("354 start mail input")
+                        while ($null -ne ($dataLine = $reader.ReadLine()) -and $dataLine -ne ".") { $lines.Add($dataLine) }
+                        $writer.WriteLine("250 message accepted")
+                        break
+                    }
                     else { $writer.WriteLine("250 ok") }
                 }
                 $reader.Dispose()
@@ -196,6 +336,12 @@ function Start-RecoverySink {
                 lines = $lines.ToArray()
             } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $SinkStatePath -Encoding UTF8
         }
+        } -ErrorAction Stop
+        if ($null -eq $job) { throw [InvalidOperationException]::new('Start-Job returned no job') }
+        return $job
+    }
+    catch {
+        throw "Start-Job failed to create disposable recovery sink ($($_.Exception.GetType().FullName))."
     }
 }
 
@@ -242,6 +388,7 @@ $seedPathSql = $seedPath.Replace("'", "''")
 $reportStem = if ($MixedRecipients) { "paired-cpp-net10-tcp451-mixed-recovery" } elseif ($Recovery) { "paired-cpp-net10-tcp451-recovery" } else { "paired-cpp-net10-tcp451-retry" }
 $sinkStatePath = Join-Path $OutputDirectory "cpp-tcp451-sink-$runId.json"
 $sinkFirstStatePath = Join-Path $OutputDirectory "cpp-tcp451-first-$runId.json"
+$sinkReadyPath = Join-Path $OutputDirectory "cpp-tcp451-ready-$runId.json"
 $serviceCreated = $false
 $serviceStarted = $false
 $routeCreated = $false
@@ -252,6 +399,8 @@ $runError = $null
 $evidence = $null
 $cleanupFailures = [System.Collections.Generic.List[string]]::new()
 $startUtc = [DateTimeOffset]::UtcNow
+$deadline = $null
+$timeoutDiagnosticPath = $null
 
 try {
     $existingRoute = Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT(*) FROM hm_routes WHERE routedomainname=N'$routeSql';"
@@ -286,13 +435,14 @@ try {
     Invoke-SqlStrict master "CREATE LOGIN [NT AUTHORITY\LOCAL SERVICE] FROM WINDOWS;" | Out-Null
     Invoke-SqlStrict $fixture.database "CREATE USER [NT AUTHORITY\LOCAL SERVICE] FOR LOGIN [NT AUTHORITY\LOCAL SERVICE]; ALTER ROLE [db_owner] ADD MEMBER [NT AUTHORITY\LOCAL SERVICE];" | Out-Null
     $sqlPrincipalCreated = $true
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     $sinkJob = if ($Recovery) {
-        Start-RecoverySink -Port $SinkPort -StatePath $sinkStatePath -FirstStatePath $sinkFirstStatePath -MixedRecipients:$MixedRecipients
+        Start-RecoverySink -Port $SinkPort -ReadyPath $sinkReadyPath -StatePath $sinkStatePath -FirstStatePath $sinkFirstStatePath -MixedRecipients:$MixedRecipients
     }
     else {
-        Start-TransientSink -Port $SinkPort -StatePath $sinkStatePath
+        Start-TransientSink -Port $SinkPort -ReadyPath $sinkReadyPath -StatePath $sinkStatePath
     }
-    Start-Sleep -Milliseconds 500
+    Wait-SinkReady -Job $sinkJob -Port $SinkPort -ReadyPath $sinkReadyPath -Deadline $deadline
     $binPath = '"{0}" /DisposableBenchmark /ServiceName={1} RunAsService' -f $fixture.executable, $ServiceName
     & sc.exe create $ServiceName binPath= $binPath start= demand type= own obj= 'NT AUTHORITY\LocalService' | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "sc.exe create failed." }
@@ -300,16 +450,14 @@ try {
     & sc.exe start $ServiceName | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "sc.exe start failed." }
     $serviceStarted = $true
-    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     do {
         Start-Sleep -Milliseconds 500
         $service = Get-ServiceRecord $ServiceName
         if ($null -ne $service -and $service.state -eq "Running") { break }
     } while ([DateTime]::UtcNow -lt $deadline)
-    if ($null -eq $service -or $service.state -ne "Running") { throw "Disposable C++ service did not reach Running." }
+    if ($null -eq $service -or $service.state -ne "Running") { throw "Disposable C++ service did not reach Running before timeout." }
     $firstStateToWait = if ($Recovery) { $sinkFirstStatePath } else { $sinkStatePath }
-    do { Start-Sleep -Milliseconds 500 } while (-not (Test-Path -LiteralPath $firstStateToWait -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline)
-    if (-not (Test-Path -LiteralPath $firstStateToWait -PathType Leaf)) { throw "C++ service did not reach the transient sink before timeout." }
+    Wait-SinkStateFile -Job $sinkJob -Port $SinkPort -StatePath $firstStateToWait -Deadline $deadline -TimeoutMessage "C++ service did not reach the transient sink before timeout."
     $firstSinkEvidence = Get-Content -LiteralPath $firstStateToWait -Raw | ConvertFrom-Json
     $row = @(& sqlcmd.exe -S localhost -E -b -d $fixture.database -h-1 -W -s '|' -Q "SET NOCOUNT ON; SELECT COUNT_BIG(*),MAX(CAST(messagetype AS int)),MAX(CAST(messagelocked AS int)),MAX(messagecurnooftries),MAX(messagenexttrytime),COUNT_BIG(r.recipientmessageid) FROM hm_messages m LEFT JOIN hm_messagerecipients r ON r.recipientmessageid=m.messageid WHERE m.messagefrom=N'$fromSql';" 2>&1) | Where-Object { $_ -match '\|' } | Select-Object -Last 1
     if ($LASTEXITCODE -ne 0) { throw "C++ SQL evidence query failed." }
@@ -336,8 +484,7 @@ try {
         sink = $firstSinkEvidence
     }
     if ($Recovery) {
-        do { Start-Sleep -Milliseconds 500 } while (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf) -and [DateTime]::UtcNow -lt $deadline)
-        if (-not (Test-Path -LiteralPath $sinkStatePath -PathType Leaf)) { throw "C++ service did not complete the recovery attempt before timeout." }
+        Wait-SinkStateFile -Job $sinkJob -Port $SinkPort -StatePath $sinkStatePath -Deadline $deadline -TimeoutMessage "C++ service did not complete the recovery attempt before timeout."
         $sinkEvidence = Get-Content -LiteralPath $sinkStatePath -Raw | ConvertFrom-Json
         $finalMessageCount = [int64](Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM hm_messages WHERE messagefrom=N'$fromSql';")
         $finalRecipientCount = [int64](Get-SqlScalar $fixture.database "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid=r.recipientmessageid WHERE m.messagefrom=N'$fromSql';")
@@ -387,6 +534,17 @@ try {
 }
 catch {
     $runError = $_.Exception.Message
+    if ($runError -match '(?i)before timeout' -and $null -ne $deadline) {
+        $reasonCode = if ($runError -match 'sink did not become ready') { 'sink-readiness-timeout' } elseif ($runError -match 'service did not reach Running') { 'service-start-timeout' } elseif ($runError -match 'complete the recovery') { 'recovery-timeout' } else { 'sink-state-timeout' }
+        $timeoutDiagnosticPath = Join-Path $OutputDirectory "cpp-tcp451-timeout-$runId.json"
+        try {
+            Write-TimeoutDiagnostic -Path $timeoutDiagnosticPath -ReasonCode $reasonCode -ServiceName $ServiceName -Port $SinkPort -Job $sinkJob -ReadyPath $sinkReadyPath -FirstStatePath $sinkFirstStatePath -StatePath $sinkStatePath -Database $fixture.database -MessageFromSql $fromSql -DataPath $seedPath | Out-Null
+        }
+        catch {
+            $cleanupFailures.Add("Timeout diagnostic write failed: $($_.Exception.GetType().FullName)")
+            $timeoutDiagnosticPath = $null
+        }
+    }
 }
 finally {
     if ($serviceCreated) {
@@ -406,6 +564,7 @@ finally {
         try { Invoke-SqlStrict $fixture.database "IF EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NT AUTHORITY\LOCAL SERVICE') DROP USER [NT AUTHORITY\LOCAL SERVICE];" | Out-Null; Invoke-SqlStrict master "IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name=N'NT AUTHORITY\LOCAL SERVICE') DROP LOGIN [NT AUTHORITY\LOCAL SERVICE];" | Out-Null } catch { $cleanupFailures.Add("SQL principal cleanup failed: $($_.Exception.Message)") }
     }
     Remove-Item -LiteralPath $seedPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $sinkReadyPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $sinkFirstStatePath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $sinkStatePath -Force -ErrorAction SilentlyContinue
 }
@@ -431,6 +590,7 @@ $report = [ordered]@{
     net10 = [ordered]@{ evidencePath = [IO.Path]::GetFullPath($Net10EvidencePath); database = $net10Evidence.database; dataRoot = $net10Evidence.dataRoot; evidence = $net10Evidence }
     cleanup = $cleanupState
     cleanupFailures = @($cleanupFailures)
+    timeoutDiagnosticPath = if ($null -ne $timeoutDiagnosticPath) { [IO.Path]::GetFullPath($timeoutDiagnosticPath) } else { $null }
     error = $runError
 }
 $jsonPath = Join-Path $OutputDirectory "$reportStem.json"
