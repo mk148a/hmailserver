@@ -5,7 +5,7 @@ param(
     [string]$ExpectedImplementation = "net10",
     [ValidateRange(1, 25)]
     [int]$ExpectedIterations = 5,
-    [ValidateRange(1, 3000)]
+    [ValidateRange(1, 100000)]
     [int]$ExpectedMessages = 1000
 )
 

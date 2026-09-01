@@ -3,7 +3,7 @@ param(
     [string]$Implementation = "net10",
     [ValidateRange(1, 25)]
     [int]$Iterations = 5,
-    [ValidateRange(1, 3000)]
+    [ValidateRange(1, 100000)]
     [int]$ExpectedMessages = 1000,
     [ValidateRange(1, 300)]
     [int]$ReadinessTimeoutSeconds = 60,

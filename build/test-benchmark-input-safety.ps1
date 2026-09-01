@@ -144,6 +144,12 @@ try {
             '-BenchmarkServiceExecutable', $invalidExecutable
         ) 'approved disposable benchmark executable'
     }
+    $pop3LargeMailboxRunner = Get-Content -LiteralPath (Join-Path $repoRoot 'build\benchmark-net10-live-pop3-large-mailbox.ps1') -Raw
+    $pop3LargeMailboxValidator = Get-Content -LiteralPath (Join-Path $repoRoot 'build\test-net10-live-pop3-large-mailbox.ps1') -Raw
+    if ($pop3LargeMailboxRunner -notmatch '\[ValidateRange\(1, 100000\)\]\s*\[int\]\$ExpectedMessages' -or
+        $pop3LargeMailboxValidator -notmatch '\[ValidateRange\(1, 100000\)\]\s*\[int\]\$ExpectedMessages') {
+        throw 'POP3 large-mailbox runner and validator must support the required 100,000-message acceptance fixture.'
+    }
     Assert-ScriptRejects (Join-Path $repoRoot 'build\new-paired-performance-run.ps1') @(
         '-FixtureManifest', (Join-Path $tempRoot 'missing-fixture.json'),
         '-InputRoot', $repoRoot
