@@ -9781,3 +9781,26 @@ Next slice: isolated backup -> restore -> backup semantic round-trip against
 disposable SQL/Data targets, followed by installer/service/Data rollback
 evidence. Preserve production service/SQL/Data, installed COM/DCOM, IIS,
 firewall, and unrelated dirty artifacts.
+
+## Current authoritative continuation (2026-09-01, isolated backup/restore round-trip)
+
+Code/test commit `469e9b274` adds
+`build/test-net10-backup-restore-roundtrip.ps1`, a reproducible opt-in runner
+for the real `BackupRestoreRoundTripIntegrationTests` class. Against localhost
+MSSQL with Integrated Security, it passed `25/25` tests with zero failures.
+The test class creates unique `hmailserver_net10_*` databases and drops them
+in `finally`; all Data roots are test-owned temporary paths deleted in
+`finally`. The report records no use of the production service,
+`HmailDb_Test5700`, production Data directory, or production targets.
+
+JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/review-20260901/backup-restore-roundtrip/`. This is
+bounded disposable round-trip evidence only; it does not prove
+production-sized restore, restored-server semantic equivalence, installer
+rollback, or service/Data rollback. Full Net10 Debug remains `2773 passed,
+93 skipped, 5 failed / 2871`; the five failures remain registered local-server
+COM `E_NOINTERFACE` checks. Release remains **RED**.
+
+Next slice: disposable installer/service/Data rollback preflight and rollback
+evidence, preserving production service/SQL/Data, installed COM/DCOM, IIS,
+firewall, and unrelated dirty artifacts.

@@ -1,7 +1,23 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, repeated IMAP resource acceptance)
+## Current authoritative status (2026-09-01, isolated backup/restore round-trip)
+
+## Current isolated backup -> restore -> backup round-trip (2026-09-01)
+
+The disposable SQL/Data round-trip runner passed `25/25` tests with zero
+failures. It exercised the real backup/restore runtime against localhost
+MSSQL using Integrated Security, unique `hmailserver_net10_*` databases that
+are dropped in test `finally` blocks, and test-owned temporary Data roots that
+are deleted in `finally`. The report explicitly records that the production
+service, `HmailDb_Test5700`, production Data directory, and production targets
+were not used. JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/review-20260901/backup-restore-roundtrip/`.
+
+This closes the bounded disposable round-trip fixture only. It does not prove
+production backup/restore, installer rollback, service/Data rollback, or a
+full production-sized semantic restore. The release gate remains **RED**.
+Next is disposable installer/service/Data rollback evidence.
 
 ## Current Net10 repeated IMAP resource acceptance (2026-09-01, 5 x 100)
 

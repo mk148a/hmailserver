@@ -1,5 +1,17 @@
 # .NET 10 Benchmark Pack
 
+## Current isolated backup -> restore -> backup round-trip (2026-09-01)
+
+The real backup/restore runtime passed `25/25` opt-in round-trip tests against
+localhost MSSQL with Integrated Security. Each test creates a unique
+`hmailserver_net10_*` database and drops it in `finally`; Data roots are
+test-owned temporary directories deleted in `finally`. JSON/CSV/Markdown
+evidence is under
+`artifacts/benchmarks/review-20260901/backup-restore-roundtrip/`.
+
+This is isolated fixture evidence only. It does not close production-sized
+restore, installer rollback, service/Data rollback, or the performance gate.
+
 ## Current Net10 repeated IMAP resource acceptance, 5 x 100 (2026-09-01)
 
 The clean manifest-bound 100k disposable fixture passed five Net10 Admission

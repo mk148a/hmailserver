@@ -1,0 +1,2 @@
+﻿status,total,passed,failed,skipped,duration_seconds,sql_data_source,production_targets_used
+PASS,25,25,0,0,23.154316,localhost,False

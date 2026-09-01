@@ -1,21 +1,23 @@
 
-## Current authoritative next slice (2026-09-01, isolated backup -> restore -> backup round-trip)
+## Current authoritative next slice (2026-09-01, disposable installer/service/Data rollback)
 
-The repeated IMAP resource slice is complete as bounded Net10 evidence on the
-clean manifest-bound 100k fixture. Admission passed five waves of 100 sessions
-(`500/500`, zero errors/timeouts); settled process growth was `+1.133 MiB`,
-`+5` handles, and `-5` threads. The same fixture's Full profile is retained as
-RED capacity evidence at `309/500` with `191` errors. Evidence and chart are
-under `artifacts/benchmarks/review-20260901/net10-imap-admission-100x5-100k/`
-and `net10-imap-100x5-100k/`.
+The isolated backup -> restore -> backup round-trip fixture is complete. The
+real runtime passed `25/25` opt-in tests with zero failures against localhost
+MSSQL/Integrated Security, unique `hmailserver_net10_*` databases, and
+test-owned temporary Data roots; each target is dropped/deleted in test
+`finally` blocks. Evidence is under
+`artifacts/benchmarks/review-20260901/backup-restore-roundtrip/`.
 
-This was Net10 process-backed only, with no new C++ run; the existing C++
-500/1000-session capacity failures remain the baseline. No ratio, winner, or
-24-hour soak claim is valid. The performance gate remains **RED**.
+This closes only the disposable fixture round-trip. Production-sized restore,
+semantic equivalence against a real restored server, installer rollback, and
+service/Data rollback remain open. The performance and release gates remain
+**RED**.
 
-Next smallest independent slice: generate and validate an isolated backup ->
-restore -> backup semantic round-trip against disposable SQL/Data targets,
-then continue installer/service/Data rollback evidence.
+Next smallest independent slice: run disposable installer/service/Data
+rollback preflight and mutation/rollback evidence without touching the
+installed hMailServer service, registration, production SQL, or Data root.
+
+## Historical current slice (2026-09-01, repeated-wave IMAP/resource acceptance)
 
 ## Historical current slice (2026-09-01, paired SMTP 500 acceptance)
 

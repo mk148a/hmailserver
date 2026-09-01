@@ -1,0 +1,22 @@
+﻿{
+    "schema":  "net10-backup-restore-roundtrip-v1",
+    "status":  "PASS",
+    "generatedUtc":  "\/Date(1788227058842)\/",
+    "startedUtc":  "\/Date(1788227035688)\/",
+    "endedUtc":  "\/Date(1788227058842)\/",
+    "durationSeconds":  23.154315999999998,
+    "testClass":  "BackupRestoreRoundTripIntegrationTests",
+    "total":  25,
+    "passed":  25,
+    "failed":  0,
+    "skipped":  0,
+    "sqlDataSource":  "localhost",
+    "sqlAuthentication":  "Integrated Security",
+    "disposableDatabasePattern":  "hmailserver_net10_*",
+    "disposableDatabaseCleanup":  "test finally blocks drop each unique database",
+    "dataRootPolicy":  "test-owned temporary roots only",
+    "productionTargetsUsed":  false,
+    "hmailDbTest5700Used":  false,
+    "hmailServerServiceUsed":  false,
+    "rollback":  "test finally blocks drop SQL databases and delete temporary Data roots"
+}
