@@ -1,6 +1,30 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-01, C++ profile/ramp evidence)
+## Current authoritative continuation (2026-09-01, paired POP3 parity evidence)
+
+Code/test commit `1348fac13` closes the verified POP3 full-list wire-format
+gap against legacy `POP3Connection::ProtocolLIST_` and `ProtocolUIDL_`
+(`hmailserver/source/Server/POP3/POP3Connection.cpp:544-640`). Net10
+`Pop3Session.HandleListAsync` and `HandleUidlAsync` now emit the same filtered
+`+OK <count> messages (<total octets> octets)` header, while preserving
+single-item responses and dot framing. Focused `Pop3SessionTests` pass `17/17`.
+
+Benchmark provenance commit `aba57fbc8` adds manifest-bound POP3 run ID,
+fixture/executable hashes, run-start attestation, and CSV/Markdown validation.
+The paired 100,000-message fixture then passed `3/3` on each implementation:
+C++ total p50/p95/p99 `6223.230/7945.605/8098.705 ms`; Net10
+`6508.355/6589.753/6596.988 ms`. Both reports share manifest SHA-256
+`DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A`.
+This remains bounded repeatability evidence, not a 24-hour soak or a general
+performance winner claim.
+
+Latest full Debug Net10 is `2788 passed, 94 skipped, 5 failed / 2887`; the
+five failures remain the known registered local-server COM `E_NOINTERFACE`
+checks. Performance remains **RED**. Next: paired queue/remote-delivery
+coverage, SEC-18 caller-token evidence when staging prerequisites return, and
+disposable native AD/SSPI acceptance when credentials are available.
+
+## Historical continuation (2026-09-01, C++ profile/ramp evidence)
 
 After the disposable C++ capacity monitor, the same clean fixture was exercised
 with profile and launch-ramp controls. Full burst results were `100/100 PASS`,

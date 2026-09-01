@@ -1,5 +1,30 @@
 
-## Current authoritative next slice (2026-09-01, C++ capacity diagnosis)
+## Current authoritative next slice (2026-09-01, paired POP3 parity evidence)
+
+Code/test commit `1348fac13` closes the verified POP3 full-list wire-format
+gap identified against legacy `POP3Connection::ProtocolLIST_` and
+`ProtocolUIDL_` (`hmailserver/source/Server/POP3/POP3Connection.cpp:544-640`).
+Net10 `Pop3Session.HandleListAsync` and `HandleUidlAsync` now emit the legacy
+filtered `+OK <count> messages (<total octets> octets)` header while preserving
+single-item responses, deleted-message filtering, and dot framing. Focused
+`Pop3SessionTests` coverage is `17/17 PASS`.
+
+The POP3 benchmark harness provenance slice is code/test commit `aba57fbc8`.
+The same manifest-bound 100,000-message SQL/Data fixture completed three
+loopback iterations per implementation: C++ `3/3`, total p50/p95/p99
+`6223.230/7945.605/8098.705 ms`; Net10 `3/3`,
+`6508.355/6589.753/6596.988 ms`. Both validators passed with shared manifest
+SHA-256 and run-start attestation. This is bounded evidence, not a 24-hour
+soak or a general performance winner claim.
+
+Latest full Debug Net10 is `2788 passed, 94 skipped, 5 failed / 2887`; the
+five failures are the existing registered local-server COM `E_NOINTERFACE`
+checks. Performance remains **RED**. Next independent slices are paired
+C++/.NET 10 queue or remote-delivery throughput coverage, fresh SEC-18
+caller-token evidence when the isolated staging prerequisites are present,
+and disposable native AD/SSPI acceptance when credentials are available.
+
+## Historical continuation (2026-09-01, C++ capacity diagnosis)
 
 The latest paired disposable C++/.NET 10 IMAP `Full` run used separate SQL
 clones of the same backup, byte-matched Data trees, 1,000 messages, and

@@ -17,20 +17,28 @@ The raw reports are under
 `artifacts/benchmarks/paired-cpp-net10-20260901-pop3/`; no general winner is
 claimed.
 
-## Current paired POP3 100,000-message mailbox (2026-09-01, 1 iteration)
+## Current paired POP3 100,000-message mailbox (2026-09-01, 3 iterations)
 
-The same pack also completed one loopback iteration against the paired
-100,000-message fixture. Both implementations reported `100000/100000` rows
-and zero errors:
+The same manifest-bound pack completed three loopback iterations against the
+paired 100,000-message fixture per implementation. Both implementations
+reported `100000/100000` rows with zero errors and clean shutdown. The reports
+share manifest SHA-256
+`DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A` and carry
+run-start attestation.
 
-| Implementation | Result | Total p50/p95/p99 ms | LIST p50 ms | UIDL p50 ms | RETR p50 ms |
+| Implementation | Result | Total p50/p95/p99 ms | LIST p50/p95 ms | UIDL p50 ms | RETR p50 ms |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Legacy C++ | 1/1 PASS | 7709.814 / 7709.814 / 7709.814 | 1759.476 | 1760.202 | 14.640 |
-| .NET 10 | 1/1 PASS | 6203.933 / 6203.933 / 6203.933 | 1804.324 | 1854.405 | 30.949 |
+| Legacy C++ | 3/3 PASS | 6223.230 / 7945.605 / 8098.705 | 1766.287 / 1852.944 | 1886.362 | 0.828 |
+| .NET 10 | 3/3 PASS | 6508.355 / 6589.753 / 6596.988 | 1973.255 / 1974.912 | 1962.786 | 13.290 |
 
-This is a larger-mailbox bounded observation only; it is not repeated 100k
-acceptance, a soak, or a general performance claim. Raw reports are under
-`artifacts/benchmarks/paired-cpp-net10-20260901-pop3/`.
+This is bounded repeatability evidence for one large-mailbox workload, not a
+24-hour soak or a general performance claim. Raw reports are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-100k-provenance/`.
+
+Legacy `POP3Connection::ProtocolLIST_` and `ProtocolUIDL_` emit filtered
+`+OK <count> messages (<total octets> octets)` headers. Net10
+`Pop3Session.HandleListAsync` and `HandleUidlAsync` now match that wire shape;
+focused coverage is in `Pop3SessionTests`.
 
 ## Current paired IMAP repeated-wave acceptance (2026-09-01, 5 x 1,000)
 

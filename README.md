@@ -1,7 +1,7 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, repeated paired IMAP waves)
+## Current authoritative status (2026-09-01, paired IMAP/POP3 acceptance)
 
 The corrected manifest-bound IMAP `Full` probe was repeated for five waves of
 1,000 sessions on the same 1,000-message SQL/Data fixture, loopback port, 50
@@ -20,9 +20,9 @@ a universal latency/speed winner. The performance release gate remains **RED**
 pending queue/remote-delivery parity, POP3 coverage, long soak, and the other
 release gates. Full evidence, fixture hashes, and graphs are in
 `hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`.
-The latest full Net10 Debug run is `2786 passed, 94 skipped, 7 failed / 2887`:
-five registered-COM `E_NOINTERFACE` failures remain, and two scanner tests are
-blocked by endpoint protection denying access to temporary `.eml` files.
+The latest full Net10 Debug run is `2788 passed, 94 skipped, 5 failed / 2887`:
+the five failures are the known registered-COM `E_NOINTERFACE` checks. The
+earlier endpoint-protection scanner failures did not reproduce in this run.
 
 The same fixture also passed 25 POP3 large-mailbox iterations on both sides
 with a `1000/1000` mailbox and zero errors. Total p50/p95/p99 was
@@ -30,12 +30,26 @@ with a `1000/1000` mailbox and zero errors. Total p50/p95/p99 was
 Net10. This closes the bounded 1,000-message POP3 parity cell with extended
 repeatability; larger mailboxes and long POP3 soak remain open.
 
-The paired 100,000-message fixture also passed one POP3 iteration on each
-implementation with `100000/100000` rows and zero errors. Total latency was
-`7709.814 ms` for C++ and `6203.933 ms` for Net10. This is a single larger-
-mailbox observation, not a repeated comparison or a general speed claim;
-24-hour POP3 soak remains open. See the dated benchmark report for the graph
-and raw artifact paths.
+The paired 100,000-message fixture passed three POP3 iterations on each
+implementation with `100000/100000` rows, zero errors, and manifest-bound
+run-start attestation. Total p50/p95/p99 was
+`6223.230/7945.605/8098.705 ms` for C++ and
+`6508.355/6589.753/6596.988 ms` for Net10. This remains bounded repeatability
+evidence, not a 24-hour soak or a general speed claim. The raw reports and
+graph are under `artifacts/benchmarks/paired-cpp-net10-20260901-100k-provenance/`.
+
+Legacy `POP3Connection::ProtocolLIST_` and `ProtocolUIDL_` emit
+`+OK <count> messages (<total octets> octets)` for full listings. Net10
+`Pop3Session.HandleListAsync` and `HandleUidlAsync` now match that wire shape;
+focused coverage is in `Pop3SessionTests`.
+
+```mermaid
+xychart-beta
+    title "Paired 100k POP3 total p95 latency (ms)"
+    x-axis [C++, .NET10]
+    y-axis "Milliseconds" 0 --> 9000
+    bar [7945.605, 6589.753]
+```
 
 ## Current authoritative status (2026-09-01, paired performance gate)
 

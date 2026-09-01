@@ -183,31 +183,42 @@ xychart-beta
     bar [82.854, 87.396]
 ```
 
-## Paired POP3 100,000-message mailbox acceptance
+## Paired POP3 100,000-message mailbox acceptance (3 iterations)
 
-The same paired benchmark pack was extended to the manifest-bound 100,000
-message fixture. Each implementation completed one loopback POP3 iteration,
-reported `100000/100000` rows from `STAT`, `LIST`, and `UIDL`, and had zero
-errors or readiness/shutdown failures.
+The same paired benchmark pack completed three manifest-bound loopback POP3
+iterations against the 100,000-message fixture per implementation. Every
+iteration reported `100000/100000` rows from `STAT`, `LIST`, and `UIDL`, with
+zero errors or readiness/shutdown failures. The C++ and .NET 10 reports share
+manifest SHA-256
+`DE4DA2CDCDA01B1BE6D8C9BC98A377167205E940722D2BBCEE98A15A16ACB23A`, and the
+artifacts include run-start Data/message and executable attestation.
 
-| Implementation | Result | Total p50/p95/p99 ms | LIST p50 ms | UIDL p50 ms | RETR p50 ms |
+| Implementation | Result | Total p50/p95/p99 ms | LIST p50/p95 ms | UIDL p50 ms | RETR p50 ms |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Legacy C++ | 1/1 PASS | 7709.814 / 7709.814 / 7709.814 | 1759.476 | 1760.202 | 14.640 |
-| .NET 10 | 1/1 PASS | 6203.933 / 6203.933 / 6203.933 | 1804.324 | 1854.405 | 30.949 |
+| Legacy C++ | 3/3 PASS | 6223.230 / 7945.605 / 8098.705 | 1766.287 / 1852.944 | 1886.362 | 0.828 |
+| .NET 10 | 3/3 PASS | 6508.355 / 6589.753 / 6596.988 | 1973.255 / 1974.912 | 1962.786 | 13.290 |
 
-This closes a one-iteration larger-mailbox correctness/latency observation,
-not a repeated 100,000-message comparison, 24-hour resource soak, or general
-performance winner claim. Raw reports are under
-`artifacts/benchmarks/paired-cpp-net10-20260901-pop3/cpp-100000x1/` and
-`artifacts/benchmarks/paired-cpp-net10-20260901-pop3/net10-100000x1/`.
+This is bounded repeatability evidence for one large-mailbox workload, not a
+24-hour resource soak or a general performance winner claim. Raw reports are
+under `artifacts/benchmarks/paired-cpp-net10-20260901-100k-provenance/`.
 
 ```mermaid
 xychart-beta
-    title "Paired 100k POP3 total latency (single iteration, ms)"
+    title "Paired 100k POP3 total latency (3 iterations, ms)"
     x-axis [C++, .NET10]
-    y-axis "Milliseconds" 0 --> 8000
-    bar [7709.814, 6203.933]
+    y-axis "Milliseconds" 0 --> 9000
+    bar [7945.605, 6589.753]
 ```
+
+## POP3 wire-format parity
+
+The legacy C++ `POP3Connection::ProtocolLIST_` and `ProtocolUIDL_` full-list
+paths emit `+OK <count> messages (<total octets> octets)` after excluding
+deleted messages (`hmailserver/source/Server/POP3/POP3Connection.cpp:544-640`).
+Net10 now emits the same filtered header in
+`Pop3Session.HandleListAsync` and `HandleUidlAsync`, with focused assertions
+in `hmailserver/source/Server.Net10/tests/HMailServer.Net10.Tests/Pop3SessionTests.cs`.
+Single-item responses and dot framing are unchanged.
 
 ```mermaid
 xychart-beta
