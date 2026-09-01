@@ -772,6 +772,7 @@ public static class Host
     builder.Services.AddSingleton<IImapMailboxDiscoveryStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapAclStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapMailboxSubscriptionStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
+    builder.Services.AddSingleton<IImapFolderRenameStore>(static serviceProvider => serviceProvider.GetRequiredService<SqlServerImapMailboxStore>());
     builder.Services.AddSingleton<IImapMessageFetchStore, SqlServerImapMessageFetchStore>();
     builder.Services.AddSingleton<IImapMessageMutationStore>(static serviceProvider =>
         new SqlServerImapMessageMutationStore(
@@ -1080,6 +1081,11 @@ public static class Host
     builder.Services.AddSingleton<ImapQuotaCommandHandler>();
     builder.Services.AddSingleton(serviceProvider => new ImapSubscriptionCommandHandler(
         serviceProvider.GetRequiredService<IImapMailboxSubscriptionStore>(),
+        mailboxOptions.PublicFolderName));
+    builder.Services.AddSingleton(serviceProvider => new ImapRenameCommandHandler(
+        serviceProvider.GetRequiredService<IImapMailboxStore>(),
+        serviceProvider.GetRequiredService<IImapFolderRenameStore>(),
+        mailboxOptions.HierarchyDelimiter,
         mailboxOptions.PublicFolderName));
     builder.Services.AddSingleton(serviceProvider => new ImapListCommandHandler(
         serviceProvider.GetRequiredService<IImapMailboxDiscoveryStore>(),

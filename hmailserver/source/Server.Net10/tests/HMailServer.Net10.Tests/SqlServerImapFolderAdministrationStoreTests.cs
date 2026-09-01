@@ -225,6 +225,23 @@ public sealed class SqlServerImapFolderAdministrationStoreTests
     }
 
     [TestMethod]
+    public void RenameRootFolderSqlUsesTransactionalRootAndOwnerScope()
+    {
+        var sql = SqlServerImapMailboxStore.RenameRootFolderSql;
+
+        StringAssert.Contains(sql, "SET XACT_ABORT ON");
+        StringAssert.Contains(sql, "BEGIN TRANSACTION");
+        StringAssert.Contains(sql, "WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(sql, "folderaccountid = @AccountID");
+        StringAssert.Contains(sql, "folderparentid = -1");
+        StringAssert.Contains(sql, "LOWER(foldername) = LOWER(@SourceName)");
+        StringAssert.Contains(sql, "LOWER(foldername) = LOWER(@DestinationName)");
+        StringAssert.Contains(sql, "foldername = @DestinationName");
+        StringAssert.Contains(sql, "COMMIT TRANSACTION");
+        Assert.IsFalse(sql.Contains("SCOPE_IDENTITY", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [TestMethod]
     public void DeleteFolderSql_CleansLegacyDependentsTransactionallyAndPreservesRootInbox()
     {
         var sql = SqlServerImapFolderAdministrationStore.DeleteFolderSql;

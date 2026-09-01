@@ -1301,6 +1301,132 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_LoginRenameRootPrivateFolderPublishesChange()
+    {
+        var renameStore = new FakeRenameStore(
+            new ImapFolderRenameResult(
+                ImapFolderRenameStatus.Success,
+                new ImapFolderAdministrationSnapshot(99, 77, -1, "Renamed", true, 1, "2026-08-01 00:00:00")));
+        var tracker = new ImapFolderChangeTracker();
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"secret\"\r\nA002 RENAME \"Archive\" \"Renamed\"\r\nA003 LOGOUT\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(),
+            renameStore: renameStore,
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A002 OK Rename completed\r\n");
+        Assert.AreEqual(77, renameStore.LastAccountId);
+        Assert.AreEqual("Archive", renameStore.LastSourceName);
+        Assert.AreEqual("Renamed", renameStore.LastDestinationName);
+        Assert.IsTrue(tracker.TryGetLatestChange(77, 99, out var change));
+        Assert.AreEqual("Renamed", change.Folder!.Name);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RenameRejectsUnauthenticatedAndDoesNotMutate()
+    {
+        var renameStore = new FakeRenameStore(
+            new ImapFolderRenameResult(ImapFolderRenameStatus.Success));
+        await using var stream = new DuplexMemoryStream("A001 RENAME Archive Renamed\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            mailboxStore: new FakeMailboxStore(),
+            renameStore: renameStore);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO Authenticate first\r\n");
+        Assert.AreEqual(0, renameStore.CallCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RenameRejectsMissingDeleteMailboxAndDoesNotMutate()
+    {
+        var renameStore = new FakeRenameStore(
+            new ImapFolderRenameResult(ImapFolderRenameStatus.Success));
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"secret\"\r\nA002 RENAME Archive Renamed\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(ImapAclRights.All & ~ImapAclRights.DeleteMailbox),
+            renameStore: renameStore);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A002 NO ACL DeleteMailbox permission denied (required for RENAME).\r\n");
+        Assert.AreEqual(0, renameStore.CallCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RenameRejectsInboxAndNestedNames()
+    {
+        var renameStore = new FakeRenameStore(
+            new ImapFolderRenameResult(ImapFolderRenameStatus.Success));
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"secret\"\r\nA002 RENAME INBOX Archive\r\nA003 RENAME Archive.2026 Renamed\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(),
+            renameStore: renameStore);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A002 NO Cannot rename INBOX.\r\n");
+        StringAssert.Contains(output, "A003 NO RENAME supports root-level private folders only.\r\n");
+        Assert.AreEqual(0, renameStore.CallCount);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RenameReportsTargetCollisionWithoutPublishingChange()
+    {
+        var renameStore = new FakeRenameStore(
+            new ImapFolderRenameResult(ImapFolderRenameStatus.TargetExists));
+        var tracker = new ImapFolderChangeTracker();
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"secret\"\r\nA002 RENAME Archive Renamed\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(),
+            renameStore: renameStore,
+            folderChangeTracker: tracker);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A002 NO Target folder already exist.\r\n");
+        Assert.AreEqual(0, tracker.GetGeneration(77));
+    }
+
+    [TestMethod]
+    public async Task RunAsync_RenameReportsMissingSourceAndMalformedArguments()
+    {
+        var renameStore = new FakeRenameStore(
+            new ImapFolderRenameResult(ImapFolderRenameStatus.Success));
+        await using var stream = new DuplexMemoryStream(
+            "A001 LOGIN \"user@example.test\" \"secret\"\r\nA002 RENAME Missing Renamed\r\nA003 RENAME Archive\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            new FakeMailboxStore(),
+            renameStore: renameStore);
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "A002 BAD Folder could not be found.\r\n");
+        StringAssert.Contains(output, "A003 BAD RENAME command requires 2 parameters.\r\n");
+        Assert.AreEqual(0, renameStore.CallCount);
+    }
+
+    [TestMethod]
     public async Task RunAsync_CopyToSelectedMailboxExtendsRecentSnapshot()
     {
         var searchIndex = new CapturingSearchIndex(
@@ -1458,6 +1584,7 @@ public sealed class ImapSessionTests
         IImapAclStore? aclStore = null,
         IImapQuotaStore? quotaStore = null,
         IImapMailboxSubscriptionStore? subscriptionStore = null,
+        IImapFolderRenameStore? renameStore = null,
         IImapRecentFlagStore? recentFlagStore = null,
         ImapSessionOptions? options = null,
         ISmtpEventScriptExecutor? eventScriptExecutor = null,
@@ -1502,6 +1629,9 @@ public sealed class ImapSessionTests
         var subscriptionHandler = subscriptionStore is null
             ? null
             : new ImapSubscriptionCommandHandler(subscriptionStore, "#Public");
+        var renameHandler = renameStore is null || mailboxStore is null
+            ? null
+            : new ImapRenameCommandHandler(mailboxStore, renameStore, ".", "#Public", folderChangeTracker);
         return new ImapSession(
             handler,
             sortCommandHandler: sortHandler,
@@ -1516,6 +1646,7 @@ public sealed class ImapSessionTests
             aclCommandHandler: aclHandler,
             quotaCommandHandler: quotaHandler,
             subscriptionCommandHandler: subscriptionHandler,
+            renameCommandHandler: renameHandler,
             recentFlagStore: recentFlagStore,
             options: options,
             accountAuthenticator: authenticator,
@@ -1980,6 +2111,30 @@ public sealed class ImapSessionTests
                 new ImapAppendResult(
                 new MessageIdentity(10, request.DestinationAccountId, request.DestinationFolderId, 501),
                     UidValidity: 123));
+        }
+    }
+
+    private sealed class FakeRenameStore(ImapFolderRenameResult result) : IImapFolderRenameStore
+    {
+        public int CallCount { get; private set; }
+
+        public int LastAccountId { get; private set; }
+
+        public string? LastSourceName { get; private set; }
+
+        public string? LastDestinationName { get; private set; }
+
+        public ValueTask<ImapFolderRenameResult> RenameRootFolderAsync(
+            int accountId,
+            string sourceName,
+            string destinationName,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastAccountId = accountId;
+            LastSourceName = sourceName;
+            LastDestinationName = destinationName;
+            return ValueTask.FromResult(result);
         }
     }
 

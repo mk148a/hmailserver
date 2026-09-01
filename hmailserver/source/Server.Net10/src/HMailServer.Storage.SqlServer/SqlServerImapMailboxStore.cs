@@ -1,4 +1,5 @@
 using System.Data;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -7,7 +8,7 @@ using Microsoft.Data.SqlClient;
 
 namespace HMailServer.Storage.SqlServer;
 
-public sealed class SqlServerImapMailboxStore : IImapMailboxStore, IImapSelectedMailboxAuthorization, IImapMailboxDiscoveryStore, IImapAclStore, IImapMailboxSubscriptionStore
+public sealed class SqlServerImapMailboxStore : IImapMailboxStore, IImapSelectedMailboxAuthorization, IImapMailboxDiscoveryStore, IImapAclStore, IImapMailboxSubscriptionStore, IImapFolderRenameStore
 {
     public const string FindChildFolderSql = """
 SELECT TOP (1)
@@ -23,6 +24,68 @@ WHERE
     folderaccountid = @FolderAccountId
     AND folderparentid = @ParentFolderId
     AND LOWER(foldername) = LOWER(@FolderName);
+""";
+
+    public const string RenameRootFolderSql = """
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
+
+DECLARE @SourceFolderID int;
+SELECT TOP (1) @SourceFolderID = folderid
+FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
+WHERE folderaccountid = @AccountID
+  AND folderparentid = -1
+  AND LOWER(foldername) = LOWER(@SourceName);
+
+IF @SourceFolderID IS NULL
+BEGIN
+    COMMIT TRANSACTION;
+    SELECT CONVERT(int, 1);
+    RETURN;
+END;
+
+IF EXISTS
+(
+    SELECT 1
+    FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
+    WHERE folderaccountid = @AccountID
+      AND folderparentid = -1
+      AND LOWER(foldername) = LOWER(@DestinationName)
+)
+BEGIN
+    COMMIT TRANSACTION;
+    SELECT CONVERT(int, 2);
+    RETURN;
+END;
+
+UPDATE hm_imapfolders
+SET foldername = @DestinationName
+WHERE folderid = @SourceFolderID
+  AND folderaccountid = @AccountID
+  AND folderparentid = -1
+  AND LOWER(foldername) = LOWER(@SourceName);
+
+IF @@ROWCOUNT <> 1
+BEGIN
+    COMMIT TRANSACTION;
+    SELECT CONVERT(int, 1);
+    RETURN;
+END;
+
+COMMIT TRANSACTION;
+SELECT CONVERT(int, 0);
+SELECT
+    folderid,
+    folderaccountid,
+    folderparentid,
+    foldername,
+    folderissubscribed,
+    foldercurrentuid,
+    CONVERT(varchar(19), foldercreationtime, 120) AS foldercreationtime
+FROM hm_imapfolders
+WHERE folderid = @SourceFolderID
+  AND folderaccountid = @AccountID
+  AND folderparentid = -1;
 """;
 
     public const string SelectFolderByIdSql = """
@@ -299,6 +362,50 @@ WHERE
             IsReadOnly: readOnly || !access.CanWrite,
             RequestedReadOnly: readOnly,
             AclRights: access.Value);
+    }
+
+    public async ValueTask<ImapFolderRenameResult> RenameRootFolderAsync(
+        int accountId,
+        string sourceName,
+        string destinationName,
+        CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(accountId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(sourceName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(destinationName);
+
+        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await using var command = new SqlCommand(RenameRootFolderSql, connection);
+        command.Parameters.Add("@AccountID", SqlDbType.Int).Value = accountId;
+        command.Parameters.Add("@SourceName", SqlDbType.NVarChar, 255).Value = sourceName;
+        command.Parameters.Add("@DestinationName", SqlDbType.NVarChar, 255).Value = destinationName;
+
+        await using var reader = await command.ExecuteReaderAsync(
+            CommandBehavior.SequentialAccess,
+            cancellationToken).ConfigureAwait(false);
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new ImapFolderRenameResult(ImapFolderRenameStatus.Failed);
+        }
+
+        var status = (ImapFolderRenameStatus)reader.GetInt32(0);
+        if (status != ImapFolderRenameStatus.Success ||
+            !await reader.NextResultAsync(cancellationToken).ConfigureAwait(false) ||
+            !await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return new ImapFolderRenameResult(status);
+        }
+
+        return new ImapFolderRenameResult(
+            ImapFolderRenameStatus.Success,
+            new ImapFolderAdministrationSnapshot(
+                reader.GetInt32(0),
+                reader.GetInt32(1),
+                reader.GetInt32(2),
+                reader.GetString(3),
+                Convert.ToInt32(reader.GetValue(4), CultureInfo.InvariantCulture) == 1,
+                reader.GetInt32(5),
+                reader.GetString(6)));
     }
 
     public async ValueTask<ImapMailboxSubscriptionResult> SetSubscribedAsync(

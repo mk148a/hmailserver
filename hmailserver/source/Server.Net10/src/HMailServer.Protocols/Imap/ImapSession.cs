@@ -24,6 +24,7 @@ public sealed class ImapSession
     private readonly ImapAclCommandHandler? _aclCommandHandler;
     private readonly ImapQuotaCommandHandler? _quotaCommandHandler;
     private readonly ImapSubscriptionCommandHandler? _subscriptionCommandHandler;
+    private readonly ImapRenameCommandHandler? _renameCommandHandler;
     private readonly IImapRecentFlagStore? _recentFlagStore;
     private readonly ImapSessionOptions _options;
     private readonly IImapAccountAuthenticator? _accountAuthenticator;
@@ -53,6 +54,7 @@ public sealed class ImapSession
         IAutoBanLogonFailureRecorder? autoBanLogonFailureRecorder = null,
         IClientAwareAuthenticationService? clientAwareAuthenticationService = null,
         ImapSubscriptionCommandHandler? subscriptionCommandHandler = null,
+        ImapRenameCommandHandler? renameCommandHandler = null,
         IImapFolderChangeTracker? folderChangeTracker = null)
     {
         _searchCommandHandler = searchCommandHandler;
@@ -68,6 +70,7 @@ public sealed class ImapSession
         _aclCommandHandler = aclCommandHandler;
         _quotaCommandHandler = quotaCommandHandler;
         _subscriptionCommandHandler = subscriptionCommandHandler;
+        _renameCommandHandler = renameCommandHandler;
         _recentFlagStore = recentFlagStore;
         _options = options ?? new ImapSessionOptions();
         _accountAuthenticator = accountAuthenticator;
@@ -287,6 +290,29 @@ public sealed class ImapSession
                         cancellationToken)
                     .ConfigureAwait(false);
                 await WriteAsync(stream, subscriptionResponse, cancellationToken).ConfigureAwait(false);
+                return false;
+
+            case "RENAME":
+                if (state.Account is null)
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO Authenticate first", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
+                if (_renameCommandHandler is null)
+                {
+                    await WriteTaggedAsync(stream, commandLine.Tag, "NO RENAME backend is not configured", cancellationToken).ConfigureAwait(false);
+                    return false;
+                }
+
+                var renameResponse = await _renameCommandHandler
+                    .HandleAsync(
+                        state.Account.AccountId,
+                        commandLine.Tag,
+                        commandLine.Arguments,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                await WriteAsync(stream, renameResponse, cancellationToken).ConfigureAwait(false);
                 return false;
 
             case "FETCH":
