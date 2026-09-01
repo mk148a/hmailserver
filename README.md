@@ -1,23 +1,20 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, SMTP AUTH PLAIN runtime enforcement)
+## Current authoritative status (2026-09-01, IMAP STORE \\Seen ACL evidence)
 
-Code/test commit `0ac09cd35` closes the bounded runtime gap for legacy
-`AllowSMTPAuthPlain`. Legacy `SMTPConnection::FormatEHLOResponse`
-(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1518-1525`) omits PLAIN
-when `authallowplaintext=0`, and `SMTPConnection::ProtocolAUTH_`
-(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1924-1927`) rejects it
-before PLAIN parsing/authentication. Net10 now applies the persisted setting
-in `SmtpSession.HandleAuthAsync` and `FormatEhloResponseAsync`, with the SQL
-settings provider wired in `HMailServer.Service.Host`. AUTH LOGIN, TLS gating,
-SMTP trust, installed COM identity, direct activation, SQL schema, service,
-Data directory, and machine boundaries are unchanged.
+The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
+legacy IMAP STORE `\\Seen` authorization. Legacy `IMAPStore::DoAction`
+(`hmailserver/source/Server/IMAP/IMAPStore.cpp`) checks the exact
+`PermissionWriteSeen` bit before mutation; Net10’s
+`ImapSession` maps `\\Seen` to `ImapAclRights.WriteSeen` before invoking
+`ImapStoreCommandHandler`. The session behavior was already correct; this
+slice adds explicit regression evidence without changing production behavior.
 
-Focused SMTP session coverage passes `40/40`; related SMTP/TCP/settings
-coverage passes `401/401`. Full Net10 Debug is `2777 passed, 94 skipped, 5
-failed / 2876`; the five failures remain the known registered local-server
-COM activation checks returning `E_NOINTERFACE`. Native AD/SSPI, registered
+Focused IMAP STORE/ACL coverage passes `63/63`; related SQL mutation/ACL
+coverage passes `10/10`. Full Net10 Debug is `2781 passed, 94 skipped, 5
+failed / 2880`; the five failures remain the known registered local-server COM
+activation checks returning `E_NOINTERFACE`. Native AD/SSPI, registered
 out-of-process COM, SEC-18 caller proof, restore/rollback, paired performance,
 and long-soak gates remain open; release remains **RED**.
 

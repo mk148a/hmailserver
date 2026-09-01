@@ -9943,3 +9943,26 @@ Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
 the isolated staging prerequisites exist; then run disposable native AD/SSPI
 and socket-level IMAP master-auth acceptance, followed by the next
 legacy-anchored IMAP command ACL gap.
+
+## Current authoritative continuation (2026-09-01, IMAP STORE \\Seen ACL evidence)
+
+The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
+legacy IMAP STORE `\\Seen` authorization. Legacy `IMAPStore::DoAction`
+(`hmailserver/source/Server/IMAP/IMAPStore.cpp`) checks exact
+`PermissionWriteSeen` before flag mutation; Net10’s `ImapSession` maps
+`\\Seen` to `ImapAclRights.WriteSeen` before invoking the handler. Added
+coverage proves denied/no-mutation, non-UID allow, UID allow, and legacy
+`FLAGS`-without-`\\Seen` behavior. No production code, COM identity, SQL
+schema, service, Data directory, or machine state changed.
+
+Focused IMAP STORE/ACL tests pass `63/63`; related SQL mutation/ACL tests pass
+`10/10`. Full Net10 Debug is `2781 passed, 94 skipped, 5 failed / 2880`; the
+five failures are the existing registered local-server COM
+`E_NOINTERFACE` checks. Release remains **RED**. SEC-18, native AD/SSPI,
+registered out-of-process COM, restore/rollback, paired performance, and
+long-soak gates remain open.
+
+Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
+the isolated staging prerequisites exist; then run disposable native AD/SSPI
+and socket-level IMAP master-auth acceptance, followed by the next
+legacy-anchored IMAP command ACL gap.

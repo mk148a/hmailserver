@@ -1,20 +1,17 @@
 
-## Current authoritative next slice (2026-09-01, SMTP AUTH PLAIN runtime enforcement)
+## Current authoritative next slice (2026-09-01, IMAP STORE \\Seen ACL evidence)
 
-Code/test commit `0ac09cd35` closes the bounded `AllowSMTPAuthPlain` runtime
-gap. Legacy `SMTPConnection::FormatEHLOResponse`
-(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1518-1525`) omits PLAIN
-when `authallowplaintext=0`, while `SMTPConnection::ProtocolAUTH_`
-(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1924-1927`) rejects PLAIN
-before parsing/authentication. Net10 enforces the setting in
-`SmtpSession.HandleAuthAsync` and `SmtpSession.FormatEhloResponseAsync`; `Host`
-reads it through the configured settings administration store. AUTH LOGIN, TLS
-gating, installed COM identity, direct activation, SMTP trust, SQL schema,
-service, Data directory, and machine state are unchanged.
+The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
+legacy IMAP STORE `\\Seen` authorization. Legacy `IMAPStore::DoAction`
+(`hmailserver/source/Server/IMAP/IMAPStore.cpp`) checks exact
+`PermissionWriteSeen` before flag mutation. Net10’s `ImapSession` already maps
+`\\Seen` to `ImapAclRights.WriteSeen` before invoking
+`ImapStoreCommandHandler`; no production behavior or COM/SQL/service boundary
+was changed in this slice.
 
-Focused SMTP session coverage passes `40/40`; related SMTP/TCP/settings
-coverage passes `401/401`. Full Net10 Debug is `2777 passed, 94 skipped, 5
-failed / 2876`; the five failures remain the known registered local-server COM
+Focused IMAP STORE/ACL coverage passes `63/63`; related SQL mutation/ACL
+coverage passes `10/10`. Full Net10 Debug is `2781 passed, 94 skipped, 5
+failed / 2880`; the five failures remain the known registered local-server COM
 `E_NOINTERFACE` activation checks. Native AD/SSPI, registered out-of-process
 COM, SEC-18 caller proof, restore/rollback, paired performance, and long-soak
 gates remain open. The release gate remains **RED**.
