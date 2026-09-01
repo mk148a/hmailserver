@@ -26,6 +26,20 @@ implementations. C++ p95 was `234.489` and `319.475 ms`; Net10 p95 was
 signal; correctness and near-equal throughput are established, while latency
 winner claims remain unproven.
 
+The same corrected probe was repeated for five waves of 1,000 sessions on the
+same manifest-bound fixture. Both disposable targets passed `5,000/5,000`
+with zero errors/timeouts. C++ p50/p95/p99 were
+`223.668/270.598/317.280 ms` at `19.924/s`; Net10 was
+`253.490/393.113/480.936 ms` at `19.901/s`. Settled private bytes were
+`23,027,712` versus `41,111,552`, with handles `529` versus `657` and threads
+`70` versus `25`. This is bounded repeatability/resource evidence, not a
+24-hour soak or a universal performance winner.
+
+A Net10-only disposable queue diagnostic also passed `100/100` and validated
+local-delivery plus retry-state persistence (`5.561/7.259/11.842 ms`
+p50/p95/p99; `77.057/s`). There is no supported equivalent C++ queue runner,
+so queue performance parity remains open.
+
 Code/test commits: `c59321e79` adds `-LaunchStaggerMilliseconds` to
 `build/monitor-disposable-cpp-imap-capacity.ps1`; `c6ed0d32e` fixes
 `RunMany()` batch-deadline accounting for the launch ramp. No C++ production

@@ -1,5 +1,20 @@
 # .NET 10 Benchmark Pack
 
+## Current paired IMAP repeated-wave acceptance (2026-09-01, 5 x 1,000)
+
+The corrected manifest-bound `Full` probe passed five waves of 1,000 sessions
+on both disposable service targets: `5,000/5,000` with zero errors/timeouts.
+The same 1,000-message SQL/Data fixture, loopback port, 50 ms launch stagger,
+and 15-second timeout were used for both implementations. C++ p50/p95/p99
+were `223.668/270.598/317.280 ms` at `19.924/s`; Net10 was
+`253.490/393.113/480.936 ms` at `19.901/s`.
+
+Settled private bytes/handles/threads were `23,027,712/529/70` for C++ and
+`41,111,552/657/25` for Net10. This is bounded repeatability/resource
+evidence, not a 24-hour leak-soak result or a universal performance winner.
+The release gate remains **RED**. Full tables and the p95 graph are in
+`CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`.
+
 ## Current isolated backup -> restore -> backup round-trip (2026-09-01)
 
 The real backup/restore runtime passed `25/25` opt-in round-trip tests against
@@ -20,7 +35,7 @@ evidence is under
 installer drill remains **ENVIRONMENT-BLOCKED** until a disposable registered
 legacy service/COM baseline and isolated SQL/Data clone are available.
 
-## Current Net10 repeated IMAP resource acceptance, 5 x 100 (2026-09-01)
+## Historical Net10-only repeated IMAP resource acceptance, 5 x 100 (2026-09-01)
 
 The clean manifest-bound 100k disposable fixture passed five Net10 Admission
 waves of 100 IMAP sessions (`500/500`, zero errors/timeouts). Settled process
@@ -35,14 +50,14 @@ parity evidence and does not establish a ratio or winner. The release gate
 remains **RED**. Validate the passing report with
 `build/test-net10-imap-resource-acceptance.ps1`.
 
-## Current Net10 delivery queue diagnostic, 100 messages (2026-09-01)
+## Historical Net10-only delivery queue diagnostic, 100 messages (2026-09-01)
 
-The clean manifest-bound 100k disposable fixture produced `100/100` local
-delivery commits at `81.673` messages/s, with p50/p95/p99 of
-`4.193/6.362/10.396 ms`. SQL readback proved one unlocked, lease-free type-1
+The clean manifest-bound disposable fixture produced `100/100` local delivery
+commits at `77.057` messages/s, with p50/p95/p99 of
+`5.561/7.259/11.842 ms`. SQL readback proved one unlocked, lease-free type-1
 retry row with retry count `1`, a future next-try timestamp, and one retained
 recipient. JSON/CSV/Markdown evidence is under
-`artifacts/benchmarks/review-20260901/net10-delivery-queue-100/`.
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-queue-vstest-100.*`.
 
 This is Net10-only bounded evidence. There is no equivalent C++ queue runner,
 and the host was not service-backed, so no parity ratio or winner is claimed;

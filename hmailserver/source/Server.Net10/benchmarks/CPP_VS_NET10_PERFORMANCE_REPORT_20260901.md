@@ -136,6 +136,35 @@ The Net10 spread shows cold/startup sensitivity that requires more warm-up and
 repeated-run analysis before latency conclusions. The stable observation is
 correctness and near-equal throughput, not a universal latency winner.
 
+## Repeated five-wave acceptance
+
+The corrected probe was then run for five waves of 1,000 `Full` sessions on
+the same manifest-bound 1,000-message SQL/Data fixture. Both targets used
+loopback `127.0.0.1:1143`, a 50 ms launch stagger, a 15-second socket timeout,
+and a one-second post-wave settle. The legacy C++ run used its disposable SCM
+service; Net10 used its disposable service process. Both runs passed cleanup
+and production-safety checks.
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput/s | Settled private bytes | Settled handles | Settled threads |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ service | 5,000/5,000 PASS | 223.668 | 270.598 | 317.280 | 19.924 | 23,027,712 | 529 | 70 |
+| .NET 10 | 5,000/5,000 PASS | 253.490 | 393.113 | 480.936 | 19.901 | 41,111,552 | 657 | 25 |
+
+The C++ wave private-byte peak was `23,117,824` and the Net10 peak was
+`45,981,696`; the corresponding handle peaks were `530` and `682`. These are
+process observations over roughly five minutes of workload, not proof of a
+24-hour memory/handle/thread/socket leak-free soak. They establish repeatable
+correctness and near-equal throughput under this controlled ramp. They do not
+establish a universal latency winner.
+
+```mermaid
+xychart-beta
+    title "Five-wave repeated IMAP p95 latency (ms)"
+    x-axis [C++, .NET10]
+    y-axis "Milliseconds" 0 --> 500
+    bar [270.598, 393.113]
+```
+
 The reproducible monitor option is
 `build/monitor-disposable-cpp-imap-capacity.ps1 -LaunchStaggerMilliseconds`.
 The C++ source remains unchanged. A safe source fix still requires a

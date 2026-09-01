@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-09-01, repeated paired IMAP waves)
+
+The corrected manifest-bound IMAP `Full` probe was repeated for five waves of
+1,000 sessions on the same 1,000-message SQL/Data fixture, loopback port, 50
+ms launch stagger, and 15-second socket timeout. Both disposable service
+targets passed `5,000/5,000` with zero errors or timeouts:
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ service | 5,000/5,000 PASS | 223.668 | 270.598 | 317.280 | 19.924 |
+| .NET 10 | 5,000/5,000 PASS | 253.490 | 393.113 | 480.936 | 19.901 |
+
+Settled process readings were approximately `23.0 MB / 529 handles / 70
+threads` for C++ and `41.1 MB / 657 handles / 25 threads` for Net10. This is
+repeatability and bounded resource evidence, not a 24-hour leak-soak result or
+a universal latency/speed winner. The performance release gate remains **RED**
+pending queue/remote-delivery parity, POP3 coverage, long soak, and the other
+release gates. Full evidence, fixture hashes, and graphs are in
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`.
+
 ## Current authoritative status (2026-09-01, paired performance gate)
 
 The paired disposable C++/.NET 10 IMAP `Full` runs use separate SQL clones of
@@ -123,7 +143,7 @@ Next is a fresh elevated collector run on the isolated IIS staging host, then
 independent PHP/FastCGI-to-COM caller-token evidence with correlation and
 denial cases.
 
-## Current Net10 repeated IMAP resource acceptance (2026-09-01, 5 x 100)
+## Historical Net10-only repeated IMAP resource acceptance (2026-09-01, 5 x 100)
 
 On the clean manifest-bound 100k disposable SQL/Data fixture, Net10 Admission
 passed five waves of 100 IMAP sessions: `500/500`, zero errors/timeouts, and
@@ -140,7 +160,7 @@ was process-backed rather than service-backed. No ratio or winner is claimed.
 The performance release gate remains **RED**. Next is the isolated backup ->
 restore -> backup semantic round-trip.
 
-## Current Net10 delivery queue diagnostic (2026-09-01, 100 messages)
+## Historical Net10-only delivery queue diagnostic (2026-09-01, 100 messages)
 
 The clean manifest-bound 100k disposable fixture was used for one Net10-only
 delivery-queue diagnostic. Local delivery passed `100/100` with `81.673`
