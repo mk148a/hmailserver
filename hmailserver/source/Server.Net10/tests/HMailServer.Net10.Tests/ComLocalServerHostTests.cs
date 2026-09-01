@@ -14,6 +14,70 @@ public sealed class ComLocalServerHostTests
     private const int RegdbEClassNotRegistered = unchecked((int)0x80040154);
 
     [TestMethod]
+    public void Factory_CreatesLegacyInterfaceThroughInProcessClassFactory()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var factory = new ComClassFactory(static () => new Utilities());
+        var factoryUnknown = Marshal.GetIUnknownForObject(factory);
+        try
+        {
+            var factoryInterfaceId = typeof(IComClassFactory).GUID;
+            var queryResult = Marshal.QueryInterface(
+                factoryUnknown,
+                in factoryInterfaceId,
+                out var factoryPointer);
+
+            Assert.AreEqual(0, queryResult);
+            Assert.AreNotEqual(nint.Zero, factoryPointer);
+
+            try
+            {
+                var classFactory = (IComClassFactory)Marshal.GetObjectForIUnknown(factoryPointer);
+                var interfaceId = typeof(IInterfaceUtilities).GUID;
+                var createResult = classFactory.CreateInstance(
+                    nint.Zero,
+                    in interfaceId,
+                    out var interfacePointer);
+
+                Assert.AreEqual(0, createResult);
+                Assert.AreNotEqual(nint.Zero, interfacePointer);
+
+                try
+                {
+                    var utilities = (IInterfaceUtilities)Marshal.GetObjectForIUnknown(interfacePointer);
+                    Assert.AreEqual("dc647eb65e6711e155375218212b3964", utilities.MD5("Password"));
+
+                    if (Marshal.IsComObject(utilities))
+                    {
+                        Marshal.FinalReleaseComObject(utilities);
+                    }
+                }
+                finally
+                {
+                    Marshal.Release(interfacePointer);
+                }
+
+                if (Marshal.IsComObject(classFactory))
+                {
+                    Marshal.FinalReleaseComObject(classFactory);
+                }
+            }
+            finally
+            {
+                Marshal.Release(factoryPointer);
+            }
+        }
+        finally
+        {
+            Marshal.Release(factoryUnknown);
+        }
+    }
+
+    [TestMethod]
     public void RegisteredFactory_ActivatesUtilitiesWithPureHelpersAndAdministrativeBoundary()
     {
         if (!OperatingSystem.IsWindows())
