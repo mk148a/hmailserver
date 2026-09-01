@@ -32,8 +32,10 @@ correlation showed Admission/AuthSelect/Search/Sort each passing 200/200, and
 the corrected paired controlled Full matrix now passes 100/500/1000 on both
 sides. The monitor records `LaunchStaggerMilliseconds`; the batch deadline
 fix is recorded in the dated report. This is one diagnostic matrix, not a
-general superiority claim. The performance gate remains RED pending repeated
-runs, delivery/queue coverage, and soak evidence.
+general superiority claim. The performance gate remains RED pending broader
+delivery/queue and soak evidence. Two additional corrected 1,000-session runs
+passed on each side; throughput stayed near `19.89/s`, while Net10 p95 varied
+from `444.761 ms` to `4,273.958 ms`, so latency conclusions remain diagnostic.
 
 ## Historical status (2026-09-01, root-private IMAP RENAME parity)
 

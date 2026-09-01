@@ -3,10 +3,13 @@
 
 The latest paired disposable C++/.NET 10 IMAP `Full` run used separate SQL
 clones of the same backup, byte-matched Data trees, 1,000 messages, and
-loopback `127.0.0.1:1143`. Both sides pass at 100 sessions. C++ fails the
-500/1,000 cells (`189/500` and `186/1,000`), while Net10 passes both. The
-performance gate therefore remains **RED** and no general speed-up claim is
-permitted. The dated table and graphs are in
+loopback `127.0.0.1:1143`. The initial unpaced burst profile showed C++
+transport pressure at 500/1,000, but the controlled probe had a false-negative
+batch deadline that ignored its launch ramp. After correcting that harness,
+both implementations pass the controlled 100/500/1,000 matrix. The performance
+gate therefore remains **RED** for broader repeatability, queue/delivery, and
+soak requirements; no general speed-up claim is permitted. The dated table and
+graphs are in
 `hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`.
 
 Legacy references are `SessionManager::CreateSession`
@@ -42,15 +45,21 @@ and Net10. The earlier controlled 1000 timeout was a harness false negative;
 the unpaced burst profile remains a separate stress result. This remains
 diagnostic evidence, not a C++ source fix or a complete release acceptance.
 
+Two further corrected 1,000-session repetitions passed `1000/1000` on both
+implementations. Throughput remained near `19.89/s`; Net10 p95 varied widely
+between repetitions, so more warm-up and repeated-run evidence is required
+before latency claims.
+
 A paired controlled 500-session Full run (50 ms stagger, 15-second timeout)
 passed `500/500` on both sides with throughput `19.853/s` C++ and `19.857/s`
 Net10; observed p95 was `253.003 ms` C++ and `737.359 ms` Net10. This is one
-controlled diagnostic run only. The burst matrix and controlled C++ 1000 run
-still fail, so no general performance winner is declared.
+controlled diagnostic run only. The corrected 1000-session matrix and two
+repetitions also pass, so no general performance winner is declared until the
+broader performance gates pass.
 
-Next smallest independent slice: repeat the corrected paired matrix and extend
-it to queue/remote delivery acceptance. A C++ source change is not justified
-by the current evidence. POP3,
+Next smallest independent slice: extend the corrected paired performance matrix
+to queue/remote-delivery acceptance and longer soak. A C++ source change is not
+justified by the current evidence. POP3,
 restore/rollback, registered COM, SEC-18, AD/SSPI, and 24-hour soak remain
 separate release blockers.
 

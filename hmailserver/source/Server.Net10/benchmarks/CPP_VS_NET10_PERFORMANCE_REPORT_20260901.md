@@ -117,8 +117,24 @@ profile, 50 ms launch stagger, and 15-second socket timeout for both sides:
 
 This single controlled run is useful diagnostic evidence: throughput was
 effectively equal and C++ had the lower observed latency. It is not a general
-performance-superiority claim; the burst matrix and the controlled 1,000 run
-still fail the C++ acceptance gate.
+performance-superiority claim; the unpaced burst matrix remains a separate
+stress profile while the corrected controlled 1,000 run passes.
+
+The earlier controlled 1,000-session failure was a benchmark false negative:
+the probe batch deadline did not include the deliberate launch ramp. After
+correcting `RunMany()` batch-deadline accounting, two additional 1,000-session
+repetitions passed `1,000/1,000` on both implementations:
+
+| Implementation | Repeat | Result | p50 ms | p95 ms | p99 ms | Throughput/s |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| C++ | 1 | 1,000/1,000 PASS | 195.079 | 234.489 | 263.277 | 19.922 |
+| C++ | 2 | 1,000/1,000 PASS | 258.420 | 319.475 | 373.884 | 19.886 |
+| .NET 10 | 1 | 1,000/1,000 PASS | 2,231.958 | 4,273.958 | 4,510.242 | 19.899 |
+| .NET 10 | 2 | 1,000/1,000 PASS | 267.879 | 444.761 | 480.563 | 19.893 |
+
+The Net10 spread shows cold/startup sensitivity that requires more warm-up and
+repeated-run analysis before latency conclusions. The stable observation is
+correctness and near-equal throughput, not a universal latency winner.
 
 The reproducible monitor option is
 `build/monitor-disposable-cpp-imap-capacity.ps1 -LaunchStaggerMilliseconds`.
@@ -146,6 +162,27 @@ xychart-beta
     y-axis "Milliseconds" 0 --> 8000
     bar [4334, 7552, 7512]
     bar [629, 2357, 3946]
+```
+
+The corrected controlled matrix has a separate view because its acceptance
+shape includes the same 50 ms launch ramp for both implementations:
+
+```mermaid
+xychart-beta
+    title "Corrected controlled success (%)"
+    x-axis [100, 500, 1000]
+    y-axis "Success percent" 0 --> 100
+    bar [100, 100, 100]
+    bar [100, 100, 100]
+```
+
+```mermaid
+xychart-beta
+    title "Corrected controlled p95 latency (ms)"
+    x-axis [100, 500, 1000]
+    y-axis "Milliseconds" 0 --> 800
+    bar [175.8, 201.2, 220.7]
+    bar [493.4, 555.9, 641.4]
 ```
 
 ## Legacy Reference

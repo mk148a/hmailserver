@@ -20,6 +20,12 @@ passed C++ and Net10 at 100/500/1000 sessions. C++ p95 was
 `175.800/201.201/220.689 ms`; Net10 p95 was
 `493.444/555.867/641.429 ms`; throughput was effectively equal at each level.
 
+Two additional corrected 1000-session repetitions passed `1000/1000` on both
+implementations. C++ p95 was `234.489` and `319.475 ms`; Net10 p95 was
+`4273.958` and `444.761 ms`. The Net10 spread is a startup/warm-up sensitivity
+signal; correctness and near-equal throughput are established, while latency
+winner claims remain unproven.
+
 Code/test commits: `c59321e79` adds `-LaunchStaggerMilliseconds` to
 `build/monitor-disposable-cpp-imap-capacity.ps1`; `c6ed0d32e` fixes
 `RunMany()` batch-deadline accounting for the launch ramp. No C++ production
