@@ -1,5 +1,19 @@
 # .NET 10 Benchmark Pack
 
+## Current Net10 delivery queue diagnostic, 100 messages (2026-09-01)
+
+The clean manifest-bound 100k disposable fixture produced `100/100` local
+delivery commits at `81.673` messages/s, with p50/p95/p99 of
+`4.193/6.362/10.396 ms`. SQL readback proved one unlocked, lease-free type-1
+retry row with retry count `1`, a future next-try timestamp, and one retained
+recipient. JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/review-20260901/net10-delivery-queue-100/`.
+
+This is Net10-only bounded evidence. There is no equivalent C++ queue runner,
+and the host was not service-backed, so no parity ratio or winner is claimed;
+the release gate remains **RED**. Validate the report with
+`build/test-net10-delivery-queue-report.ps1`.
+
 ## Current paired SMTP acceptance, 500 messages (2026-09-01)
 
 The disposable C++ service and Net10 each passed `500/500` SMTP messages with

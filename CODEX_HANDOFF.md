@@ -9734,3 +9734,26 @@ The SMTP readback runner leaves accepted messages and Data files in the
 disposable targets for post-run accounting. The 500-message fixture is
 therefore consumed and must not be reused as a clean baseline; provision a
 fresh manifest-bound SQL/Data pair for the next paired run.
+
+## Current authoritative continuation (2026-09-01, Net10 delivery queue diagnostic)
+
+Code/test commit `a006769de` adds
+`build/test-net10-delivery-queue-report.ps1`, which validates the JSON/CSV/
+Markdown contract for the bounded Net10 queue report. On the clean
+manifest-bound 100k disposable fixture, Net10 passed `100/100` local delivery
+commits at `81.673` messages/s with p50/p95/p99 `4.193/6.362/10.396 ms`.
+SQL readback proved one unlocked, lease-free type-1 retry row with retry count
+`1`, a future next-try timestamp, and one retained recipient. The focused
+diagnostic and report validator passed `1/1` each.
+
+This is Net10-only evidence. No equivalent C++ queue runner exists and this
+run was not service-backed, so no paired ratio or performance winner is
+claimed. Full Net10 Debug remains `2773 passed, 93 skipped, 5 failed / 2871`;
+the five failures are the existing registered local-server COM
+`E_NOINTERFACE` checks. The performance gate remains **RED**.
+
+Evidence is under
+`artifacts/benchmarks/review-20260901/net10-delivery-queue-100/`; the
+validator is `build/test-net10-delivery-queue-report.ps1`. The next slice is
+repeated-wave IMAP/resource acceptance on a fresh fixture, preserving the
+failed C++ capacity baseline and recording the service/process distinction.

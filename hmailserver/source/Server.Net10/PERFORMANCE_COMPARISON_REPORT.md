@@ -1,5 +1,19 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current Net10 delivery queue diagnostic, 100 messages (2026-09-01)
+
+On a clean manifest-bound 100k disposable SQL/Data fixture, Net10 passed
+`100/100` local delivery commits at `81.673` messages/s, with p50/p95/p99
+`4.193/6.362/10.396 ms`. SQL readback proved the bounded retry contract:
+one type-1 row, unlocked and without a lease owner, retry count `1`, future
+next-try, and one retained recipient. Evidence is under
+`artifacts/benchmarks/review-20260901/net10-delivery-queue-100/`.
+
+No equivalent legacy C++ queue runner exists in the benchmark pack and this
+Net10 run was not service-backed. It is therefore not a paired performance
+comparison and does not establish a winner. The performance gate remains
+**RED**; repeated-wave IMAP/resource acceptance is next.
+
 ## Current paired SMTP acceptance, 500 messages (2026-09-01)
 
 The disposable C++ service and Net10 each accepted `500/500` messages with

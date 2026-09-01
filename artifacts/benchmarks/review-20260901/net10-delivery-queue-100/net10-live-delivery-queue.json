@@ -1,0 +1,22 @@
+{
+  "Schema": "net10-live-delivery-queue-v1",
+  "GeneratedUtc": "2026-09-01T01:06:13.5317561+00:00",
+  "Database": "Database=hmail_perf_pair_net10_20260831_213833",
+  "DataRoot": "C:\\hmail-perf-pair-100k-20260901\\net10\\Data",
+  "LocalMessageCount": 100,
+  "SampleCount": 100,
+  "TotalMilliseconds": 1224.4021,
+  "ThroughputMessagesPerSecond": 81.67251591613572,
+  "P50Milliseconds": 4.193,
+  "P95Milliseconds": 6.362,
+  "P99Milliseconds": 10.396,
+  "RetryEvidence": {
+    "QueuedCount": 1,
+    "MessageType": 1,
+    "Locked": 0,
+    "RetryCount": 1,
+    "NextTryUtc": "2026-09-01T01:06:43.497Z",
+    "LeaseOwnerIsNull": true,
+    "RecipientCount": 1
+  }
+}

@@ -1,7 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, raw SQL/Data backup staging)
+## Current authoritative status (2026-09-01, Net10 delivery queue diagnostic)
+
+## Current Net10 delivery queue diagnostic (2026-09-01, 100 messages)
+
+The clean manifest-bound 100k disposable fixture was used for one Net10-only
+delivery-queue diagnostic. Local delivery passed `100/100` with `81.673`
+messages/s and p50/p95/p99 of `4.193/6.362/10.396 ms`. SQL readback proved one
+retained retry row with `messagetype=1`, `locked=0`, no lease owner,
+`retrycount=1`, a future next-try timestamp, and one retained recipient.
+JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/review-20260901/net10-delivery-queue-100/`.
+
+This is a bounded Net10 diagnostic, not a C++ comparison: no equivalent
+legacy C++ delivery-queue runner is available, and the Net10 run was not
+service-backed. The report validator is
+`build/test-net10-delivery-queue-report.ps1`; the performance release gate
+remains **RED**. Next is repeated-wave IMAP/resource acceptance on a fresh
+fixture.
 
 ## Current paired SMTP acceptance (2026-09-01, 500 messages)
 

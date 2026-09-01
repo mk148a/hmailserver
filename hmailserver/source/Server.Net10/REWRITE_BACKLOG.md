@@ -1,5 +1,25 @@
 
-## Current authoritative next slice (2026-09-01, paired SMTP 500 acceptance)
+## Current authoritative next slice (2026-09-01, repeated-wave IMAP/resource acceptance)
+
+The paired 500-message SMTP acceptance is complete and remains descriptive
+evidence only. A clean manifest-bound 100k disposable fixture also produced a
+Net10-only delivery-queue diagnostic: `100/100` local commits at `81.673`
+messages/s with p50/p95/p99 `4.193/6.362/10.396 ms`, plus SQL retry-state
+readback (one unlocked, lease-free type-1 row, retry count `1`, future
+next-try, and one retained recipient). Evidence is under
+`artifacts/benchmarks/review-20260901/net10-delivery-queue-100/`.
+
+No equivalent C++ delivery-queue runner is available, and the Net10 queue run
+was not service-backed. This closes neither paired queue parity nor the
+performance gate; no ratio or winner is claimed. The 500-message SMTP
+fixture remains consumed and must not be reused.
+
+Next smallest independent slice: run repeated-wave IMAP/resource acceptance
+on a fresh fixture, preserving the failed C++ 500/1000-session capacity
+baseline and recording the service/process-mode distinction. Then continue
+with an isolated backup -> restore -> backup semantic round-trip.
+
+## Historical current slice (2026-09-01, paired SMTP 500 acceptance)
 
 Code/test commit `6d59153af` adds a focused paired-report validator for the
 500-message SMTP acceptance cell. The existing service-backed runners passed

@@ -1,0 +1,2 @@
+scenario,samples,p50_ms,p95_ms,p99_ms,total_ms,throughput_messages_per_second
+local-delivery,100,4.193,6.362,10.396,1224.4021,81.67251591613572
