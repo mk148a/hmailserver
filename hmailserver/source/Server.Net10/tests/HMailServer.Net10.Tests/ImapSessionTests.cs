@@ -692,6 +692,49 @@ public sealed class ImapSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_AuthenticatePlainWhenDisabledRejectsBeforeTlsParsingAuthenticatorOrAutoBan()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "A001 AUTHENTICATE NOT-PLAIN not-base64!\r\nA002 LOGOUT\r\n");
+        var authenticator = new CapturingAuthenticator();
+        var autoBanRecorder = new CapturingAutoBanRecorder(disconnect: true);
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            authenticator,
+            options: new ImapSessionOptions
+            {
+                ImapSaslPlainEnabled = false,
+                RequireTlsForAuthentication = true
+            },
+            autoBanLogonFailureRecorder: autoBanRecorder);
+
+        await session.RunAsync(
+            stream,
+            new ImapSessionContext(ClientIPAddress: "203.0.113.51"),
+            CancellationToken.None);
+
+        StringAssert.Contains(stream.GetOutputText(), "A001 NO IMAP AUTHENTICATE is not enabled.\r\n");
+        Assert.AreEqual(0, authenticator.Calls);
+        Assert.AreEqual(0, autoBanRecorder.Failures.Count);
+    }
+
+    [TestMethod]
+    public async Task RunAsync_CapabilityOmitsPlainAuthWhenSaslPlainIsDisabled()
+    {
+        await using var stream = new DuplexMemoryStream("A001 CAPABILITY\r\nA002 LOGOUT\r\n");
+        var session = CreateSession(
+            new CapturingSearchIndex(Array.Empty<MessageIdentity>()),
+            new FakeAuthenticator(),
+            options: new ImapSessionOptions { ImapSaslPlainEnabled = false });
+
+        await session.RunAsync(stream, new ImapSessionContext(), CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "* CAPABILITY IMAP4rev1 UIDPLUS SORT MOVE IDLE ACL QUOTA SASL-IR\r\nA001 OK CAPABILITY completed\r\n");
+        Assert.IsFalse(output.Contains("AUTH=PLAIN", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public async Task RunAsync_LoginForwardsEmptyPasswordToAuthenticationBoundary()
     {
         await using var stream = new DuplexMemoryStream(

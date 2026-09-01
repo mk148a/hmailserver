@@ -623,7 +623,16 @@ public static class Host
     builder.Services.AddSingleton(externalFetchHostedServiceOptions);
     builder.Services.AddSingleton(externalFetchPop3ClientOptions);
     builder.Services.AddSingleton(clamAvOptions);
-    builder.Services.AddSingleton(imapSessionOptions);
+    builder.Services.AddSingleton<ImapSessionOptions>(serviceProvider =>
+        imapSessionOptions with
+        {
+            ImapSaslPlainEnabledProvider = async cancellationToken =>
+                (await serviceProvider
+                    .GetRequiredService<ISettingsAdministrationStore>()
+                    .GetSettingsAsync(cancellationToken)
+                    .ConfigureAwait(false))
+                .ImapSaslPlainEnabled
+        });
     builder.Services.AddSingleton(serviceProvider => smtpSessionOptions with
     {
         EtrnRouteProvider = cancellationToken =>

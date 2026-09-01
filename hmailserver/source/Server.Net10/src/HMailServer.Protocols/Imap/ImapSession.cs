@@ -158,7 +158,7 @@ public sealed class ImapSession
             case "CAPABILITY":
                 await WriteAsync(
                     stream,
-                    FormatCapabilityResponse(commandLine.Tag, state),
+                    await FormatCapabilityResponseAsync(commandLine.Tag, state, cancellationToken).ConfigureAwait(false),
                     cancellationToken).ConfigureAwait(false);
                 return false;
 
@@ -839,6 +839,12 @@ public sealed class ImapSession
         ImapCommandLine commandLine,
         CancellationToken cancellationToken)
     {
+        if (!await IsImapSaslPlainEnabledAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await WriteTaggedAsync(stream, commandLine.Tag, "NO IMAP AUTHENTICATE is not enabled.", cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+
         if (state.Account is not null)
         {
             await WriteTaggedAsync(stream, commandLine.Tag, "BAD Already authenticated", cancellationToken).ConfigureAwait(false);
@@ -1088,12 +1094,20 @@ public sealed class ImapSession
         }
     }
 
-    private string FormatCapabilityResponse(string tag, SessionState state)
+    private async ValueTask<string> FormatCapabilityResponseAsync(
+        string tag,
+        SessionState state,
+        CancellationToken cancellationToken)
     {
         var builder = new StringBuilder("* CAPABILITY IMAP4rev1 UIDPLUS SORT MOVE IDLE ACL QUOTA");
         if (IsAuthenticationAllowed(state))
         {
-            builder.Append(" AUTH=PLAIN SASL-IR");
+            if (await IsImapSaslPlainEnabledAsync(cancellationToken).ConfigureAwait(false))
+            {
+                builder.Append(" AUTH=PLAIN");
+            }
+
+            builder.Append(" SASL-IR");
         }
 
         builder.Append("\r\n")
@@ -1101,6 +1115,10 @@ public sealed class ImapSession
             .Append(" OK CAPABILITY completed\r\n");
         return builder.ToString();
     }
+
+    private ValueTask<bool> IsImapSaslPlainEnabledAsync(CancellationToken cancellationToken) =>
+        _options.ImapSaslPlainEnabledProvider?.Invoke(cancellationToken)
+        ?? ValueTask.FromResult(_options.ImapSaslPlainEnabled);
 
     private bool IsAuthenticationAllowed(SessionState state) =>
         state.IsSecureConnection || !_options.RequireTlsForAuthentication;

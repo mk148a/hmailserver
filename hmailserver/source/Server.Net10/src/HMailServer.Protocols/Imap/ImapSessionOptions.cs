@@ -8,5 +8,9 @@ public sealed record ImapSessionOptions
 
     public bool RequireTlsForAuthentication { get; init; }
 
+    public bool ImapSaslPlainEnabled { get; init; } = true;
+
+    public Func<CancellationToken, ValueTask<bool>>? ImapSaslPlainEnabledProvider { get; init; }
+
     public string Greeting { get; init; } = "* OK hMailServer .NET 10 IMAP ready\r\n";
 }
