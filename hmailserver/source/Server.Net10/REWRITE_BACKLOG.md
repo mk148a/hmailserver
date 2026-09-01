@@ -1,5 +1,39 @@
 
-## Current authoritative next slice (2026-09-01, SEC-18 caller-token evidence)
+## Current authoritative next slice (2026-09-01, IMAP master-user runtime parity)
+
+Code/test commit `faeefe133` closes one bounded runtime parity gap. Legacy
+`PasswordValidator::ValidatePassword`
+(`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:34-189`) validates
+the master account and returns the target, while `AccountLogon::Logon`
+(`hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-95`) updates
+last-logon only for that returned target. Net10
+`SqlServerImapAccountAuthenticator.AuthenticateAsync` now suppresses the
+master timestamp side effect, updates only the resolved target, and resolves
+authorization targets through active domain aliases with case-insensitive
+matching and last-`@` quoted-local-part handling. Installed COM identities and
+the IMAP protocol boundary are unchanged.
+
+Focused auth/unit coverage passes `3/3`. The new SQL integration coverage
+asserts direct and domain-alias target success, target-only timestamps, invalid
+master/target rejection, and inactive-target rejection. Its two opt-in tests
+were skipped on this host because the approved SQL connection and isolated
+database-create variables were unset; no database or Data directory was used.
+Full Net10 Debug is `2774 passed, 94 skipped, 5 failed / 2873`; the five
+failures remain the known registered COM `E_NOINTERFACE` activation checks.
+Live AD/DC remains environment-blocked, so this is not native SSPI acceptance.
+The release gate remains **RED**.
+
+Next smallest independent slice: refresh correlated SEC-18 IIS/worker and
+caller-token evidence on the isolated staging host when IIS prerequisites are
+available. After that, run the approved disposable AD/DC/native `LogonUser`
+matrix and socket-level IMAP master-auth cases, then continue paired queue and
+long-soak acceptance.
+
+## Historical continuation (2026-09-01, pre-master-parity status)
+
+The following entry records the superseded continuation state.
+
+## Historical continuation (2026-09-01, SEC-18 caller-token evidence)
 
 The isolated backup -> restore -> backup round-trip fixture is complete. The
 real runtime passed `25/25` opt-in tests with zero failures against localhost

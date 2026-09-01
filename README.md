@@ -1,7 +1,33 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, installer rollback preflight)
+## Current authoritative status (2026-09-01, IMAP master-user runtime parity)
+
+The bounded IMAP master-user runtime parity slice is complete in code/test
+commit `faeefe133`. Legacy `PasswordValidator::ValidatePassword`
+(`hmailserver/source/Server/Common/Util/PasswordValidator.cpp:34-189`) and
+`AccountLogon::Logon`
+(`hmailserver/source/Server/Common/Util/AccountLogon.cpp:37-95`) validate the
+master but update last-logon only for the returned target account. Net10 now
+preserves that behavior in
+`hmailserver/source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerImapAccountAuthenticator.cs`.
+Master target lookup also applies active-domain/account filtering and
+case-insensitive domain-alias resolution, including last-`@` handling for
+quoted local parts.
+
+Focused unit/auth coverage passes `3/3`. The disposable SQL integration class
+contains success, invalid-master, invalid-target, inactive-target, target-alias,
+and target-only last-logon assertions, but its two tests were skipped here
+because the approved SQL connection and isolated-create environment variables
+were unset. Full Net10 Debug is `2774 passed, 94 skipped, 5 failed / 2873`;
+the five failures are the pre-existing registered local-server COM activation
+checks returning `E_NOINTERFACE`. Live AD/DC, SASL enforcement, COM, SEC-18,
+restore/rollback, performance, and soak gates remain open; release remains
+**RED**.
+
+Next is fresh isolated SEC-18 caller-token evidence when IIS prerequisites are
+available, followed by real disposable AD/SSPI validation and paired
+queue/long-soak acceptance.
 
 ## Current isolated backup -> restore -> backup round-trip (2026-09-01)
 

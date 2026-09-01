@@ -1,5 +1,32 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-01, IMAP master-user runtime parity)
+
+Code/test commit `faeefe133` implements the bounded IMAP master-user runtime
+parity slice. Legacy anchors are
+`hmailserver/source/Server/Common/Util/PasswordValidator.cpp::ValidatePassword`
+and `hmailserver/source/Server/Common/Util/AccountLogon.cpp::Logon`; the
+legacy path validates the master but updates `accountlastlogontime` only for
+the returned target. Net10
+`SqlServerImapAccountAuthenticator.AuthenticateAsync` now suppresses the
+master last-logon write, writes only the target after resolution, and applies
+active domain-alias resolution with case-insensitive matching and last-`@`
+quoted-local-part handling. No COM identity, direct activation, protocol,
+service, SQL/Data, or machine state was changed.
+
+Focused auth/unit tests pass `3/3`. The new SQL integration test covers direct
+and domain-alias target success, target-only timestamp updates, invalid master
+and target rejection, and inactive-target rejection. Its two opt-in tests were
+skipped because this host has no approved isolated SQL connection/create
+environment; no database or Data directory was used. Full Net10 Debug is
+`2774 passed, 94 skipped, 5 failed / 2873`; the five failures are the known
+registered local-server COM `E_NOINTERFACE` checks. Native AD/DC and SASL
+enforcement remain separate open slices; release remains **RED**.
+
+Next: fresh correlated SEC-18 IIS/worker caller-token evidence when the
+isolated IIS prerequisites are available, then disposable native AD/DC
+`LogonUser` acceptance and paired queue/long-soak evidence.
+
 ## Current authoritative continuation (2026-09-01, paired TCP 451 retry state)
 
 Code/test commit `c1055f349` adds a disposable C++ harness beside the existing
