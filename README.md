@@ -25,8 +25,11 @@ A read-only disposable C++ capacity monitor now correlates worker resources,
 TCP 1143 states, and SQL request/wait DMVs. In fresh 500/1,000-session runs
 the worker stayed at 76 threads, SQL active requests peaked at 1, and TCP
 established connections peaked at 490/411; the workload still failed. This
-does not prove a leak or justify a C++ source change. The next performance
-step is per-profile/ramp correlation before changing the legacy reference.
+does not prove a leak or justify a C++ source change. Per-profile/ramp
+correlation then showed Admission/AuthSelect/Search/Sort each passing 200/200,
+Full passing 200/200 with 25 ms launch staggering and 500/500 with 50 ms
+stagger, but 1000/1000 timing out. The monitor now records
+`LaunchStaggerMilliseconds`; the performance gate remains RED.
 
 ## Historical status (2026-09-01, root-private IMAP RENAME parity)
 

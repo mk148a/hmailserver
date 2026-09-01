@@ -34,9 +34,16 @@ The evidence shows transport/session pressure but does not prove a leak or a
 single safe C++ source fix. Output is under the local disposable
 `artifacts/benchmarks/disposable-cpp-capacity-monitor/` directory.
 
-Next smallest independent slice: run the monitor across C++ Admission,
-AuthSelect, Search, Sort, and controlled ramps, then decide whether a
-legacy-anchored C++ change is justified. Queue/remote delivery, POP3,
+The follow-up profile/ramp evidence narrows the issue: Admission, AuthSelect,
+Search, and Sort each pass 200/200 in isolation; Full passes 200/200 with
+25 ms launch staggering and 500/500 with 50 ms staggering, but 1000 sessions
+still time out. The monitor records `LaunchStaggerMilliseconds` so this result
+is reproducible. This remains diagnostic evidence, not a C++ fix or a release
+acceptance pass.
+
+Next smallest independent slice: perform a legacy-anchored C++ accept/IOCP
+experiment or source-level review using the profile/ramp evidence, and only
+then decide whether a source change is justified. Queue/remote delivery, POP3,
 restore/rollback, registered COM, SEC-18, AD/SSPI, and 24-hour soak remain
 separate release blockers.
 

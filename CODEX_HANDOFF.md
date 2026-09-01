@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-01, C++ profile/ramp evidence)
+
+After the disposable C++ capacity monitor, the same clean fixture was exercised
+with profile and launch-ramp controls. Full burst results were `100/100 PASS`,
+then `127/200`, `173/300`, `129/400`, and `118/500` successes. At 200 sessions,
+Admission, AuthSelect, Search, and Sort each passed `200/200`. Full passed
+`200/200` with 25 ms launch staggering and `500/500` with 50 ms staggering,
+but `1000/1000` timed out at that ramp. SQL active-request peaks remained 0-2;
+errors were connection refusal/read timeout, not result validation failures.
+
+Code/test commit: `c59321e79` adds `-LaunchStaggerMilliseconds` to
+`build/monitor-disposable-cpp-imap-capacity.ps1` and records it in evidence.
+No C++ production code changed. Docs/current-state update is a separate
+commit. Performance remains RED; the next slice is a legacy-anchored
+accept/IOCP experiment or source-level review before any C++ change.
+
 ## Current authoritative continuation (2026-09-01, IMAP master-user runtime parity)
 
 Code/test commit `faeefe133` implements the bounded IMAP master-user runtime

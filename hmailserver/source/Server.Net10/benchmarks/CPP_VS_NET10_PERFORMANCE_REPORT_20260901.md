@@ -69,6 +69,29 @@ Monitor JSON/CSV/Markdown output is retained locally under
 `artifacts/benchmarks/disposable-cpp-capacity-monitor/`; raw machine-specific
 paths are intentionally not committed.
 
+## Controlled Ramp and Profile Findings
+
+The monitor was then run against the clean fixture with separate disposable
+service instances. A burst Full profile passed `100/100`, then completed only
+`127/200`, `173/300`, `129/400`, and `118/500`; the dominant errors were refused
+connections and read responses that arrived after the configured timeout. At
+200 sessions, the isolated Admission, AuthSelect, Search, and Sort profiles
+each passed `200/200`, which narrows the failure to the combined Full workload
+under admission pressure rather than a standalone command correctness failure.
+
+Controlled launch staggering changed the result but did not remove the gate:
+Full passed `200/200` at 25 ms stagger and `500/500` at 50 ms stagger with a
+15-second socket timeout, while `1000/1000` all timed out at 50 ms stagger.
+These runs are diagnostic because launch staggering and timeout policy change
+the acceptance shape; they do not justify a speed-up ratio or a production
+capacity claim.
+
+The reproducible monitor option is
+`build/monitor-disposable-cpp-imap-capacity.ps1 -LaunchStaggerMilliseconds`.
+The C++ source remains unchanged. A safe source fix still requires a
+legacy-anchored experiment that distinguishes accept-queue/IOCP pressure from
+the synchronous `SEARCH`/`SORT` callback cost.
+
 ## Graphs
 
 Legend: `C++` is the first bar; `.NET 10` is the second bar in each chart.
@@ -125,15 +148,15 @@ legacy-anchored experiment and a new baseline.
 
 ## Reproduction and Next Gate
 
-Use the disposable fixture runner in `build/benchmark-disposable-cpp-service-protocol.ps1`
-and `build/benchmark-net10-live-concurrent-imap.ps1`. Both now expose and
-record `WarmupSeconds`; the service wrapper passes the same value to the child
-runner. Do not reuse a fixture after SMTP/delivery tests without reprovisioning
-it, because those tests mutate Data files.
+Use the disposable fixture runner in `build/benchmark-disposable-cpp-service-protocol.ps1`,
+`build/benchmark-net10-live-concurrent-imap.ps1`, and the monitor in
+`build/monitor-disposable-cpp-imap-capacity.ps1`. The runners expose and record
+`WarmupSeconds`; the monitor also records launch stagger and passes it to the
+service wrapper. Do not reuse a fixture after SMTP/delivery tests without
+reprovisioning it, because those tests mutate Data files.
 
-The next performance slice is a read-only monitor that correlates worker
-private bytes/handles/threads, TCP 1143 states, and disposable SQL request/wait
-DMVs with failed session timestamps. Only after that evidence identifies the
-bottleneck should a C++ source change be considered. Required remaining gates
-include SMTP/delivery/queue parity, POP3 soak, restore/installer lifecycle,
-registered COM, SEC-18, and a 24-hour leak soak.
+The next performance slice is a legacy-anchored experiment or source-level
+review based on this profile/ramp evidence. It must preserve the same fixture
+and prove whether a C++ change is safe before implementation. Required
+remaining gates include SMTP/delivery/queue parity, POP3 soak,
+restore/installer lifecycle, registered COM, SEC-18, and a 24-hour leak soak.
