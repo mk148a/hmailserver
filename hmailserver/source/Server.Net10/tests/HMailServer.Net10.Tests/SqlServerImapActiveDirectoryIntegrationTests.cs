@@ -179,6 +179,96 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task AuthenticateMasterUser_UpdatesOnlyResolvedTargetAndRejectsInvalidMasterOrTarget()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_imap_master_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            var authenticator = new SqlServerImapAccountAuthenticator(
+                new SqlServerConnectionFactory(testConnectionString),
+                settingsAdministrationStore: new FixedSettingsAdministrationStore(
+                    "example.test",
+                    "master"));
+            var sentinel = new DateTime(2000, 1, 1);
+
+            var directSuccess = await authenticator
+                .AuthenticateAsync(
+                    "master@example.test",
+                    "master-secret",
+                    "ALIASLOCAL@EXAMPLE.TEST",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsTrue(directSuccess.Succeeded, directSuccess.FailureMessage);
+            Assert.IsNotNull(directSuccess.Account);
+            Assert.AreEqual("aliaslocal@example.test", directSuccess.Account!.Address);
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 9).ConfigureAwait(false));
+            Assert.IsTrue(await ReadLastLogonAsync(testConnectionString, 8).ConfigureAwait(false) > sentinel);
+
+            await ResetLastLogonsAsync(testConnectionString).ConfigureAwait(false);
+            var aliasSuccess = await authenticator
+                .AuthenticateAsync(
+                    "master@example.test",
+                    "master-secret",
+                    "\"a@b\"@ALIAS.TEST",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsTrue(aliasSuccess.Succeeded, aliasSuccess.FailureMessage);
+            Assert.IsNotNull(aliasSuccess.Account);
+            Assert.AreEqual("\"a@b\"@example.test", aliasSuccess.Account!.Address);
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 9).ConfigureAwait(false));
+            Assert.IsTrue(await ReadLastLogonAsync(testConnectionString, 7).ConfigureAwait(false) > sentinel);
+
+            await ResetLastLogonsAsync(testConnectionString).ConfigureAwait(false);
+            var unknownTarget = await authenticator
+                .AuthenticateAsync(
+                    "master@example.test",
+                    "master-secret",
+                    "unknown@example.test",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsFalse(unknownTarget.Succeeded);
+            Assert.AreEqual("Invalid user name or password.", unknownTarget.FailureMessage);
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 9).ConfigureAwait(false));
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 8).ConfigureAwait(false));
+
+            var invalidMaster = await authenticator
+                .AuthenticateAsync(
+                    "master@example.test",
+                    "wrong-secret",
+                    "aliaslocal@example.test",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsFalse(invalidMaster.Succeeded);
+            Assert.AreEqual("Invalid user name or password.", invalidMaster.FailureMessage);
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 9).ConfigureAwait(false));
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 8).ConfigureAwait(false));
+
+            var inactiveTarget = await authenticator
+                .AuthenticateAsync(
+                    "master@example.test",
+                    "master-secret",
+                    "inactive@example.test",
+                    CancellationToken.None)
+                .ConfigureAwait(false);
+            Assert.IsFalse(inactiveTarget.Succeeded);
+            Assert.AreEqual("Invalid user name or password.", inactiveTarget.FailureMessage);
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 9).ConfigureAwait(false));
+            Assert.AreEqual(sentinel, await ReadLastLogonAsync(testConnectionString, 3).ConfigureAwait(false));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);
@@ -309,6 +399,8 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
                 (10, N'"a@b"@example.test', N'', 1, 1, N'CORP', N'quoted', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
                 (10, N'aliaslocal@example.test', N'secret', 1, 0, N'', N'', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
+                 N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N''),
+                (10, N'master@example.test', N'master-secret', 1, 0, N'', N'', 0, 0, N'', N'', 0, N'', 0, 0, 0, 0,
                  N'', 0, 0, 0, N'', N'', '2000-01-01T00:00:00', N'', N'');
             """;
 
@@ -327,6 +419,18 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
             connection);
         command.Parameters.Add("@AccountId", SqlDbType.Int).Value = accountId;
         return (DateTime)(await command.ExecuteScalarAsync().ConfigureAwait(false))!;
+    }
+
+    private static async Task ResetLastLogonsAsync(string connectionString)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync().ConfigureAwait(false);
+        await using var command = new SqlCommand(
+            "UPDATE dbo.hm_accounts SET accountlastlogontime = @LastLogon WHERE accountid IN (3, 7, 8, 9);",
+            connection);
+        command.Parameters.Add("@LastLogon", System.Data.SqlDbType.DateTime).Value =
+            new DateTime(2000, 1, 1);
+        await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
     private static async Task DropDatabaseAsync(string connectionString, string databaseName)
@@ -372,14 +476,15 @@ public sealed class SqlServerImapActiveDirectoryIntegrationTests
     {
         private readonly SettingsAdministrationSnapshot _settings;
 
-        public FixedSettingsAdministrationStore(string defaultDomain)
+        public FixedSettingsAdministrationStore(string defaultDomain, string imapMasterUser = "")
         {
             _settings = new SettingsAdministrationSnapshot(
                 "host",
                 "smtp",
                 "pop3",
                 "imap",
-                DefaultDomain: defaultDomain);
+                DefaultDomain: defaultDomain,
+                ImapMasterUser: imapMasterUser);
         }
 
         public ValueTask<SettingsAdministrationSnapshot> GetSettingsAsync(

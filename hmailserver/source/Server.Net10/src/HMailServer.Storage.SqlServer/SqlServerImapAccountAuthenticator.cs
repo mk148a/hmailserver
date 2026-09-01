@@ -76,10 +76,28 @@ SELECT TOP (1)
 FROM hm_accounts AS a
 INNER JOIN hm_domains AS d
     ON d.domainid = a.accountdomainid
+LEFT JOIN hm_domain_aliases AS da
+    ON da.dadomainid = d.domainid
 WHERE
-    LOWER(a.accountaddress) = LOWER(@Username)
-    AND a.accountactive <> 0
-    AND d.domainactive <> 0;
+    a.accountactive <> 0
+    AND d.domainactive <> 0
+    AND (
+        a.accountaddress COLLATE Latin1_General_100_CI_AS = @Username COLLATE Latin1_General_100_CI_AS
+        OR (
+            CHARINDEX('@', REVERSE(@Username)) > 0
+            AND da.daalias COLLATE Latin1_General_100_CI_AS = SUBSTRING(@Username, LEN(@Username) - CHARINDEX('@', REVERSE(@Username)) + 2, 255) COLLATE Latin1_General_100_CI_AS
+            AND a.accountaddress COLLATE Latin1_General_100_CI_AS = (
+                LEFT(@Username, LEN(@Username) - CHARINDEX('@', REVERSE(@Username))) + N'@' + d.domainname)
+                COLLATE Latin1_General_100_CI_AS
+        )
+    )
+ORDER BY
+    CASE
+        WHEN da.daalias COLLATE Latin1_General_100_CI_AS = SUBSTRING(@Username, LEN(@Username) - CHARINDEX('@', REVERSE(@Username)) + 2, 255) COLLATE Latin1_General_100_CI_AS
+            THEN 0
+        ELSE 1
+    END,
+    da.daid ASC;
 """;
 
     private const string InvalidUserNameOrPassword = "Invalid user name or password.";
@@ -162,7 +180,8 @@ WHERE
         var masterAuthentication = await AuthenticateNormalAsync(
                 authenticationId,
                 password,
-                cancellationToken)
+                cancellationToken,
+                updateLastLogon: false)
             .ConfigureAwait(false);
         if (!masterAuthentication.Succeeded)
         {
@@ -198,7 +217,8 @@ WHERE
     private async ValueTask<ImapAuthenticationResult> AuthenticateNormalAsync(
         string username,
         string password,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool updateLastLogon = true)
     {
         if (string.IsNullOrWhiteSpace(username))
         {
@@ -277,7 +297,11 @@ WHERE
         var scriptDecision = RunPasswordValidationScript(account, password, cancellationToken);
         if (scriptDecision == ClientPasswordValidationScriptDecision.Accept)
         {
-            await UpdateLastLogonAsync(accountId, cancellationToken).ConfigureAwait(false);
+            if (updateLastLogon)
+            {
+                await UpdateLastLogonAsync(accountId, cancellationToken).ConfigureAwait(false);
+            }
+
             return ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(accountId, accountAddress));
         }
 
@@ -310,8 +334,11 @@ WHERE
                 return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
             }
 
-            await UpdateLastLogonAsync(accountId, cancellationToken)
-                .ConfigureAwait(false);
+            if (updateLastLogon)
+            {
+                await UpdateLastLogonAsync(accountId, cancellationToken)
+                    .ConfigureAwait(false);
+            }
             return ImapAuthenticationResult.Success(
                 new ImapAuthenticatedAccount(accountId, accountAddress));
         }
@@ -321,7 +348,10 @@ WHERE
             return ImapAuthenticationResult.Failure(InvalidUserNameOrPassword);
         }
 
-        await UpdateLastLogonAsync(accountId, cancellationToken).ConfigureAwait(false);
+        if (updateLastLogon)
+        {
+            await UpdateLastLogonAsync(accountId, cancellationToken).ConfigureAwait(false);
+        }
 
         return ImapAuthenticationResult.Success(new ImapAuthenticatedAccount(accountId, accountAddress));
     }
