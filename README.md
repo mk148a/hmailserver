@@ -3,20 +3,22 @@ hMailServer
 
 ## Current authoritative status (2026-09-01, paired performance gate)
 
-The latest paired disposable C++/.NET 10 IMAP `Full` run used separate SQL
-clones of the same backup, byte-matched Data trees, 1,000 messages, and
-loopback `127.0.0.1:1143`. At 100 sessions both implementations passed. The
-legacy C++ service failed the 500 and 1,000 session cells (`189/500` and
-`186/1,000`), while Net10 passed both (`500/500` and `1,000/1,000`). This is
-valid capacity evidence, not a general speed-up claim; the performance release
-gate remains **RED**. See
+The paired disposable C++/.NET 10 IMAP `Full` runs use separate SQL clones of
+the same backup, byte-matched Data trees, 1,000 messages, and loopback
+`127.0.0.1:1143`. The initial unpaced burst profile exposed C++ transport
+pressure, but the controlled 1,000-session failure also included a benchmark
+false negative: the batch deadline ignored the launch ramp. After the harness
+correction, the same 50 ms ramp passes `100/100`, `500/500`, and `1,000/1,000`
+on both implementations. This is descriptive evidence, not a general speed-up
+claim; the project-wide performance release gate remains **RED**. See
 [`CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md)
 for the table, Mermaid graphs, fixture hashes, and legacy symbol references.
 
 The C++ tree was not changed. Legacy `SessionManager::CreateSession`,
 `TCPServer::HandleAccept`, shared IOCP callbacks, and synchronous file-backed
-SEARCH/SORT are the relevant reference path. A source change is deferred until
-read-only worker/TCP/SQL correlation proves the bottleneck.
+SEARCH/SORT are the relevant reference path. The benchmark fix is in
+`RunMany()` batch-deadline accounting; a C++ source change is not justified by
+the current evidence.
 
 The benchmark runners now expose `WarmupSeconds` and record it in the report,
 so readiness and workload start are explicit and reproducible.
@@ -26,14 +28,12 @@ TCP 1143 states, and SQL request/wait DMVs. In fresh 500/1,000-session runs
 the worker stayed at 76 threads, SQL active requests peaked at 1, and TCP
 established connections peaked at 490/411; the workload still failed. This
 does not prove a leak or justify a C++ source change. Per-profile/ramp
-correlation then showed Admission/AuthSelect/Search/Sort each passing 200/200,
-Full passing 200/200 with 25 ms launch staggering and 500/500 with 50 ms
-stagger, but 1000/1000 timing out. The monitor now records
-`LaunchStaggerMilliseconds`. A paired controlled 500-session run passed on
-both sides with nearly equal throughput (`19.853/s` C++ vs `19.857/s` Net10)
-and lower observed C++ p95 (`253.003 ms` vs `737.359 ms`); this is one
-diagnostic run, not a general superiority claim. The performance gate remains
-RED because the burst matrix and controlled C++ 1000 run fail.
+correlation showed Admission/AuthSelect/Search/Sort each passing 200/200, and
+the corrected paired controlled Full matrix now passes 100/500/1000 on both
+sides. The monitor records `LaunchStaggerMilliseconds`; the batch deadline
+fix is recorded in the dated report. This is one diagnostic matrix, not a
+general superiority claim. The performance gate remains RED pending repeated
+runs, delivery/queue coverage, and soak evidence.
 
 ## Historical status (2026-09-01, root-private IMAP RENAME parity)
 

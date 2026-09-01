@@ -6,11 +6,13 @@ Scope: loopback IMAP `Full` profile (`greeting; LOGIN; SELECT INBOX; SEARCH; SOR
 
 ## Decision
 
-The legacy C++ service path is operational and reproducible at 100 sessions,
-but it does not pass the 500- or 1,000-session acceptance cells. Therefore this
-report does **not** claim a general .NET 10 speed-up or production performance
-superiority. The failed C++ cells are valid capacity evidence and remain a
-release blocker.
+The legacy C++ service path is operational and reproducible. The original
+unpaced burst cells remain a useful stress profile, but the earlier controlled
+1,000-session `0/1000` result was a benchmark false negative: the probe batch
+deadline did not include the deliberate launch ramp. After fixing that deadline
+and applying the same controlled ramp to both implementations, the 100/500/1,000
+session acceptance matrix passes on both sides. This report still does **not**
+claim a general .NET 10 speed-up or production performance superiority.
 
 The C++ production tree was not changed. The evidence does not isolate one
 correct source-level fix between native SQL contention, synchronous IMAP work
@@ -85,6 +87,25 @@ Full passed `200/200` at 25 ms stagger and `500/500` at 50 ms stagger with a
 These runs are diagnostic because launch staggering and timeout policy change
 the acceptance shape; they do not justify a speed-up ratio or a production
 capacity claim.
+
+## Corrected Controlled Acceptance Matrix
+
+The concurrent probe now extends its batch deadline by the launch-ramp duration.
+The final paired run used the same clean fixture, Full profile, 50 ms launch
+stagger, 15-second per-socket timeout, and 1,000 byte-matched messages for both
+implementations. Batch deadlines were 49.950 s, 69.950 s, and 94.950 s for
+100, 500, and 1,000 sessions respectively.
+
+| Sessions | C++ result | C++ p50 ms | C++ p95 ms | C++ p99 ms | C++ throughput/s | .NET 10 result | .NET 10 p50 ms | .NET 10 p95 ms | .NET 10 p99 ms | .NET 10 throughput/s |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 100 | 100/100 PASS | 161.388 | 175.800 | 180.911 | 19.564 | 100/100 PASS | 389.138 | 493.444 | 558.758 | 19.100 |
+| 500 | 500/500 PASS | 162.725 | 201.201 | 236.620 | 19.903 | 500/500 PASS | 240.108 | 555.867 | 619.902 | 19.835 |
+| 1,000 | 1,000/1,000 PASS | 179.044 | 220.689 | 258.393 | 19.930 | 1,000/1,000 PASS | 228.152 | 641.429 | 755.398 | 19.911 |
+
+These are descriptive results from one controlled run. C++ had lower observed
+p95 latency in this run and throughput was effectively equal; no general
+performance winner is declared without repeated runs, equivalent hardware
+baselines, queue/delivery coverage, and soak evidence.
 
 One paired controlled 500-session run used the same clean fixture, Full
 profile, 50 ms launch stagger, and 15-second socket timeout for both sides:
@@ -168,8 +189,8 @@ Use the disposable fixture runner in `build/benchmark-disposable-cpp-service-pro
 service wrapper. Do not reuse a fixture after SMTP/delivery tests without
 reprovisioning it, because those tests mutate Data files.
 
-The next performance slice is a legacy-anchored experiment or source-level
-review based on this profile/ramp evidence. It must preserve the same fixture
-and prove whether a C++ change is safe before implementation. Required
-remaining gates include SMTP/delivery/queue parity, POP3 soak,
+The benchmark harness correction is complete. The next performance slice is
+repeatability across independent runs and queue/delivery workload coverage,
+using the same corrected batch-deadline rule. Required remaining gates include
+SMTP/delivery/queue parity, POP3 soak,
 restore/installer lifecycle, registered COM, SEC-18, and a 24-hour leak soak.

@@ -26,6 +26,7 @@ Legacy references are `SessionManager::CreateSession`
 The C++ production tree is intentionally unchanged: the evidence does not yet
 distinguish native SQL contention, synchronous IOCP callback work, and accept
 queue pressure. The benchmark runners now expose and record `WarmupSeconds`.
+The concurrent probe also accounts for launch-ramp time in its batch deadline.
 
 The read-only monitor slice is now complete. Fresh C++ 500/1,000 Full-profile
 runs observed 76 worker threads, SQL active-request peaks of 1, and TCP
@@ -35,11 +36,11 @@ single safe C++ source fix. Output is under the local disposable
 `artifacts/benchmarks/disposable-cpp-capacity-monitor/` directory.
 
 The follow-up profile/ramp evidence narrows the issue: Admission, AuthSelect,
-Search, and Sort each pass 200/200 in isolation; Full passes 200/200 with
-25 ms launch staggering and 500/500 with 50 ms staggering, but 1000 sessions
-still time out. The monitor records `LaunchStaggerMilliseconds` so this result
-is reproducible. This remains diagnostic evidence, not a C++ fix or a release
-acceptance pass.
+Search, and Sort each pass 200/200 in isolation. With the corrected batch
+deadline, the same 50 ms controlled Full ramp passes 100/500/1000 on both C++
+and Net10. The earlier controlled 1000 timeout was a harness false negative;
+the unpaced burst profile remains a separate stress result. This remains
+diagnostic evidence, not a C++ source fix or a complete release acceptance.
 
 A paired controlled 500-session Full run (50 ms stagger, 15-second timeout)
 passed `500/500` on both sides with throughput `19.853/s` C++ and `19.857/s`
@@ -47,9 +48,9 @@ Net10; observed p95 was `253.003 ms` C++ and `737.359 ms` Net10. This is one
 controlled diagnostic run only. The burst matrix and controlled C++ 1000 run
 still fail, so no general performance winner is declared.
 
-Next smallest independent slice: perform a legacy-anchored C++ accept/IOCP
-experiment or source-level review using the profile/ramp evidence, and only
-then decide whether a source change is justified. Queue/remote delivery, POP3,
+Next smallest independent slice: repeat the corrected paired matrix and extend
+it to queue/remote delivery acceptance. A C++ source change is not justified
+by the current evidence. POP3,
 restore/rollback, registered COM, SEC-18, AD/SSPI, and 24-hour soak remain
 separate release blockers.
 

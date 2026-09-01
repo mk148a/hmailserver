@@ -14,13 +14,17 @@ A paired controlled 500-session Full run with 50 ms launch staggering and a
 15-second timeout passed `500/500` on both implementations. Throughput was
 `19.853/s` C++ and `19.857/s` Net10; observed p95 was `253.003 ms` and
 `737.359 ms`, respectively. This is one diagnostic run, not a general winner
-claim; C++ controlled 1000 still timed out.
+claim; the earlier controlled 1000 timeout was caused by the probe batch
+deadline. After the batch deadline was corrected, the final controlled matrix
+passed C++ and Net10 at 100/500/1000 sessions. C++ p95 was
+`175.800/201.201/220.689 ms`; Net10 p95 was
+`493.444/555.867/641.429 ms`; throughput was effectively equal at each level.
 
-Code/test commit: `c59321e79` adds `-LaunchStaggerMilliseconds` to
-`build/monitor-disposable-cpp-imap-capacity.ps1` and records it in evidence.
-No C++ production code changed. Docs/current-state update is a separate
-commit. Performance remains RED; the next slice is a legacy-anchored
-accept/IOCP experiment or source-level review before any C++ change.
+Code/test commits: `c59321e79` adds `-LaunchStaggerMilliseconds` to
+`build/monitor-disposable-cpp-imap-capacity.ps1`; `c6ed0d32e` fixes
+`RunMany()` batch-deadline accounting for the launch ramp. No C++ production
+code changed. Performance remains RED pending repeatability, queue/delivery,
+and soak gates; a C++ source change is not justified by current evidence.
 
 ## Current authoritative continuation (2026-09-01, IMAP master-user runtime parity)
 
