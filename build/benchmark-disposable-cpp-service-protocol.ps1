@@ -28,6 +28,8 @@ param(
     [int]$PostAcceptanceTimeoutSeconds = 10,
     [ValidateRange(5, 300)]
     [int]$ReadinessTimeoutSeconds = 60,
+    [ValidateRange(0, 300)]
+    [int]$WarmupSeconds = 5,
     [string]$RunId = "",
     [string]$ServiceName = "hMailServerPerfCppProtocol",
     [string]$ServiceAccount = "NT AUTHORITY\LocalService"
@@ -238,6 +240,7 @@ try {
             '-BenchmarkDatabase', $database,
             '-BenchmarkServiceExecutable', $serviceExe,
             '-ReadinessTimeoutSeconds', $ReadinessTimeoutSeconds,
+            '-WarmupSeconds', $WarmupSeconds,
             '-ExternalServiceProcessId', $servicePid,
             '-ExternalServiceName', $ServiceName
         )

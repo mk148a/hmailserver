@@ -11,6 +11,8 @@ param(
     [int]$TimeoutMilliseconds = 5000,
     [ValidateRange(1, 300)]
     [int]$ReadinessTimeoutSeconds = 60,
+    [ValidateRange(0, 300)]
+    [int]$WarmupSeconds = 5,
     [ValidateRange(0, 60)]
     [int]$PostWorkloadSettleSeconds = 5,
     [ValidateRange(0, 1000)]
@@ -684,6 +686,7 @@ $probeConfiguration = [pscustomobject]@{
     waves = $Waves
     socketTimeoutMilliseconds = $TimeoutMilliseconds
     launchStaggerMilliseconds = $LaunchStaggerMilliseconds
+    warmupSeconds = $WarmupSeconds
     fanOut = "one TCP client and one sequential IMAP session per sample"
 }
 
@@ -737,6 +740,9 @@ try {
     if ($null -ne $process) {
         $readinessFailures = @(Wait-ForReadiness $process.Id)
         if ($readinessFailures.Count -eq 0) {
+            if ($WarmupSeconds -gt 0) {
+                Start-Sleep -Seconds $WarmupSeconds
+            }
             $metricProcess = Get-Process -Id $process.Id -ErrorAction SilentlyContinue
             if ($null -eq $metricProcess) {
                 $runtimeFailures.Add("Launched process $($process.Id) exited before workload start.")
