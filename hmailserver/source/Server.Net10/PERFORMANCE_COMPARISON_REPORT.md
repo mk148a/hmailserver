@@ -1,5 +1,16 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current paired TCP 451 recovery (2026-09-01)
+
+Code/test commit `b4319db45` proved the same disposable C++ service and Net10
+retry-recovery sequence against one loopback sink: RCPT `451` retained the
+type-1 queue row, recipient, retry count `1`, and Data file without DATA; a
+later RCPT `250` accepted DATA and removed all three. Both implementations and
+the disposable C++ service cleanup passed. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`
+and `net10-tcp451-recovery.*`. This is a bounded correctness cell, not a
+throughput or soak result; the release gate remains **RED**.
+
 ## Current paired TCP 451 retry-state evidence (2026-09-01)
 
 Code/test commit `c1055f349` exercised the disposable C++ service and Net10

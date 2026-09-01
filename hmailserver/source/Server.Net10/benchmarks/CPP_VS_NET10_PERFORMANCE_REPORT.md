@@ -1,5 +1,15 @@
 # Legacy C++ vs .NET 10 Performance Report
 
+## Current paired TCP 451 recovery (2026-09-01)
+
+Code/test commit `b4319db45` proved identical bounded retry recovery on the
+disposable C++ service and Net10. Both retained queue/recipient/Data state
+after RCPT `451` with no DATA, then completed after RCPT `250` and DATA; SQL,
+file, service, route, and temporary principal cleanup passed. Evidence is
+under `artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`
+and `net10-tcp451-recovery.*`. This does not establish a performance winner;
+the gate remains **RED**.
+
 ## Current paired TCP 451 retry-state evidence (2026-09-01)
 
 Code/test commit `c1055f349` used the disposable C++ service and Net10 with

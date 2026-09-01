@@ -1,5 +1,17 @@
 # .NET 10 Benchmark Pack
 
+## Current paired TCP 451 recovery (2026-09-01)
+
+The paired C++/Net10 recovery harness in code/test commit `b4319db45` used the
+same loopback sink and disposable SQL/Data fixture. Each implementation
+retained one queue row and recipient after RCPT `451` without DATA, then
+completed with RCPT `250` and DATA and removed the message file. Cleanup passed
+for the disposable LocalService SCM service, route, SQL principal, message,
+recipient, and Data file. JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`;
+the Net10 evidence is under `net10-tcp451-recovery.*`. This is correctness
+evidence only; larger waves, capacity, soak, and release gates remain **RED**.
+
 ## Current paired TCP 451 retry-state evidence (2026-09-01)
 
 Code/test commit `c1055f349` added a disposable paired harness. C++ and Net10

@@ -9648,3 +9648,36 @@ fingerprinted or held immutable, and the Python paired report generator can
 still accept mixed/unbound inputs. Next slice is the aggregate generator guard,
 then payload lease and expanded SQL/post-run attestation. Release remains
 **RED**.
+
+## Current authoritative continuation (2026-09-01, paired TCP 451 recovery)
+
+Code/test commit `b4319db45` completes one bounded retry-recovery slice. The
+legacy C++ service and .NET 10 used the same loopback sink and disposable
+SQL/Data fixture. Each side retained a type-1 queue row, recipient, retry
+count `1`, and Data file after RCPT `451` without DATA, then completed after
+RCPT `250` and DATA with queue, recipient, and message file removal. The C++
+side ran under a unique disposable LocalService SCM service; service, route,
+temporary SQL principal, message, recipient, and file cleanup all passed.
+
+Focused Net10 recovery passed `1/1`; the paired C++ recovery harness passed;
+full Net10 Debug is `2773 passed, 92 skipped, 5 failed / 2870`, with the same
+five registered local-server COM `E_NOINTERFACE` failures. JSON/CSV/Markdown
+evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`
+and `net10-tcp451-recovery.*`.
+
+Legacy anchors are `Server/SMTP/ExternalDelivery.cpp::Perform`,
+`CollectDeliveryResult_`, and `RescheduleDelivery_`,
+`Server/SMTP/SMTPDeliveryManager.cpp::GetNextMessage_`, and
+`Server/Common/Persistence/PersistentMessage.cpp::SetNextTryTime`. Net10
+anchors are `SmtpRemoteDeliveryClient.SendAsync`,
+`RemoteDeliveryTargetDispatcher.DispatchAsync`,
+`DeliveryQueueProcessor.ProcessOneAsync`, and
+`SqlServerDeliveryQueueLeaseStore.DeferAsync`/`CompleteAsync`.
+
+This is bounded retry correctness evidence, not release clearance. The
+performance gate remains **RED**. Next production-priority slice: raw
+non-DB-only `BODomains|BOMessages` DataBackup staging with the external
+`DataBackup` directory beside the archive; then larger paired SMTP and
+delivery/queue waves. Preserve the installed Application COM/DCOM graph,
+production service/SQL/Data, IIS/firewall, and unrelated dirty artifacts.

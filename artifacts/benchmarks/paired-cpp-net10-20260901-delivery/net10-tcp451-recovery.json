@@ -1,0 +1,32 @@
+{
+  "schema": "net10-live-tcp-451-recovery-v1",
+  "status": "PASS",
+  "generatedUtc": "2026-09-01T00:26:19.6815784+00:00",
+  "database": "hmail_perf_pair_net10_20260831_225556",
+  "dataRoot": "C:\\hmail-perf-pair-delivery-20260901\\net10\\Data",
+  "firstAttempt": {
+    "smtpReply": 451,
+    "MessageType": 1,
+    "queuedCount": 1,
+    "Locked": 0,
+    "LeaseOwnerIsNull": true,
+    "RetryCount": 1,
+    "NextTryUtc": "2026-09-01T00:26:19.533Z",
+    "RecipientCount": 1,
+    "saw451ResponseSent": true,
+    "sawData": false
+  },
+  "recoveryAttempt": {
+    "smtpReply": 250,
+    "sawRecoveryResponse": true,
+    "sawData": true
+  },
+  "finalState": {
+    "QueuedCount": 0,
+    "DeliveredCount": 0,
+    "RecipientCount": 0
+  },
+  "deferredEvents": 2,
+  "succeededEvents": 1,
+  "messageFileAbsent": true
+}

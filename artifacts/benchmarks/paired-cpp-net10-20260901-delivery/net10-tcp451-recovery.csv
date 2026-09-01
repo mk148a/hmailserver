@@ -1,0 +1,2 @@
+status,first_smtp_reply,recovery_smtp_reply,initial_queued_count,initial_retry_count,final_queued_count,final_recipient_count,saw_data_before_recovery,saw_data_after_recovery,deferred_events,succeeded_events
+PASS,451,250,1,1,0,0,False,True,2,1

@@ -1,23 +1,22 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, paired TCP 451 retry state)
+## Current authoritative status (2026-09-01, paired TCP 451 recovery)
 
-Code/test commit `c1055f349` adds a disposable paired acceptance harness for
-the legacy C++ service and .NET 10. Against the same controlled loopback sink
-protocol, both implementations received a real RCPT `451` and proved one
-retained queue row, `messagetype=1`, `messagelocked=0`, retry count `1`, one
-retained recipient, no first-attempt `DATA`, and a retained Data file. The
-C++ service was created under a unique disposable SCM name, then stopped and
-deleted; route, queue, SQL principal, and seed file cleanup all passed.
+Code/test commit `b4319db45` adds the bounded paired retry-recovery
+acceptance. Against the same controlled loopback sink protocol, the legacy
+C++ service and .NET 10 each received RCPT `451`, retained one type-1 queue
+row, one recipient, retry count `1`, and the Data file without sending DATA;
+then each received RCPT `250`, sent DATA, and removed the queue row, recipient,
+and message file. The C++ side ran under a unique disposable LocalService SCM
+service with complete service, route, SQL principal, message, and file cleanup.
 
-The paired JSON/CSV/Markdown evidence is under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-retry/`.
-The Net10 source-level component evidence is under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
-This closes only initial transient-state parity. Retry recovery, larger
-delivery waves, and performance/soak gates remain open; performance is
-**RED**.
+JSON/CSV/Markdown evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`;
+the Net10 evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-recovery.*`.
+This closes only the bounded transient recovery cell. Larger delivery waves,
+capacity, soak, and release gates remain **RED**.
 
 ## Previous bounded status (2026-09-01, paired SMTP local-delivery readback)
 

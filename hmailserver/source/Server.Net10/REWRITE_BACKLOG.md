@@ -1,41 +1,27 @@
 
-## Current authoritative next slice (2026-09-01, controlled transient retry)
+## Current authoritative next slice (2026-09-01, paired TCP 451 recovery)
 
-The bounded SMTP local-delivery slice is complete in code/test commit
-`6361a8074`. A fresh manifest-bound disposable fixture was exercised through
-the real C++ SCM service and Net10 service: 25/25 SMTP messages were accepted
-and each side proved exact SQL/Data local-delivery readback (`messagetype=2`,
-Inbox/account 1, `test@perf.test`, zero recipient rows, one unique Data file
-per marker). Evidence is under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`; this is a
-correctness/timing cell only and performance remains **RED**.
+Code/test commit `b4319db45` completes the bounded paired retry-recovery
+acceptance. Against the same loopback sink and disposable SQL/Data fixture,
+the C++ service and Net10 each retained one type-1 queue row, recipient, retry
+count `1`, and Data file after RCPT `451` without sending DATA; then each
+completed after RCPT `250` and DATA, removing the queue row, recipient, and
+message file. The disposable C++ LocalService SCM service, route, SQL
+principal, message, and file were all cleaned up.
 
-Legacy persistence/queue anchors are
-`Server/SMTP/SMTPConnection.cpp::HandleSMTPFinalizationTaskCompleted_`,
-`Server/SMTP/SMTPDeliveryManager.cpp::GetNextMessage_`,
-`Server/SMTP/SMTPDeliverer.cpp::DeliverMessage`, and
-`Server/SMTP/ExternalDelivery.cpp::RescheduleDelivery_`. Net10 anchors are
-`SmtpSession.HandleDataAsync`, `SqlServerSmtpQueueWriter.EnqueueAsync`,
-`DeliveryQueueProcessor.ProcessOneAsync`, and
-`SqlServerDeliveryQueueLeaseStore.CompleteAsync`.
+Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`
+and
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-recovery.*`.
+This closes only the bounded retry-recovery cell; larger delivery waves,
+capacity, soak, and release gates remain **RED**.
 
-Paired initial TCP `451` retry/defer evidence is now complete in code/test
-commit `c1055f349`: the disposable C++ service and Net10 used the same
-controlled loopback sink protocol, and both proved transient classification,
-retained recipient, `messagetype=1`, unlocked/cleared lease, retry count `1`,
-no DATA, retained Data file, and cleanup. Aggregate JSON/CSV/Markdown evidence
-is under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-retry/`.
-Net10 component evidence remains under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-retry.*`.
-This does not prove retry recovery or service-worker timing.
-
-Next smallest independent slice: stateful paired C++/Net10 `451` then `250`
-retry recovery with per-message SQL/Data readback, with no SMTP trust or
-production delivery changes. After that, run larger paired SMTP and
-delivery/queue waves with per-message SQL/Data readback. The C++ 500/1000
-capacity failures, backup/restore and installer rollback, registered COM,
-SEC-18, AD/master-user, DKIM/DMARC/SPF, and 24-hour soak gates remain open.
+Next smallest production-priority slice: raw non-DB-only
+`BODomains|BOMessages` DataBackup staging, leaving the external `DataBackup`
+directory beside the archive. After that, run larger paired SMTP and
+delivery/queue waves with per-message SQL/Data readback. Registered COM,
+backup/restore round-trip, SEC-18, AD/master-user, DKIM/DMARC/SPF, and 24-hour
+soak gates remain open.
 
 ## Historical next slice (2026-09-01, larger SMTP/delivery acceptance)
 
