@@ -298,7 +298,11 @@ public static class HMailServerLiveImapProbe
                     });
                 }
 
-                var completed = Task.WaitAll(tasks, timeoutMilliseconds + 30000);
+                // The batch deadline must include the deliberate launch ramp. Otherwise a
+                // large stagger makes the harness report timeouts before the last sessions run.
+                var batchTimeoutMilliseconds = checked((int)(timeoutMilliseconds + 30000L
+                    + (long)Math.Max(0, count - 1) * Math.Max(0, launchStaggerMilliseconds)));
+                var completed = Task.WaitAll(tasks, batchTimeoutMilliseconds);
                 var results = new HMailServerLiveImapProbeResult[count];
                 for (var index = 0; index < count; index++)
                 {
@@ -308,7 +312,7 @@ public static class HMailServerLiveImapProbe
                         {
                             Success = false,
                             TimedOut = true,
-                            Milliseconds = timeoutMilliseconds + 30000,
+                            Milliseconds = batchTimeoutMilliseconds,
                             Error = "The concurrent IMAP probe did not complete before the batch timeout."
                         };
                 }
@@ -685,6 +689,7 @@ $probeConfiguration = [pscustomobject]@{
     concurrentSessionsPerWave = $Concurrency
     waves = $Waves
     socketTimeoutMilliseconds = $TimeoutMilliseconds
+    batchTimeoutMilliseconds = $TimeoutMilliseconds + 30000 + ([long][math]::Max(0, $Concurrency - 1) * [math]::Max(0, $LaunchStaggerMilliseconds))
     launchStaggerMilliseconds = $LaunchStaggerMilliseconds
     warmupSeconds = $WarmupSeconds
     fanOut = "one TCP client and one sequential IMAP session per sample"
