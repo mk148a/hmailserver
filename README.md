@@ -29,7 +29,11 @@ does not prove a leak or justify a C++ source change. Per-profile/ramp
 correlation then showed Admission/AuthSelect/Search/Sort each passing 200/200,
 Full passing 200/200 with 25 ms launch staggering and 500/500 with 50 ms
 stagger, but 1000/1000 timing out. The monitor now records
-`LaunchStaggerMilliseconds`; the performance gate remains RED.
+`LaunchStaggerMilliseconds`. A paired controlled 500-session run passed on
+both sides with nearly equal throughput (`19.853/s` C++ vs `19.857/s` Net10)
+and lower observed C++ p95 (`253.003 ms` vs `737.359 ms`); this is one
+diagnostic run, not a general superiority claim. The performance gate remains
+RED because the burst matrix and controlled C++ 1000 run fail.
 
 ## Historical status (2026-09-01, root-private IMAP RENAME parity)
 

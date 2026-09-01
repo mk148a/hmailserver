@@ -86,6 +86,19 @@ These runs are diagnostic because launch staggering and timeout policy change
 the acceptance shape; they do not justify a speed-up ratio or a production
 capacity claim.
 
+One paired controlled 500-session run used the same clean fixture, Full
+profile, 50 ms launch stagger, and 15-second socket timeout for both sides:
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| C++ | 500/500 | 185.216 | 253.003 | 274.622 | 19.853 |
+| .NET 10 | 500/500 | 221.294 | 737.359 | 783.309 | 19.857 |
+
+This single controlled run is useful diagnostic evidence: throughput was
+effectively equal and C++ had the lower observed latency. It is not a general
+performance-superiority claim; the burst matrix and the controlled 1,000 run
+still fail the C++ acceptance gate.
+
 The reproducible monitor option is
 `build/monitor-disposable-cpp-imap-capacity.ps1 -LaunchStaggerMilliseconds`.
 The C++ source remains unchanged. A safe source fix still requires a

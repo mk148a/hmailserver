@@ -10,6 +10,12 @@ Admission, AuthSelect, Search, and Sort each passed `200/200`. Full passed
 but `1000/1000` timed out at that ramp. SQL active-request peaks remained 0-2;
 errors were connection refusal/read timeout, not result validation failures.
 
+A paired controlled 500-session Full run with 50 ms launch staggering and a
+15-second timeout passed `500/500` on both implementations. Throughput was
+`19.853/s` C++ and `19.857/s` Net10; observed p95 was `253.003 ms` and
+`737.359 ms`, respectively. This is one diagnostic run, not a general winner
+claim; C++ controlled 1000 still timed out.
+
 Code/test commit: `c59321e79` adds `-LaunchStaggerMilliseconds` to
 `build/monitor-disposable-cpp-imap-capacity.ps1` and records it in evidence.
 No C++ production code changed. Docs/current-state update is a separate

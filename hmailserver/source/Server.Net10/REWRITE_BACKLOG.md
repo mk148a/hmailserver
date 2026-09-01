@@ -41,6 +41,12 @@ still time out. The monitor records `LaunchStaggerMilliseconds` so this result
 is reproducible. This remains diagnostic evidence, not a C++ fix or a release
 acceptance pass.
 
+A paired controlled 500-session Full run (50 ms stagger, 15-second timeout)
+passed `500/500` on both sides with throughput `19.853/s` C++ and `19.857/s`
+Net10; observed p95 was `253.003 ms` C++ and `737.359 ms` Net10. This is one
+controlled diagnostic run only. The burst matrix and controlled C++ 1000 run
+still fail, so no general performance winner is declared.
+
 Next smallest independent slice: perform a legacy-anchored C++ accept/IOCP
 experiment or source-level review using the profile/ramp evidence, and only
 then decide whether a source change is justified. Queue/remote delivery, POP3,
