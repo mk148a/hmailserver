@@ -62,6 +62,11 @@ validated local-delivery and retry-state evidence (`5.561/7.259/11.842 ms`
 p50/p95/p99; `77.057/s`). No equivalent C++ queue throughput runner exists,
 so it is not a parity result.
 
+The same fixture now also passes five POP3 large-mailbox iterations on both
+targets with `1000/1000` mailbox rows and zero errors. Total p95 was
+`147.543 ms` for C++ and `171.199 ms` for Net10. Bounded POP3 parity is closed;
+larger-mailbox and 24-hour POP3 soak evidence remain open.
+
 A paired controlled 500-session Full run (50 ms stagger, 15-second timeout)
 passed `500/500` on both sides with throughput `19.853/s` C++ and `19.857/s`
 Net10; observed p95 was `253.003 ms` C++ and `737.359 ms` Net10. This is one
@@ -72,7 +77,7 @@ broader performance gates pass.
 Next smallest independent slice: add a supported paired C++/Net10 queue or
 remote-delivery harness, or record that this remains a coverage blocker; then
 continue with longer soak. A C++ source change is not justified by the current
-evidence. POP3,
+evidence. POP3 parity is complete for this bounded cell, but POP3 soak,
 restore/rollback, registered COM, SEC-18, AD/SSPI, and 24-hour soak remain
 separate release blockers.
 

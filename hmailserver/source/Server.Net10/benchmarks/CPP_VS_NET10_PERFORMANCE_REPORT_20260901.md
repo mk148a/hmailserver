@@ -157,6 +157,29 @@ process observations over roughly five minutes of workload, not proof of a
 correctness and near-equal throughput under this controlled ramp. They do not
 establish a universal latency winner.
 
+## Paired POP3 large-mailbox acceptance
+
+The same clean manifest-bound fixture was exercised through loopback POP3
+`127.0.0.1:25110` for five iterations per implementation. Each iteration
+reported exactly 1,000 messages from `STAT`, `LIST`, and `UIDL`; the runs had
+zero errors and clean shutdowns.
+
+| Implementation | Result | Total p50 ms | Total p95 ms | Total p99 ms | LIST p50 ms | UIDL p50 ms | RETR p50 ms |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ | 5/5 PASS | 69.770 | 147.543 | 157.741 | 18.402 | 17.144 | 0.899 |
+| .NET 10 | 5/5 PASS | 68.958 | 171.199 | 187.461 | 16.534 | 17.109 | 1.470 |
+
+This is bounded POP3 parity evidence. It does not establish 24-hour resource
+stability, larger mailbox behavior, or a general performance winner.
+
+```mermaid
+xychart-beta
+    title "Paired POP3 total p95 latency (ms)"
+    x-axis [C++, .NET10]
+    y-axis "Milliseconds" 0 --> 200
+    bar [147.543, 171.199]
+```
+
 ```mermaid
 xychart-beta
     title "Five-wave repeated IMAP p95 latency (ms)"
