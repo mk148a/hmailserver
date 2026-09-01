@@ -18,12 +18,12 @@ outcomes through `SmtpRemoteDeliveryClient.SendAttemptAsync`,
 The focused implementation tests pass `47/47`, and the SQL recipient-store
 test passes `1/1`. The live Net10 mixed-recipient SQL/TCP acceptance passes
 `1/1`, including `250 + 451 -> DATA`, accepted-row deletion,
-transient-row retention, retry, recovery, and Data-file cleanup. The C++
-disposable harness observed the same flow once, but its paired artifact is
-FAIL because three subsequent service runs timed out before the first sink
-connection. Repeatable paired C++ SQL row-level parity and queue throughput
-remain release-gate work; the performance gate is **RED**, and this report
-makes no general speed or superiority claim.
+transient-row retention, retry, recovery, and Data-file cleanup. The disposable
+C++ harness now waits for sink readiness, frames SMTP DATA correctly, surfaces
+background-job errors, and records redacted timeout diagnostics. Three fresh
+C++ service runs pass the same flow and cleanup on the manifest-bound fixture.
+Queue throughput remains release-gate work; the performance gate is **RED**,
+and this report makes no general speed or superiority claim.
 
 ## Decision
 

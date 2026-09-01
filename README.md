@@ -1,9 +1,9 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, mixed-recipient delivery parity)
+## Current authoritative status (2026-09-01, mixed-recipient delivery acceptance)
 
-The latest bounded delivery slice is code/test commit `b9b58e239`; the
+The latest bounded harness slice is code/test commit `2ad1dc293`; the
 production behavior was implemented in `0d257b2bb`. Legacy
 `ExternalDelivery::Perform`, `CollectDeliveryResult_`, and `RescheduleDelivery_`
 (`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:58-181,439-608`) preserve
@@ -14,12 +14,15 @@ row for retry. Net10 now carries per-recipient results through
 and `DeliveryQueueProcessor.ProcessRecipientResultsAsync`.
 
 Focused delivery tests pass `47/47`, the SQL recipient-store test passes
-`1/1`, and live Net10 mixed-recipient SQL/TCP acceptance passes `1/1`. Full
+`1/1`, live Net10 mixed-recipient SQL/TCP acceptance passes `1/1`, and the
+disposable C++ mixed-recipient recovery harness passes `3/3` on the same
+manifest-bound fixture. Full
 Debug Net10 is `2790 passed, 95 skipped, 5 failed / 2890`; the five failures
 are the known registered local-server COM `E_NOINTERFACE` checks. The C++
-harness observed the same mixed flow once, but repeat runs timed out before the
-first sink connection; repeatable paired C++/Net10 SQL readback and queue
-throughput are still open. The performance release gate remains **RED**, and
+harness now records sink readiness, correct DATA framing, job errors, and
+redacted timeout snapshots; three fresh mixed-flow runs pass with the same
+fixture. Repeatable paired
+C++/.NET queue throughput is still open. The performance release gate remains **RED**, and
 no general C++/.NET 10 speed or superiority claim is made.
 
 ## Current authoritative status (2026-09-01, paired IMAP/POP3 acceptance)

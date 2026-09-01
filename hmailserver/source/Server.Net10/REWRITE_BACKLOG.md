@@ -1,5 +1,21 @@
 
-## Current authoritative next slice (2026-09-01, mixed-recipient remote delivery parity)
+## Current authoritative next slice (2026-09-01, paired queue throughput)
+
+The disposable C++ mixed-recipient acceptance gap is closed for this bounded
+fixture cell by code/test commit `2ad1dc293`. The harness now waits for a
+listener readiness marker, validates loopback socket readiness, preserves job
+errors and redacted timeout snapshots, and frames SMTP DATA correctly. Three
+fresh C++ service runs pass with `250 + 451 -> DATA`, accepted-row deletion,
+transient-row retention, recovery delivery, and final Data-file cleanup; the
+Net10 live counterpart remains PASS. No production C++ source, COM identity,
+SQL schema, production service, or production Data directory changed.
+
+**Next smallest independent slice:** build a supported paired C++/.NET
+queue/remote-delivery throughput runner with identical disposable SQL/Data
+fixtures and explicit p50/p95/p99, throughput, errors, and resource evidence.
+Do not claim a performance winner until that runner and the soak gates pass.
+
+## Historical current slice (2026-09-01, mixed-recipient remote delivery parity)
 
 Code/test commit `b9b58e239` adds the bounded live acceptance for the legacy
 behavior implemented in `0d257b2bb` for a
