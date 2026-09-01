@@ -226,23 +226,44 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
             return FailureFromReply("Remote SMTP MAIL FROM failed: ", mailFrom);
         }
 
-        var acceptedRecipientCount = 0;
-        foreach (var recipient in request.RecipientAddresses)
+        var recipientResults = new RemoteSmtpRecipientResult[request.RecipientAddresses.Count];
+        RemoteSmtpRecipientResult? firstFailure = null;
+        for (var recipientIndex = 0; recipientIndex < request.RecipientAddresses.Count; recipientIndex++)
         {
+            var recipient = request.RecipientAddresses[recipientIndex];
             var rcpt = await SendCommandAsync(
                 writer,
                 reader,
                 "RCPT TO:<" + SanitizeMailbox(recipient) + ">",
                 cancellationToken).ConfigureAwait(false);
-            if (!rcpt.IsPositiveCompletion)
+            if (rcpt.IsPositiveCompletion)
             {
-                return FailureFromReply(
-                    "Remote SMTP RCPT TO failed for " + recipient + ": ",
-                    rcpt,
-                    canTryNextEndpoint: acceptedRecipientCount == 0);
+                recipientResults[recipientIndex] = new RemoteSmtpRecipientResult(
+                    recipientIndex,
+                    FailureKind: null,
+                    Error: null);
+                continue;
             }
 
-            acceptedRecipientCount++;
+            var failureKind = rcpt.Code >= 500
+                ? DeliveryFailureKind.Permanent
+                : DeliveryFailureKind.Transient;
+            var error = "Remote SMTP RCPT TO failed for " + recipient + ": " + rcpt.Format();
+            recipientResults[recipientIndex] = new RemoteSmtpRecipientResult(
+                recipientIndex,
+                failureKind,
+                error);
+            firstFailure ??= recipientResults[recipientIndex];
+        }
+
+        var acceptedRecipientCount = recipientResults.Count(static result => result.Accepted);
+        if (acceptedRecipientCount == 0)
+        {
+            return RemoteSmtpSendResult.Failure(
+                firstFailure?.Error ?? "Remote SMTP rejected all recipients.",
+                failureKind: firstFailure?.FailureKind ?? DeliveryFailureKind.Transient,
+                tryNextEndpoint: true,
+                recipientResults: recipientResults);
         }
 
         try
@@ -250,10 +271,14 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
             var data = await SendCommandAsync(writer, reader, "DATA", cancellationToken).ConfigureAwait(false);
             if (data.Code != 354)
             {
-                return FailureFromReply(
-                    "Remote SMTP DATA command failed: ",
-                    data,
-                    canTryNextEndpoint: false);
+                var error = "Remote SMTP DATA command failed: " + data.Format();
+                return RemoteSmtpSendResult.Failure(
+                    error,
+                    failureKind: data.Code >= 500
+                        ? DeliveryFailureKind.Permanent
+                        : DeliveryFailureKind.Transient,
+                    tryNextEndpoint: false,
+                    recipientResults: MarkAcceptedRecipientsFailed(recipientResults, error));
             }
 
             await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -261,10 +286,14 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
             var accepted = await ReadReplyAsync(reader, cancellationToken).ConfigureAwait(false);
             if (!accepted.IsPositiveCompletion)
             {
-                return FailureFromReply(
-                    "Remote SMTP DATA body was rejected: ",
-                    accepted,
-                    canTryNextEndpoint: false);
+                var error = "Remote SMTP DATA body was rejected: " + accepted.Format();
+                return RemoteSmtpSendResult.Failure(
+                    error,
+                    failureKind: accepted.Code >= 500
+                        ? DeliveryFailureKind.Permanent
+                        : DeliveryFailureKind.Transient,
+                    tryNextEndpoint: false,
+                    recipientResults: MarkAcceptedRecipientsFailed(recipientResults, error));
             }
 
             try
@@ -275,14 +304,41 @@ public sealed class SmtpRemoteDeliveryClient : IRemoteSmtpClient
             {
             }
 
-            return RemoteSmtpSendResult.Success();
+            return firstFailure is null
+                ? RemoteSmtpSendResult.Success(recipientResults)
+                : RemoteSmtpSendResult.Failure(
+                    firstFailure.Error ?? "Remote SMTP rejected one or more recipients.",
+                    failureKind: firstFailure.FailureKind ?? DeliveryFailureKind.Transient,
+                    tryNextEndpoint: false,
+                    recipientResults: recipientResults);
         }
         catch (Exception ex) when (IsTransientTransportFailure(ex))
         {
+            var error = "Remote SMTP delivery connection failed after recipient acceptance: " + ex.Message;
             return RemoteSmtpSendResult.Failure(
-                "Remote SMTP delivery connection failed after recipient acceptance: " + ex.Message,
-                tryNextEndpoint: false);
+                error,
+                tryNextEndpoint: false,
+                recipientResults: MarkAcceptedRecipientsFailed(recipientResults, error));
         }
+    }
+
+    private static RemoteSmtpRecipientResult[] MarkAcceptedRecipientsFailed(
+        IReadOnlyList<RemoteSmtpRecipientResult> recipientResults,
+        string error)
+    {
+        var updatedResults = new RemoteSmtpRecipientResult[recipientResults.Count];
+        for (var index = 0; index < recipientResults.Count; index++)
+        {
+            var result = recipientResults[index];
+            updatedResults[index] = result.Accepted
+                ? new RemoteSmtpRecipientResult(
+                    result.RecipientIndex,
+                    DeliveryFailureKind.Transient,
+                    error)
+                : result;
+        }
+
+        return updatedResults;
     }
 
     private static async ValueTask<RemoteSmtpSendResult> AuthenticateLoginAsync(

@@ -323,6 +323,42 @@ public sealed class DeliveryQueueProcessorTests
     }
 
     [TestMethod]
+    public async Task RunBatchAsync_DeletesAcceptedRecipientAndDefersOnlyTransientRecipient()
+    {
+        var identity = new MessageIdentity(24, 0, 0, 0);
+        var message = CreateMessage(identity);
+        var leaseStore = new FakeLeaseStore(identity);
+        var recipientStore = new FakeRecipientStore();
+        var resolver = new FakeTargetResolver(
+            new DeliveryTargetBatch(
+                new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:remote.test", "remote.test"),
+                message.Recipients));
+        var dispatcher = new FakeTargetDispatcher(
+            DeliveryTargetDispatchResult.TransientFailure(
+                "451 user temporarily deferred",
+                TimeSpan.FromMinutes(3),
+                [
+                    new DeliveryRecipientDispatchResult(1, null, null),
+                    new DeliveryRecipientDispatchResult(2, DeliveryFailureKind.Transient, "451 user temporarily deferred")
+                ]));
+        var processor = new DeliveryQueueProcessor(
+            leaseStore,
+            new FakeMessageStore(message),
+            resolver,
+            dispatcher,
+            recipientStore,
+            new FakeBounceStore());
+
+        var processed = await processor.RunBatchAsync(CreateOptions(), CancellationToken.None);
+
+        Assert.AreEqual(1, processed);
+        CollectionAssert.AreEqual(new long[] { 1 }, recipientStore.DeletedRecipientIds);
+        Assert.AreEqual(identity.MessageId, leaseStore.DeferredMessageId);
+        Assert.AreEqual(TimeSpan.FromMinutes(3), leaseStore.DeferredRetryDelay);
+        Assert.IsNull(leaseStore.CompletedMessageId);
+    }
+
+    [TestMethod]
     public async Task RunBatchAsync_BouncesPermanentFailureDeletesRecipientsAndCompletesLease()
     {
         var identity = new MessageIdentity(13, 0, 0, 0);

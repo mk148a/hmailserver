@@ -56,6 +56,39 @@ public sealed class RemoteDeliveryTargetDispatcherTests
     }
 
     [TestMethod]
+    public async Task DispatchAsync_MapsSmtpRecipientIndicesToQueueRecipientIds()
+    {
+        var message = CreateMessage();
+        var batch = new DeliveryTargetBatch(
+            new DeliveryTarget(DeliveryTargetKind.RemoteDomain, "remote:example.net", "example.net"),
+            message.Recipients);
+        var smtpResult = RemoteSmtpSendResult.Failure(
+            "451 user2 temporarily deferred",
+            failureKind: DeliveryFailureKind.Transient,
+            tryNextEndpoint: false,
+            recipientResults:
+            [
+                new RemoteSmtpRecipientResult(0, null, null),
+                new RemoteSmtpRecipientResult(1, DeliveryFailureKind.Transient, "451 user2 temporarily deferred")
+            ]);
+        var dispatcher = new RemoteDeliveryTargetDispatcher(
+            new FakeEndpointResolver(new RemoteSmtpEndpoint("mx.example.net", 25, RemoteSmtpConnectionSecurity.None)),
+            new FakeContentSource("Subject: Test\r\n\r\nHello\r\n"u8.ToArray()),
+            new FakeRemoteSmtpClient(smtpResult),
+            new RemoteDeliveryOptions("mail.local.test", TimeSpan.FromMinutes(2)));
+
+        var result = await dispatcher.DispatchAsync(message, batch, CancellationToken.None);
+
+        Assert.IsFalse(result.Succeeded);
+        Assert.IsNotNull(result.RecipientResults);
+        CollectionAssert.AreEqual(
+            new long[] { 1, 2 },
+            result.RecipientResults.Select(static outcome => outcome.RecipientId).ToArray());
+        Assert.IsTrue(result.RecipientResults[0].Succeeded);
+        Assert.AreEqual(DeliveryFailureKind.Transient, result.RecipientResults[1].FailureKind);
+    }
+
+    [TestMethod]
     public async Task DispatchAsync_PassesRuleBindAddressToRemoteEndpoint()
     {
         var message = CreateMessage(ruleBindAddress: "192.0.2.25");

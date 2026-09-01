@@ -193,7 +193,10 @@ public sealed class SmtpRemoteDeliveryClientTests
             "250 first.example\r\n" +
             "250 sender ok\r\n" +
             "250 first recipient ok\r\n" +
-            "451 second recipient temporarily deferred\r\n");
+            "451 second recipient temporarily deferred\r\n" +
+            "354 go ahead\r\n" +
+            "250 queued\r\n" +
+            "221 bye\r\n");
         var second = CreateSuccessfulTransport();
         var factory = new FakeTransportFactory(first, second);
         var client = new SmtpRemoteDeliveryClient(factory);
@@ -213,6 +216,10 @@ public sealed class SmtpRemoteDeliveryClientTests
         Assert.AreEqual(DeliveryFailureKind.Transient, result.FailureKind);
         Assert.IsFalse(result.TryNextEndpoint);
         Assert.AreEqual(1, factory.Endpoints.Count);
+        Assert.IsNotNull(result.RecipientResults);
+        Assert.IsTrue(result.RecipientResults[0].Accepted);
+        Assert.AreEqual(DeliveryFailureKind.Transient, result.RecipientResults[1].FailureKind);
+        StringAssert.Contains(first.GetClientText(), "DATA\r\n");
     }
 
     [TestMethod]

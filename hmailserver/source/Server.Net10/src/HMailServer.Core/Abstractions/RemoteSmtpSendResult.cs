@@ -5,20 +5,30 @@ public sealed record RemoteSmtpSendResult(
     string? Error,
     TimeSpan? RetryDelay,
     DeliveryFailureKind? FailureKind,
-    bool TryNextEndpoint = true)
+    bool TryNextEndpoint = true,
+    IReadOnlyList<RemoteSmtpRecipientResult>? RecipientResults = null)
 {
-    public static RemoteSmtpSendResult Success() =>
-        new(Succeeded: true, Error: null, RetryDelay: null, FailureKind: null, TryNextEndpoint: true);
+    public static RemoteSmtpSendResult Success(
+        IReadOnlyList<RemoteSmtpRecipientResult>? recipientResults = null) =>
+        new(
+            Succeeded: true,
+            Error: null,
+            RetryDelay: null,
+            FailureKind: null,
+            TryNextEndpoint: true,
+            RecipientResults: recipientResults);
 
     public static RemoteSmtpSendResult Failure(
         string error,
         TimeSpan? retryDelay = null,
         DeliveryFailureKind failureKind = DeliveryFailureKind.Transient,
-        bool tryNextEndpoint = true) =>
+        bool tryNextEndpoint = true,
+        IReadOnlyList<RemoteSmtpRecipientResult>? recipientResults = null) =>
         new(
             Succeeded: false,
             Error: error,
             RetryDelay: retryDelay,
             FailureKind: failureKind,
-            TryNextEndpoint: tryNextEndpoint);
+            TryNextEndpoint: tryNextEndpoint,
+            RecipientResults: recipientResults);
 }

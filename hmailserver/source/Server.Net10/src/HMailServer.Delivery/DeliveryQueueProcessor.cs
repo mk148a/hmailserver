@@ -251,6 +251,23 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
             foreach (var targetBatch in targetBatches)
             {
                 var result = await _targetDispatcher.DispatchAsync(message, targetBatch, cancellationToken).ConfigureAwait(false);
+                if (result.RecipientResults is not null)
+                {
+                    var recipientProcessing = await ProcessRecipientResultsAsync(
+                        message,
+                        targetBatch,
+                        result,
+                        options,
+                        cancellationToken).ConfigureAwait(false);
+                    message = recipientProcessing.Message;
+                    if (recipientProcessing.Deferred)
+                    {
+                        return;
+                    }
+
+                    continue;
+                }
+
                 if (result.Succeeded)
                 {
                     await DeleteRecipientsAsync(
@@ -378,6 +395,136 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
                 retryDelay: options.RetryDelay,
                 description: exception.Message).ConfigureAwait(false);
         }
+    }
+
+    private async ValueTask<RecipientProcessingOutcome> ProcessRecipientResultsAsync(
+        DeliveryQueuedMessage message,
+        DeliveryTargetBatch targetBatch,
+        DeliveryTargetDispatchResult result,
+        DeliveryQueueProcessorOptions options,
+        CancellationToken cancellationToken)
+    {
+        var recipientResults = result.RecipientResults!;
+        var outcomesById = recipientResults.ToDictionary(static outcome => outcome.RecipientId);
+        var acceptedRecipients = targetBatch.Recipients
+            .Where(recipient => outcomesById[recipient.RecipientId].Succeeded)
+            .ToArray();
+        var permanentlyFailedRecipients = targetBatch.Recipients
+            .Where(recipient => outcomesById[recipient.RecipientId].FailureKind == DeliveryFailureKind.Permanent)
+            .ToArray();
+        var transientRecipients = targetBatch.Recipients
+            .Where(recipient => outcomesById[recipient.RecipientId].FailureKind == DeliveryFailureKind.Transient)
+            .ToArray();
+
+        await DeleteRecipientsAsync(
+            message,
+            options.LeaseOwner,
+            acceptedRecipients,
+            cancellationToken).ConfigureAwait(false);
+
+        var exhaustedTransientRecipients = message.CurrentRetryCount >= options.MaxRetries
+            ? transientRecipients
+            : [];
+        var recipientsToBounce = permanentlyFailedRecipients
+            .Concat(exhaustedTransientRecipients)
+            .ToArray();
+        if (recipientsToBounce.Length > 0)
+        {
+            var failedBatch = new DeliveryTargetBatch(targetBatch.Target, recipientsToBounce);
+            var failureDescription = recipientsToBounce
+                .Select(recipient => outcomesById[recipient.RecipientId].Error)
+                .FirstOrDefault(static error => !string.IsNullOrWhiteSpace(error))
+                ?? result.Error
+                ?? "Delivery failed.";
+            message = await RunDeliveryFailedEventsAsync(
+                message,
+                recipientsToBounce,
+                failureDescription,
+                options.LeaseOwner,
+                cancellationToken).ConfigureAwait(false);
+            await RecordStatusAsync(
+                DeliveryQueueStatusEventKind.TargetDeliveryFailedPermanently,
+                message.Identity,
+                options,
+                cancellationToken,
+                failedBatch,
+                message,
+                failureKind: permanentlyFailedRecipients.Length > 0
+                    ? DeliveryFailureKind.Permanent
+                    : DeliveryFailureKind.Transient,
+                description: failureDescription).ConfigureAwait(false);
+            var bounceResult = await _bounceStore.SubmitBounceAsync(
+                message,
+                recipientsToBounce,
+                failureDescription,
+                cancellationToken).ConfigureAwait(false);
+            await RecordStatusAsync(
+                bounceResult.Submitted
+                    ? DeliveryQueueStatusEventKind.BounceSubmitted
+                    : DeliveryQueueStatusEventKind.BounceSkipped,
+                message.Identity,
+                options,
+                cancellationToken,
+                failedBatch,
+                message,
+                failureKind: permanentlyFailedRecipients.Length > 0
+                    ? DeliveryFailureKind.Permanent
+                    : DeliveryFailureKind.Transient,
+                description: bounceResult.Reason ?? failureDescription).ConfigureAwait(false);
+            await DeleteRecipientsAsync(
+                message,
+                options.LeaseOwner,
+                recipientsToBounce,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var remainingTransientRecipients = transientRecipients
+            .Except(exhaustedTransientRecipients)
+            .ToArray();
+        if (remainingTransientRecipients.Length == 0)
+        {
+            if (recipientsToBounce.Length == 0)
+            {
+                await RecordStatusAsync(
+                    DeliveryQueueStatusEventKind.TargetDeliverySucceeded,
+                    message.Identity,
+                    options,
+                    cancellationToken,
+                    targetBatch,
+                    message).ConfigureAwait(false);
+            }
+
+            return RecipientProcessingOutcome.Continue(message);
+        }
+
+        var retryDelay = result.RetryDelay ?? CalculateRetryDelay(message.CurrentRetryCount, options);
+        var transientBatch = new DeliveryTargetBatch(targetBatch.Target, remainingTransientRecipients);
+        await _leaseStore.DeferAsync(
+            message.Identity.MessageId,
+            options.LeaseOwner,
+            retryDelay,
+            incrementRetryCount: true,
+            cancellationToken).ConfigureAwait(false);
+        await RecordStatusAsync(
+            DeliveryQueueStatusEventKind.TargetDeliveryDeferred,
+            message.Identity,
+            options,
+            cancellationToken,
+            transientBatch,
+            message,
+            retryDelay,
+            DeliveryFailureKind.Transient,
+            result.Error).ConfigureAwait(false);
+        await RecordStatusAsync(
+            DeliveryQueueStatusEventKind.MessageDeferred,
+            message.Identity,
+            options,
+            cancellationToken,
+            message: message,
+            retryDelay: retryDelay,
+            failureKind: DeliveryFailureKind.Transient,
+            description: result.Error).ConfigureAwait(false);
+        return RecipientProcessingOutcome.Defer(message);
     }
 
     private async ValueTask<DeliveryEventOutcome> RunMessageDeliveryEventAsync(
@@ -589,7 +736,20 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
         DeliveryTargetBatch targetBatch,
         CancellationToken cancellationToken)
     {
-        var recipientIds = targetBatch.Recipients.Select(static recipient => recipient.RecipientId).ToArray();
+        await DeleteRecipientsAsync(
+            message,
+            leaseOwner,
+            targetBatch.Recipients,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask DeleteRecipientsAsync(
+        DeliveryQueuedMessage message,
+        string leaseOwner,
+        IReadOnlyList<DeliveryQueueRecipient> recipients,
+        CancellationToken cancellationToken)
+    {
+        var recipientIds = recipients.Select(static recipient => recipient.RecipientId).ToArray();
         if (recipientIds.Length == 0)
         {
             return;
@@ -702,5 +862,16 @@ public sealed class DeliveryQueueProcessor : IDeliveryQueueBatchProcessor
             DeliveryQueuedMessage message,
             string error) =>
             new(Succeeded: false, message, DropMessage: false, error);
+    }
+
+    private sealed record RecipientProcessingOutcome(
+        DeliveryQueuedMessage Message,
+        bool Deferred)
+    {
+        public static RecipientProcessingOutcome Continue(DeliveryQueuedMessage message) =>
+            new(message, Deferred: false);
+
+        public static RecipientProcessingOutcome Defer(DeliveryQueuedMessage message) =>
+            new(message, Deferred: true);
     }
 }

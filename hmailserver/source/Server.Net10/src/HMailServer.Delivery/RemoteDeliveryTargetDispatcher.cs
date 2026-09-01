@@ -74,12 +74,48 @@ public sealed class RemoteDeliveryTargetDispatcher : IDeliveryTargetDispatcher
                 messageData),
             cancellationToken).ConfigureAwait(false);
 
+        if (result.RecipientResults is null)
+        {
+            return result.Succeeded
+                ? DeliveryTargetDispatchResult.Success()
+                : result.FailureKind == DeliveryFailureKind.Permanent
+                    ? DeliveryTargetDispatchResult.PermanentFailure(result.Error ?? "Remote SMTP delivery failed.")
+                    : DeliveryTargetDispatchResult.TransientFailure(
+                        result.Error ?? "Remote SMTP delivery failed.",
+                        result.RetryDelay ?? _options.RetryDelay);
+        }
+
+        if (result.RecipientResults.Count != targetBatch.Recipients.Count
+            || result.RecipientResults.Select(static outcome => outcome.RecipientIndex).Distinct().Count()
+                != targetBatch.Recipients.Count
+            || result.RecipientResults.Any(outcome =>
+                outcome.RecipientIndex < 0 || outcome.RecipientIndex >= targetBatch.Recipients.Count))
+        {
+            return DeliveryTargetDispatchResult.TransientFailure(
+                "Remote SMTP returned an invalid recipient outcome set.",
+                _options.RetryDelay);
+        }
+
+        var recipientResults = result.RecipientResults
+            .Select(outcome =>
+            {
+                var recipient = targetBatch.Recipients[outcome.RecipientIndex];
+                return new DeliveryRecipientDispatchResult(
+                    recipient.RecipientId,
+                    outcome.FailureKind,
+                    outcome.Error);
+            })
+            .ToArray();
+
         return result.Succeeded
-            ? DeliveryTargetDispatchResult.Success()
+            ? DeliveryTargetDispatchResult.Success(recipientResults)
             : result.FailureKind == DeliveryFailureKind.Permanent
-                ? DeliveryTargetDispatchResult.PermanentFailure(result.Error ?? "Remote SMTP delivery failed.")
+                ? DeliveryTargetDispatchResult.PermanentFailure(
+                    result.Error ?? "Remote SMTP delivery failed.",
+                    recipientResults)
                 : DeliveryTargetDispatchResult.TransientFailure(
                     result.Error ?? "Remote SMTP delivery failed.",
-                    result.RetryDelay ?? _options.RetryDelay);
+                    result.RetryDelay ?? _options.RetryDelay,
+                    recipientResults);
     }
 }
