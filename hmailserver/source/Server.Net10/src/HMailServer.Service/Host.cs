@@ -635,6 +635,12 @@ public static class Host
         });
     builder.Services.AddSingleton(serviceProvider => smtpSessionOptions with
     {
+        AllowSmtpAuthPlainProvider = async cancellationToken =>
+            (await serviceProvider
+                .GetRequiredService<ISettingsAdministrationStore>()
+                .GetSettingsAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .AllowSmtpAuthPlain,
         EtrnRouteProvider = cancellationToken =>
             serviceProvider
                 .GetRequiredService<IRouteAdministrationStore>()

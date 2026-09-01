@@ -18,6 +18,10 @@ public sealed record SmtpSessionOptions
 
     public bool RequireTlsForAuthentication { get; init; }
 
+    public bool AllowSmtpAuthPlain { get; init; } = true;
+
+    public Func<CancellationToken, ValueTask<bool>>? AllowSmtpAuthPlainProvider { get; init; }
+
     public bool DisconnectInvalidClients { get; init; }
 
     public int MaximumIncorrectCommands { get; init; } = 100;

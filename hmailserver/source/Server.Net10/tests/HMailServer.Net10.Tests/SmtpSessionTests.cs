@@ -623,6 +623,29 @@ public sealed class SmtpSessionTests
     }
 
     [TestMethod]
+    public async Task RunAsync_DisabledAuthPlainOmitsPlainButKeepsLoginAndRejectsBeforeAuthentication()
+    {
+        await using var stream = new DuplexMemoryStream(
+            "EHLO client.example\r\nAUTH PLAIN not-base64\r\nNOOP\r\nQUIT\r\n");
+        var authenticator = new CountingAccountAuthenticator();
+        var autoBanRecorder = new CapturingAutoBanRecorder(disconnect: false);
+        var session = new SmtpSession(
+            new SmtpSessionOptions { AllowSmtpAuthPlain = false },
+            accountAuthenticator: authenticator,
+            autoBanLogonFailureRecorder: autoBanRecorder);
+
+        await session.RunAsync(stream, CancellationToken.None);
+
+        var output = stream.GetOutputText();
+        StringAssert.Contains(output, "250-AUTH LOGIN\r\n");
+        Assert.IsFalse(output.Contains("250-AUTH PLAIN LOGIN\r\n", StringComparison.Ordinal));
+        StringAssert.Contains(output, "504 Unrecognized authentication type\r\n");
+        Assert.AreEqual(0, authenticator.AuthenticateCount);
+        Assert.AreEqual(0, autoBanRecorder.Failures.Count);
+        StringAssert.Contains(output, "250 OK\r\n");
+    }
+
+    [TestMethod]
     public async Task RunAsync_UsesInjectedBoundaryWithSmtpCallerAndRemoteAddress()
     {
         var authToken = EncodeAuthPlain("user@example.test", "secret");
@@ -1072,6 +1095,20 @@ public sealed class SmtpSessionTests
                             LocalAccountId: 0,
                             IsLocal: false))
                     : SmtpRecipientValidationResult.Reject("550 Relay not permitted"));
+        }
+    }
+
+    private sealed class CountingAccountAuthenticator : IImapAccountAuthenticator
+    {
+        public int AuthenticateCount { get; private set; }
+
+        public ValueTask<ImapAuthenticationResult> AuthenticateAsync(
+            string username,
+            string password,
+            CancellationToken cancellationToken)
+        {
+            AuthenticateCount++;
+            return ValueTask.FromResult(ImapAuthenticationResult.Failure("Unexpected authentication call."));
         }
     }
 

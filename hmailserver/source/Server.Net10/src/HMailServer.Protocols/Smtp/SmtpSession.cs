@@ -235,7 +235,7 @@ public sealed class SmtpSession
 
                 await WriteAsync(
                     stream,
-                    FormatEhloResponse(state, startTlsStreamProvider),
+                    await FormatEhloResponseAsync(state, startTlsStreamProvider, cancellationToken).ConfigureAwait(false),
                     cancellationToken).ConfigureAwait(false);
                 return SmtpDispatchResult.Continue;
 
@@ -604,12 +604,6 @@ public sealed class SmtpSession
             return;
         }
 
-        if (_accountAuthenticator is null)
-        {
-            await WriteAsync(stream, "454 Temporary authentication failure\r\n", cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
         var authParts = arguments.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (authParts.Length == 0)
         {
@@ -618,6 +612,18 @@ public sealed class SmtpSession
         }
 
         var mechanism = authParts[0].ToUpperInvariant();
+        if (mechanism == "PLAIN" && !await IsSmtpAuthPlainAllowedAsync(cancellationToken).ConfigureAwait(false))
+        {
+            await WriteSmtpResponseAsync(stream, state, "504 Unrecognized authentication type", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (_accountAuthenticator is null)
+        {
+            await WriteAsync(stream, "454 Temporary authentication failure\r\n", cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         switch (mechanism)
         {
             case "PLAIN":
@@ -1075,9 +1081,10 @@ public sealed class SmtpSession
         }
     }
 
-    private string FormatEhloResponse(
+    private async ValueTask<string> FormatEhloResponseAsync(
         SessionState state,
-        ISmtpStartTlsStreamProvider? startTlsStreamProvider)
+        ISmtpStartTlsStreamProvider? startTlsStreamProvider,
+        CancellationToken cancellationToken)
     {
         var builder = new StringBuilder();
         builder.Append("250-").Append(SanitizeResponseText(_options.ServerName)).Append("\r\n");
@@ -1093,12 +1100,22 @@ public sealed class SmtpSession
 
         if (_accountAuthenticator is not null && IsAuthenticationAllowed(state))
         {
-            builder.Append("250-AUTH PLAIN LOGIN\r\n");
+            builder.Append("250-AUTH ");
+            if (await IsSmtpAuthPlainAllowedAsync(cancellationToken).ConfigureAwait(false))
+            {
+                builder.Append("PLAIN ");
+            }
+
+            builder.Append("LOGIN\r\n");
         }
 
         builder.Append("250 HELP\r\n");
         return builder.ToString();
     }
+
+    private ValueTask<bool> IsSmtpAuthPlainAllowedAsync(CancellationToken cancellationToken) =>
+        _options.AllowSmtpAuthPlainProvider?.Invoke(cancellationToken)
+        ?? ValueTask.FromResult(_options.AllowSmtpAuthPlain);
 
     private bool IsAuthenticationAllowed(SessionState state) =>
         state.IsSecureConnection || !_options.RequireTlsForAuthentication;
