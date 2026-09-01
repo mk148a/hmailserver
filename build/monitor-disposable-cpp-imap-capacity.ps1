@@ -9,6 +9,8 @@ param(
     [int]$TimeoutMilliseconds = 5000,
     [ValidateRange(0, 300)]
     [int]$WarmupSeconds = 5,
+    [ValidateRange(0, 1000)]
+    [int]$LaunchStaggerMilliseconds = 0,
     [ValidateRange(50, 5000)]
     [int]$SampleIntervalMilliseconds = 100,
     [string]$OutputDirectory = ""
@@ -114,6 +116,7 @@ function Write-MonitorArtifacts {
         "- Database: $($Report.database)",
         "- Profile/concurrency: $($Report.profile) / $($Report.concurrency)",
         "- Sample interval: $($Report.sampleIntervalMilliseconds) ms",
+        "- Launch stagger: $($Report.launchStaggerMilliseconds) ms",
         "- Samples: $($Report.samples.Count)",
         "- Wrapper exit code: $($Report.wrapperExitCode)",
         "- Workload report: $($Report.workloadReportPath)",
@@ -157,8 +160,8 @@ $wrapperArguments = @(
     "-OutputDirectory", $wrapperOutput,
     "-Workload", "concurrent-imap", "-Profile", $Profile,
     "-Concurrency", $Concurrency, "-Waves", 1,
-    "-TimeoutMilliseconds", $TimeoutMilliseconds, "-WarmupSeconds", $WarmupSeconds,
-    "-PostWorkloadSettleSeconds", 1, "-LaunchStaggerMilliseconds", 0,
+        "-TimeoutMilliseconds", $TimeoutMilliseconds, "-WarmupSeconds", $WarmupSeconds,
+    "-PostWorkloadSettleSeconds", 1, "-LaunchStaggerMilliseconds", $LaunchStaggerMilliseconds,
     "-CorpusMessageCount", [int]$fixture.expectedMessageFingerprint.rowCount,
     "-ServiceName", ("hMailServerPerfMonitor{0}" -f (Get-Random -Minimum 10000 -Maximum 99999))
 )
@@ -229,6 +232,7 @@ $report = [ordered]@{
     concurrency = $Concurrency
     timeoutMilliseconds = $TimeoutMilliseconds
     warmupSeconds = $WarmupSeconds
+    launchStaggerMilliseconds = $LaunchStaggerMilliseconds
     sampleIntervalMilliseconds = $SampleIntervalMilliseconds
     wrapperExitCode = $process.ExitCode
     wrapperOutputDirectory = [IO.Path]::GetFullPath($wrapperOutput)
