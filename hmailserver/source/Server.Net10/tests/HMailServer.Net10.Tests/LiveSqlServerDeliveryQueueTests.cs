@@ -405,6 +405,172 @@ public sealed class LiveSqlServerDeliveryQueueTests
         }
     }
 
+    [TestMethod]
+    public async Task DisposableDeliveryQueueRealTcp451MixedRecipientsThen250CompletesMessage()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DELIVERY_DIAGNOSTIC"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            Assert.Inconclusive("Set HMAILSERVER_NET10_LIVE_SQL_DELIVERY_DIAGNOSTIC=1 to run the disposable mixed-recipient TCP 451 recovery diagnostic.");
+        }
+
+        var connectionString = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_CONNECTION");
+        var dataRoot = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(dataRoot))
+        {
+            Assert.Inconclusive("HMAILSERVER_NET10_LIVE_SQL_CONNECTION and HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT are required for the isolated mixed-recipient SQL fixture.");
+        }
+
+        var isolatedDataRoot = ValidateDisposableDataRoot(dataRoot);
+        var parsedConnectionString = new SqlConnectionStringBuilder(connectionString);
+        if (!IsDisposableDatabaseName(parsedConnectionString.InitialCatalog))
+        {
+            Assert.Fail("The live delivery diagnostic accepts only a parsed hmail_perf_* database and a canonical C:\\hmail-perf-* Data root.");
+        }
+
+        if (!Directory.Exists(isolatedDataRoot))
+        {
+            Assert.Inconclusive("The isolated SQL/Data prerequisite is unavailable because the disposable Data root does not exist: " + isolatedDataRoot);
+        }
+
+        await EnsureDisposableSqlAvailableAsync(connectionString);
+
+        var marker = "live-delivery-tcp-451-mixed-" + Guid.NewGuid().ToString("N");
+        var fromAddress = marker + "@perf.test";
+        const string acceptedAddress = "accepted@retry.test";
+        const string transientAddress = "transient@retry.test";
+        var pathResolver = new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(isolatedDataRoot));
+        var connectionFactory = new SqlServerConnectionFactory(connectionString);
+        var queueWriter = new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
+        var messageData = Encoding.ASCII.GetBytes(
+            "From: " + fromAddress + "\r\nTo: " + acceptedAddress + ", " + transientAddress + "\r\nSubject: tcp 451 mixed recipients\r\n\r\nmixed recipient recovery body\r\n");
+
+        try
+        {
+            await queueWriter.EnqueueAsync(
+                new SmtpQueueWriteRequest(
+                    fromAddress,
+                    [
+                        new SmtpResolvedRecipient(acceptedAddress, acceptedAddress, 0, false),
+                        new SmtpResolvedRecipient(transientAddress, transientAddress, 0, false)
+                    ],
+                    messageData,
+                    DateTimeOffset.UtcNow),
+                CancellationToken.None);
+
+            var storedFileName = await ReadMessageFileNameAsync(connectionString, fromAddress);
+            var messageFilePath = pathResolver.Resolve(storedFileName, accountId: 0, folderId: 0, accountAddress: null);
+            if (messageFilePath is null)
+            {
+                Assert.Fail("The queued mixed-recipient message filename did not resolve under the disposable Data root.");
+            }
+
+            Assert.IsTrue(File.Exists(messageFilePath));
+
+            await using var sink = await StatefulSmtpRecoverySink.StartAsync(mixedRecipients: true);
+            var endpoint = new RemoteSmtpEndpoint(
+                "loopback-mixed-recovery.invalid",
+                sink.Port,
+                RemoteSmtpConnectionSecurity.None,
+                ConnectionAddress: IPAddress.Loopback.ToString(),
+                EnforceLocalEndpointGuard: false);
+            var dispatcher = new RemoteDeliveryTargetDispatcher(
+                new FixedEndpointResolver(endpoint),
+                new DeliveryMessageContentSource(pathResolver),
+                new SmtpRemoteDeliveryClient(new TcpRemoteSmtpTransportFactory()),
+                new RemoteDeliveryOptions("mail.local.test", TimeSpan.FromSeconds(5)));
+            var statusObserver = new RecordingStatusObserver();
+            var processor = new DeliveryQueueProcessor(
+                new SqlServerDeliveryQueueLeaseStore(connectionFactory),
+                new SqlServerDeliveryQueueMessageStore(connectionFactory),
+                new FixedRetryTargetResolver(),
+                dispatcher,
+                new SqlServerDeliveryQueueRecipientStore(connectionFactory),
+                new NoopBounceStore(),
+                messageContentStore: new DeliveryMessageContentSource(pathResolver),
+                statusObserver: statusObserver);
+            var options = new DeliveryQueueProcessorOptions(
+                LeaseOwner: "live-delivery-tcp-451-mixed-" + Guid.NewGuid().ToString("N"),
+                BatchSize: 1,
+                LeaseDuration: TimeSpan.FromMinutes(2),
+                RetryDelay: TimeSpan.FromSeconds(5),
+                MaxRetries: 4,
+                MaxRetryDelay: TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(1, await processor.RunBatchAsync(options, CancellationToken.None));
+            await sink.FirstAttemptCompletion.WaitAsync(TimeSpan.FromSeconds(5));
+            var retryEvidence = await ReadRetryEvidenceAsync(connectionString, fromAddress);
+            var remainingRecipients = await ReadRecipientAddressesAsync(connectionString, fromAddress);
+
+            Assert.IsTrue(sink.SawFirstRecipientAccepted);
+            Assert.IsTrue(sink.Saw451ResponseSent);
+            Assert.IsTrue(sink.SawDataBeforeRecovery);
+            Assert.AreEqual(2, sink.FirstAttemptRecipientCount);
+            Assert.AreEqual(1, retryEvidence.QueuedCount);
+            Assert.AreEqual(1, retryEvidence.MessageType);
+            Assert.AreEqual(0, retryEvidence.Locked);
+            Assert.IsTrue(retryEvidence.LeaseOwnerIsNull);
+            Assert.AreEqual(1, retryEvidence.RetryCount);
+            Assert.IsTrue(retryEvidence.NextTryUtc > DateTime.UtcNow);
+            Assert.AreEqual(1, retryEvidence.RecipientCount);
+            CollectionAssert.AreEqual(new[] { transientAddress }, remainingRecipients);
+            Assert.IsTrue(statusObserver.Events.Any(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliveryDeferred));
+            Assert.IsTrue(statusObserver.Events.Any(static item => item.Kind == DeliveryQueueStatusEventKind.MessageDeferred));
+
+            var recovered = 0;
+            for (var attempt = 0; attempt < 40 && recovered == 0; attempt++)
+            {
+                await Task.Delay(250);
+                recovered = await processor.RunBatchAsync(options, CancellationToken.None);
+            }
+
+            Assert.AreEqual(1, recovered);
+            await sink.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+            var finalState = await ReadMessageStateAsync(connectionString, fromAddress);
+            Assert.AreEqual(0, finalState.QueuedCount);
+            Assert.AreEqual(0, finalState.DeliveredCount);
+            Assert.AreEqual(0, finalState.RecipientCount);
+            Assert.AreEqual(1, sink.RecoveryRecipientCount);
+            Assert.IsTrue(sink.SawRecoveryResponse);
+            Assert.IsTrue(sink.SawDataAfterRecovery);
+            Assert.IsTrue(statusObserver.Events.Any(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliverySucceeded));
+            Assert.IsFalse(File.Exists(messageFilePath));
+
+            await WriteTcp451MixedRecoveryReportIfRequestedAsync(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_TCP451_MIXED_RECOVERY_REPORT"),
+                parsedConnectionString.InitialCatalog,
+                isolatedDataRoot,
+                retryEvidence,
+                remainingRecipients,
+                finalState,
+                sink,
+                statusObserver);
+        }
+        finally
+        {
+            await CleanupMessagesAsync(connectionString, isolatedDataRoot, string.Empty, fromAddress, pathResolver);
+        }
+    }
+
+    private static async Task EnsureDisposableSqlAvailableAsync(string connectionString)
+    {
+        try
+        {
+            await using var connection = new SqlConnection(connectionString);
+            await connection.OpenAsync();
+        }
+        catch (SqlException exception)
+        {
+            Assert.Inconclusive("The isolated SQL prerequisite is unavailable: " + exception.Message);
+        }
+        catch (TimeoutException exception)
+        {
+            Assert.Inconclusive("The isolated SQL prerequisite timed out: " + exception.Message);
+        }
+    }
+
     private static async Task<string> ReadMessageFileNameAsync(string connectionString, string marker)
     {
         await using var connection = new SqlConnection(connectionString);
@@ -495,6 +661,24 @@ public sealed class LiveSqlServerDeliveryQueueTests
         await reader.NextResultAsync();
         await reader.ReadAsync();
         return evidence with { RecipientCount = Convert.ToInt64(reader.GetValue(0), System.Globalization.CultureInfo.InvariantCulture) };
+    }
+
+    private static async Task<string[]> ReadRecipientAddressesAsync(string connectionString, string marker)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new SqlCommand(
+            "SELECT r.recipientaddress FROM hm_messagerecipients r INNER JOIN hm_messages m ON m.messageid = r.recipientmessageid WHERE m.messagefrom = @MessageFrom ORDER BY r.recipientaddress;",
+            connection);
+        command.Parameters.AddWithValue("@MessageFrom", marker);
+        var addresses = new List<string>();
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            addresses.Add(reader.GetString(0));
+        }
+
+        return addresses.ToArray();
     }
 
     private static async Task CleanupMessagesAsync(
@@ -732,6 +916,77 @@ public sealed class LiveSqlServerDeliveryQueueTests
             $"# Net10 TCP 451 recovery\n\n- Result: `PASS`\n- SQL database: `{database}`\n- Data root: `{dataRoot}`\n- First attempt: `451`, queue=`{initialEvidence.QueuedCount}`, retry=`{initialEvidence.RetryCount}`, recipient=`{initialEvidence.RecipientCount}`, DATA before recovery=`{sink.SawDataBeforeRecovery}`\n- Recovery attempt: `250`, response observed=`{sink.SawRecoveryResponse}`, DATA observed=`{sink.SawDataAfterRecovery}`\n- Final state: queue=`{finalState.QueuedCount}`, recipients=`{finalState.RecipientCount}`, message file absent=`true`\n- Status events: deferred=`{deferredEvents}`, succeeded=`{report.succeededEvents}`\n\nThis is isolated Net10 retry-recovery evidence. It is not paired C++ evidence and does not clear the performance gate.\n\nJSON: `{fullPath}`\n");
     }
 
+    private static async Task WriteTcp451MixedRecoveryReportIfRequestedAsync(
+        string? outputPath,
+        string database,
+        string dataRoot,
+        RetryEvidence initialEvidence,
+        IReadOnlyList<string> remainingRecipients,
+        MessageState finalState,
+        StatefulSmtpRecoverySink sink,
+        RecordingStatusObserver statusObserver)
+    {
+        if (string.IsNullOrWhiteSpace(outputPath))
+        {
+            return;
+        }
+
+        var fullPath = Path.GetFullPath(outputPath);
+        var directory = Path.GetDirectoryName(fullPath);
+        if (string.IsNullOrWhiteSpace(directory))
+        {
+            throw new InvalidOperationException("The mixed TCP 451 report path must include a directory.");
+        }
+
+        Directory.CreateDirectory(directory);
+        var deferredEvents = statusObserver.Events.Count(static item => item.Kind is DeliveryQueueStatusEventKind.TargetDeliveryDeferred or DeliveryQueueStatusEventKind.MessageDeferred);
+        var report = new
+        {
+            schema = "net10-live-tcp-451-mixed-recovery-v1",
+            status = "PASS",
+            generatedUtc = DateTimeOffset.UtcNow,
+            database,
+            dataRoot,
+            mixedRecipients = true,
+            firstAttempt = new
+            {
+                smtpReply = 451,
+                acceptedRecipientAddress = "accepted@retry.test",
+                transientRecipientAddress = "transient@retry.test",
+                acceptedRecipientPresent = remainingRecipients.Contains("accepted@retry.test", StringComparer.OrdinalIgnoreCase),
+                transientRecipientPresent = remainingRecipients.Contains("transient@retry.test", StringComparer.OrdinalIgnoreCase),
+                initialEvidence.MessageType,
+                queuedCount = initialEvidence.QueuedCount,
+                initialEvidence.Locked,
+                initialEvidence.LeaseOwnerIsNull,
+                initialEvidence.RetryCount,
+                initialEvidence.NextTryUtc,
+                initialEvidence.RecipientCount,
+                sawFirstRecipientAccepted = sink.SawFirstRecipientAccepted,
+                saw451ResponseSent = sink.Saw451ResponseSent,
+                sawData = sink.SawDataBeforeRecovery
+            },
+            recoveryAttempt = new
+            {
+                smtpReply = 250,
+                recipientCount = sink.RecoveryRecipientCount,
+                sawRecoveryResponse = sink.SawRecoveryResponse,
+                sawData = sink.SawDataAfterRecovery
+            },
+            finalState,
+            deferredEvents,
+            succeededEvents = statusObserver.Events.Count(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliverySucceeded),
+            messageFileAbsent = true
+        };
+        await File.WriteAllTextAsync(fullPath, JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+        await File.WriteAllTextAsync(
+            Path.ChangeExtension(fullPath, ".csv"),
+            "status,first_smtp_reply,recovery_smtp_reply,initial_queued_count,initial_retry_count,initial_recipient_count,accepted_recipient_present,transient_recipient_present,final_queued_count,final_recipient_count,saw_data_before_recovery,saw_data_after_recovery\nPASS,451,250," + initialEvidence.QueuedCount + "," + initialEvidence.RetryCount + "," + initialEvidence.RecipientCount + "," + report.firstAttempt.acceptedRecipientPresent + "," + report.firstAttempt.transientRecipientPresent + "," + finalState.QueuedCount + "," + finalState.RecipientCount + "," + sink.SawDataBeforeRecovery + "," + sink.SawDataAfterRecovery + "\n");
+        await File.WriteAllTextAsync(
+            Path.ChangeExtension(fullPath, ".md"),
+            $"# Net10 TCP 451 mixed-recipient recovery\n\n- Result: `PASS`\n- SQL database: `{database}`\n- Data root: `{dataRoot}`\n- First attempt: accepted RCPT `250`, transient RCPT `451`, DATA observed=`{sink.SawDataBeforeRecovery}`\n- Initial state: queue=`{initialEvidence.QueuedCount}`, retry=`{initialEvidence.RetryCount}`, recipients=`{initialEvidence.RecipientCount}`, accepted recipient present=`{report.firstAttempt.acceptedRecipientPresent}`, transient recipient present=`{report.firstAttempt.transientRecipientPresent}`\n- Recovery attempt: `250`, response observed=`{sink.SawRecoveryResponse}`, DATA observed=`{sink.SawDataAfterRecovery}`\n- Final state: queue=`{finalState.QueuedCount}`, recipients=`{finalState.RecipientCount}`, message file absent=`true`\n- Status events: deferred=`{deferredEvents}`, succeeded=`{report.succeededEvents}`\n\nJSON: `{fullPath}`\n");
+    }
+
     private static double Percentile(double[] values, double percentile)
     {
         if (values.Length == 0) return 0;
@@ -896,12 +1151,14 @@ public sealed class LiveSqlServerDeliveryQueueTests
     {
         private readonly TcpListener _listener;
         private readonly Task _runTask;
+        private readonly bool _mixedRecipients;
         private readonly TaskCompletionSource<bool> _firstAttemptCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        private StatefulSmtpRecoverySink(TcpListener listener)
+        private StatefulSmtpRecoverySink(TcpListener listener, bool mixedRecipients)
         {
             _listener = listener;
+            _mixedRecipients = mixedRecipients;
             _runTask = RunAsync();
         }
 
@@ -913,17 +1170,23 @@ public sealed class LiveSqlServerDeliveryQueueTests
 
         public bool Saw451ResponseSent { get; private set; }
 
+        public bool SawFirstRecipientAccepted { get; private set; }
+
+        public int FirstAttemptRecipientCount { get; private set; }
+
+        public int RecoveryRecipientCount { get; private set; }
+
         public bool SawDataBeforeRecovery { get; private set; }
 
         public bool SawRecoveryResponse { get; private set; }
 
         public bool SawDataAfterRecovery { get; private set; }
 
-        public static ValueTask<StatefulSmtpRecoverySink> StartAsync()
+        public static ValueTask<StatefulSmtpRecoverySink> StartAsync(bool mixedRecipients = false)
         {
             var listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
-            return ValueTask.FromResult(new StatefulSmtpRecoverySink(listener));
+            return ValueTask.FromResult(new StatefulSmtpRecoverySink(listener, mixedRecipients));
         }
 
         public async ValueTask DisposeAsync()
@@ -973,15 +1236,46 @@ public sealed class LiveSqlServerDeliveryQueueTests
                 throw new InvalidOperationException("Recovery sink did not receive RCPT TO on the first attempt.");
             }
 
+            FirstAttemptRecipientCount = 1;
+            if (!_mixedRecipients)
+            {
+                writer.WriteLine("451 temporary recipient failure");
+                Saw451ResponseSent = true;
+                while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+                {
+                    if (line.Equals("DATA", StringComparison.OrdinalIgnoreCase))
+                    {
+                        SawDataBeforeRecovery = true;
+                    }
+                }
+
+                return;
+            }
+
+            writer.WriteLine("250 recipient accepted");
+            SawFirstRecipientAccepted = true;
+            recipient = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (recipient is null || !recipient.StartsWith("RCPT TO:", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Mixed recovery sink did not receive the second RCPT TO on the first attempt.");
+            }
+
+            FirstAttemptRecipientCount = 2;
             writer.WriteLine("451 temporary recipient failure");
             Saw451ResponseSent = true;
-            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+            var dataCommand = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (!string.Equals(dataCommand, "DATA", StringComparison.OrdinalIgnoreCase))
             {
-                if (line.Equals("DATA", StringComparison.OrdinalIgnoreCase))
-                {
-                    SawDataBeforeRecovery = true;
-                }
+                throw new InvalidOperationException("Mixed recovery sink did not receive DATA after one accepted RCPT.");
             }
+
+            SawDataBeforeRecovery = true;
+            writer.WriteLine("354 start mail input");
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } dataLine && dataLine != ".")
+            {
+            }
+
+            writer.WriteLine("250 message accepted");
         }
 
         private async Task RunRecoveryAttemptAsync()
@@ -1003,6 +1297,7 @@ public sealed class LiveSqlServerDeliveryQueueTests
                 throw new InvalidOperationException("Recovery sink did not receive RCPT TO on the second attempt.");
             }
 
+            RecoveryRecipientCount++;
             writer.WriteLine("250 recipient accepted");
             SawRecoveryResponse = true;
             var dataCommand = await reader.ReadLineAsync().ConfigureAwait(false);
