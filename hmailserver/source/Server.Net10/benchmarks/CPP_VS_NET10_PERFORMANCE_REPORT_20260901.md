@@ -157,27 +157,30 @@ process observations over roughly five minutes of workload, not proof of a
 correctness and near-equal throughput under this controlled ramp. They do not
 establish a universal latency winner.
 
-## Paired POP3 large-mailbox acceptance
+## Paired POP3 large-mailbox acceptance (25 iterations)
 
 The same clean manifest-bound fixture was exercised through loopback POP3
-`127.0.0.1:25110` for five iterations per implementation. Each iteration
-reported exactly 1,000 messages from `STAT`, `LIST`, and `UIDL`; the runs had
-zero errors and clean shutdowns.
+`127.0.0.1:25110` for 25 iterations per implementation. Each iteration
+reported exactly 1,000 messages from `STAT`, `LIST`, and `UIDL`; both runs had
+zero errors, zero readiness/shutdown failures, and clean disposable-service
+cleanup.
 
 | Implementation | Result | Total p50 ms | Total p95 ms | Total p99 ms | LIST p50 ms | UIDL p50 ms | RETR p50 ms |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Legacy C++ | 5/5 PASS | 69.770 | 147.543 | 157.741 | 18.402 | 17.144 | 0.899 |
-| .NET 10 | 5/5 PASS | 68.958 | 171.199 | 187.461 | 16.534 | 17.109 | 1.470 |
+| Legacy C++ | 25/25 PASS | 52.592 | 82.854 | 133.083 | 15.086 | 14.974 | 0.643 |
+| .NET 10 | 25/25 PASS | 58.438 | 87.396 | 145.412 | 16.036 | 16.378 | 1.433 |
 
-This is bounded POP3 parity evidence. It does not establish 24-hour resource
-stability, larger mailbox behavior, or a general performance winner.
+This extends the bounded POP3 parity evidence from five to 25 repetitions.
+It still does not establish 24-hour resource stability, behavior beyond the
+1,000-message mailbox, or a general performance winner. Raw reports are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-pop3/`.
 
 ```mermaid
 xychart-beta
-    title "Paired POP3 total p95 latency (ms)"
+    title "Paired POP3 total p95 latency, 25 iterations (ms)"
     x-axis [C++, .NET10]
-    y-axis "Milliseconds" 0 --> 200
-    bar [147.543, 171.199]
+    y-axis "Milliseconds" 0 --> 100
+    bar [82.854, 87.396]
 ```
 
 ```mermaid

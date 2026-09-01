@@ -40,11 +40,12 @@ local-delivery plus retry-state persistence (`5.561/7.259/11.842 ms`
 p50/p95/p99; `77.057/s`). There is no supported equivalent C++ queue runner,
 so queue performance parity remains open.
 
-The paired POP3 large-mailbox cell on the same fixture also passed five
-iterations per target with `1000/1000` mailbox rows and zero errors. C++ total
-p50/p95/p99 were `69.770/147.543/157.741 ms`; Net10 was
-`68.958/171.199/187.461 ms`. This closes bounded POP3 parity only; larger
-mailbox and long-soak coverage remain open.
+The paired POP3 large-mailbox cell on the same fixture then passed 25
+iterations per target with `1000/1000` mailbox rows, zero errors, and clean
+cleanup. C++ total p50/p95/p99 were `52.592/82.854/133.083 ms`; Net10 was
+`58.438/87.396/145.412 ms`. This closes the bounded 1,000-message POP3
+parity cell with extended repeatability; larger-mailbox and long-soak coverage
+remain open.
 
 Code/test commits: `c59321e79` adds `-LaunchStaggerMilliseconds` to
 `build/monitor-disposable-cpp-imap-capacity.ps1`; `c6ed0d32e` fixes

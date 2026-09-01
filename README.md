@@ -24,10 +24,11 @@ The latest full Net10 Debug run is `2786 passed, 94 skipped, 7 failed / 2887`:
 five registered-COM `E_NOINTERFACE` failures remain, and two scanner tests are
 blocked by endpoint protection denying access to temporary `.eml` files.
 
-The same fixture also passed five POP3 large-mailbox iterations on both sides
+The same fixture also passed 25 POP3 large-mailbox iterations on both sides
 with a `1000/1000` mailbox and zero errors. Total p50/p95/p99 was
-`69.770/147.543/157.741 ms` for C++ and `68.958/171.199/187.461 ms` for
-Net10. This closes the bounded POP3 parity cell; long POP3 soak remains open.
+`52.592/82.854/133.083 ms` for C++ and `58.438/87.396/145.412 ms` for
+Net10. This closes the bounded 1,000-message POP3 parity cell with extended
+repeatability; larger mailboxes and long POP3 soak remain open.
 
 ## Current authoritative status (2026-09-01, paired performance gate)
 

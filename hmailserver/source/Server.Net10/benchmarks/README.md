@@ -1,17 +1,18 @@
 # .NET 10 Benchmark Pack
 
-## Current paired POP3 large-mailbox parity (2026-09-01, 5 iterations)
+## Current paired POP3 large-mailbox parity (2026-09-01, 25 iterations)
 
 On the same manifest-bound 1,000-message SQL/Data fixture and loopback POP3
-endpoint, both disposable targets passed five iterations with `1000/1000`
+endpoint, both disposable targets passed 25 iterations with `1000/1000`
 mailbox rows and zero errors:
 
 | Implementation | Result | Total p50 ms | Total p95 ms | Total p99 ms | LIST p50 ms | UIDL p50 ms | RETR p50 ms |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Legacy C++ | 5/5 PASS | 69.770 | 147.543 | 157.741 | 18.402 | 17.144 | 0.899 |
-| .NET 10 | 5/5 PASS | 68.958 | 171.199 | 187.461 | 16.534 | 17.109 | 1.470 |
+| Legacy C++ | 25/25 PASS | 52.592 | 82.854 | 133.083 | 15.086 | 14.974 | 0.643 |
+| .NET 10 | 25/25 PASS | 58.438 | 87.396 | 145.412 | 16.036 | 16.378 | 1.433 |
 
-This closes the bounded POP3 parity cell, not a long mailbox or 24-hour soak.
+This closes the bounded 1,000-message POP3 parity cell with extended
+repeatability, not a larger-mailbox or 24-hour soak.
 The raw reports are under
 `artifacts/benchmarks/paired-cpp-net10-20260901-pop3/`; no general winner is
 claimed.

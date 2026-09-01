@@ -62,10 +62,11 @@ validated local-delivery and retry-state evidence (`5.561/7.259/11.842 ms`
 p50/p95/p99; `77.057/s`). No equivalent C++ queue throughput runner exists,
 so it is not a parity result.
 
-The same fixture now also passes five POP3 large-mailbox iterations on both
-targets with `1000/1000` mailbox rows and zero errors. Total p95 was
-`147.543 ms` for C++ and `171.199 ms` for Net10. Bounded POP3 parity is closed;
-larger-mailbox and 24-hour POP3 soak evidence remain open.
+The same fixture now also passes 25 POP3 large-mailbox iterations on both
+targets with `1000/1000` mailbox rows, zero errors, and clean cleanup. Total
+p95 was `82.854 ms` for C++ and `87.396 ms` for Net10. The bounded
+1,000-message POP3 parity cell is closed with extended repeatability; larger
+mailbox and 24-hour POP3 soak evidence remain open.
 
 A paired controlled 500-session Full run (50 ms stagger, 15-second timeout)
 passed `500/500` on both sides with throughput `19.853/s` C++ and `19.857/s`
