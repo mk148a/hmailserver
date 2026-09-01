@@ -9804,3 +9804,22 @@ COM `E_NOINTERFACE` checks. Release remains **RED**.
 Next slice: disposable installer/service/Data rollback preflight and rollback
 evidence, preserving production service/SQL/Data, installed COM/DCOM, IIS,
 firewall, and unrelated dirty artifacts.
+
+## Current authoritative continuation (2026-09-01, installer rollback preflight)
+
+Code/test commit `c3a849283` adds
+`build/test-net10-installer-rollback-preflight.ps1`. The safe archive/source
+preflight passed and produced JSON/CSV/Markdown evidence under
+`artifacts/migration/installer-rollback-preflight-current/`. It observed no
+`hMailServer` service before or after the run and performed no service,
+registry, COM, DCOM, SQL, or Data-directory mutation.
+
+The actual installer/service/Data rollback drill remains
+**ENVIRONMENT-BLOCKED**: this host has no disposable registered legacy
+service/COM baseline and no approved isolated SQL/Data clone for replacement
+and rollback. Full Net10 Debug remains `2773 passed, 93 skipped, 5 failed /
+2871`; the five failures remain registered local-server COM `E_NOINTERFACE`
+checks. Release remains **RED**.
+
+Next slice: registered COM/Admin compatibility evidence without changing
+installed registration or DCOM permissions.

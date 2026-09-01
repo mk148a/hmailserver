@@ -1,0 +1,18 @@
+﻿{
+    "schema":  "net10-installer-rollback-preflight-v1",
+    "status":  "ENVIRONMENT-BLOCKED",
+    "preflightStatus":  "PASS",
+    "actualInstallerDrillStatus":  "ENVIRONMENT-BLOCKED",
+    "startedUtc":  "2026-09-01T01:48:24.0978357+00:00",
+    "endedUtc":  "2026-09-01T01:48:28.2961171+00:00",
+    "durationSeconds":  4.1982814,
+    "preflightScript":  "build/test-net10-rollback-archive-preflight.ps1",
+    "preflightExitCode":  0,
+    "servicePresentBefore":  false,
+    "servicePresentAfter":  false,
+    "machineMutationPerformed":  false,
+    "productionTargetsUsed":  false,
+    "legacyRegisteredServiceComBaselineAvailable":  false,
+    "blockedReason":  "A disposable registered legacy hMailServer service/COM baseline and isolated SQL/Data clone are required before invoking installer or uninstaller mutation.",
+    "protectedOperations":  "No sc.exe create/config/delete, COM registration/unregistration, registry, DCOM, service start/stop, SQL, or Data-directory mutation was performed."
+}

@@ -1,0 +1,2 @@
+﻿status,preflight_status,actual_installer_drill_status,preflight_exit_code,service_present_before,service_present_after,machine_mutation_performed,production_targets_used
+ENVIRONMENT-BLOCKED,PASS,ENVIRONMENT-BLOCKED,0,False,False,False,False

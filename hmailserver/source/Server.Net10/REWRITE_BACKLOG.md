@@ -1,5 +1,5 @@
 
-## Current authoritative next slice (2026-09-01, disposable installer/service/Data rollback)
+## Current authoritative next slice (2026-09-01, registered COM/Admin evidence)
 
 The isolated backup -> restore -> backup round-trip fixture is complete. The
 real runtime passed `25/25` opt-in tests with zero failures against localhost
@@ -13,9 +13,14 @@ semantic equivalence against a real restored server, installer rollback, and
 service/Data rollback remain open. The performance and release gates remain
 **RED**.
 
-Next smallest independent slice: run disposable installer/service/Data
-rollback preflight and mutation/rollback evidence without touching the
-installed hMailServer service, registration, production SQL, or Data root.
+The safe installer rollback preflight is now complete. It passed without
+machine mutation and emitted
+`artifacts/migration/installer-rollback-preflight-current/`. The actual
+installer/service/Data rollback drill remains **ENVIRONMENT-BLOCKED** until a
+disposable registered legacy service/COM baseline and isolated SQL/Data clone
+exist. Next smallest independent slice: refresh registered COM/Admin
+compatibility evidence without changing installed registration or DCOM
+permissions.
 
 ## Historical current slice (2026-09-01, repeated-wave IMAP/resource acceptance)
 

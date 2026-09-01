@@ -1,7 +1,7 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, isolated backup/restore round-trip)
+## Current authoritative status (2026-09-01, installer rollback preflight)
 
 ## Current isolated backup -> restore -> backup round-trip (2026-09-01)
 
@@ -18,6 +18,21 @@ This closes the bounded disposable round-trip fixture only. It does not prove
 production backup/restore, installer rollback, service/Data rollback, or a
 full production-sized semantic restore. The release gate remains **RED**.
 Next is disposable installer/service/Data rollback evidence.
+
+## Current installer/service/Data rollback preflight (2026-09-01)
+
+The safe installer rollback preflight passed and emitted JSON/CSV/Markdown
+evidence under
+`artifacts/migration/installer-rollback-preflight-current/`. It validated
+archive structure, bounded process/XML handling, service snapshot parsing,
+installer ordering, uninstaller compensation, and PowerShell syntax. The
+actual installer drill is **ENVIRONMENT-BLOCKED** because this host has no
+disposable registered legacy service/COM baseline or isolated SQL/Data clone.
+No service, registry, COM, DCOM, SQL, or Data-directory mutation was
+performed. The release gate remains **RED**.
+
+Next is registered COM/Admin compatibility evidence without changing installed
+registration or DCOM permissions.
 
 ## Current Net10 repeated IMAP resource acceptance (2026-09-01, 5 x 100)
 

@@ -12,6 +12,14 @@ evidence is under
 This is isolated fixture evidence only. It does not close production-sized
 restore, installer rollback, service/Data rollback, or the performance gate.
 
+## Current installer/service/Data rollback preflight (2026-09-01)
+
+The safe rollback preflight passed without machine mutation. JSON/CSV/Markdown
+evidence is under
+`artifacts/migration/installer-rollback-preflight-current/`. The actual
+installer drill remains **ENVIRONMENT-BLOCKED** until a disposable registered
+legacy service/COM baseline and isolated SQL/Data clone are available.
+
 ## Current Net10 repeated IMAP resource acceptance, 5 x 100 (2026-09-01)
 
 The clean manifest-bound 100k disposable fixture passed five Net10 Admission
