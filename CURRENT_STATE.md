@@ -1,7 +1,7 @@
 # Current State
-- UTC and local timestamp: 2026-09-01T07:04:38Z / 2026-09-01T10:04:38+03:00
+- UTC and local timestamp: 2026-09-01T07:07:18Z / 2026-09-01T10:07:18+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: documentation commit for repeated paired IMAP waves (code/test harness commit `c6ed0d32e`)
+- Current HEAD: `4b6ddbc69` (paired POP3 acceptance documentation)
 - Last successfully pushed commit: `55eff58bb`
 - Push status: not pushed; full Net10 has 5 existing registered-COM failures and the performance gate remains RED.
 - Latest focused-test result: corrected paired IMAP Full repeat passed `5,000/5,000` on both disposable targets over five 1,000-session waves with zero errors/timeouts. C++ p50/p95/p99 were `223.668/270.598/317.280 ms` at `19.924/s`; Net10 was `253.490/393.113/480.936 ms` at `19.901/s`. Settled private bytes/handles/threads were `23,027,712/529/70` and `41,111,552/657/25`. Paired POP3 large-mailbox passed `5/5` per implementation with `1000/1000` rows and total p95 `147.543/171.199 ms`. Net10 delivery queue diagnostic passed `100/100` and its report validator passed. Cleanup and production-service protection passed. This remains bounded repeatability/parity evidence, not a 24-hour soak or general winner claim.
