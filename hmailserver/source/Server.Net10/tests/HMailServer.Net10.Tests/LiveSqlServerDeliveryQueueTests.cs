@@ -278,6 +278,134 @@ public sealed class LiveSqlServerDeliveryQueueTests
         }
     }
 
+    [TestMethod]
+    public async Task DisposableDeliveryQueueRealTcp451Then250CompletesMessage()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DELIVERY_DIAGNOSTIC"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            Assert.Inconclusive("Set HMAILSERVER_NET10_LIVE_SQL_DELIVERY_DIAGNOSTIC=1 to run the disposable TCP 451 recovery diagnostic.");
+        }
+
+        var connectionString = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_CONNECTION");
+        var dataRoot = Environment.GetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT");
+        if (string.IsNullOrWhiteSpace(connectionString) || string.IsNullOrWhiteSpace(dataRoot))
+        {
+            Assert.Inconclusive("HMAILSERVER_NET10_LIVE_SQL_CONNECTION and HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT are required.");
+        }
+
+        var isolatedDataRoot = ValidateDisposableDataRoot(dataRoot);
+        var parsedConnectionString = new SqlConnectionStringBuilder(connectionString);
+        if (!IsDisposableDatabaseName(parsedConnectionString.InitialCatalog))
+        {
+            Assert.Fail("The live delivery diagnostic accepts only a parsed hmail_perf_* database and a canonical C:\\hmail-perf-* Data root.");
+        }
+
+        var marker = "live-delivery-tcp-451-recovery-" + Guid.NewGuid().ToString("N");
+        var fromAddress = marker + "@perf.test";
+        var pathResolver = new MessageFilePathResolver(new MessageFileSearchDocumentSourceOptions(isolatedDataRoot));
+        var connectionFactory = new SqlServerConnectionFactory(connectionString);
+        var queueWriter = new SqlServerSmtpQueueWriter(connectionFactory, pathResolver);
+        var messageData = Encoding.ASCII.GetBytes(
+            "From: " + fromAddress + "\r\nTo: recovered@retry.test\r\nSubject: tcp 451 recovery\r\n\r\nrecovery body\r\n");
+
+        try
+        {
+            await queueWriter.EnqueueAsync(
+                new SmtpQueueWriteRequest(
+                    fromAddress,
+                    [new SmtpResolvedRecipient("recovered@retry.test", "recovered@retry.test", 0, false)],
+                    messageData,
+                    DateTimeOffset.UtcNow),
+                CancellationToken.None);
+
+            var storedFileName = await ReadMessageFileNameAsync(connectionString, fromAddress);
+            var messageFilePath = pathResolver.Resolve(storedFileName, accountId: 0, folderId: 0, accountAddress: null);
+            if (messageFilePath is null)
+            {
+                Assert.Fail("The queued message filename did not resolve under the disposable Data root.");
+            }
+
+            Assert.IsTrue(File.Exists(messageFilePath));
+
+            await using var sink = await StatefulSmtpRecoverySink.StartAsync();
+            var endpoint = new RemoteSmtpEndpoint(
+                "loopback-recovery.invalid",
+                sink.Port,
+                RemoteSmtpConnectionSecurity.None,
+                ConnectionAddress: IPAddress.Loopback.ToString(),
+                EnforceLocalEndpointGuard: false);
+            var dispatcher = new RemoteDeliveryTargetDispatcher(
+                new FixedEndpointResolver(endpoint),
+                new DeliveryMessageContentSource(pathResolver),
+                new SmtpRemoteDeliveryClient(new TcpRemoteSmtpTransportFactory()),
+                new RemoteDeliveryOptions("mail.local.test", TimeSpan.Zero));
+            var statusObserver = new RecordingStatusObserver();
+            var processor = new DeliveryQueueProcessor(
+                new SqlServerDeliveryQueueLeaseStore(connectionFactory),
+                new SqlServerDeliveryQueueMessageStore(connectionFactory),
+                new FixedRetryTargetResolver(),
+                dispatcher,
+                new SqlServerDeliveryQueueRecipientStore(connectionFactory),
+                new NoopBounceStore(),
+                messageContentStore: new DeliveryMessageContentSource(pathResolver),
+                statusObserver: statusObserver);
+            var options = new DeliveryQueueProcessorOptions(
+                LeaseOwner: "live-delivery-tcp-451-recovery-" + Guid.NewGuid().ToString("N"),
+                BatchSize: 1,
+                LeaseDuration: TimeSpan.FromMinutes(2),
+                RetryDelay: TimeSpan.Zero,
+                MaxRetries: 4,
+                MaxRetryDelay: TimeSpan.FromMinutes(1));
+
+            Assert.AreEqual(1, await processor.RunBatchAsync(options, CancellationToken.None));
+            await sink.FirstAttemptCompletion.WaitAsync(TimeSpan.FromSeconds(5));
+            var retryEvidence = await ReadRetryEvidenceAsync(connectionString, fromAddress);
+            Assert.IsTrue(sink.Saw451ResponseSent);
+            Assert.IsFalse(sink.SawDataBeforeRecovery);
+            Assert.AreEqual(1, retryEvidence.QueuedCount);
+            Assert.AreEqual(1, retryEvidence.MessageType);
+            Assert.AreEqual(0, retryEvidence.Locked);
+            Assert.IsTrue(retryEvidence.LeaseOwnerIsNull);
+            Assert.AreEqual(1, retryEvidence.RetryCount);
+            Assert.AreEqual(1, retryEvidence.RecipientCount);
+
+            var recovered = 0;
+            for (var attempt = 0; attempt < 10 && recovered == 0; attempt++)
+            {
+                await Task.Delay(100);
+                recovered = await processor.RunBatchAsync(options, CancellationToken.None);
+            }
+
+            Assert.AreEqual(1, recovered);
+            await sink.Completion.WaitAsync(TimeSpan.FromSeconds(5));
+            var finalState = await ReadMessageStateAsync(connectionString, fromAddress);
+            Assert.AreEqual(0, finalState.QueuedCount);
+            Assert.AreEqual(0, finalState.DeliveredCount);
+            Assert.AreEqual(0, finalState.RecipientCount);
+            Assert.IsTrue(sink.SawRecoveryResponse);
+            Assert.IsTrue(sink.SawDataAfterRecovery);
+            Assert.IsTrue(statusObserver.Events.Any(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliveryDeferred));
+            Assert.IsTrue(statusObserver.Events.Any(static item => item.Kind == DeliveryQueueStatusEventKind.TargetDeliverySucceeded));
+            Assert.IsFalse(File.Exists(messageFilePath));
+        }
+        finally
+        {
+            await CleanupMessagesAsync(connectionString, isolatedDataRoot, string.Empty, fromAddress, pathResolver);
+        }
+    }
+
+    private static async Task<string> ReadMessageFileNameAsync(string connectionString, string marker)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync();
+        await using var command = new SqlCommand("SELECT TOP (1) messagefilename FROM hm_messages WHERE messagefrom = @MessageFrom;", connection);
+        command.Parameters.AddWithValue("@MessageFrom", marker);
+        return (await command.ExecuteScalarAsync()) as string ?? string.Empty;
+    }
+
     private static string ValidateDisposableDataRoot(string dataRoot)
     {
         var fullPath = Path.GetFullPath(dataRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
@@ -690,6 +818,146 @@ public sealed class LiveSqlServerDeliveryQueueTests
             {
                 _completion.TrySetException(exception);
             }
+        }
+    }
+
+    private sealed class StatefulSmtpRecoverySink : IAsyncDisposable
+    {
+        private readonly TcpListener _listener;
+        private readonly Task _runTask;
+        private readonly TaskCompletionSource<bool> _firstAttemptCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<bool> _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        private StatefulSmtpRecoverySink(TcpListener listener)
+        {
+            _listener = listener;
+            _runTask = RunAsync();
+        }
+
+        public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
+
+        public Task FirstAttemptCompletion => _firstAttemptCompletion.Task;
+
+        public Task Completion => _completion.Task;
+
+        public bool Saw451ResponseSent { get; private set; }
+
+        public bool SawDataBeforeRecovery { get; private set; }
+
+        public bool SawRecoveryResponse { get; private set; }
+
+        public bool SawDataAfterRecovery { get; private set; }
+
+        public static ValueTask<StatefulSmtpRecoverySink> StartAsync()
+        {
+            var listener = new TcpListener(IPAddress.Loopback, 0);
+            listener.Start();
+            return ValueTask.FromResult(new StatefulSmtpRecoverySink(listener));
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            _listener.Stop();
+            try
+            {
+                await _runTask.ConfigureAwait(false);
+            }
+            catch
+            {
+            }
+        }
+
+        private async Task RunAsync()
+        {
+            try
+            {
+                await RunFirstAttemptAsync().ConfigureAwait(false);
+                _firstAttemptCompletion.TrySetResult(true);
+                await RunRecoveryAttemptAsync().ConfigureAwait(false);
+                _completion.TrySetResult(true);
+            }
+            catch (Exception exception)
+            {
+                _firstAttemptCompletion.TrySetException(exception);
+                _completion.TrySetException(exception);
+            }
+        }
+
+        private async Task RunFirstAttemptAsync()
+        {
+            using var client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false);
+            using var reader = new StreamReader(client.GetStream(), Encoding.ASCII, false, 1024, leaveOpen: true);
+            using var writer = new StreamWriter(client.GetStream(), Encoding.ASCII, 1024, leaveOpen: true)
+            {
+                NewLine = "\r\n",
+                AutoFlush = true
+            };
+
+            writer.WriteLine("220 loopback-recovery.invalid ESMTP");
+            await ReadAndReplyAsync(reader, writer, "250 loopback-recovery.invalid").ConfigureAwait(false);
+            await ReadAndReplyAsync(reader, writer, "250 sender accepted").ConfigureAwait(false);
+            var recipient = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (recipient is null || !recipient.StartsWith("RCPT TO:", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Recovery sink did not receive RCPT TO on the first attempt.");
+            }
+
+            writer.WriteLine("451 temporary recipient failure");
+            Saw451ResponseSent = true;
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+            {
+                if (line.Equals("DATA", StringComparison.OrdinalIgnoreCase))
+                {
+                    SawDataBeforeRecovery = true;
+                }
+            }
+        }
+
+        private async Task RunRecoveryAttemptAsync()
+        {
+            using var client = await _listener.AcceptTcpClientAsync().ConfigureAwait(false);
+            using var reader = new StreamReader(client.GetStream(), Encoding.ASCII, false, 1024, leaveOpen: true);
+            using var writer = new StreamWriter(client.GetStream(), Encoding.ASCII, 1024, leaveOpen: true)
+            {
+                NewLine = "\r\n",
+                AutoFlush = true
+            };
+
+            writer.WriteLine("220 loopback-recovery.invalid ESMTP");
+            await ReadAndReplyAsync(reader, writer, "250 loopback-recovery.invalid").ConfigureAwait(false);
+            await ReadAndReplyAsync(reader, writer, "250 sender accepted").ConfigureAwait(false);
+            var recipient = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (recipient is null || !recipient.StartsWith("RCPT TO:", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Recovery sink did not receive RCPT TO on the second attempt.");
+            }
+
+            writer.WriteLine("250 recipient accepted");
+            SawRecoveryResponse = true;
+            var dataCommand = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (!string.Equals(dataCommand, "DATA", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("Recovery sink did not receive DATA after the successful RCPT.");
+            }
+
+            SawDataAfterRecovery = true;
+            writer.WriteLine("354 start mail input");
+            while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line && line != ".")
+            {
+            }
+
+            writer.WriteLine("250 message accepted");
+        }
+
+        private static async Task ReadAndReplyAsync(StreamReader reader, StreamWriter writer, string response)
+        {
+            var line = await reader.ReadLineAsync().ConfigureAwait(false);
+            if (line is null)
+            {
+                throw new InvalidOperationException("Recovery sink received an incomplete SMTP command sequence.");
+            }
+
+            writer.WriteLine(response);
         }
     }
 
