@@ -1,27 +1,26 @@
 
-## Current authoritative next slice (2026-09-01, paired TCP 451 recovery)
+## Current authoritative next slice (2026-09-01, raw SQL/Data backup staging)
 
-Code/test commit `b4319db45` completes the bounded paired retry-recovery
-acceptance. Against the same loopback sink and disposable SQL/Data fixture,
-the C++ service and Net10 each retained one type-1 queue row, recipient, retry
-count `1`, and Data file after RCPT `451` without sending DATA; then each
-completed after RCPT `250` and DATA, removing the queue row, recipient, and
-message file. The disposable C++ LocalService SCM service, route, SQL
-principal, message, and file were all cleaned up.
+Code/test commit `dd90cd942` completes the opt-in production-wiring evidence
+for raw non-DB-only `BODomains|BOMessages` backup staging. A disposable SQL
+database and temporary Data root produced mode `6` XML with
+`Format="Raw"`/`FolderName="DataBackup"`; nested message content was
+preserved, a staging-root file was omitted, the sibling DataBackup directory
+remained beside the archive, and database/Data cleanup passed. Legacy anchors
+are `BackupExecuter::StartBackup` and `BackupDataDirectory_` in
+`Server/Common/Application/BackupExecuter.cpp:57-196`.
 
-Evidence is under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`
-and
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-recovery.*`.
-This closes only the bounded retry-recovery cell; larger delivery waves,
-capacity, soak, and release gates remain **RED**.
+The older “raw staging is not implemented” backlog wording is superseded;
+the remaining gap is concurrent writer quiescence during a real backup.
+Evidence is covered by
+`BackupRawSqlDataStagingIntegrationTests.RawDomainsAndMessagesBackup_StagesDisposableDataBackupSiblingAndPreservesNestedMessageFiles`.
+The paired TCP `451 -> 250` recovery result remains documented as a bounded
+correctness cell. Performance, restore, installer, COM, SEC-18, and soak gates
+remain **RED**.
 
-Next smallest production-priority slice: raw non-DB-only
-`BODomains|BOMessages` DataBackup staging, leaving the external `DataBackup`
-directory beside the archive. After that, run larger paired SMTP and
-delivery/queue waves with per-message SQL/Data readback. Registered COM,
-backup/restore round-trip, SEC-18, AD/master-user, DKIM/DMARC/SPF, and 24-hour
-soak gates remain open.
+Next smallest independent slice: larger paired SMTP plus delivery/queue waves
+with per-message SQL/Data readback. Then run repeated-wave IMAP/resource-leak
+acceptance and an isolated backup -> restore -> backup semantic round-trip.
 
 ## Historical next slice (2026-09-01, larger SMTP/delivery acceptance)
 

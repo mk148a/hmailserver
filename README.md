@@ -1,22 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, paired TCP 451 recovery)
+## Current authoritative status (2026-09-01, raw SQL/Data backup staging)
 
-Code/test commit `b4319db45` adds the bounded paired retry-recovery
-acceptance. Against the same controlled loopback sink protocol, the legacy
-C++ service and .NET 10 each received RCPT `451`, retained one type-1 queue
-row, one recipient, retry count `1`, and the Data file without sending DATA;
-then each received RCPT `250`, sent DATA, and removed the queue row, recipient,
-and message file. The C++ side ran under a unique disposable LocalService SCM
-service with complete service, route, SQL principal, message, and file cleanup.
+Code/test commit `dd90cd942` adds the missing opt-in production-wiring
+acceptance for legacy raw non-DB-only `BODomains|BOMessages` backup staging.
+Against a disposable SQL Server database and temporary Data root, the real
+SQL-backed payload runtime produced mode `6` XML with `Format="Raw"` and
+`FolderName="DataBackup"`; nested message content was preserved, a staging
+root file was omitted, the sibling `DataBackup` directory remained beside the
+archive, and the disposable database/Data root were cleaned up. The legacy
+behavior is anchored at `BackupExecuter::StartBackup` and
+`BackupExecuter::BackupDataDirectory_` in
+`source/Server/Common/Application/BackupExecuter.cpp:57-196`.
 
-JSON/CSV/Markdown evidence is under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/cpp-tcp451-recovery/`;
-the Net10 evidence is under
-`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/net10-tcp451-recovery.*`.
-This closes only the bounded transient recovery cell. Larger delivery waves,
-capacity, soak, and release gates remain **RED**.
+The paired TCP `451 -> 250` recovery evidence from code/test commit
+`b4319db45` remains under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`; it is a bounded
+correctness result. Larger delivery waves, capacity, restore, installer,
+COM, SEC-18, and soak gates remain **RED**.
 
 ## Previous bounded status (2026-09-01, paired SMTP local-delivery readback)
 

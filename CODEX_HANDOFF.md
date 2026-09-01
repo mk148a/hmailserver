@@ -9676,8 +9676,31 @@ anchors are `SmtpRemoteDeliveryClient.SendAsync`,
 `SqlServerDeliveryQueueLeaseStore.DeferAsync`/`CompleteAsync`.
 
 This is bounded retry correctness evidence, not release clearance. The
-performance gate remains **RED**. Next production-priority slice: raw
-non-DB-only `BODomains|BOMessages` DataBackup staging with the external
-`DataBackup` directory beside the archive; then larger paired SMTP and
-delivery/queue waves. Preserve the installed Application COM/DCOM graph,
+performance gate remains **RED**. Raw non-DB-only `BODomains|BOMessages`
+DataBackup staging is now covered by code/test commit `dd90cd942`; next is
+larger paired SMTP and delivery/queue waves. Preserve the installed
+Application COM/DCOM graph,
 production service/SQL/Data, IIS/firewall, and unrelated dirty artifacts.
+
+## Current authoritative continuation (2026-09-01, raw SQL/Data backup staging)
+
+Code/test commit `dd90cd942` adds
+`BackupRawSqlDataStagingIntegrationTests.RawDomainsAndMessagesBackup_StagesDisposableDataBackupSiblingAndPreservesNestedMessageFiles`.
+Using `localhost/master` with the explicit isolated-create opt-in, the test
+created and dropped a disposable `hmail_perf_backup_raw_<guid>` database and
+temporary Data root. `SevenZipBackupArchiveRuntime` plus the SQL-backed
+`BackupXmlPayloadRuntime` produced mode `6` XML with raw `DataBackup`, retained
+the sibling directory, preserved the nested message, omitted the staging-root
+file, and cleaned the disposable target. Focused test passed `1/1`; full
+Debug is `2773 passed, 93 skipped, 5 failed / 2871`, with the same five
+registered COM `E_NOINTERFACE` failures.
+
+Legacy anchors are `BackupExecuter::StartBackup` and
+`BackupDataDirectory_` in `Server/Common/Application/BackupExecuter.cpp:57-196`;
+Net10 anchors are `SevenZipBackupArchiveRuntime.CreateAsync`,
+`StageDataDirectory`, `WriteDataFiles`, and `Program.cs` SQL payload wiring.
+This closes raw staging implementation and SQL/Data evidence, but not writer
+quiescence, restore round-trip, or release acceptance. Next independent slice:
+larger paired SMTP plus delivery/queue waves with per-message SQL/Data
+readback. Preserve production service/SQL/Data, installed COM/DCOM, IIS,
+firewall, and unrelated dirty artifacts.
