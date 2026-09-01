@@ -9845,3 +9845,23 @@ service, SQL, or Data state was changed.
 Registered out-of-process COM/Admin acceptance remains
 **ENVIRONMENT-BLOCKED** until a disposable registered legacy/type-library
 fixture exists. Next slice: isolated SEC-18 caller-token evidence.
+
+## Current authoritative continuation (2026-09-01, SEC-18 staging readiness)
+
+Code/test commit `e3ca5825d` adds
+`build/test-sec18-staging-readiness.ps1`, a read-only prerequisite collector
+that writes unique JSON/Markdown evidence only below
+`artifacts/sec18-staging/`. On this host it recorded administrator status as
+`PASS`, but `WebAdministration`, `appcmd.exe`, `W3SVC`, and `WAS` as missing;
+the overall result is `ENVIRONMENT-BLOCKED` with exit code `2`. The unsafe
+evidence-path rejection test passed and no IIS, registry, DCOM, service,
+firewall, SQL, Data, or COM mutation was attempted.
+
+The readiness report does not replace SEC-18 collector evidence and does not
+approve broker registration. Existing isolated VM artifacts remain historical
+and lack independently observed COM caller-token proof. Full Net10 Debug
+remains `2774 passed, 93 skipped, 5 failed / 2872`; release remains **RED**.
+
+Next slice: run a fresh correlated IIS/worker collector invocation on the
+isolated staging host, then obtain independent PHP/FastCGI-to-COM caller-token
+and denial evidence.

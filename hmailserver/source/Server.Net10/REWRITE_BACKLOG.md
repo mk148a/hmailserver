@@ -32,6 +32,15 @@ No installed COM identity, registry, DCOM ACL, service, SQL, or Data state was
 changed. Next smallest independent slice: complete SEC-18 caller-token
 evidence on the isolated IIS staging host.
 
+The current host readiness check for SEC-18 is complete but
+**ENVIRONMENT-BLOCKED**. It emitted fresh read-only evidence under
+`artifacts/sec18-staging/`: administrator status passed, while
+`WebAdministration`, `appcmd.exe`, `W3SVC`, and `WAS` were absent. Unsafe
+evidence paths were rejected and no machine state was changed. This does not
+prove the isolated VM's worker token or an independent COM caller token.
+Next smallest independent slice: run the existing IIS/worker collector on the
+isolated staging host with one fresh correlated invocation.
+
 ## Historical current slice (2026-09-01, repeated-wave IMAP/resource acceptance)
 
 ## Historical current slice (2026-09-01, paired SMTP 500 acceptance)

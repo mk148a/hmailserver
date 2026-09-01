@@ -51,6 +51,21 @@ Next is isolated SEC-18 caller-token evidence; registered COM/Admin acceptance
 remains environment-blocked until a disposable registered legacy/type-library
 environment is available.
 
+## Current SEC-18 staging readiness (2026-09-01)
+
+The read-only readiness runner emitted fresh JSON/Markdown evidence under
+`artifacts/sec18-staging/` and returned `ENVIRONMENT-BLOCKED` with exit code
+`2`. The current host has an elevated administrator token, but no discoverable
+`WebAdministration` module, `appcmd.exe`, `W3SVC`, or `WAS`. Unsafe evidence
+paths were rejected and no IIS, registry, DCOM, service, firewall, SQL, Data,
+or COM mutation was attempted. Existing 2026-08-26 VM evidence remains
+historical and does not prove an independent COM caller token. SEC-18 and the
+release gate remain **RED**.
+
+Next is a fresh elevated collector run on the isolated IIS staging host, then
+independent PHP/FastCGI-to-COM caller-token evidence with correlation and
+denial cases.
+
 ## Current Net10 repeated IMAP resource acceptance (2026-09-01, 5 x 100)
 
 On the clean manifest-bound 100k disposable SQL/Data fixture, Net10 Admission

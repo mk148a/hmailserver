@@ -1,0 +1,122 @@
+{
+    "SchemaVersion":  1,
+    "EvidenceKind":  "SEC18-StagingReadiness",
+    "ObservedUtc":  "2026-09-01T02:34:04.9548086+00:00",
+    "ComputerName":  "NOUTML-KANDIL",
+    "Status":  "ENVIRONMENT-BLOCKED",
+    "Checks":  [
+                   {
+                       "Name":  "admin-status",
+                       "Status":  "PASS",
+                       "Required":  true,
+                       "Detail":  "Current token is elevated.",
+                       "Observed":  {
+                                        "User":  "NOUTML-KANDIL\\Kandil"
+                                    }
+                   },
+                   {
+                       "Name":  "webadministration-module",
+                       "Status":  "ENVIRONMENT-BLOCKED",
+                       "Required":  true,
+                       "Detail":  "WebAdministration is not installed or discoverable.",
+                       "Observed":  {
+                                        "Present":  false
+                                    }
+                   },
+                   {
+                       "Name":  "appcmd-exe",
+                       "Status":  "ENVIRONMENT-BLOCKED",
+                       "Required":  true,
+                       "Detail":  "appcmd.exe was not found.",
+                       "Observed":  {
+                                        "Present":  false
+                                    }
+                   },
+                   {
+                       "Name":  "W3SVC-service",
+                       "Status":  "ENVIRONMENT-BLOCKED",
+                       "Required":  true,
+                       "Detail":  "W3SVC is not present.",
+                       "Observed":  {
+                                        "Present":  false
+                                    }
+                   },
+                   {
+                       "Name":  "WAS-service",
+                       "Status":  "ENVIRONMENT-BLOCKED",
+                       "Required":  true,
+                       "Detail":  "WAS is not present.",
+                       "Observed":  {
+                                        "Present":  false
+                                    }
+                   },
+                   {
+                       "Name":  "staging-site-read",
+                       "Status":  "ENVIRONMENT-BLOCKED",
+                       "Required":  false,
+                       "Detail":  "IIS site/pool state cannot be read because WebAdministration and appcmd.exe are unavailable.",
+                       "Observed":  {
+                                        "Name":  "HMailWebAdminBrokerStaging"
+                                    }
+                   },
+                   {
+                       "Name":  "staging-pool-read",
+                       "Status":  "ENVIRONMENT-BLOCKED",
+                       "Required":  false,
+                       "Detail":  "IIS site/pool state cannot be read because WebAdministration and appcmd.exe are unavailable.",
+                       "Observed":  {
+                                        "Name":  "HMailWebAdminBrokerPool"
+                                    }
+                   },
+                   {
+                       "Name":  "no-machine-mutation-attempted",
+                       "Status":  "PASS",
+                       "Required":  true,
+                       "Detail":  "This runner performs read-only prerequisite checks and evidence writes only.",
+                       "Observed":  {
+                                        "MachineMutationAttempted":  false,
+                                        "ExistingEvidenceModified":  false
+                                    }
+                   },
+                   {
+                       "Name":  "collector-semantics",
+                       "Status":  "PASS",
+                       "Required":  true,
+                       "Detail":  "This report does not approve broker registration or replace SEC-18 collector evidence.",
+                       "Observed":  {
+                                        "ReadyForBrokerRegistration":  false
+                                    }
+                   }
+               ],
+    "MissingPrerequisites":  [
+                                 {
+                                     "Name":  "webadministration-module",
+                                     "Detail":  "WebAdministration is not installed or discoverable."
+                                 },
+                                 {
+                                     "Name":  "appcmd-exe",
+                                     "Detail":  "appcmd.exe was not found."
+                                 },
+                                 {
+                                     "Name":  "W3SVC-service",
+                                     "Detail":  "W3SVC is not present."
+                                 },
+                                 {
+                                     "Name":  "WAS-service",
+                                     "Detail":  "WAS is not present."
+                                 }
+                             ],
+    "FailedChecks":  [
+
+                     ],
+    "Gate":  {
+                 "Status":  "ENVIRONMENT-BLOCKED",
+                 "ReadyForBrokerRegistration":  false,
+                 "Reason":  "Readiness evidence only; independent caller-token proof and reviewed broker controls remain required."
+             },
+    "MutationSafety":  {
+                           "MachineMutationAttempted":  false,
+                           "ExistingEvidenceModified":  false,
+                           "EvidenceDirectory":  "E:\\Yazılım\\hmailserver57\\net10-continue\\artifacts\\sec18-staging"
+                       }
+}
