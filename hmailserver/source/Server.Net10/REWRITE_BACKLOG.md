@@ -68,6 +68,14 @@ p95 was `82.854 ms` for C++ and `87.396 ms` for Net10. The bounded
 1,000-message POP3 parity cell is closed with extended repeatability; larger
 mailbox and 24-hour POP3 soak evidence remain open.
 
+The POP3 harness ceiling was raised from 3,000 to 100,000 in code/test commit
+`078bf2294`, preserving the existing disposable path and loopback checks. The
+paired 100,000-message fixture then passed one POP3 iteration on C++ and
+Net10 with `100000/100000` rows and zero errors. Total latency was
+`7709.814 ms` for C++ and `6203.933 ms` for Net10. This is a single larger-
+mailbox observation, not repeated 100k acceptance or a general speed claim;
+24-hour POP3 soak remains open.
+
 A paired controlled 500-session Full run (50 ms stagger, 15-second timeout)
 passed `500/500` on both sides with throughput `19.853/s` C++ and `19.857/s`
 Net10; observed p95 was `253.003 ms` C++ and `737.359 ms` Net10. This is one

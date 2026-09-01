@@ -30,6 +30,13 @@ with a `1000/1000` mailbox and zero errors. Total p50/p95/p99 was
 Net10. This closes the bounded 1,000-message POP3 parity cell with extended
 repeatability; larger mailboxes and long POP3 soak remain open.
 
+The paired 100,000-message fixture also passed one POP3 iteration on each
+implementation with `100000/100000` rows and zero errors. Total latency was
+`7709.814 ms` for C++ and `6203.933 ms` for Net10. This is a single larger-
+mailbox observation, not a repeated comparison or a general speed claim;
+24-hour POP3 soak remains open. See the dated benchmark report for the graph
+and raw artifact paths.
+
 ## Current authoritative status (2026-09-01, paired performance gate)
 
 The paired disposable C++/.NET 10 IMAP `Full` runs use separate SQL clones of

@@ -183,6 +183,32 @@ xychart-beta
     bar [82.854, 87.396]
 ```
 
+## Paired POP3 100,000-message mailbox acceptance
+
+The same paired benchmark pack was extended to the manifest-bound 100,000
+message fixture. Each implementation completed one loopback POP3 iteration,
+reported `100000/100000` rows from `STAT`, `LIST`, and `UIDL`, and had zero
+errors or readiness/shutdown failures.
+
+| Implementation | Result | Total p50/p95/p99 ms | LIST p50 ms | UIDL p50 ms | RETR p50 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ | 1/1 PASS | 7709.814 / 7709.814 / 7709.814 | 1759.476 | 1760.202 | 14.640 |
+| .NET 10 | 1/1 PASS | 6203.933 / 6203.933 / 6203.933 | 1804.324 | 1854.405 | 30.949 |
+
+This closes a one-iteration larger-mailbox correctness/latency observation,
+not a repeated 100,000-message comparison, 24-hour resource soak, or general
+performance winner claim. Raw reports are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-pop3/cpp-100000x1/` and
+`artifacts/benchmarks/paired-cpp-net10-20260901-pop3/net10-100000x1/`.
+
+```mermaid
+xychart-beta
+    title "Paired 100k POP3 total latency (single iteration, ms)"
+    x-axis [C++, .NET10]
+    y-axis "Milliseconds" 0 --> 8000
+    bar [7709.814, 6203.933]
+```
+
 ```mermaid
 xychart-beta
     title "Five-wave repeated IMAP p95 latency (ms)"

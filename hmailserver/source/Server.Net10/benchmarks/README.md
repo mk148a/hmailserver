@@ -17,6 +17,21 @@ The raw reports are under
 `artifacts/benchmarks/paired-cpp-net10-20260901-pop3/`; no general winner is
 claimed.
 
+## Current paired POP3 100,000-message mailbox (2026-09-01, 1 iteration)
+
+The same pack also completed one loopback iteration against the paired
+100,000-message fixture. Both implementations reported `100000/100000` rows
+and zero errors:
+
+| Implementation | Result | Total p50/p95/p99 ms | LIST p50 ms | UIDL p50 ms | RETR p50 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ | 1/1 PASS | 7709.814 / 7709.814 / 7709.814 | 1759.476 | 1760.202 | 14.640 |
+| .NET 10 | 1/1 PASS | 6203.933 / 6203.933 / 6203.933 | 1804.324 | 1854.405 | 30.949 |
+
+This is a larger-mailbox bounded observation only; it is not repeated 100k
+acceptance, a soak, or a general performance claim. Raw reports are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-pop3/`.
+
 ## Current paired IMAP repeated-wave acceptance (2026-09-01, 5 x 1,000)
 
 The corrected manifest-bound `Full` probe passed five waves of 1,000 sessions

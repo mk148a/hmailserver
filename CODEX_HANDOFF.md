@@ -47,6 +47,12 @@ cleanup. C++ total p50/p95/p99 were `52.592/82.854/133.083 ms`; Net10 was
 parity cell with extended repeatability; larger-mailbox and long-soak coverage
 remain open.
 
+The same pack then completed one POP3 iteration on the paired 100,000-message
+fixture for each target with `100000/100000` rows and zero errors. Total
+latency was `7709.814 ms` C++ and `6203.933 ms` Net10. This is a single
+larger-mailbox observation only; it does not establish a repeated 100k
+comparison or a general winner. POP3 long-soak coverage remains open.
+
 Code/test commits: `c59321e79` adds `-LaunchStaggerMilliseconds` to
 `build/monitor-disposable-cpp-imap-capacity.ps1`; `c6ed0d32e` fixes
 `RunMany()` batch-deadline accounting for the launch ramp. No C++ production
