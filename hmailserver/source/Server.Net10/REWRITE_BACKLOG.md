@@ -1,22 +1,20 @@
 
-## Current authoritative next slice (2026-09-01, IMAP SASL PLAIN runtime enforcement)
+## Current authoritative next slice (2026-09-01, SMTP AUTH PLAIN runtime enforcement)
 
-Code/test commit `cc802249e` closes the bounded `UseIMAPSASLPlain` runtime
-gap. Legacy `IMAPCommandAUTHENTICATE::ExecuteCommand`
-(`hmailserver/source/Server/IMAP/IMAPCommandAUTHENTICATE.cpp:22-25`) rejects
-disabled AUTHENTICATE before TLS/parser/authentication/auto-ban work, while
-`IMAPCommandCapability::ExecuteCommand`
-(`hmailserver/source/Server/IMAP/IMAPCommandCapability.cpp:39`) omits
-`AUTH=PLAIN`. Net10 enforces the setting in
-`ImapSession.HandleAuthenticateAsync` and
-`ImapSession.FormatCapabilityResponseAsync`; `Host` reads it through the
-configured settings administration store. `SASL-IR`, installed COM identity,
-direct activation boundaries, SMTP trust, SQL schema, service, Data directory,
-and machine state are unchanged.
+Code/test commit `0ac09cd35` closes the bounded `AllowSMTPAuthPlain` runtime
+gap. Legacy `SMTPConnection::FormatEHLOResponse`
+(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1518-1525`) omits PLAIN
+when `authallowplaintext=0`, while `SMTPConnection::ProtocolAUTH_`
+(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1924-1927`) rejects PLAIN
+before parsing/authentication. Net10 enforces the setting in
+`SmtpSession.HandleAuthAsync` and `SmtpSession.FormatEhloResponseAsync`; `Host`
+reads it through the configured settings administration store. AUTH LOGIN, TLS
+gating, installed COM identity, direct activation, SMTP trust, SQL schema,
+service, Data directory, and machine state are unchanged.
 
-Focused IMAP session coverage passes `54/54`; related authentication/settings
-coverage passes `101/101`. Full Net10 Debug is `2776 passed, 94 skipped, 5
-failed / 2875`; the five failures remain the known registered local-server COM
+Focused SMTP session coverage passes `40/40`; related SMTP/TCP/settings
+coverage passes `401/401`. Full Net10 Debug is `2777 passed, 94 skipped, 5
+failed / 2876`; the five failures remain the known registered local-server COM
 `E_NOINTERFACE` activation checks. Native AD/SSPI, registered out-of-process
 COM, SEC-18 caller proof, restore/rollback, paired performance, and long-soak
 gates remain open. The release gate remains **RED**.
@@ -24,7 +22,7 @@ gates remain open. The release gate remains **RED**.
 Next smallest independent slice: refresh correlated SEC-18 IIS/worker and
 caller-token evidence when the isolated staging prerequisites are available;
 then run disposable native AD/DC `LogonUser` and socket-level IMAP master-auth
-acceptance, followed by paired queue and long-soak thresholds.
+acceptance, followed by the next legacy-anchored IMAP command ACL gap.
 
 ## Historical continuation (2026-09-01, pre-master-parity status)
 

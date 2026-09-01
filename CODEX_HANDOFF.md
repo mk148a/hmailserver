@@ -9918,3 +9918,28 @@ Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
 the isolated staging prerequisites exist; then run disposable native AD/SSPI
 and socket-level IMAP master-auth acceptance, followed by paired queue and
 long-soak thresholds.
+
+## Current authoritative continuation (2026-09-01, SMTP AUTH PLAIN runtime enforcement)
+
+Code/test commit `0ac09cd35` completes the bounded legacy
+`AllowSMTPAuthPlain` runtime slice. Legacy
+`SMTPConnection::FormatEHLOResponse`
+(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1518-1525`) omits PLAIN
+when `authallowplaintext=0`, and `SMTPConnection::ProtocolAUTH_`
+(`hmailserver/source/Server/SMTP/SMTPConnection.cpp:1924-1927`) rejects PLAIN
+before parsing/authentication. Net10 applies the persisted setting through
+`SmtpSession.HandleAuthAsync`, `SmtpSession.FormatEhloResponseAsync`, and the
+`Host` settings-store provider; AUTH LOGIN, TLS gating, SMTP trust, COM
+identity, SQL/Data, service, and machine boundaries are unchanged.
+
+Focused SMTP session tests pass `40/40`; related SMTP/TCP/settings tests pass
+`401/401`. Full Net10 Debug is `2777 passed, 94 skipped, 5 failed / 2876`;
+the five failures are the existing registered local-server COM
+`E_NOINTERFACE` checks. Release remains **RED**. No production service, SQL or
+Data directory, COM registration, DCOM ACL, IIS, firewall, or unrelated dirty
+benchmark/staging artifact was changed or staged.
+
+Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
+the isolated staging prerequisites exist; then run disposable native AD/SSPI
+and socket-level IMAP master-auth acceptance, followed by the next
+legacy-anchored IMAP command ACL gap.
