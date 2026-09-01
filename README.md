@@ -3,6 +3,34 @@ hMailServer
 
 ## Current authoritative status (2026-09-01, raw SQL/Data backup staging)
 
+## Current paired SMTP acceptance (2026-09-01, 500 messages)
+
+Code/test commit `6d59153af` adds a validator for paired SMTP acceptance
+artifacts. On the same manifest-bound disposable SQL/Data fixture, loopback
+SMTP port `2525`, and 500-message local-delivery readback, both the legacy C++
+service and Net10 passed `500/500` with zero errors. C++ p50/p95/p99 were
+`6.793/8.605/15.162 ms` at `19.010` messages/s; Net10 was
+`3.976/5.875/10.052 ms` at `18.934` messages/s.
+
+| Implementation | Accepted | p50 ms | p95 ms | p99 ms | Throughput/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ service | 500/500 | 6.793 | 8.605 | 15.162 | 19.010 |
+| .NET 10 | 500/500 | 3.976 | 5.875 | 10.052 | 18.934 |
+
+The paired report and chart are under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`:
+`smtp-acceptance-500-comparison.md`,
+`smtp-acceptance-500-comparison.json`, and `smtp-acceptance-500.png`.
+The descriptive C++/Net10 p95 ratio is `1.465` and the Net10/C++ throughput
+ratio is `0.996`; this single cell does not establish a general winner. The
+performance release gate remains **RED** pending queue/remote-delivery,
+1,000-session IMAP capacity, POP3 soak, and 24-hour resource acceptance.
+
+The SMTP readback runner intentionally leaves accepted messages and Data files
+in the disposable target for post-run accounting. This fixture is therefore
+consumed after this run and must not be reused as a clean baseline; future
+paired runs require a fresh manifest-bound SQL/Data copy.
+
 Code/test commit `dd90cd942` adds the missing opt-in production-wiring
 acceptance for legacy raw non-DB-only `BODomains|BOMessages` backup staging.
 Against a disposable SQL Server database and temporary Data root, the real

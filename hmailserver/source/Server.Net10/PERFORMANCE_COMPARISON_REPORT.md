@@ -1,5 +1,19 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current paired SMTP acceptance, 500 messages (2026-09-01)
+
+The disposable C++ service and Net10 each accepted `500/500` messages with
+zero errors on the same manifest-bound SQL/Data fixture and loopback SMTP
+port. Local-delivery readback was exact on both sides. C++ p50/p95/p99 were
+`6.793/8.605/15.162 ms` at `19.010` messages/s; Net10 was
+`3.976/5.875/10.052 ms` at `18.934` messages/s. The p95 and throughput ratios
+are descriptive for this one cell. The release gate remains **RED** because
+queue/remote-delivery, 1,000-session IMAP, POP3 soak, and 24-hour resource
+acceptance remain open. Evidence and chart:
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/smtp-acceptance-500-comparison.md`.
+The readback runner leaves accepted rows/files for accounting, so this fixture
+is consumed and must not be reused as a clean baseline.
+
 ## Current paired TCP 451 recovery (2026-09-01)
 
 Code/test commit `b4319db45` proved the same disposable C++ service and Net10

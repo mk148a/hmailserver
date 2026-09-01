@@ -1,0 +1,48 @@
+{
+  "schema": "paired-cpp-net10-smtp-acceptance-v1",
+  "status": "PASS",
+  "gate": "RED",
+  "fixtureId": "hmail-perf-pair-delivery-20260901",
+  "manifestSha256": "A83052CA61D7F3853E97522D3F72DDA595DB61811511435D3030E4E230E8B07E",
+  "messageCount": 500,
+  "sameLoopbackPort": 2525,
+  "sameSqlDataFingerprint": true,
+  "rows": [
+    {
+      "implementation": "cpp",
+      "status": "PASS",
+      "p50_ms": 6.793,
+      "p95_ms": 8.605,
+      "p99_ms": 15.162,
+      "throughput_messages_per_second": 19.01,
+      "acceptedMessages": 500,
+      "errors": 0
+    },
+    {
+      "implementation": "net10",
+      "status": "PASS",
+      "p50_ms": 3.976,
+      "p95_ms": 5.875,
+      "p99_ms": 10.052,
+      "throughput_messages_per_second": 18.934,
+      "acceptedMessages": 500,
+      "errors": 0
+    }
+  ],
+  "descriptiveRatios": {
+    "cppOverNet10P50": 1.708501,
+    "cppOverNet10P95": 1.464681,
+    "cppOverNet10P99": 1.508357,
+    "net10OverCppThroughput": 0.996002
+  },
+  "limitations": [
+    "This is one 500-message loopback cell, not a general performance winner claim.",
+    "Queue throughput, remote retry matrix, POP3 soak, 1000-session IMAP capacity, and 24-hour resource soak remain open.",
+    "The release performance gate remains RED."
+  ],
+  "sourceReports": {
+    "cpp": "cpp-smtp-500/smtp/cpp-smtp-message-acceptance.json",
+    "net10": "net10-smtp-500/net10-smtp-message-acceptance.json",
+    "validator": "build/test-paired-smtp-acceptance-report.ps1"
+  }
+}

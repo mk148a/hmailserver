@@ -9704,3 +9704,33 @@ quiescence, restore round-trip, or release acceptance. Next independent slice:
 larger paired SMTP plus delivery/queue waves with per-message SQL/Data
 readback. Preserve production service/SQL/Data, installed COM/DCOM, IIS,
 firewall, and unrelated dirty artifacts.
+
+## Current authoritative continuation (2026-09-01, paired SMTP 500 acceptance)
+
+Code/test commit `6d59153af` adds
+`build/test-paired-smtp-acceptance-report.ps1`, which validates the two
+manifest-bound 500-message SMTP reports as one paired cell. The disposable C++
+service and Net10 each passed `500/500` with zero errors, exact local-delivery
+readback, matching SQL/Data fingerprints, and clean production-safety evidence
+on fixture `hmail-perf-pair-delivery-20260901`.
+
+C++ p50/p95/p99 were `6.793/8.605/15.162 ms` at `19.010` messages/s; Net10
+was `3.976/5.875/10.052 ms` at `18.934` messages/s. The report and PNG chart
+are under `artifacts/benchmarks/paired-cpp-net10-20260901-delivery/`.
+These ratios are descriptive for one loopback cell; the performance gate stays
+**RED** because queue/remote-delivery, 1,000-session IMAP, POP3 soak, and
+24-hour resource acceptance remain open.
+
+Focused validators passed: both per-report SMTP validators, the disposable C++
+service runner contract tests, and the paired report validator. The full Debug
+Net10 suite remains `2773 passed, 93 skipped, 5 failed / 2871`; all five are
+the pre-existing registered local-server COM `E_NOINTERFACE` failures. Next
+slice: establish a comparable C++/Net10 delivery-queue throughput cell or
+record the missing C++ equivalent as an explicit blocker, then repeat-wave
+IMAP/resource acceptance. Preserve production service/SQL/Data, installed
+COM/DCOM, IIS, firewall, and unrelated dirty artifacts.
+
+The SMTP readback runner leaves accepted messages and Data files in the
+disposable targets for post-run accounting. The 500-message fixture is
+therefore consumed and must not be reused as a clean baseline; provision a
+fresh manifest-bound SQL/Data pair for the next paired run.

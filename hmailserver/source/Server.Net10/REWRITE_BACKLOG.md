@@ -1,5 +1,28 @@
 
-## Current authoritative next slice (2026-09-01, raw SQL/Data backup staging)
+## Current authoritative next slice (2026-09-01, paired SMTP 500 acceptance)
+
+Code/test commit `6d59153af` adds a focused paired-report validator for the
+500-message SMTP acceptance cell. The existing service-backed runners passed
+`500/500` on both the disposable legacy C++ and Net10 targets with zero errors,
+exact local-delivery readback, matching manifest/Data fingerprints, and clean
+production-safety evidence. C++ p50/p95/p99 were `6.793/8.605/15.162 ms`;
+Net10 was `3.976/5.875/10.052 ms`. Evidence is under
+`artifacts/benchmarks/paired-cpp-net10-20260901-delivery/` and the chart is
+`smtp-acceptance-500.png`.
+
+This is descriptive evidence for one 500-message loopback cell, not a general
+performance winner claim. The performance gate remains **RED**. Queue
+throughput, remote retry matrix, 1,000-session IMAP capacity, POP3 soak, and
+24-hour resource acceptance remain open.
+
+Next smallest independent slice: add a disposable dual-target delivery/queue
+throughput harness or, if no equivalent C++ path is available, document the
+bounded Net10 queue result as a non-comparable diagnostic without claiming
+parity. The 2026-09-01 SMTP fixture is consumed by readback and must not be
+reused as a clean baseline. Then continue with repeated-wave IMAP/resource
+acceptance.
+
+## Historical current slice (2026-09-01, raw SQL/Data backup staging)
 
 Code/test commit `dd90cd942` completes the opt-in production-wiring evidence
 for raw non-DB-only `BODomains|BOMessages` backup staging. A disposable SQL
