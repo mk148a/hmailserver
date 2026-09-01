@@ -1,5 +1,39 @@
 
-## Current authoritative next slice (2026-09-01, root-private IMAP RENAME parity)
+## Current authoritative next slice (2026-09-01, C++ capacity diagnosis)
+
+The latest paired disposable C++/.NET 10 IMAP `Full` run used separate SQL
+clones of the same backup, byte-matched Data trees, 1,000 messages, and
+loopback `127.0.0.1:1143`. Both sides pass at 100 sessions. C++ fails the
+500/1,000 cells (`189/500` and `186/1,000`), while Net10 passes both. The
+performance gate therefore remains **RED** and no general speed-up claim is
+permitted. The dated table and graphs are in
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`.
+
+Legacy references are `SessionManager::CreateSession`
+(`hmailserver/source/Server/Common/Application/SessionManager.cpp:44`),
+`TCPServer::InitAcceptor/StartAccept/HandleAccept`
+(`hmailserver/source/Server/Common/TCPIP/TCPServer.cpp:52,133,157`),
+`TCPConnection::AsyncReadCompleted`
+(`hmailserver/source/Server/Common/TCPIP/TCPConnection.cpp:485`),
+`IMAPConnection::AnswerCommand`
+(`hmailserver/source/Server/IMAP/IMAPConnection.cpp:570`),
+`IMAPCommandSEARCH::MatchesTEXTCriteria_`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:594`), and
+`IMAPSort::Sort`
+(`hmailserver/source/Server/IMAP/IMAPSort.cpp:108`). Net10 uses
+`ImapTcpListener` and `ImapSession.DispatchAsync`.
+
+The C++ production tree is intentionally unchanged: the evidence does not yet
+distinguish native SQL contention, synchronous IOCP callback work, and accept
+queue pressure. The benchmark runners now expose and record `WarmupSeconds`.
+
+Next smallest independent slice: add a read-only monitor correlating worker
+private bytes/handles/threads, TCP 1143 states, and disposable SQL request/wait
+DMVs with failed session timestamps. Only then consider a legacy-anchored C++
+source change. Queue/remote delivery, POP3, restore/rollback, registered COM,
+SEC-18, AD/SSPI, and 24-hour soak remain separate release blockers.
+
+## Historical continuation (2026-09-01, root-private IMAP RENAME parity)
 
 The bounded slice after code/test commit `f6a3d15c2` implements root-level
 private-folder IMAP `RENAME`. Legacy `IMAPCommandRENAME::ExecuteCommand` and

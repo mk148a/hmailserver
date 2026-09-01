@@ -9967,6 +9967,33 @@ Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
 the isolated prerequisites are available; then run disposable native AD/SSPI
 acceptance and harden/test `STORE FLAGS` authorization timing.
 
+## Current authoritative continuation (2026-09-01, paired performance evidence)
+
+Code/test commit `00c8e77b2` adds an explicit `WarmupSeconds` parameter to the
+live concurrent-IMAP runner and propagates it through the disposable C++
+service wrapper. The parameter is recorded in the probe configuration so
+readiness and workload timing are reproducible.
+
+The latest paired service evidence used the same disposable SQL/Data fixture,
+1,000 messages, and loopback `127.0.0.1:1143`. At 100 sessions C++ and Net10
+both passed. At 500 and 1,000 sessions C++ passed only `189/500` and
+`186/1,000`, while Net10 passed `500/500` and `1,000/1,000`. This is not a
+general speed-up claim because C++ did not complete the acceptance workload;
+the performance gate remains **RED**.
+
+The C++ source was not modified. The relevant legacy path is
+`SessionManager::CreateSession`, `TCPServer::InitAcceptor/StartAccept/HandleAccept`,
+`TCPConnection::AsyncReadCompleted`, `IMAPConnection::AnswerCommand`,
+`IMAPCommandSEARCH::MatchesTEXTCriteria_`, and `IMAPSort::Sort`. The current
+evidence supports an IOCP/command-work/accept-pressure capacity issue but does
+not isolate one safe source fix. Full details, graphs, and hashes are in
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260901.md`.
+
+Next slice: a read-only C++ capacity monitor correlating worker resources, TCP
+states, and disposable SQL request/wait DMVs with failed session timestamps.
+Do not alter the legacy reference until that evidence identifies the
+bottleneck. No push was performed.
+
 ## Current authoritative continuation (2026-09-01, IMAP STORE \\Seen ACL evidence)
 
 The test-only bounded evidence slice after code/test commit `c0fb90dfa` covers
