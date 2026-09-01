@@ -380,7 +380,23 @@ public sealed class Pop3Session
     {
         if (arguments.Trim().Length == 0)
         {
-            await WriteAsync(stream, "+OK Mailbox scan listing follows\r\n", cancellationToken).ConfigureAwait(false);
+            var messageCount = 0;
+            long totalBytes = 0;
+            for (var i = 0; i < state.Messages.Count; i++)
+            {
+                if (state.IsDeleted(i + 1))
+                {
+                    continue;
+                }
+
+                messageCount++;
+                totalBytes += state.Messages[i].Size;
+            }
+
+            await WriteAsync(
+                stream,
+                $"+OK {messageCount} messages ({totalBytes} octets)\r\n",
+                cancellationToken).ConfigureAwait(false);
             for (var i = 0; i < state.Messages.Count; i++)
             {
                 var listedSequenceNumber = i + 1;
@@ -413,7 +429,23 @@ public sealed class Pop3Session
     {
         if (arguments.Trim().Length == 0)
         {
-            await WriteAsync(stream, "+OK Unique-id listing follows\r\n", cancellationToken).ConfigureAwait(false);
+            var messageCount = 0;
+            long totalBytes = 0;
+            for (var i = 0; i < state.Messages.Count; i++)
+            {
+                if (state.IsDeleted(i + 1))
+                {
+                    continue;
+                }
+
+                messageCount++;
+                totalBytes += state.Messages[i].Size;
+            }
+
+            await WriteAsync(
+                stream,
+                $"+OK {messageCount} messages ({totalBytes} octets)\r\n",
+                cancellationToken).ConfigureAwait(false);
             for (var i = 0; i < state.Messages.Count; i++)
             {
                 var listedSequenceNumber = i + 1;

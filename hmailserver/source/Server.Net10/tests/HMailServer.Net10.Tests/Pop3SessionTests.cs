@@ -108,6 +108,7 @@ public sealed class Pop3SessionTests
             "PASS secret\r\n" +
             "STAT\r\n" +
             "LIST\r\n" +
+            "UIDL\r\n" +
             "UIDL 2\r\n" +
             "RETR 1\r\n" +
             "DELE 1\r\n" +
@@ -125,7 +126,8 @@ public sealed class Pop3SessionTests
         StringAssert.Contains(output, "+OK Send your password\r\n");
         StringAssert.Contains(output, "+OK Mailbox locked and ready\r\n");
         StringAssert.Contains(output, $"+OK 2 {messageOne.Length + messageTwo.Length}\r\n");
-        StringAssert.Contains(output, $"+OK Mailbox scan listing follows\r\n1 {messageOne.Length}\r\n2 {messageTwo.Length}\r\n.\r\n");
+        StringAssert.Contains(output, $"+OK 2 messages ({messageOne.Length + messageTwo.Length} octets)\r\n1 {messageOne.Length}\r\n2 {messageTwo.Length}\r\n.\r\n");
+        StringAssert.Contains(output, $"+OK 2 messages ({messageOne.Length + messageTwo.Length} octets)\r\n1 uid-101\r\n2 uid-102\r\n.\r\n");
         StringAssert.Contains(output, "+OK 2 uid-102\r\n");
         StringAssert.Contains(
             output,
@@ -331,6 +333,7 @@ public sealed class Pop3SessionTests
             "PASS secret\r\n" +
             "DELE 1\r\n" +
             "LIST 1\r\n" +
+            "LIST\r\n" +
             "UIDL\r\n" +
             "RSET\r\n" +
             "LIST 1\r\n" +
@@ -342,7 +345,8 @@ public sealed class Pop3SessionTests
         var output = stream.GetOutputText();
         StringAssert.Contains(output, "+OK Message deleted\r\n");
         StringAssert.Contains(output, "-ERR No such message\r\n");
-        StringAssert.Contains(output, "+OK Unique-id listing follows\r\n2 uid-202\r\n.\r\n");
+        StringAssert.Contains(output, "+OK 1 messages (22 octets)\r\n2 22\r\n.\r\n");
+        StringAssert.Contains(output, "+OK 1 messages (22 octets)\r\n2 uid-202\r\n.\r\n");
         StringAssert.Contains(output, "+OK 1 22\r\n");
         CollectionAssert.AreEqual(Array.Empty<long>(), store.DeletedMessageIds.ToArray());
     }
