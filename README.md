@@ -1,7 +1,24 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-01, Net10 delivery queue diagnostic)
+## Current authoritative status (2026-09-01, repeated IMAP resource acceptance)
+
+## Current Net10 repeated IMAP resource acceptance (2026-09-01, 5 x 100)
+
+On the clean manifest-bound 100k disposable SQL/Data fixture, Net10 Admission
+passed five waves of 100 IMAP sessions: `500/500`, zero errors/timeouts, and
+zero readiness/shutdown/runtime failures. Settled process growth was
+`+1.133 MiB`, `+5` handles, and `-5` threads. The report validator enforces
+per-wave success and bounded resource limits. Evidence and the resource chart
+are under `artifacts/benchmarks/review-20260901/net10-imap-admission-100x5-100k/`.
+
+The same fixture's Full profile was recorded separately as a failure:
+`309/500` sessions succeeded and `191` failed across five waves. This is valid
+RED capacity evidence, not a soak pass. There is no new C++ run in this slice;
+C++ 500/1000-session capacity remains the existing failed baseline, and Net10
+was process-backed rather than service-backed. No ratio or winner is claimed.
+The performance release gate remains **RED**. Next is the isolated backup ->
+restore -> backup semantic round-trip.
 
 ## Current Net10 delivery queue diagnostic (2026-09-01, 100 messages)
 

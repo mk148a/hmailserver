@@ -1,5 +1,21 @@
 # C++ / .NET 10 Performance Gate Report
 
+## Current Net10 repeated IMAP resource acceptance, 5 x 100 (2026-09-01)
+
+Against the clean manifest-bound 100k disposable SQL/Data fixture, Net10
+Admission passed `500/500` sessions across five 100-session waves with zero
+errors/timeouts. Settled process growth was `+1.133 MiB`, `+5` handles, and
+`-5` threads. The Full profile on the same fixture is retained as a RED
+capacity result at `309/500` (`191` errors), not a soak pass. Evidence and the
+resource chart are under
+`artifacts/benchmarks/review-20260901/net10-imap-admission-100x5-100k/` and
+`net10-imap-100x5-100k/`.
+
+This slice has no new C++ run and Net10 was process-backed, so no service-mode
+parity, ratio, or winner is claimed. Existing C++ 500/1000 capacity failures
+remain unchanged. The performance gate remains **RED**; the next independent
+slice is the isolated backup -> restore -> backup semantic round-trip.
+
 ## Current Net10 delivery queue diagnostic, 100 messages (2026-09-01)
 
 On a clean manifest-bound 100k disposable SQL/Data fixture, Net10 passed

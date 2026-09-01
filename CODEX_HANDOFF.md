@@ -9757,3 +9757,27 @@ Evidence is under
 validator is `build/test-net10-delivery-queue-report.ps1`. The next slice is
 repeated-wave IMAP/resource acceptance on a fresh fixture, preserving the
 failed C++ capacity baseline and recording the service/process distinction.
+
+## Current authoritative continuation (2026-09-01, repeated IMAP resource acceptance)
+
+Code/test commit `6a7347587` adds
+`build/test-net10-imap-resource-acceptance.ps1` and adjusts the existing live
+IMAP report validator for three-decimal wave-duration rounding. Against the
+clean manifest-bound 100k disposable SQL/Data fixture, Net10 Admission passed
+five 100-session waves (`500/500`, zero errors/timeouts and no lifecycle
+failures). Settled process growth was `+1.133 MiB`, `+5` handles, and `-5`
+threads. The resource chart and JSON/CSV/Markdown evidence are under
+`artifacts/benchmarks/review-20260901/net10-imap-admission-100x5-100k/`.
+
+The same fixture's Full profile is retained as an explicit RED capacity result
+at `309/500` with `191` errors across five waves; it is not a soak pass. No
+new C++ run was made and Net10 was process-backed rather than service-backed,
+so no parity ratio or winner is claimed. The existing C++ 500/1000 capacity
+failures remain unchanged. Full Net10 Debug remains `2773 passed, 93 skipped,
+5 failed / 2871`; the five failures are the registered local-server COM
+`E_NOINTERFACE` checks. The performance gate remains **RED**.
+
+Next slice: isolated backup -> restore -> backup semantic round-trip against
+disposable SQL/Data targets, followed by installer/service/Data rollback
+evidence. Preserve production service/SQL/Data, installed COM/DCOM, IIS,
+firewall, and unrelated dirty artifacts.

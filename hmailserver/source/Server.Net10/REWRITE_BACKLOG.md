@@ -1,23 +1,21 @@
 
-## Current authoritative next slice (2026-09-01, repeated-wave IMAP/resource acceptance)
+## Current authoritative next slice (2026-09-01, isolated backup -> restore -> backup round-trip)
 
-The paired 500-message SMTP acceptance is complete and remains descriptive
-evidence only. A clean manifest-bound 100k disposable fixture also produced a
-Net10-only delivery-queue diagnostic: `100/100` local commits at `81.673`
-messages/s with p50/p95/p99 `4.193/6.362/10.396 ms`, plus SQL retry-state
-readback (one unlocked, lease-free type-1 row, retry count `1`, future
-next-try, and one retained recipient). Evidence is under
-`artifacts/benchmarks/review-20260901/net10-delivery-queue-100/`.
+The repeated IMAP resource slice is complete as bounded Net10 evidence on the
+clean manifest-bound 100k fixture. Admission passed five waves of 100 sessions
+(`500/500`, zero errors/timeouts); settled process growth was `+1.133 MiB`,
+`+5` handles, and `-5` threads. The same fixture's Full profile is retained as
+RED capacity evidence at `309/500` with `191` errors. Evidence and chart are
+under `artifacts/benchmarks/review-20260901/net10-imap-admission-100x5-100k/`
+and `net10-imap-100x5-100k/`.
 
-No equivalent C++ delivery-queue runner is available, and the Net10 queue run
-was not service-backed. This closes neither paired queue parity nor the
-performance gate; no ratio or winner is claimed. The 500-message SMTP
-fixture remains consumed and must not be reused.
+This was Net10 process-backed only, with no new C++ run; the existing C++
+500/1000-session capacity failures remain the baseline. No ratio, winner, or
+24-hour soak claim is valid. The performance gate remains **RED**.
 
-Next smallest independent slice: run repeated-wave IMAP/resource acceptance
-on a fresh fixture, preserving the failed C++ 500/1000-session capacity
-baseline and recording the service/process-mode distinction. Then continue
-with an isolated backup -> restore -> backup semantic round-trip.
+Next smallest independent slice: generate and validate an isolated backup ->
+restore -> backup semantic round-trip against disposable SQL/Data targets,
+then continue installer/service/Data rollback evidence.
 
 ## Historical current slice (2026-09-01, paired SMTP 500 acceptance)
 

@@ -1,5 +1,20 @@
 # .NET 10 Benchmark Pack
 
+## Current Net10 repeated IMAP resource acceptance, 5 x 100 (2026-09-01)
+
+The clean manifest-bound 100k disposable fixture passed five Net10 Admission
+waves of 100 IMAP sessions (`500/500`, zero errors/timeouts). Settled process
+growth was `+1.133 MiB`, `+5` handles, and `-5` threads. The Full profile was
+also recorded as RED capacity evidence at `309/500`; it is not a soak pass.
+Evidence and the resource chart are under
+`artifacts/benchmarks/review-20260901/net10-imap-admission-100x5-100k/`; the
+Full-profile failure is under `net10-imap-100x5-100k/`.
+
+This slice is Net10 process-backed only. It is not service-mode symmetric C++
+parity evidence and does not establish a ratio or winner. The release gate
+remains **RED**. Validate the passing report with
+`build/test-net10-imap-resource-acceptance.ps1`.
+
 ## Current Net10 delivery queue diagnostic, 100 messages (2026-09-01)
 
 The clean manifest-bound 100k disposable fixture produced `100/100` local
