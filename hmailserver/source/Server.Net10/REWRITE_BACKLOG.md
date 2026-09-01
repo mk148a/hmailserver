@@ -1,5 +1,30 @@
 
-## Current authoritative next slice (2026-09-01, paired POP3 parity evidence)
+## Current authoritative next slice (2026-09-01, mixed-recipient remote delivery parity)
+
+Code/test commit `0d257b2bb` implements the bounded legacy behavior for a
+remote batch containing one accepted recipient and one transient `451`.
+Legacy `ExternalDelivery::CollectDeliveryResult_` and `RescheduleDelivery_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:439-608`) delete the
+accepted recipient, retain the transient recipient, and schedule retry after
+`SMTPClientConnection::ProtocolRcptToSent_` continues to DATA when any RCPT was
+accepted. Net10 now emits and validates per-recipient outcomes in
+`SmtpRemoteDeliveryClient.SendAttemptAsync`, maps them in
+`RemoteDeliveryTargetDispatcher`, and applies row-level delete/defer behavior
+in `DeliveryQueueProcessor.ProcessRecipientResultsAsync`.
+
+Focused delivery tests are `47/47 PASS`; SQL recipient-store tests are
+`1/1 PASS`. Full Debug Net10 is `2790 passed, 94 skipped, 5 failed / 2889`,
+with only the known registered-COM `E_NOINTERFACE` failures. This closes the
+unit-level implementation gap only. Fresh paired C++/Net10 two-recipient SQL
+readback and a C++ queue/remote throughput runner are still open; no general
+performance winner is claimed and the release gate remains **RED**.
+
+**Next smallest independent slice:** execute a new manifest-bound paired
+two-recipient TCP/SQL acceptance with `250 + 451`, row-level SQL readback, and
+cleanup on both disposable implementations. Do not broaden to other delivery
+or Admin mutations in that slice.
+
+## Historical current slice (2026-09-01, paired POP3 parity evidence)
 
 Code/test commit `1348fac13` closes the verified POP3 full-list wire-format
 gap identified against legacy `POP3Connection::ProtocolLIST_` and

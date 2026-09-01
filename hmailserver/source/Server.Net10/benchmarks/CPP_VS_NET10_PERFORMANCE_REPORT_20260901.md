@@ -4,6 +4,22 @@ Date: 2026-09-01
 Gate: **RED**
 Scope: loopback IMAP `Full` profile (`greeting; LOGIN; SELECT INBOX; SEARCH; SORT; LOGOUT`)
 
+## Delivery parity implementation status
+
+The bounded implementation slice `0d257b2bb` follows legacy
+`ExternalDelivery::Perform`, `CollectDeliveryResult_`, and `RescheduleDelivery_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:58-181,439-608`) for a
+mixed remote batch. With one `250` RCPT and one transient `451`, the legacy
+server sends DATA, deletes only the accepted recipient, and retains the
+transient recipient for retry. Net10 now carries validated per-recipient
+outcomes through `SmtpRemoteDeliveryClient.SendAttemptAsync`,
+`RemoteDeliveryTargetDispatcher`, and `DeliveryQueueProcessor`.
+
+The focused implementation tests pass `47/47`, and the SQL recipient-store
+test passes `1/1`. This does not establish live C++/Net10 SQL row-level parity
+or queue throughput. Those remain release-gate work; the performance gate is
+**RED**, and this report makes no general speed or superiority claim.
+
 ## Decision
 
 The legacy C++ service path is operational and reproducible. The original

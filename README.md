@@ -1,6 +1,24 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-09-01, mixed-recipient delivery parity)
+
+The latest bounded delivery slice is code/test commit `0d257b2bb`. Legacy
+`ExternalDelivery::Perform`, `CollectDeliveryResult_`, and `RescheduleDelivery_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:58-181,439-608`) preserve
+accepted and transient recipients independently: with `RCPT 250` plus `RCPT
+451`, legacy sends DATA, deletes the accepted row, and retains the transient
+row for retry. Net10 now carries per-recipient results through
+`SmtpRemoteDeliveryClient.SendAttemptAsync`, `RemoteDeliveryTargetDispatcher`,
+and `DeliveryQueueProcessor.ProcessRecipientResultsAsync`.
+
+Focused delivery tests pass `47/47` and the SQL recipient-store test passes
+`1/1`. Full Debug Net10 is `2790 passed, 94 skipped, 5 failed / 2889`; the
+five failures are the known registered local-server COM `E_NOINTERFACE` checks.
+Live paired C++/Net10 two-recipient SQL readback and queue throughput are still
+open. The performance release gate remains **RED**, and no general C++/.NET 10
+speed or superiority claim is made.
+
 ## Current authoritative status (2026-09-01, paired IMAP/POP3 acceptance)
 
 The corrected manifest-bound IMAP `Full` probe was repeated for five waves of

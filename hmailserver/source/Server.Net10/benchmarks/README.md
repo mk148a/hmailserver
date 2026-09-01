@@ -1,5 +1,18 @@
 # .NET 10 Benchmark Pack
 
+## Current delivery parity implementation status (2026-09-01)
+
+The implementation slice in `0d257b2bb` carries per-recipient remote SMTP
+outcomes. This matches legacy `ExternalDelivery::CollectDeliveryResult_` and
+`RescheduleDelivery_` (`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:439-608`)
+for a mixed batch: an accepted recipient is deleted while a transient `451`
+recipient remains scheduled for retry. Net10 coverage passes `47/47` focused
+delivery tests and `1/1` SQL recipient-store test.
+
+This is correctness coverage, not a queue benchmark. No supported paired C++
+queue/remote throughput runner or fresh two-recipient SQL readback exists yet;
+the performance gate remains **RED** and no winner claim is permitted.
+
 ## Current paired POP3 large-mailbox parity (2026-09-01, 25 iterations)
 
 On the same manifest-bound 1,000-message SQL/Data fixture and loopback POP3

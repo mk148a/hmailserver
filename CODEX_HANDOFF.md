@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-01, mixed-recipient remote delivery parity)
+
+Code/test commit `0d257b2bb` closes one bounded legacy delivery gap. The C++
+reference path is `ExternalDelivery::Perform`, `DeliverToSingleDomain_`,
+`CollectDeliveryResult_`, and `RescheduleDelivery_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:58-181,439-608`), with
+RCPT classification in `SMTPClientConnection::ProtocolRcptToSent_` and
+recipient updates in `UpdateSuccessfulRecipients_`/
+`UpdateRecipientWithError_` (`hmailserver/source/Server/SMTP/SMTPClientConnection.cpp:272-305,412-416,518-570`).
+For one accepted recipient and one transient `451`, legacy sends DATA, removes
+only the accepted recipient, and retains the transient recipient for retry.
+
+Net10 now preserves those outcomes through
+`SmtpRemoteDeliveryClient.SendAttemptAsync`,
+`RemoteDeliveryTargetDispatcher`, and
+`DeliveryQueueProcessor.ProcessRecipientResultsAsync`. Focused delivery tests
+pass `47/47`; SQL recipient-store tests pass `1/1`. Full Debug Net10 is
+`2790 passed, 94 skipped, 5 failed / 2889`; the five known failures are
+registered local-server COM checks returning `E_NOINTERFACE`. Live paired
+C++/Net10 two-recipient SQL readback and queue throughput remain unproven, so
+the performance release gate is still **RED**. Next: run that fresh paired
+two-recipient acceptance slice, then add supported queue/remote throughput
+coverage.
+
 ## Current authoritative continuation (2026-09-01, paired POP3 parity evidence)
 
 Code/test commit `1348fac13` closes the verified POP3 full-list wire-format
