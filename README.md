@@ -60,7 +60,10 @@ not 24-hour leak acceptance; the performance gate remains **RED**. The matching
 Admission-profile resource validator also passes `2,000/2,000` with Net10
 `+11.363 MiB`, `-4` handles, and `-11` threads after settle. The Full-profile
 growth remains open for investigation and neither result is 24-hour leak
-acceptance.
+acceptance. The isolated Net10 backup -> restore -> backup runner also passes
+`25/25` in `55.140 s` with disposable SQL/Data cleanup; this is functional
+evidence only, not paired C++ timing or installer rollback proof. The
+performance gate remains **RED**.
 
 ## Current authoritative status (2026-09-01, mixed-recipient delivery acceptance)
 

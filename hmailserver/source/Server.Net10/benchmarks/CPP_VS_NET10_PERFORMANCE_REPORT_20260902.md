@@ -231,6 +231,21 @@ Net10 with `+11.363 MiB`, `-4` handles, and `-11` threads after settle. This
 Admission result is a bounded gate pass, not 24-hour leak evidence. The Full
 profile resource growth above remains an investigation item.
 
+## Isolated backup/restore round-trip
+
+The disposable Net10 backup -> restore -> backup integration runner passed
+`25/25` tests in `55.140 s`, with zero failures and zero skips. It used only
+local Integrated Security, uniquely named `hmailserver_net10_*` databases, and
+test-owned temporary Data roots; its finally blocks dropped the databases and
+deleted the temporary roots. The report and validator are
+`artifacts/migration/net10-backup-restore-roundtrip-20260902/` and
+`build/test-net10-backup-restore-roundtrip-report.ps1`.
+
+This is isolated functional and rollback-cleanup evidence for Net10. There is
+no paired legacy C++ backup timing result, and it does not prove installer,
+service, production-data, or production-rollback readiness. Backup/restore
+performance and the cross-version semantic comparison remain release gates.
+
 ## Interpretation and remaining gates
 
 The fresh run proves that the current C++ disposable service path and current
@@ -247,7 +262,7 @@ cells are still open or not equivalent:
 - 100k-mailbox acceptance for every protocol where required and larger SMTP
   waves;
 - 24-hour memory/handle/thread/socket soak with comparable C++ baseline;
-- SQL Full-Text indexing/query acceptance and backup/restore timing;
+- SQL Full-Text indexing/query acceptance and paired backup/restore timing;
 - service restart and registered COM lifecycle acceptance.
 
 The legacy reference symbols used for the lifecycle and workload comparison

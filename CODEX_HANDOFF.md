@@ -33,8 +33,12 @@ Net10 each pass `2,000/2,000` Full IMAP sessions with zero errors/timeouts and
 throughput `19.466/s` versus `19.457/s`. Settle growth is C++ `+7,192,576` bytes
 and `+9` handles versus Net10 `+22,933,504` bytes and `+157` handles. This is
 diagnostic evidence only, not 24-hour leak acceptance or service-lifecycle
-parity; the Net10 growth remains an open release risk. Next is isolated
-backup/restore timing and memory acceptance, while performance remains RED.
+parity; the Net10 growth remains an open release risk. The isolated Net10
+backup -> restore -> backup runner now passes `25/25` in `55.140 s` with zero
+failures/skips and disposable SQL/Data cleanup. This is functional evidence,
+not paired C++ timing or installer rollback proof. Next is service-backed
+registered COM lifecycle and Administrator activation acceptance, while
+performance remains RED.
 
 ## Current authoritative continuation (2026-09-02, IMAP STORE ACL mutation hardening)
 

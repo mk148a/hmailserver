@@ -38,6 +38,19 @@ gate remains **RED**. Reports are machine-local under
 timing and memory acceptance cell; retain the long-soak and lifecycle gates as
 release blockers.
 
+The isolated Net10 backup -> restore -> backup slice is complete in code/test
+commit `b01d0d4f9`. Its opt-in runner passes `25/25` tests in `55.140 s` with
+zero failures/skips, local Integrated Security, `hmailserver_net10_*` temporary
+databases, test-owned Data roots, and finally cleanup of both SQL and Data.
+The report validator is
+`build/test-net10-backup-restore-roundtrip-report.ps1`. This closes isolated
+functional round-trip evidence only; paired C++ timing, semantic equivalence,
+installer rollback, and production rollback remain open.
+
+**Next smallest independent slice:** close service-backed registered COM
+lifecycle and Administrator activation acceptance on an isolated installation;
+retain paired backup timing, Full-Text, and 24-hour resource gates as RED.
+
 ## Historical authoritative slice (2026-09-02, IMAP STORE ACL mutation hardening)
 
 Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization
