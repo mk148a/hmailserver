@@ -1511,7 +1511,9 @@ Code/test commit `a96ee1d10` completes account-owned message-writer account-size
 - .NET 10 WindowsDesktop runtime for the COM compatibility assembly and Windows service target.
 - Visual Studio 2022 or Build Tools 17.x with the C++ build tools and a Windows SDK/MIDL when building Windows service/COM artifacts.
 - SQL Server with Full-Text Search installed and enabled.
-- A configured hMailServer data directory path (`DataDirectory` or `HMAILSERVER_DATA_DIRECTORY`).
+- A configured hMailServer data directory path (`DataDirectory` or
+  `HMAILSERVER_DATA_DIRECTORY`), or a legacy `hMailServer.ini` containing
+  `[Directories] DataFolder` and `[Database]` MSSQL settings.
 
 Run the local prerequisite check from the repository root:
 
@@ -1534,6 +1536,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\build\uninstall-net10-
 ```
 
 Installation registers the legacy AppID, CLSIDs, versioned/version-independent ProgIDs, CurVer aliases, LocalServer32 paths, and the 64-bit type library. It refuses to replace an existing `hMailServer` service unless `-ReplaceExisting` is explicitly supplied. When replacement targets a stopped service that points to a different executable, `-BackupArchive <path>` is also required and is checked with the packaged shell-free `7za.exe` archive test plus bounded metadata validation before COM registration or Service Control Manager changes. Use replacement only in a controlled, non-production compatibility environment. Build and test commands never mutate the registry or Service Control Manager.
+
+For a legacy installation, use `build/upgrade-net10-from-legacy.ps1`. It is
+PlanOnly by default and requires the stopped legacy service, the legacy INI,
+the verified backup archive, and a completed migration/reinitialization
+handoff manifest. Only pass `-Execute` after the isolated SQL/Data migration
+and rollback evidence has been reviewed; the guard then passes
+`--InitializationFile` to the service so the legacy database credentials and
+DataFolder remain in use. The current implementation does not claim exact
+legacy transaction rollback at the SQL Server Full-Text boundary.
 
 ## Current Next Slice
 

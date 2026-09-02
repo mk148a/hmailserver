@@ -1,7 +1,38 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-02, disposable SQL Full-Text acceptance)
+## Current authoritative status (2026-09-02, legacy upgrade guard)
+
+Code/test commit `4c781a0b1` closes the legacy-configuration handoff gap in
+the .NET 10 upgrade path. Legacy C++ loads MSSQL connection settings,
+including Blowfish-encrypted database passwords and `Directories:DataFolder`,
+from `hMailServer.ini` in `IniFileSettings::LoadSettings`
+(`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:79-127`)
+and upgrades through `DBUpdater::formMain::DoUpgrade`
+(`hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`). Net10 now reads
+the same database credentials and DataFolder, while an optional explicit
+connection string or DataDirectory remains authoritative when supplied.
+
+`build/upgrade-net10-from-legacy.ps1` is the guarded upgrade entry point. It
+defaults to a non-mutating plan, requires a stopped existing legacy
+`hMailServer` service, a verified backup archive, a completed migration/
+reinitialization handoff manifest, and carries the legacy INI into the new
+service command line. Only explicit `-Execute` delegates service/COM mutation
+to the existing rollback-aware installer. This host currently has no
+registered `hMailServer` service or legacy installation, so no cutover was
+attempted and no production resource was touched.
+
+The isolated SQL migration evidence remains `PassedWithKnownLegacyTransactionLimitation`:
+Net10 partitions SQL Server Full-Text DDL outside the transaction because the
+legacy `DBUpdater::formMain::DoUpgrade` transaction cannot contain
+`CREATE FULLTEXT CATALOG`. The current full Debug suite is `2797 passed,
+95 skipped, 5 failed / 2897`; the five failures are the pre-existing
+registered out-of-process COM `E_NOINTERFACE` checks. The 24-hour soak is
+deferred by explicit user decision, but registered COM/Admin activation,
+installer/Data rollback, SEC-18, AD/SSPI, DKIM/DMARC/SPF, and paired backup
+equivalence remain release blockers. The release gate remains **RED**.
+
+## Historical status (2026-09-02, disposable SQL Full-Text acceptance)
 
 Code/test commit `25fbe04cf` adds fail-closed validation for the live Full-Text
 acceptance report. On the manifest-bound disposable Net10 SQL/Data fixture,
@@ -23,7 +54,7 @@ resource gates remain open; release and performance gates remain **RED**.
 The latest focused COM run is `1/6` (`5` registered activations return
 `E_NOINTERFACE`), while the AD verifier slice is `3/5` with two real-domain
 tests explicitly inconclusive. The full Debug result remains
-`2795/95/5`.
+`2797/95/5`.
 
 The second 20-wave Full IMAP repeat also passed `2,000/2,000` per target.
 C++ was `19.435/s` with `+6,094,848` bytes and `+4` handles settled; Net10
@@ -31,7 +62,7 @@ was `19.410/s` with `+21,483,520` bytes and `+171` handles. Net10 metrics
 plateaued after startup but remain a retained-resource risk; this is not
 24-hour leak evidence or a performance winner claim.
 
-## Current authoritative status (2026-09-02, IMAP STORE ACL mutation hardening)
+## Historical status (2026-09-02, IMAP STORE ACL mutation hardening)
 
 Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization
 overreach and mutation-time ACL race. Legacy behavior is anchored by

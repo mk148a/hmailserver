@@ -1,4 +1,40 @@
-## Current authoritative next slice (2026-09-02, paired Full resource repeat)
+## Current authoritative next slice (2026-09-02, legacy-configured upgrade guard)
+
+Code/test commit `4c781a0b1` closes the legacy configuration handoff gap for
+the .NET 10 upgrade path. Legacy `IniFileSettings::LoadSettings`
+(`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:79-127`)
+loads MSSQL server/database/user/password/port and `DataFolder` from the
+legacy INI; `DBUpdater::formMain::DoUpgrade`
+(`hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`) performs the
+version-chain upgrade before `Application::Reinitialize`. Net10 now reads the
+same encrypted database password format and DataFolder when explicit runtime
+overrides are absent. `build/install-net10-service.ps1` accepts
+`-InitializationFile` and persists it in the service command line so the new
+binary uses the legacy configuration and data root.
+
+The new `build/upgrade-net10-from-legacy.ps1` guard defaults to PlanOnly and
+requires a stopped existing legacy service, a structurally validated backup,
+and a hash-matched completed migration/reinitialization handoff before it can
+delegate to the rollback-aware installer. It refuses a missing legacy service
+instead of acting as a first installer. Focused upgrade/configuration coverage
+is `20/20` plus the PowerShell guard test; the full Debug suite remains
+`2797/95/5` with the five known registered-COM `E_NOINTERFACE` failures. No
+service, COM registration, DCOM ACL, SQL/Data, or IIS state changed.
+
+The isolated SQL migration report is `PassedWithKnownLegacyTransactionLimitation`:
+SQL Server rejects the legacy single-transaction Full-Text DDL, so Net10
+partitions that DDL outside the transaction and records the boundary. This is
+safe isolated evidence, not exact legacy transaction equivalence. The current
+host has no legacy service or disposable legacy SQL/Data clone, so the actual
+cutover and rollback drill remain environment-blocked. The 24-hour soak is
+explicitly deferred by user decision and is not pursued in this slice.
+
+**Next smallest independent slice:** execute the guarded upgrade and rollback
+drill against a disposable registered legacy service with cloned SQL/Data;
+until that resource exists, close registered COM/Admin activation evidence on
+an isolated installation without altering the installed Application identity.
+
+## Historical authoritative next slice (2026-09-02, paired Full resource repeat)
 
 The disposable Net10 Full-Text acceptance cell is complete. The preparation
 test passed `1/1` with 1,000/1,000 messages backfilled and 1,000 distinct

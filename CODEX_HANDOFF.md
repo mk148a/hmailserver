@@ -1,6 +1,41 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-02, paired Full resource repeat)
+## Current authoritative continuation (2026-09-02, legacy upgrade guard)
+
+Code/test commit `4c781a0b1` makes the upgrade path consume the legacy
+`hMailServer.ini` configuration when explicit Net10 overrides are absent.
+Legacy anchors are `IniFileSettings::LoadSettings`
+(`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:79-127`),
+`DBUpdater::formMain::DoUpgrade`
+(`hmailserver/source/Tools/DBUpdater/formMain.cs:300-398`), and
+`Application::OnDatabaseConnected`
+(`hmailserver/source/Server/Common/Application/Application.cpp:180-214`).
+Net10 now reads legacy MSSQL credentials, decrypts the legacy Blowfish database
+password, derives `DataFolder`, and `install-net10-service.ps1` carries the
+legacy INI through `--InitializationFile` in the service command line.
+
+`build/upgrade-net10-from-legacy.ps1` is the user-facing guard. It is PlanOnly
+by default and refuses to proceed unless the existing legacy service is
+stopped, the backup archive passes the existing 7za/metadata preflight, and a
+hash-matched completed migration/reinitialization handoff is present. `-Execute`
+is the only path that delegates to service/COM mutation. The current host has
+no registered legacy `hMailServer` service or legacy installation, so no
+cutover was run. The prior isolated SQL migration passed with the recorded
+Full-Text non-transactional boundary; exact legacy transaction equivalence and
+installer/Data rollback remain open until a disposable legacy SQL/Data clone
+and registered legacy service exist.
+
+Focused upgrade/configuration coverage is `20/20` plus the PowerShell guard
+test. Full Debug remains `2797 passed, 95 skipped, 5 failed / 2897`, with the
+five known registered local-server COM `E_NOINTERFACE` failures. The 24-hour
+soak is deferred by explicit user decision; registered COM/Admin, SEC-18,
+AD/SSPI, DKIM/DMARC/SPF, paired backup equivalence, and cloned rollback gates
+remain open. Release status is **RED**.
+
+Next: run the guarded upgrade/rollback drill on a disposable registered legacy
+service and cloned SQL/Data state; do not use production resources.
+
+## Historical continuation (2026-09-02, paired Full resource repeat)
 
 The current Net10 Full-Text acceptance is complete in code/test commit
 `25fbe04cf`. Against the manifest-bound disposable SQL/Data fixture, the
