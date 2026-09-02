@@ -1,5 +1,24 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-02, paired protocol/load evidence)
+
+The fresh disposable manifest-bound fixture has 1,000 SQL message rows and
+1,000 byte-matched Data files with separate SQL clones. C++ and .NET 10 each
+pass 25/25 SMTP, IMAP Full SEARCH/SORT, and POP3 protocol iterations with zero
+errors. Each also completes 1,000/1,000 Full-profile concurrent IMAP sessions
+with zero errors and timeouts. The C++ run is backed by a temporary disposable
+SCM service; the .NET 10 run is backed by the live process runner. This
+host-mode difference is explicit in the report and does not establish service
+lifecycle parity or a general performance winner. See
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`.
+
+The C++ production source was not changed because the fresh service-backed
+run did not isolate a source defect. The next slice is a supported paired
+C++/.NET queue and remote-delivery throughput runner with identical disposable
+SQL/Data fixtures, retry/defer validation, resource accounting, and a repeat
+plan. Performance remains **RED** pending that work, long soak, FTS, backup /
+restore timing, and service/COM lifecycle acceptance.
+
 ## Current authoritative continuation (2026-09-02, IMAP STORE ACL mutation hardening)
 
 Code/test commit `bb3512c88` implements the bounded security slice for
@@ -17,8 +36,10 @@ delta, honors `UseAcl=false`, and checks effective inherited/direct/group/Anyone
 ACLs with message and ACL locks inside one SQL transaction. Denied async store
 operations return tagged `NO` responses. Focused coverage is `88/88 PASS`.
 
-Full Debug Net10 is `2795 passed, 95 skipped, 5 failed / 2895`; the five known
-registered local-server COM activation tests still return `E_NOINTERFACE`.
+Full Debug Net10 is `2793 passed, 95 skipped, 7 failed / 2895`; five known
+registered local-server COM activation tests still return `E_NOINTERFACE`, and
+two scanner runtime tests are blocked by endpoint-protection access denial on
+temporary `.eml` cleanup.
 Live SQL ACL concurrency and ACL-disabled integration are not yet proven. No
 installed COM identity, DCOM ACL, service, SQL/Data, or IIS state changed.
 The release gate remains **RED**. Next: supported paired queue/remote-delivery

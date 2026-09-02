@@ -1,4 +1,20 @@
-## Current authoritative next slice (2026-09-02, IMAP STORE ACL mutation hardening)
+## Current authoritative next slice (2026-09-02, paired protocol/load evidence)
+
+The current disposable C++ Release x64 service path and current .NET 10
+listener both pass the fresh manifest-bound 25-iteration SMTP/IMAP/POP3
+protocol cell and the 1,000-session Full-profile IMAP cell with zero errors and
+zero timeouts. The C++ run is service-backed through a temporary SCM service;
+the .NET 10 concurrent run is process-backed. The evidence and graphs are in
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`.
+No general speed-up or performance-superiority claim is valid yet.
+
+**Next smallest independent slice:** implement and validate a supported paired
+C++/.NET queue and remote-delivery throughput runner on isolated SQL/Data
+fixtures, including p50/p95/p99, throughput, errors, retry/defer outcomes, and
+resource evidence. Keep the performance gate **RED** until that runner and the
+long-soak gates pass.
+
+## Historical authoritative slice (2026-09-02, IMAP STORE ACL mutation hardening)
 
 Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization
 overreach and ACL-to-mutation TOCTOU gap. Legacy behavior is anchored by

@@ -21,11 +21,31 @@ commit, preserves `UseAcl=false`, and translates denied async mutations to a
 tagged `NO` response.
 
 Focused IMAP STORE/FETCH/session/SQL mutation coverage passes `88/88`. Full
-Debug Net10 is `2795 passed, 95 skipped, 5 failed / 2895`; the five failures
-remain the known registered local-server COM `E_NOINTERFACE` checks. No
-installed COM identity, DCOM ACL, production SQL/Data, service, or IIS state
+Debug Net10 is `2793 passed, 95 skipped, 7 failed / 2895`; five failures remain
+the known registered local-server COM `E_NOINTERFACE` checks and two are
+endpoint-protection access-denied failures in scanner temporary-file cleanup.
+No installed COM identity, DCOM ACL, production SQL/Data, service, or IIS state
 changed. Live SQL ACL concurrency and ACL-disabled integration remain
 unproven; performance and release gates remain **RED**.
+
+## Current paired C++/.NET 10 performance evidence (2026-09-02)
+
+The fresh manifest-bound fixture contains 1,000 SQL message rows and 1,000
+byte-matched Data files, with separate disposable SQL clones and loopback
+SMTP/IMAP/POP3 ports. C++ protocol, .NET 10 protocol, C++ 1,000-session IMAP,
+and .NET 10 1,000-session IMAP all completed with zero errors and zero
+timeouts. The detailed table, executable/fixture hashes, legacy symbols, and
+Mermaid graphs are in
+[`CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md).
+
+The C++ run used a temporary disposable SCM service. The .NET 10 concurrent
+run used the live process runner, so the host-mode difference is recorded and
+no service-lifecycle parity claim is made. In this run throughput was nearly
+equal (`19.909` C++ versus `19.910` .NET 10 sessions/s); .NET 10 IMAP p95/p99
+and POP3 latency were higher. This is bounded evidence, not a general speed-up
+or performance-superiority claim. The performance release gate remains
+**RED** pending paired queue/remote-delivery throughput, long soak, SQL FTS,
+backup/restore timing, and lifecycle acceptance.
 
 ## Current authoritative status (2026-09-01, mixed-recipient delivery acceptance)
 
