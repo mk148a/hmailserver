@@ -1,4 +1,4 @@
-## Current authoritative next slice (2026-09-02, disposable SQL Full-Text acceptance)
+## Current authoritative next slice (2026-09-02, paired Full resource repeat)
 
 The disposable Net10 Full-Text acceptance cell is complete. The preparation
 test passed `1/1` with 1,000/1,000 messages backfilled and 1,000 distinct
@@ -11,13 +11,17 @@ disposable SQL/Data boundaries plus cleanup. Legacy anchors are
 Net10 implementation is `MessageSearchBackfillProcessor` plus the SQL
 Full-Text search index.
 
-This is Net10-only Full-Text evidence, not paired C++ timing or 24-hour soak
-acceptance. The performance gate remains **RED**.
+This closes the disposable Net10 Full-Text cell only. The second manifest-bound
+Full-profile resource repeat also passed `2,000/2,000` per target. C++ settled
+at `+6,094,848` bytes and `+4` handles; Net10 at `+21,483,520` bytes and
+`+171` handles. Both traces plateaued after startup, but the retained-resource
+difference remains open and this is not 24-hour leak acceptance or a
+performance winner claim. The performance gate remains **RED**.
 
-**Next smallest independent slice:** close service-backed registered COM
-lifecycle and Administrator activation acceptance on an isolated installation;
-retain paired backup timing, restore semantic equivalence, and long-soak gates
-as release blockers.
+**Next smallest independent slice:** complete paired C++/.NET backup timing and
+semantic-equivalence evidence on the existing disposable fixture; retain
+registered COM/Admin activation, installer rollback, and long-soak gates as
+release blockers.
 
 The focused registered COM host test was rerun after this slice: `1/6` passed
 and the five activation tests all returned `E_NOINTERFACE` at

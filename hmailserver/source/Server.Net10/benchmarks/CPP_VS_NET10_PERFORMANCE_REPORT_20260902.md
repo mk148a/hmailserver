@@ -231,6 +231,20 @@ Net10 with `+11.363 MiB`, `-4` handles, and `-11` threads after settle. This
 Admission result is a bounded gate pass, not 24-hour leak evidence. The Full
 profile resource growth above remains an investigation item.
 
+A second manifest-bound Full-profile repeat passed `2,000/2,000` on both
+targets with the same 20 waves, 100 sessions per wave, and 50 ms launch
+stagger. C++ p50/p95/p99 were `200.219/232.402/275.567 ms` at `19.435/s`,
+with settled growth of `+6,094,848` bytes, `+4` handles, and `-6` threads.
+Net10 was `212.709/343.659/881.420 ms` at `19.410/s`, with
+`+21,483,520` bytes, `+171` handles, and `-1` thread. Net10 private bytes
+settled into roughly `41.5-43.7 MB` and handles into `688-695` after wave 3,
+so this repeats a startup/retained-resource signal rather than a monotonic
+per-wave climb. The two generic report validators passed. This remains
+diagnostic evidence, not 24-hour leak acceptance or a performance winner.
+Raw reports are machine-local under
+`artifacts/benchmarks/paired-cpp-net10-20260902-soak-cpp-s50-r2/` and
+`artifacts/benchmarks/paired-cpp-net10-20260902-soak-net10-s50-r2/`.
+
 ## Isolated backup/restore round-trip
 
 The disposable Net10 backup -> restore -> backup integration runner passed

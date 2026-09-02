@@ -1,6 +1,6 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-02, disposable SQL Full-Text acceptance)
+## Current authoritative continuation (2026-09-02, paired Full resource repeat)
 
 The current Net10 Full-Text acceptance is complete in code/test commit
 `25fbe04cf`. Against the manifest-bound disposable SQL/Data fixture, the
@@ -14,9 +14,14 @@ non-FTS migration report. Legacy anchors are
 is Net10-only; no paired C++ Full-Text timing or general performance claim is
 made. The release gate remains **RED**.
 
-Next: isolated service-backed registered COM lifecycle and Administrator
-activation acceptance. Keep paired backup timing/semantic equivalence, Full
-profile resource growth investigation, and 24-hour soak open.
+The second manifest-bound Full-profile resource repeat passed `2,000/2,000` on
+both targets. C++ settled at `+6,094,848` bytes and `+4` handles; Net10 at
+`+21,483,520` bytes and `+171` handles. Both traces plateaued after startup,
+but the retained-resource difference remains open; this is not 24-hour soak
+acceptance or a performance winner claim.
+
+Next: complete paired C++/.NET backup timing and semantic-equivalence evidence.
+Keep registered COM/Admin activation, installer rollback, and 24-hour soak open.
 The focused COM host run remains `1/6` with the same five `E_NOINTERFACE`
 activation failures; AD verifier tests are `3/5` with two real AD/SSPI tests
 inconclusive because no disposable domain/credential is available. The full

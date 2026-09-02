@@ -14,6 +14,14 @@ This closes only the disposable Net10 Full-Text cell. There is no paired C++
 Full-Text timing result, 24-hour soak, or performance winner claim; the
 performance release gate remains **RED**.
 
+The second paired 20-wave Full IMAP resource repeat passed `2,000/2,000` on
+both sides. C++ p50/p95/p99 were `200.219/232.402/275.567 ms` at `19.435/s`
+with `+6,094,848` bytes and `+4` handles settled; Net10 was
+`212.709/343.659/881.420 ms` at `19.410/s` with `+21,483,520` bytes and
+`+171` handles. Net10 settled after wave 3 rather than growing monotonically,
+but the retained-resource difference remains open and is not 24-hour leak
+acceptance.
+
 ## Current delivery parity acceptance status (2026-09-02)
 
 The implementation slice in `b9b58e239` carries per-recipient remote SMTP

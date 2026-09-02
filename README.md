@@ -25,6 +25,12 @@ The latest focused COM run is `1/6` (`5` registered activations return
 tests explicitly inconclusive. The full Debug result remains
 `2795/95/5`.
 
+The second 20-wave Full IMAP repeat also passed `2,000/2,000` per target.
+C++ was `19.435/s` with `+6,094,848` bytes and `+4` handles settled; Net10
+was `19.410/s` with `+21,483,520` bytes and `+171` handles. Net10 metrics
+plateaued after startup but remain a retained-resource risk; this is not
+24-hour leak evidence or a performance winner claim.
+
 ## Current authoritative status (2026-09-02, IMAP STORE ACL mutation hardening)
 
 Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization
