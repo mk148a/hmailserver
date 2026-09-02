@@ -1,6 +1,32 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-09-02, IMAP STORE ACL mutation hardening)
+
+Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization
+overreach and mutation-time ACL race. Legacy behavior is anchored by
+`IMAPStore::DoAction` (`hmailserver/source/Server/IMAP/IMAPStore.cpp:36-150`),
+`IMAPConnection::CheckPermission` (`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`),
+`ACLManager::GetPermissionForFolder`
+(`hmailserver/source/Server/Common/Application/ACLManager.cpp:58-110`), and
+`FolderManager::UpdateMessageFlags`
+(`hmailserver/source/Server/Common/Application/FolderManager.cpp:109-132`).
+The legacy replacement `FLAGS` path checks only textual flags but clears all
+five mutable flags; Net10 now computes the actual delta so omitted flags cannot
+be cleared without their ACL rights. Public-folder requests carry the
+authenticated requester separately from storage account `0`; the SQL store
+revalidates effective inherited/direct/group/Anyone ACLs with
+`UPDLOCK,HOLDLOCK` in the same mutation transaction, locks message rows through
+commit, preserves `UseAcl=false`, and translates denied async mutations to a
+tagged `NO` response.
+
+Focused IMAP STORE/FETCH/session/SQL mutation coverage passes `88/88`. Full
+Debug Net10 is `2795 passed, 95 skipped, 5 failed / 2895`; the five failures
+remain the known registered local-server COM `E_NOINTERFACE` checks. No
+installed COM identity, DCOM ACL, production SQL/Data, service, or IIS state
+changed. Live SQL ACL concurrency and ACL-disabled integration remain
+unproven; performance and release gates remain **RED**.
+
 ## Current authoritative status (2026-09-01, mixed-recipient delivery acceptance)
 
 The latest bounded harness slice is code/test commit `2ad1dc293`; the

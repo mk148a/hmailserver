@@ -1,5 +1,31 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-02, IMAP STORE ACL mutation hardening)
+
+Code/test commit `bb3512c88` implements the bounded security slice for
+`STORE FLAGS` and implicit FETCH Seen writes. Legacy anchors are
+`IMAPStore::DoAction` (`hmailserver/source/Server/IMAP/IMAPStore.cpp:36-150`),
+`IMAPConnection::CheckPermission`
+(`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`),
+`ACLManager::GetPermissionForFolder`
+(`hmailserver/source/Server/Common/Application/ACLManager.cpp:58-110`), and
+`FolderManager::UpdateMessageFlags`
+(`hmailserver/source/Server/Common/Application/FolderManager.cpp:109-132`).
+Net10 now keeps the authenticated requester account distinct from public-folder
+storage account `0`, computes ACL requirements from the actual mutable-flag
+delta, honors `UseAcl=false`, and checks effective inherited/direct/group/Anyone
+ACLs with message and ACL locks inside one SQL transaction. Denied async store
+operations return tagged `NO` responses. Focused coverage is `88/88 PASS`.
+
+Full Debug Net10 is `2795 passed, 95 skipped, 5 failed / 2895`; the five known
+registered local-server COM activation tests still return `E_NOINTERFACE`.
+Live SQL ACL concurrency and ACL-disabled integration are not yet proven. No
+installed COM identity, DCOM ACL, service, SQL/Data, or IIS state changed.
+The release gate remains **RED**. Next: supported paired queue/remote-delivery
+throughput, then disposable long soak, then isolated restore/installer rollback
+acceptance. COM/Admin, SEC-18, AD/SSPI, and DKIM/DMARC/SPF remain separate
+environment or integration blockers.
+
 ## Current authoritative continuation (2026-09-01, mixed-recipient remote delivery acceptance)
 
 Code/test commit `2ad1dc293` adds one bounded disposable-harness acceptance slice;

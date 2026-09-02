@@ -1,5 +1,34 @@
+## Current authoritative next slice (2026-09-02, IMAP STORE ACL mutation hardening)
 
-## Current authoritative next slice (2026-09-01, paired queue throughput)
+Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization
+overreach and ACL-to-mutation TOCTOU gap. Legacy behavior is anchored by
+`IMAPStore::DoAction` (`hmailserver/source/Server/IMAP/IMAPStore.cpp:36-150`),
+`IMAPConnection::CheckPermission` (`hmailserver/source/Server/IMAP/IMAPConnection.cpp:875-921`),
+`ACLManager::GetPermissionForFolder`
+(`hmailserver/source/Server/Common/Application/ACLManager.cpp:58-110`), and
+`FolderManager::UpdateMessageFlags`
+(`hmailserver/source/Server/Common/Application/FolderManager.cpp:109-132`).
+Legacy `FLAGS (\\Seen)` checks only `PermissionWriteSeen` while clearing all
+mutable flags. Net10 now computes the real changed-bit set, carries the
+authenticated requester separately from public-folder account `0`, honors
+`UseAcl=false`, and revalidates effective inherited/direct/group/Anyone ACLs
+with `UPDLOCK,HOLDLOCK` while the message snapshot and update share one
+transaction. Message rows are locked through commit, and authorization failures
+from async mutation are returned as tagged `NO` responses.
+
+Focused IMAP STORE/FETCH/session/SQL mutation tests pass `88/88`. Full Debug
+Net10 is `2795 passed, 95 skipped, 5 failed / 2895`; the five failures are the
+known registered local-server COM `E_NOINTERFACE` checks. No installed COM
+identity, DCOM ACL, service, SQL/Data, or IIS state changed. Live SQL ACL
+concurrency and ACL-disabled integration remain unproven, so the security and
+release gates remain **RED**.
+
+**Next smallest independent slice:** build a supported paired C++/.NET
+queue/remote-delivery throughput runner with identical disposable SQL/Data
+fixtures and explicit p50/p95/p99, throughput, errors, and resource evidence.
+Do not claim a performance winner until that runner and the soak gates pass.
+
+## Historical continuation (2026-09-01, paired queue throughput)
 
 The disposable C++ mixed-recipient acceptance gap is closed for this bounded
 fixture cell by code/test commit `2ad1dc293`. The harness now waits for a
