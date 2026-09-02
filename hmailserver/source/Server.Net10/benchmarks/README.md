@@ -1,5 +1,19 @@
 # .NET 10 Benchmark Pack
 
+## Current disposable SQL Full-Text acceptance (2026-09-02)
+
+The disposable Net10 Full-Text backfill/search test passed `1/1` against the
+manifest-bound `hmail_perf_*` SQL clone and `C:\hmail-perf-*` Data root. It
+backfilled 1,000/1,000 messages and returned 1,000 distinct results for
+`SEARCH TEXT needle`. The repeated live runner passed `25/25`; SEARCH
+p50/p95/p99 were `11.001/22.849/73.038 ms`. The JSON/CSV/Markdown evidence is
+under `artifacts/benchmarks/paired-cpp-net10-20260902-current/fts-net10-25-r1/`.
+Validate the JSON with `build/test-net10-live-fts-report.ps1`.
+
+This closes only the disposable Net10 Full-Text cell. There is no paired C++
+Full-Text timing result, 24-hour soak, or performance winner claim; the
+performance release gate remains **RED**.
+
 ## Current delivery parity acceptance status (2026-09-02)
 
 The implementation slice in `b9b58e239` carries per-recipient remote SMTP

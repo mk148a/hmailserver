@@ -1,6 +1,26 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-09-02, disposable SQL Full-Text acceptance)
+
+Code/test commit `25fbe04cf` adds fail-closed validation for the live Full-Text
+acceptance report. On the manifest-bound disposable Net10 SQL/Data fixture,
+`DisposableFullTextBackfillAndSearchAreUsable` passed `1/1`: all 1,000 message
+rows were backfilled and `SEARCH TEXT needle` returned 1,000 distinct matches.
+The repeated live SEARCH runner passed `25/25` with SEARCH p50/p95/p99 of
+`11.001/22.849/73.038 ms`; its validator also passed and confirmed loopback,
+`hmail_perf_*` SQL, `C:\hmail-perf-*` Data, exact corpus counts, and cleanup
+attestation. Legacy SEARCH behavior is anchored by
+`IMAPCommandSEARCH::ExecuteCommand` and `DoesMessageMatch_`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-432`); Net10 uses
+`MessageSearchBackfillProcessor` and the SQL Full-Text search index.
+
+This closes the current disposable Net10 Full-Text acceptance cell only. It is
+not paired C++ Full-Text timing, 24-hour soak evidence, or a performance
+winner. Registered out-of-process COM/Admin activation, SEC-18 caller-token
+proof, installer/service/Data rollback, AD/SSPI, DKIM/DMARC/SPF, and long-soak
+resource gates remain open; release and performance gates remain **RED**.
+
 ## Current authoritative status (2026-09-02, IMAP STORE ACL mutation hardening)
 
 Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization

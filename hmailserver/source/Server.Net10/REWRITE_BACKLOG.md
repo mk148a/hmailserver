@@ -1,4 +1,25 @@
-## Current authoritative next slice (2026-09-02, paired resource repeatability)
+## Current authoritative next slice (2026-09-02, disposable SQL Full-Text acceptance)
+
+The disposable Net10 Full-Text acceptance cell is complete. The preparation
+test passed `1/1` with 1,000/1,000 messages backfilled and 1,000 distinct
+`SEARCH TEXT needle` matches. The repeated live runner passed `25/25` with
+SEARCH p50/p95/p99 `11.001/22.849/73.038 ms`; the fail-closed report validator
+in `build/test-net10-live-fts-report.ps1` passed and confirmed loopback and
+disposable SQL/Data boundaries plus cleanup. Legacy anchors are
+`IMAPCommandSEARCH::ExecuteCommand` and `DoesMessageMatch_`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-432`), while the
+Net10 implementation is `MessageSearchBackfillProcessor` plus the SQL
+Full-Text search index.
+
+This is Net10-only Full-Text evidence, not paired C++ timing or 24-hour soak
+acceptance. The performance gate remains **RED**.
+
+**Next smallest independent slice:** close service-backed registered COM
+lifecycle and Administrator activation acceptance on an isolated installation;
+retain paired backup timing, restore semantic equivalence, and long-soak gates
+as release blockers.
+
+## Historical authoritative next slice (2026-09-02, paired resource repeatability)
 
 The current disposable C++ Release x64 service path and current .NET 10
 listener both pass the fresh manifest-bound 25-iteration SMTP/IMAP/POP3

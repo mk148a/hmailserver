@@ -246,6 +246,25 @@ no paired legacy C++ backup timing result, and it does not prove installer,
 service, production-data, or production-rollback readiness. Backup/restore
 performance and the cross-version semantic comparison remain release gates.
 
+## Disposable SQL Full-Text acceptance
+
+The disposable Net10 Full-Text preparation and live search acceptance passed
+`1/1` preparation test and `25/25` loopback `SEARCH TEXT needle` sessions.
+Backfill processed all 1,000 message rows and each session returned 1,000
+distinct indexed matches. The live runner reports SEARCH p50/p95/p99 of
+`11.001/22.849/73.038 ms`; the report validator is
+`build/test-net10-live-fts-report.ps1` and passed the same JSON. It verifies
+the `live-imap-search-acceptance-v1` schema, exact sample counts, ordered
+percentiles, `127.0.0.1:1143`, `hmail_perf_*` SQL, `C:\hmail-perf-*` Data, and
+cleanup attestation. Raw JSON/CSV/Markdown evidence is machine-local under
+`artifacts/benchmarks/paired-cpp-net10-20260902-current/fts-net10-25-r1/`.
+
+Legacy `IMAPCommandSEARCH::ExecuteCommand` and `DoesMessageMatch_`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-432`) define the
+reference SEARCH response/matching path; the legacy path does not provide the
+Net10 SQL Full-Text backfill implementation. This is disposable Net10-only
+acceptance, not paired C++ timing or a general performance claim.
+
 ## Interpretation and remaining gates
 
 The fresh run proves that the current C++ disposable service path and current
@@ -262,7 +281,7 @@ cells are still open or not equivalent:
 - 100k-mailbox acceptance for every protocol where required and larger SMTP
   waves;
 - 24-hour memory/handle/thread/socket soak with comparable C++ baseline;
-- SQL Full-Text indexing/query acceptance and paired backup/restore timing;
+- paired backup/restore timing and semantic equivalence;
 - service restart and registered COM lifecycle acceptance.
 
 The legacy reference symbols used for the lifecycle and workload comparison

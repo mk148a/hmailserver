@@ -1,5 +1,23 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-02, disposable SQL Full-Text acceptance)
+
+The current Net10 Full-Text acceptance is complete in code/test commit
+`25fbe04cf`. Against the manifest-bound disposable SQL/Data fixture, the
+preparation test passed `1/1` with 1,000/1,000 rows backfilled and 1,000
+distinct `SEARCH TEXT needle` matches. The repeated live runner passed
+`25/25`; SEARCH p50/p95/p99 were `11.001/22.849/73.038 ms`. The new
+`build/test-net10-live-fts-report.ps1` validator passed the JSON and rejected a
+non-FTS migration report. Legacy anchors are
+`IMAPCommandSEARCH::ExecuteCommand` and `DoesMessageMatch_`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-432`). This evidence
+is Net10-only; no paired C++ Full-Text timing or general performance claim is
+made. The release gate remains **RED**.
+
+Next: isolated service-backed registered COM lifecycle and Administrator
+activation acceptance. Keep paired backup timing/semantic equivalence, Full
+profile resource growth investigation, and 24-hour soak open.
+
 ## Current authoritative continuation (2026-09-02, paired queue evidence)
 
 The fresh disposable manifest-bound fixture has 1,000 SQL message rows and
