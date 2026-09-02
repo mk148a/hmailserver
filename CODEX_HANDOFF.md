@@ -16,10 +16,17 @@ The C++ production source was not changed because the fresh service-backed
 run did not isolate a source defect. The paired local-delivery queue runner now
 passes `1,000/1,000` on each side with full SQL/Data baseline restoration. The
 bounded drain measurements are C++ `223.060 msg/s` and Net10 `87.130 msg/s`;
-the ratio is not a general product claim. The next slice is remote-delivery
-retry/defer throughput with identical disposable SQL/Data fixtures and
-resource accounting. Performance remains **RED** pending remote retry, long
-soak, FTS, backup/restore timing, and service/COM lifecycle acceptance.
+the ratio is not a general product claim. The remote-delivery retry/defer
+throughput slice is now complete in code/test commit `48d191803`. It passes
+`25/25` disposable samples per target with a loopback `451` first response,
+`250` recovery, retained retry-state readback, final queue/recipient/Data
+cleanup, and temporary C++ service cleanup. C++ p50/p95/p99 are
+`68,227.938/69,409.603/69,540.947 ms` at `0.015 msg/s`; Net10 is
+`12,924.178/16,383.045/39,464.910 ms` at `0.068 msg/s`. The observed `4.53x`
+ratio is scheduler-dominated bounded evidence, not a general winner.
+Performance remains **RED** pending long soak, FTS, backup/restore timing, and
+service/COM lifecycle acceptance. The next slice is disposable long-duration
+resource soak with process/handle/thread/socket accounting.
 
 ## Current authoritative continuation (2026-09-02, IMAP STORE ACL mutation hardening)
 

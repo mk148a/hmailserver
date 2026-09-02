@@ -1,6 +1,6 @@
 # .NET 10 Benchmark Pack
 
-## Current delivery parity acceptance status (2026-09-01)
+## Current delivery parity acceptance status (2026-09-02)
 
 The implementation slice in `b9b58e239` carries per-recipient remote SMTP
 outcomes. This matches legacy `ExternalDelivery::CollectDeliveryResult_` and
@@ -15,9 +15,15 @@ DATA correctly, surfaces background-job errors, and records redacted timeout
 diagnostics. Three fresh C++ service runs pass the same mixed flow and cleanup
 on the manifest-bound fixture.
 
-This is correctness coverage, not a queue benchmark. A supported paired C++
-queue/remote throughput runner is still missing;
-the performance gate remains **RED** and no winner claim is permitted.
+This is correctness coverage plus a bounded retry benchmark. The supported
+paired runner passes `25/25` TCP `451 -> 250` retry/defer samples per target
+against the same disposable SQL/Data fixture, with full queue/Data/service
+cleanup. Aggregate throughput is C++ `0.015 msg/s` and Net10 `0.068 msg/s`,
+but each sample is a separate test/process/service run and the elapsed time is
+retry-scheduler dominated. It is descriptive evidence only; no winner claim
+is permitted and the performance gate remains **RED**. The detailed table and
+graph are in
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`.
 
 ## Current paired POP3 large-mailbox parity (2026-09-01, 25 iterations)
 

@@ -145,6 +145,53 @@ Legacy queue anchors inspected for this cell were
 `SqlServerDeliveryQueueMessageStore.cs`, and
 `hmailserver/source/Server.Net10/src/HMailServer.Service/DeliveryQueueProcessorHostedService.cs`.
 
+## Remote TCP 451 retry/defer throughput
+
+The same manifest-bound disposable SQL/Data fixture was exercised with 25
+isolated samples per implementation. Each sample used a loopback SMTP sink
+that returned `451` on the first recipient attempt and `250` on recovery.
+Readback required the transient queue state after `451`, final message and
+recipient deletion after recovery, Data-file cleanup, and removal of the
+temporary C++ LocalService SCM service. All `25/25` samples passed on both
+sides; the aggregate artifact is
+`artifacts/benchmarks/paired-cpp-net10-20260902-current/tcp451-retry-throughput-r1/`.
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput | Peak private bytes | Peak handles | Peak threads |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ service | PASS 25/25 | 68,227.938 | 69,409.603 | 69,540.947 | 0.015 msg/s | 158.55 MB | 979 | 76 |
+| .NET 10 process | PASS 25/25 | 12,924.178 | 16,383.045 | 39,464.910 | 0.068 msg/s | 83.81 MB | 839 | 79 |
+
+```mermaid
+xychart-beta
+    title "Remote retry/defer throughput (bounded 25-sample cell)"
+    x-axis [C++, .NET10]
+    y-axis "Messages per second" 0 --> 0.08
+    bar [0.015, 0.068]
+```
+
+This cell is descriptive only. Its elapsed time is dominated by the legacy
+retry scheduler and the compared hosts differ (temporary C++ service versus
+direct Net10 test process). The observed Net10/C++ throughput ratio is about
+`4.53x` for this cell, not a product-wide speed-up claim. The runner preserves
+the no-winner decision and records all per-sample cleanup results in JSON.
+The resource columns are evidence for each run, not a comparable memory or
+handle ranking: C++ samples the named service process, while the Net10 sample
+captures the `dotnet test` launcher and does not include all descendants.
+Post-exit zeroes are lifecycle cleanup observations, not leak measurements.
+
+Legacy anchors are `ExternalDelivery::CollectDeliveryResult_` and
+`ExternalDelivery::RescheduleDelivery_`
+(`hmailserver/source/Server/SMTP/ExternalDelivery.cpp:439-608`),
+`SMTPDeliveryManager::GetNextMessage_`
+(`hmailserver/source/Server/SMTP/SMTPDeliveryManager.cpp:133`), and
+`PersistentMessage::SetNextTryTime`
+(`hmailserver/source/Server/Common/Persistence/PersistentMessage.cpp:677`).
+Net10 anchors are `DeliveryQueueProcessor.RunBatchAsync` and
+`ProcessRecipientResultsAsync`
+(`hmailserver/source/Server.Net10/src/HMailServer.Delivery/DeliveryQueueProcessor.cs:57-500`),
+`RemoteDeliveryTargetDispatcher`, `SmtpRemoteDeliveryClient.SendAttemptAsync`,
+and `SqlServerDeliveryQueueLeaseStore`.
+
 ## Interpretation and remaining gates
 
 The fresh run proves that the current C++ disposable service path and current
@@ -157,8 +204,7 @@ resolution.
 The performance release gate remains **RED** because the following acceptance
 cells are still open or not equivalent:
 
-- service-backed paired remote retry throughput (the local-delivery queue cell
-  above is complete, but remote retry remains open);
+- longer service-backed paired delivery waves and scheduler-capacity evidence;
 - 100k-mailbox acceptance for every protocol where required and larger SMTP
   waves;
 - 24-hour memory/handle/thread/socket soak with comparable C++ baseline;

@@ -17,6 +17,24 @@ including accepted/transient recipient outcomes, p50/p95/p99, throughput,
 errors, and resource evidence. Keep the performance gate **RED** until remote
 retry and long-soak gates pass.
 
+The remote retry/defer slice is now complete in code/test commit `48d191803`.
+The runner executes 25 disposable samples per target against the same fixture,
+with a loopback `451` first response and `250` recovery. Both targets pass
+`25/25`, including retained retry state, final queue/recipient deletion, Data
+cleanup, and temporary C++ service cleanup. Aggregate p50/p95/p99 are
+`68,227.938/69,409.603/69,540.947 ms` for C++ and
+`12,924.178/16,383.045/39,464.910 ms` for Net10; throughput is `0.015` versus
+`0.068 msg/s`. The observed `4.53x` Net10/C++ ratio is scheduler-dominated
+bounded evidence and is not a winner claim. See
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`
+and the machine-local aggregate artifact under
+`artifacts/benchmarks/paired-cpp-net10-20260902-current/tcp451-retry-throughput-r1/`.
+
+**Next smallest independent slice:** execute a disposable long-duration
+resource soak with process/handle/thread/socket accounting and comparable
+legacy service coverage; keep the performance gate **RED** until soak, FTS,
+backup/restore timing, and lifecycle acceptance are complete.
+
 ## Historical authoritative slice (2026-09-02, IMAP STORE ACL mutation hardening)
 
 Code/test commit `bb3512c88` closes the bounded `STORE FLAGS` authorization

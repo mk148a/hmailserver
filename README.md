@@ -21,9 +21,8 @@ commit, preserves `UseAcl=false`, and translates denied async mutations to a
 tagged `NO` response.
 
 Focused IMAP STORE/FETCH/session/SQL mutation coverage passes `88/88`. Full
-Debug Net10 is `2793 passed, 95 skipped, 7 failed / 2895`; five failures remain
-the known registered local-server COM `E_NOINTERFACE` checks and two are
-endpoint-protection access-denied failures in scanner temporary-file cleanup.
+Debug Net10 is `2795 passed, 95 skipped, 5 failed / 2895`; all five failures
+are the known registered local-server COM `E_NOINTERFACE` checks.
 No installed COM identity, DCOM ACL, production SQL/Data, service, or IIS state
 changed. Live SQL ACL concurrency and ACL-disabled integration remain
 unproven; performance and release gates remain **RED**.
@@ -47,8 +46,13 @@ and POP3 latency were higher. The paired local-delivery queue cell also passed
 with full SQL/Data cleanup and baseline restoration. That ratio applies only
 to this queue-drain cell, not the whole product. This is bounded evidence, not
 a general speed-up or performance-superiority claim. The performance release
-gate remains **RED** pending paired remote-retry throughput, long soak, SQL
-FTS, backup/restore timing, and lifecycle acceptance.
+gate remains **RED** pending long soak, SQL FTS, backup/restore timing, and
+lifecycle acceptance. A fresh paired remote retry/defer cell also passed
+`25/25` samples per side against the same fixture: C++ `0.015 msg/s` versus
+Net10 `0.068 msg/s`, with p95 `69,409.603 ms` versus `16,383.045 ms` and full
+per-sample cleanup. This is scheduler-dominated bounded evidence; the observed
+`4.53x` ratio is not a general performance claim. The table and Mermaid graph
+are in the detailed report.
 
 ## Current authoritative status (2026-09-01, mixed-recipient delivery acceptance)
 
