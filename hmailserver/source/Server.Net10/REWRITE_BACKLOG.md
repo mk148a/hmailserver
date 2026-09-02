@@ -1,4 +1,4 @@
-## Current authoritative next slice (2026-09-02, paired local-delivery queue evidence)
+## Current authoritative next slice (2026-09-02, paired resource repeatability)
 
 The current disposable C++ Release x64 service path and current .NET 10
 listener both pass the fresh manifest-bound 25-iteration SMTP/IMAP/POP3
@@ -10,12 +10,6 @@ service; the Net10 queue run is process-backed. The evidence and graphs are in
 `hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`.
 The queue ratio is bounded to this scenario; no general speed-up or
 performance-superiority claim is valid.
-
-**Next smallest independent slice:** extend the supported paired C++/.NET
-runner to remote-delivery retry/defer throughput on isolated SQL/Data fixtures,
-including accepted/transient recipient outcomes, p50/p95/p99, throughput,
-errors, and resource evidence. Keep the performance gate **RED** until remote
-retry and long-soak gates pass.
 
 The remote retry/defer slice is now complete in code/test commit `48d191803`.
 The runner executes 25 disposable samples per target against the same fixture,
@@ -30,10 +24,19 @@ bounded evidence and is not a winner claim. See
 and the machine-local aggregate artifact under
 `artifacts/benchmarks/paired-cpp-net10-20260902-current/tcp451-retry-throughput-r1/`.
 
-**Next smallest independent slice:** execute a disposable long-duration
-resource soak with process/handle/thread/socket accounting and comparable
-legacy service coverage; keep the performance gate **RED** until soak, FTS,
-backup/restore timing, and lifecycle acceptance are complete.
+The 20-wave resource repeatability slice is complete using the existing paired
+Full IMAP runner. C++ and Net10 each pass `2,000/2,000` sessions with zero
+errors/timeouts and exact SEARCH/SORT readback at `19.466/s` and `19.457/s`.
+Settle growth is `+7,192,576` bytes and `+9` handles for C++ versus
+`+22,933,504` bytes and `+157` handles for Net10. This is not 24-hour leak
+acceptance; the Net10 growth is an open investigation item and the performance
+gate remains **RED**. Reports are machine-local under
+`artifacts/benchmarks/paired-cpp-net10-20260902-soak-cpp-s50/` and
+`artifacts/benchmarks/paired-cpp-net10-20260902-soak-net10-s50/`.
+
+**Next smallest independent slice:** complete the next isolated backup/restore
+timing and memory acceptance cell; retain the long-soak and lifecycle gates as
+release blockers.
 
 ## Historical authoritative slice (2026-09-02, IMAP STORE ACL mutation hardening)
 

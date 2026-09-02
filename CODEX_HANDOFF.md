@@ -25,8 +25,16 @@ cleanup, and temporary C++ service cleanup. C++ p50/p95/p99 are
 `12,924.178/16,383.045/39,464.910 ms` at `0.068 msg/s`. The observed `4.53x`
 ratio is scheduler-dominated bounded evidence, not a general winner.
 Performance remains **RED** pending long soak, FTS, backup/restore timing, and
-service/COM lifecycle acceptance. The next slice is disposable long-duration
-resource soak with process/handle/thread/socket accounting.
+service/COM lifecycle acceptance. The resource repeatability run is complete;
+the next slice is isolated backup/restore timing and memory acceptance.
+
+The 20-wave normalized resource repeatability run is also complete: C++ and
+Net10 each pass `2,000/2,000` Full IMAP sessions with zero errors/timeouts and
+throughput `19.466/s` versus `19.457/s`. Settle growth is C++ `+7,192,576` bytes
+and `+9` handles versus Net10 `+22,933,504` bytes and `+157` handles. This is
+diagnostic evidence only, not 24-hour leak acceptance or service-lifecycle
+parity; the Net10 growth remains an open release risk. Next is isolated
+backup/restore timing and memory acceptance, while performance remains RED.
 
 ## Current authoritative continuation (2026-09-02, IMAP STORE ACL mutation hardening)
 

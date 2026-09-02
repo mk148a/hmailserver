@@ -52,7 +52,15 @@ lifecycle acceptance. A fresh paired remote retry/defer cell also passed
 Net10 `0.068 msg/s`, with p95 `69,409.603 ms` versus `16,383.045 ms` and full
 per-sample cleanup. This is scheduler-dominated bounded evidence; the observed
 `4.53x` ratio is not a general performance claim. The table and Mermaid graph
-are in the detailed report.
+are in the detailed report. The normalized 20-wave Full IMAP repeatability
+cell also passed `2,000/2,000` on each side at `19.466/s` C++ and `19.457/s`
+Net10, but Net10 settle growth was `+22,933,504` bytes and `+157` handles
+versus C++ `+7,192,576` bytes and `+9` handles. This is diagnostic evidence,
+not 24-hour leak acceptance; the performance gate remains **RED**. The matching
+Admission-profile resource validator also passes `2,000/2,000` with Net10
+`+11.363 MiB`, `-4` handles, and `-11` threads after settle. The Full-profile
+growth remains open for investigation and neither result is 24-hour leak
+acceptance.
 
 ## Current authoritative status (2026-09-01, mixed-recipient delivery acceptance)
 

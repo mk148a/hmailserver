@@ -192,6 +192,45 @@ Net10 anchors are `DeliveryQueueProcessor.RunBatchAsync` and
 `RemoteDeliveryTargetDispatcher`, `SmtpRemoteDeliveryClient.SendAttemptAsync`,
 and `SqlServerDeliveryQueueLeaseStore`.
 
+## Twenty-wave IMAP resource repeatability
+
+The existing manifest-bound Full IMAP runner was extended to 20 waves of 100
+concurrent sessions per target, with the same 50 ms launch stagger, 5 second
+warmup, 5 second settle, and 1,000-message corpus. Both disposable targets
+completed `2,000/2,000` sessions with zero errors, zero timeouts, zero readiness
+failures, and exact 1,000-row SEARCH/SORT validation.
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput | Private growth | Handle growth | Thread growth |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ service | PASS 2,000/2,000 | 192.971 | 256.640 | 309.167 | 19.466/s | +7,192,576 B | +9 | -6 |
+| .NET 10 process | PASS 2,000/2,000 | 192.119 | 443.601 | 735.100 | 19.457/s | +22,933,504 B | +157 | 0 |
+
+```mermaid
+xychart-beta
+    title "Twenty-wave Full IMAP p95 latency"
+    x-axis [C++, .NET10]
+    y-axis "Milliseconds" 0 --> 500
+    bar [256.640, 443.601]
+```
+
+The C++ cell used a temporary `NT AUTHORITY\\LocalService` SCM service and
+the Net10 cell used a direct disposable process. The result is therefore
+repeatability and diagnostic resource evidence, not service-lifecycle parity.
+The Net10 settle growth is materially higher in this run and must be explained
+by a longer leak/connection-lifecycle investigation before release. This is
+not 24-hour leak-free evidence and does not establish a performance winner.
+Raw reports are machine-local under
+`artifacts/benchmarks/paired-cpp-net10-20260902-soak-cpp-s50/` and
+`artifacts/benchmarks/paired-cpp-net10-20260902-soak-net10-s50/`.
+
+The matching Admission-profile resource gate also passed `2,000/2,000` on
+each target with zero errors/timeouts. C++ p50/p95/p99 were
+`2.109/3.105/4.497 ms` at `20.160/s`; Net10 was
+`1.110/1.606/2.346 ms` at `20.131/s`. The standard resource validator passed
+Net10 with `+11.363 MiB`, `-4` handles, and `-11` threads after settle. This
+Admission result is a bounded gate pass, not 24-hour leak evidence. The Full
+profile resource growth above remains an investigation item.
+
 ## Interpretation and remaining gates
 
 The fresh run proves that the current C++ disposable service path and current
