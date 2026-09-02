@@ -1,9 +1,9 @@
 # Current State
-- UTC and local timestamp: 2026-09-02T10:02:00Z / 2026-09-02T13:02:00+03:00
+- UTC and local timestamp: 2026-09-02T07:08:42Z / 2026-09-02T10:08:42+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `26ad6cd44` (latest verified documentation HEAD; latest code/test commit `bb3512c88`)
+- Current HEAD: `6dba37f32` (latest benchmark documentation commit; this state correction records the post-commit status; latest code/test commit `bb3512c88`)
 - Last successfully pushed commit: `55eff58bb`
-- Push status: not pushed; local is ahead 146 and behind 0; full Net10 has 5 known registered-COM failures plus 2 endpoint-protection scanner cleanup failures; performance gate RED.
+- Push status: not pushed; local is ahead 147 and behind 0; full Net10 has 5 known registered-COM failures plus 2 endpoint-protection scanner cleanup failures; performance gate RED.
 - Latest focused-test result: paired current fixture protocol C++/.NET 10 `25/25 PASS` for SMTP, IMAP, and POP3 on each side; paired 1,000-session IMAP `1,000/1,000 PASS` on each side with zero errors/timeouts. IMAP STORE/FETCH/session/SQL mutation tests `88/88 PASS`; PowerShell parse and `git diff --check` pass.
 - Latest full Net10 result: Debug `2793 passed, 95 skipped, 7 failed / 2895`; five failures are known registered local-server COM activation checks returning `E_NOINTERFACE` (`0x80004002`), and two scanner runtime tests fail with endpoint-protection access denial while cleaning temporary `.eml` files.
 - Opt-in tests passed/skipped/blocked: fresh paired SMTP/IMAP/POP3 protocol `25/25` each, fresh paired 1,000-session IMAP `1,000/1,000` each, paired SMTP, TCP `451 -> 250`, service-backed local delivery, controlled IMAP 100/500/1000, five-wave 5,000-session IMAP, 100k IMAP SEARCH/SORT, POP3 100k, SQL backup projection, queue unit diagnostics, live Net10 mixed-recipient SQL/TCP acceptance, and disposable C++ mixed-recipient recovery `3/3` pass. The fresh concurrent C++ cell is service-backed; the fresh Net10 concurrent cell is process-backed. No C++ queue-throughput counterpart exists. SQL master-auth integration is skipped; restore/installer rollback, registered COM, SEC-18 caller proof, native AD/SSPI, lifecycle acceptance, and long soak remain blocked or unproven.
