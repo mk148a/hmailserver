@@ -7,6 +7,8 @@ param(
     [int]$ExpectedConcurrency = 100,
     [ValidateRange(1, 1000000)]
     [int]$ExpectedMessageCount = 100000,
+    [ValidateRange(0, 1000)]
+    [int]$ExpectedLaunchStaggerMilliseconds = 0,
     [ValidateRange(1, 1024)]
     [int]$MaxPrivateBytesGrowthMiB = 64,
     [ValidateRange(1, 1000)]
@@ -27,7 +29,8 @@ $validator = Join-Path $PSScriptRoot "test-net10-live-concurrent-imap.ps1"
     -InputDirectory $fullDirectory `
     -ExpectedConcurrency $ExpectedConcurrency `
     -ExpectedWaves $ExpectedWaves `
-    -ExpectedMessageCount $ExpectedMessageCount
+    -ExpectedMessageCount $ExpectedMessageCount `
+    -ExpectedLaunchStaggerMilliseconds $ExpectedLaunchStaggerMilliseconds
 if ($LASTEXITCODE -ne 0) {
     throw "The standard concurrent IMAP validator failed with exit code $LASTEXITCODE."
 }
