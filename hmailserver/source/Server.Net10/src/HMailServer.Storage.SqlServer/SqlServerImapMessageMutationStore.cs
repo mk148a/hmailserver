@@ -20,7 +20,7 @@ WITH MailboxMessages AS
         m.messagefilename,
         a.accountaddress,
         CONVERT(bigint, ROW_NUMBER() OVER (ORDER BY m.messageuid ASC)) AS sequencenumber
-    FROM hm_messages AS m WITH (READCOMMITTEDLOCK)
+    FROM hm_messages AS m WITH (UPDLOCK, HOLDLOCK)
     LEFT JOIN hm_accounts AS a
         ON a.accountid = m.messageaccountid
     WHERE
@@ -43,6 +43,54 @@ SET
     messageflags = @Flags,
     updatedutc = SYSUTCDATETIME()
 WHERE messageid = @MessageId;
+""";
+
+    public const string SelectEffectiveAclValueSql = """
+WITH FolderChain AS
+(
+    SELECT folderid, folderparentid, CONVERT(int, 0) AS depth
+    FROM hm_imapfolders WITH (UPDLOCK, HOLDLOCK)
+    WHERE folderid = @FolderId AND folderaccountid = 0
+
+    UNION ALL
+
+    SELECT parent.folderid, parent.folderparentid, chain.depth + 1
+    FROM FolderChain AS chain
+    INNER JOIN hm_imapfolders AS parent WITH (UPDLOCK, HOLDLOCK)
+        ON parent.folderid = chain.folderparentid
+        AND parent.folderaccountid = 0
+    WHERE chain.depth < 249
+),
+EffectiveFolder AS
+(
+    SELECT TOP (1) chain.folderid, chain.depth
+    FROM FolderChain AS chain
+    WHERE EXISTS
+    (
+        SELECT 1
+        FROM hm_acl AS candidate WITH (UPDLOCK, HOLDLOCK)
+        WHERE candidate.aclsharefolderid = chain.folderid
+    )
+    ORDER BY chain.depth ASC
+)
+SELECT TOP (1) acl.aclvalue
+FROM EffectiveFolder AS effective
+INNER JOIN hm_acl AS acl WITH (UPDLOCK, HOLDLOCK)
+    ON acl.aclsharefolderid = effective.folderid
+WHERE
+    (acl.aclpermissiontype = 0 AND acl.aclpermissionaccountid = @RequesterAccountId)
+    OR
+    (acl.aclpermissiontype = 1 AND EXISTS
+    (
+        SELECT 1
+        FROM hm_group_members AS member WITH (UPDLOCK, HOLDLOCK)
+        WHERE member.membergroupid = acl.aclpermissiongroupid
+          AND member.memberaccountid = @RequesterAccountId
+    ))
+    OR acl.aclpermissiontype = 2
+ORDER BY
+    CASE acl.aclpermissiontype WHEN 0 THEN 0 WHEN 1 THEN 1 ELSE 2 END,
+    acl.aclid ASC;
 """;
 
     public const string DeleteMessageSql = """
@@ -68,6 +116,7 @@ WHERE
     private readonly MessageFilePathResolver _pathResolver;
     private readonly Action<int>? _accountSizeInvalidationCallback;
     private readonly Func<CancellationToken, ValueTask<IDisposable>>? _enterWriter;
+    private readonly bool _useAcl;
 
     public SqlServerImapMessageMutationStore(
         SqlServerConnectionFactory connectionFactory,
@@ -81,12 +130,14 @@ WHERE
         SqlServerConnectionFactory connectionFactory,
         MessageFilePathResolver pathResolver,
         Action<int>? accountSizeInvalidationCallback,
-        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter)
+        Func<CancellationToken, ValueTask<IDisposable>>? enterWriter,
+        bool useAcl = true)
     {
         _connectionFactory = connectionFactory;
         _pathResolver = pathResolver;
         _accountSizeInvalidationCallback = accountSizeInvalidationCallback;
         _enterWriter = enterWriter;
+        _useAcl = useAcl;
     }
 
     public async IAsyncEnumerable<ImapStoredMessage> StoreFlagsAsync(
@@ -177,16 +228,18 @@ ORDER BY messageuid ASC;
             : await _enterWriter(cancellationToken).ConfigureAwait(false);
 
         await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        var rows = await LoadRowsAsync(connection, PlanStore(request), cancellationToken).ConfigureAwait(false);
-        if (rows.Count == 0)
-        {
-            return Array.Empty<ImapStoredMessage>();
-        }
-
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var updated = new List<ImapStoredMessage>(rows.Count);
         try
         {
+            var rows = await LoadRowsAsync(connection, PlanStore(request), transaction, cancellationToken).ConfigureAwait(false);
+            if (rows.Count == 0)
+            {
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                return Array.Empty<ImapStoredMessage>();
+            }
+
+            await EnsureStoreAuthorizationAsync(connection, transaction, request, rows, cancellationToken).ConfigureAwait(false);
+            var updated = new List<ImapStoredMessage>(rows.Count);
             foreach (var row in rows)
             {
                 var flags = ApplyFlags(row, request);
@@ -201,14 +254,13 @@ ORDER BY messageuid ASC;
             }
 
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return updated;
         }
         catch
         {
             await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
             throw;
         }
-
-        return updated;
     }
 
     private async ValueTask<IReadOnlyList<ImapExpungedMessage>> ExpungeDeletedCoreAsync(
@@ -283,12 +335,72 @@ ORDER BY messageuid ASC;
         return await LoadRowsAsync(command, cancellationToken).ConfigureAwait(false);
     }
 
+    private async ValueTask EnsureStoreAuthorizationAsync(
+        SqlConnection connection,
+        SqlTransaction transaction,
+        ImapStoreRequest request,
+        IReadOnlyList<MessageMutationRow> rows,
+        CancellationToken cancellationToken)
+    {
+        if (request.AccountId != 0 || !_useAcl)
+        {
+            return;
+        }
+
+        if (request.RequesterAccountId is not int requesterAccountId || requesterAccountId <= 0)
+        {
+            throw new UnauthorizedAccessException("ACL: public mailbox STORE caller identity is missing.");
+        }
+
+        var requiredRights = request.Mode == ImapStoreMode.Set
+            ? 0L
+            : GetRequiredStoreRights(request.Flags);
+        foreach (var row in rows)
+        {
+            if (request.Mode == ImapStoreMode.Set)
+            {
+                requiredRights |= GetRequiredStoreRights(row.Flags, ApplyFlags(row, request));
+            }
+        }
+        if (requiredRights == 0)
+        {
+            return;
+        }
+
+        await using var command = new SqlCommand(SelectEffectiveAclValueSql, connection, transaction);
+        command.Parameters.Add("@FolderId", SqlDbType.Int).Value = request.FolderId;
+        command.Parameters.Add("@RequesterAccountId", SqlDbType.Int).Value = requesterAccountId;
+        var value = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        var aclValue = value is null ? 0L : Convert.ToInt64(value, System.Globalization.CultureInfo.InvariantCulture);
+        if ((aclValue & requiredRights) != requiredRights)
+        {
+            throw new UnauthorizedAccessException("ACL: STORE permission denied.");
+        }
+    }
+
+    private static long GetRequiredStoreRights(byte currentFlags, byte updatedFlags)
+    {
+        var flags = (byte)((currentFlags ^ updatedFlags) & MutableFlags);
+        var required = 0L;
+        if ((flags & ImapMessageFlags.Seen) != 0)
+            required |= ImapAclRights.WriteSeen;
+        if ((flags & ImapMessageFlags.Deleted) != 0)
+            required |= ImapAclRights.WriteDeleted;
+        if ((flags & (ImapMessageFlags.Flagged | ImapMessageFlags.Answered | ImapMessageFlags.Draft)) != 0)
+            required |= ImapAclRights.WriteOthers;
+        return required;
+    }
+
+    private static long GetRequiredStoreRights(byte flags) =>
+        GetRequiredStoreRights(0, flags);
+
     private static async ValueTask<IReadOnlyList<MessageMutationRow>> LoadRowsAsync(
         SqlConnection connection,
         SqlMessageFetchPlan plan,
+        SqlTransaction transaction,
         CancellationToken cancellationToken)
     {
-        await using var command = new SqlCommand(plan.CommandText, connection);
+        await using var command = new SqlCommand(plan.CommandText, connection, transaction);
         foreach (var parameter in plan.Parameters)
         {
             AddPlanParameter(command, parameter.Key, parameter.Value);

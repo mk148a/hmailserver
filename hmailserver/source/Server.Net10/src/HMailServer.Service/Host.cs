@@ -782,7 +782,8 @@ public static class Host
             new Func<CancellationToken, ValueTask<IDisposable>>(
                 serviceProvider
                     .GetRequiredService<DeliveryQueuePauseDrainGate>()
-                    .EnterWorkerAsync)));
+                    .EnterWorkerAsync),
+            serviceProvider.GetRequiredService<SqlServerImapMailboxStoreOptions>().UseAcl));
     builder.Services.AddSingleton<IImapMessageCopyStore>(static serviceProvider =>
         new SqlServerImapMessageCopyStore(
             serviceProvider.GetRequiredService<SqlServerConnectionFactory>(),

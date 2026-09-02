@@ -7,4 +7,5 @@ public sealed record ImapStoreRequest(
     bool UseUid,
     ImapStoreMode Mode,
     byte Flags,
-    bool Silent);
+    bool Silent,
+    int? RequesterAccountId = null);

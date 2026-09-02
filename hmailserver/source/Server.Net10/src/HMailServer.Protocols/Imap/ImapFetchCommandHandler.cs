@@ -26,7 +26,8 @@ public sealed class ImapFetchCommandHandler
         bool useUid,
         CancellationToken cancellationToken,
         bool isReadOnly = false,
-        long aclRights = ImapAclRights.All)
+        long aclRights = ImapAclRights.All,
+        int? requesterAccountId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tag);
         ArgumentNullException.ThrowIfNull(arguments);
@@ -40,13 +41,17 @@ public sealed class ImapFetchCommandHandler
                 messages.Add(message);
             }
 
-            await MarkSeenAsync(request, messages, isReadOnly, aclRights, cancellationToken).ConfigureAwait(false);
+            await MarkSeenAsync(request, messages, isReadOnly, aclRights, requesterAccountId, cancellationToken).ConfigureAwait(false);
 
             return ImapFetchResponseFormatter.Format(messages, request.Items, tag);
         }
         catch (ImapFetchParseException ex)
         {
             return Encode($"{SanitizeAtom(tag)} BAD {SanitizeResponseText(ex.Message)}\r\n");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Encode($"{SanitizeAtom(tag)} NO {SanitizeResponseText(ex.Message)}\r\n");
         }
         catch (InvalidOperationException ex)
         {
@@ -63,6 +68,7 @@ public sealed class ImapFetchCommandHandler
         IReadOnlyList<ImapFetchedMessage> messages,
         bool isReadOnly,
         long aclRights,
+        int? requesterAccountId,
         CancellationToken cancellationToken)
     {
         if (!request.MarksSeen || isReadOnly || _mutationStore is null ||
@@ -85,7 +91,8 @@ public sealed class ImapFetchCommandHandler
                 UseUid: true,
                 Mode: ImapStoreMode.Add,
                 Flags: ImapMessageFlags.Seen,
-                Silent: true);
+                Silent: true,
+                RequesterAccountId: requesterAccountId);
             await foreach (var _ in _mutationStore.StoreFlagsAsync(storeRequest, cancellationToken).ConfigureAwait(false))
             {
             }

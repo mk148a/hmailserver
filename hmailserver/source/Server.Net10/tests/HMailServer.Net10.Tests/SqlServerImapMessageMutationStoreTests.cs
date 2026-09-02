@@ -51,6 +51,24 @@ public sealed class SqlServerImapMessageMutationStoreTests
     }
 
     [TestMethod]
+    public void StoreSql_RevalidatesPublicMailboxAclInsideMutationTransaction()
+    {
+        var sql = SqlServerImapMessageMutationStore.SelectEffectiveAclValueSql;
+
+        StringAssert.Contains(sql, "WITH FolderChain AS");
+        StringAssert.Contains(sql, "UPDLOCK, HOLDLOCK");
+        StringAssert.Contains(sql, "@RequesterAccountId");
+        StringAssert.Contains(sql, "hm_group_members");
+        StringAssert.Contains(ReadStoreSource(), "m WITH (UPDLOCK, HOLDLOCK)");
+        StringAssert.Contains(ReadStoreSource(), "request.AccountId != 0 || !_useAcl");
+        StringAssert.Contains(ReadStoreSource(), "EnsureStoreAuthorizationAsync(connection, transaction, request, rows");
+        StringAssert.Contains(ReadStoreSource(), "currentFlags ^ updatedFlags");
+        StringAssert.Contains(ReadStoreSource(), "GetRequiredStoreRights(row.Flags, ApplyFlags(row, request))");
+        StringAssert.Contains(ReadStoreSource(), "GetRequiredStoreRights(request.Flags)");
+        StringAssert.Contains(ReadStoreSource(), "BeginTransactionAsync(cancellationToken)");
+    }
+
+    [TestMethod]
     public void ExpungeStore_InjectsOptionalAccountSizeInvalidationCallback()
     {
         var constructor = typeof(SqlServerImapMessageMutationStore).GetConstructor(

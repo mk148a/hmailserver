@@ -57,6 +57,20 @@ public sealed class ImapStoreAndExpungeCommandHandlerTests
     }
 
     [TestMethod]
+    public void StoreGetRequiredAclRights_UsesTextualFlagGroupsForSetMode()
+    {
+        var handler = new ImapStoreCommandHandler(new ImapStoreCommandParser(), new CapturingMutationStore());
+
+        var requiredRights = handler.GetRequiredAclRights(
+            accountId: 10,
+            folderId: 20,
+            arguments: "101 FLAGS (\\Seen)",
+            useUid: false);
+
+        Assert.AreEqual(ImapAclRights.WriteSeen, requiredRights);
+    }
+
+    [TestMethod]
     public async Task StoreHandleAsync_ReturnsUpdatedFlagsWhenNotSilent()
     {
         var mutationStore = new CapturingMutationStore
@@ -111,6 +125,24 @@ public sealed class ImapStoreAndExpungeCommandHandlerTests
     }
 
     [TestMethod]
+    public async Task StoreHandleAsync_MapsMutationAclDenialToTaggedNo()
+    {
+        var mutationStore = new CapturingMutationStore { ThrowUnauthorized = true };
+        var handler = new ImapStoreCommandHandler(new ImapStoreCommandParser(), mutationStore);
+
+        var response = await handler.HandleAsync(
+            accountId: 0,
+            folderId: 20,
+            tag: "A003",
+            arguments: "1 +FLAGS (\\Seen)",
+            useUid: false,
+            cancellationToken: CancellationToken.None,
+            requesterAccountId: 77);
+
+        Assert.AreEqual("A003 NO ACL: STORE permission denied.\r\n", response);
+    }
+
+    [TestMethod]
     public async Task ExpungeHandleAsync_ReturnsExpungedSequenceNumbers()
     {
         var mutationStore = new CapturingMutationStore
@@ -140,6 +172,8 @@ public sealed class ImapStoreAndExpungeCommandHandlerTests
 
         public IReadOnlyList<ImapExpungedMessage> ExpungedMessages { get; init; } = Array.Empty<ImapExpungedMessage>();
 
+        public bool ThrowUnauthorized { get; init; }
+
         public ImapStoreRequest? LastStoreRequest { get; private set; }
 
         public int LastExpungeAccountId { get; private set; }
@@ -151,6 +185,11 @@ public sealed class ImapStoreAndExpungeCommandHandlerTests
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             LastStoreRequest = request;
+            if (ThrowUnauthorized)
+            {
+                throw new UnauthorizedAccessException("ACL: STORE permission denied.");
+            }
+
             await Task.Yield();
             foreach (var message in StoredMessages)
             {

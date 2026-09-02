@@ -210,6 +210,38 @@ public sealed class ImapFetchCommandHandlerTests
         Assert.IsNull(mutationStore.LastStoreRequest);
     }
 
+    [TestMethod]
+    public async Task HandleAsync_MapsSeenMutationAclDenialToTaggedNo()
+    {
+        var mutationStore = new CapturingMutationStore { ThrowUnauthorized = true };
+        var handler = new ImapFetchCommandHandler(
+            new ImapFetchCommandParser(),
+            new CapturingFetchStore(
+            [
+                new ImapFetchedMessage(
+                    new MessageIdentity(1, 0, 20, 101),
+                    SequenceNumber: 1,
+                    Flags: 0,
+                    SizeBytes: 5,
+                    InternalDateUtc: DateTimeOffset.UtcNow,
+                    RawMessage: Encoding.ASCII.GetBytes("Hello"))
+            ]),
+            mutationStore);
+
+        var response = await handler.HandleAsync(
+            accountId: 0,
+            folderId: 20,
+            tag: "A007",
+            arguments: "1 BODY[]",
+            useUid: false,
+            cancellationToken: CancellationToken.None,
+            isReadOnly: false,
+            aclRights: ImapAclRights.All,
+            requesterAccountId: 77);
+
+        Assert.AreEqual("A007 NO ACL: STORE permission denied.\r\n", Encoding.ASCII.GetString(response));
+    }
+
     private sealed class CapturingFetchStore : IImapMessageFetchStore
     {
         private readonly IReadOnlyList<ImapFetchedMessage> _messages;
@@ -239,11 +271,18 @@ public sealed class ImapFetchCommandHandlerTests
     {
         public ImapStoreRequest? LastStoreRequest { get; private set; }
 
+        public bool ThrowUnauthorized { get; init; }
+
         public async IAsyncEnumerable<ImapStoredMessage> StoreFlagsAsync(
             ImapStoreRequest request,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             LastStoreRequest = request;
+            if (ThrowUnauthorized)
+            {
+                throw new UnauthorizedAccessException("ACL: STORE permission denied.");
+            }
+
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
             yield break;

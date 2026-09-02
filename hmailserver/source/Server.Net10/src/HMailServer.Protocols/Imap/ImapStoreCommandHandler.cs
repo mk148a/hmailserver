@@ -23,7 +23,8 @@ public sealed class ImapStoreCommandHandler
         string tag,
         string arguments,
         bool useUid,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? requesterAccountId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(tag);
         ArgumentNullException.ThrowIfNull(arguments);
@@ -31,7 +32,10 @@ public sealed class ImapStoreCommandHandler
         ImapStoreRequest request;
         try
         {
-            request = _parser.Parse(accountId, folderId, arguments, useUid);
+            request = _parser.Parse(accountId, folderId, arguments, useUid) with
+            {
+                RequesterAccountId = requesterAccountId
+            };
         }
         catch (ImapStoreParseException ex)
         {
@@ -39,20 +43,27 @@ public sealed class ImapStoreCommandHandler
         }
 
         var builder = new StringBuilder();
-        await foreach (var message in _mutationStore.StoreFlagsAsync(request, cancellationToken).ConfigureAwait(false))
+        try
         {
-            if (request.Silent)
+            await foreach (var message in _mutationStore.StoreFlagsAsync(request, cancellationToken).ConfigureAwait(false))
             {
-                continue;
-            }
+                if (request.Silent)
+                {
+                    continue;
+                }
 
-            builder.Append("* ")
-                .Append(message.SequenceNumber.ToString(CultureInfo.InvariantCulture))
-                .Append(" FETCH (FLAGS ")
-                .Append(ImapFetchResponseFormatter.FormatFlags(message.Flags))
-                .Append(" UID ")
-                .Append(message.Identity.Uid.ToString(CultureInfo.InvariantCulture))
-                .Append(")\r\n");
+                builder.Append("* ")
+                    .Append(message.SequenceNumber.ToString(CultureInfo.InvariantCulture))
+                    .Append(" FETCH (FLAGS ")
+                    .Append(ImapFetchResponseFormatter.FormatFlags(message.Flags))
+                    .Append(" UID ")
+                    .Append(message.Identity.Uid.ToString(CultureInfo.InvariantCulture))
+                    .Append(")\r\n");
+            }
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return $"{SanitizeAtom(tag)} NO {SanitizeResponseText(ex.Message)}\r\n";
         }
 
         builder.Append(SanitizeAtom(tag)).Append(" OK STORE completed\r\n");
