@@ -1,9 +1,11 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-02, legacy upgrade guard)
+## Current authoritative status (2026-09-02, executable legacy upgrade guard)
 
-Code/test commit `4c781a0b1` closes the legacy-configuration handoff gap in
+Code/test commit `d31c0b1dc` adds executable, rollback-aware legacy upgrade
+orchestration on top of code/test commit `4c781a0b1`, which closes the
+legacy-configuration handoff gap in
 the .NET 10 upgrade path. Legacy C++ loads MSSQL connection settings,
 including Blowfish-encrypted database passwords and `Directories:DataFolder`,
 from `hMailServer.ini` in `IniFileSettings::LoadSettings`
@@ -15,10 +17,14 @@ connection string or DataDirectory remains authoritative when supplied.
 
 `build/upgrade-net10-from-legacy.ps1` is the guarded upgrade entry point. It
 defaults to a non-mutating plan, requires a stopped existing legacy
-`hMailServer` service, a verified backup archive, a completed migration/
-reinitialization handoff manifest, and carries the legacy INI into the new
-service command line. Only explicit `-Execute` delegates service/COM mutation
-to the existing rollback-aware installer. This host currently has no
+`hMailServer` service, a verified backup archive, and carries the legacy INI
+into the new service command line. On explicit `-Execute`, it requires a
+separate `-SqlRollbackBackupPath`, creates a SQL Server `COPY_ONLY` rollback
+backup, runs the offline 5708-to-6000 migration, creates the hash-bound
+handoff, and only then delegates service/COM mutation to the existing
+rollback-aware installer. If migration or cutover fails, the SQL rollback
+command restores the legacy database before the service/COM snapshot is
+restored. This host currently has no
 registered `hMailServer` service or legacy installation, so no cutover was
 attempted and no production resource was touched.
 

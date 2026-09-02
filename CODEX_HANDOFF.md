@@ -1,8 +1,10 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-02, legacy upgrade guard)
+## Current authoritative continuation (2026-09-02, executable legacy upgrade)
 
-Code/test commit `4c781a0b1` makes the upgrade path consume the legacy
+Code/test commit `d31c0b1dc` adds executable rollback-aware upgrade
+orchestration on top of code/test commit `4c781a0b1`, which makes the upgrade
+path consume the legacy
 `hMailServer.ini` configuration when explicit Net10 overrides are absent.
 Legacy anchors are `IniFileSettings::LoadSettings`
 (`hmailserver/source/Server/Common/Application/IniFileSettings.cpp:79-127`),
@@ -16,17 +18,20 @@ legacy INI through `--InitializationFile` in the service command line.
 
 `build/upgrade-net10-from-legacy.ps1` is the user-facing guard. It is PlanOnly
 by default and refuses to proceed unless the existing legacy service is
-stopped, the backup archive passes the existing 7za/metadata preflight, and a
-hash-matched completed migration/reinitialization handoff is present. `-Execute`
-is the only path that delegates to service/COM mutation. The current host has
-no registered legacy `hMailServer` service or legacy installation, so no
-cutover was run. The prior isolated SQL migration passed with the recorded
-Full-Text non-transactional boundary; exact legacy transaction equivalence and
-installer/Data rollback remain open until a disposable legacy SQL/Data clone
-and registered legacy service exist.
+stopped, the backup archive passes the existing 7za/metadata preflight, and
+the legacy INI and SQL rollback `.bak` are supplied for execution. `-Execute`
+asks the Net10 binary to create a `COPY_ONLY` SQL backup, run the offline
+5708-to-6000 migration, and write the hash-matched handoff before delegating
+to service/COM mutation. Migration or cutover failure restores the SQL backup
+and legacy service/COM snapshot. The current host has no registered legacy
+`hMailServer` service or legacy installation, so no cutover was run. The
+Full-Text DDL remains outside Net10's transaction boundary, so exact legacy
+transaction equivalence and Data-directory rollback still require the
+disposable drill.
 
-Focused upgrade/configuration coverage is `20/20` plus the PowerShell guard
-test. Full Debug remains `2797 passed, 95 skipped, 5 failed / 2897`, with the
+Focused upgrade/configuration/rollback coverage is `27 passed, 6 skipped`
+plus the PowerShell guard test. Full Debug remains `2799 passed, 95 skipped,
+5 failed / 2899`, with the
 five known registered local-server COM `E_NOINTERFACE` failures. The 24-hour
 soak is deferred by explicit user decision; registered COM/Admin, SEC-18,
 AD/SSPI, DKIM/DMARC/SPF, paired backup equivalence, and cloned rollback gates

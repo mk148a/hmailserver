@@ -1539,12 +1539,19 @@ Installation registers the legacy AppID, CLSIDs, versioned/version-independent P
 
 For a legacy installation, use `build/upgrade-net10-from-legacy.ps1`. It is
 PlanOnly by default and requires the stopped legacy service, the legacy INI,
-the verified backup archive, and a completed migration/reinitialization
-handoff manifest. Only pass `-Execute` after the isolated SQL/Data migration
-and rollback evidence has been reviewed; the guard then passes
-`--InitializationFile` to the service so the legacy database credentials and
-DataFolder remain in use. The current implementation does not claim exact
-legacy transaction rollback at the SQL Server Full-Text boundary.
+the verified hMailServer archive, and the checked-in
+`Upgrade5708to6000MSSQL.sql`. On explicit `-Execute`, also provide a new
+`-SqlRollbackBackupPath` on the same SQL Server host. The guard asks the Net10
+binary to create a SQL Server `COPY_ONLY` database backup, runs the offline
+5708-to-6000 migration, writes the hash-bound handoff manifest, and only then
+delegates to `install-net10-service.ps1 -ReplaceExisting`. A migration or
+cutover failure restores that SQL backup and the legacy service/COM snapshot;
+the SQL rollback artifact is intentionally retained for operator review. The
+legacy INI is passed as `--InitializationFile`, so its database credentials
+and DataFolder remain authoritative when explicit overrides are absent. This
+does not claim exact legacy single-transaction semantics at the SQL Server
+Full-Text boundary, because the legacy `DBUpdater::formMain::DoUpgrade`
+transaction cannot contain `CREATE FULLTEXT CATALOG`.
 
 ## Current Next Slice
 

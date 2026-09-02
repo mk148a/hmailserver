@@ -1,14 +1,14 @@
 # Current State
 - UTC and local timestamp: 2026-09-02T13:30:16Z / 2026-09-02T16:30:16+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `4c781a0b1` (`Support legacy configuration during Net10 upgrade`)
+- Current HEAD: `d31c0b1dc` (`Make legacy upgrade migration rollback-aware`); docs commit follows this baseline
 - Last successfully pushed commit: `55eff58bb`
-- Latest focused-test result: upgrade/configuration `20/20 PASS`; SQL/handoff group `25 passed, 6 skipped`; PowerShell upgrade guard PASS; isolated SQL migration `PassedWithKnownLegacyTransactionLimitation`.
-- Latest full Net10 result: Debug `2797 passed, 95 skipped, 5 failed / 2897`; five known registered local-server COM activations return `E_NOINTERFACE`.
+- Latest focused-test result: upgrade/configuration/rollback `27 passed, 6 skipped`; PowerShell upgrade guard PASS; Service Debug build PASS with 0 warnings/errors.
+- Latest full Net10 result: Debug `2799 passed, 95 skipped, 5 failed / 2899`; five known registered local-server COM activations return `E_NOINTERFACE`.
 - Opt-in tests passed/skipped/blocked: backup/restore round-trip `25/25 PASS`; FTS preparation `1/1` and live report `25/25 PASS`; paired protocol/IMAP/POP3/queue evidence passed; SQL integration and registered COM/Admin, SEC-18, AD/SSPI, cloned rollback, and live lifecycle cells remain skipped or blocked.
-- Current bounded slice: legacy-configured upgrade guard. Net10 reads legacy MSSQL credentials/DataFolder and the installer carries `--InitializationFile`; execution was not attempted because this host has no registered legacy hMailServer service.
-- Completed milestones: disposable C++ service launch; paired SQL/Data protocol and delivery evidence; bounded backup/restore; Full-Text acceptance; IMAP ACL hardening; legacy upgrade configuration handoff and non-mutating cutover guard.
-- Open production blockers: registered out-of-process COM/Admin activation; exact legacy SQL transaction equivalence at the Full-Text boundary; cloned installer/service/SQL/Data rollback; SEC-18 caller-token/plaintext-session proof; AD/SSPI; DKIM/DMARC/SPF; paired backup semantic/timing equivalence; unresolved P1 security findings. The 24-hour soak is explicitly deferred by user decision.
-- Environment-blocked work: no registered disposable legacy hMailServer service or cloned SQL/Data state on this host; no isolated type-library/proxy fixture, SEC-18 independent caller probe, AD/SSPI credentials, or production-equivalent installer lifecycle environment.
+- Current bounded slice: executable legacy-to-Net10 upgrade guard. It creates a SQL `COPY_ONLY` rollback backup, runs offline 5708-to-6000 migration, emits a hash-bound handoff, then delegates service replacement; `-Execute` was not run because this host has no legacy service.
+- Completed milestones: disposable C++ service launch; paired SQL/Data protocol and delivery evidence; bounded backup/restore; Full-Text acceptance; IMAP ACL hardening; legacy INI configuration handoff; rollback-aware upgrade command and guard.
+- Open production blockers: registered out-of-process COM/Admin activation; exact legacy SQL transaction equivalence at the Full-Text boundary; disposable registered legacy upgrade/installer/Data rollback drill; SEC-18 caller-token/plaintext-session proof; AD/SSPI; DKIM/DMARC/SPF; paired backup semantic/timing equivalence; unresolved P1 security findings. The 24-hour soak is explicitly deferred by user decision.
+- Environment-blocked work: no registered disposable legacy hMailServer service or cloned SQL/Data state on this host; SQL rollback backup must be tested with the SQL Server service account; no isolated type-library/proxy fixture, SEC-18 independent caller probe, AD/SSPI credentials, or production-equivalent installer lifecycle environment.
 - Protected/do-not-touch areas: production service/SQL/Data; installed Application COM/DCOM registration; production IIS/firewall; dirty `AGENTS.md`; pre-existing benchmark, migration, staging, and deleted/untracked artifacts.
 - Next three independent slices: disposable legacy service plus cloned SQL/Data guarded upgrade/rollback drill; isolated registered COM/Admin activation evidence; paired backup timing and semantic-equivalence acceptance.
