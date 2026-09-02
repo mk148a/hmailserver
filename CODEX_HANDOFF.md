@@ -1,6 +1,6 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-02, paired protocol/load evidence)
+## Current authoritative continuation (2026-09-02, paired queue evidence)
 
 The fresh disposable manifest-bound fixture has 1,000 SQL message rows and
 1,000 byte-matched Data files with separate SQL clones. C++ and .NET 10 each
@@ -13,11 +13,13 @@ lifecycle parity or a general performance winner. See
 `hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`.
 
 The C++ production source was not changed because the fresh service-backed
-run did not isolate a source defect. The next slice is a supported paired
-C++/.NET queue and remote-delivery throughput runner with identical disposable
-SQL/Data fixtures, retry/defer validation, resource accounting, and a repeat
-plan. Performance remains **RED** pending that work, long soak, FTS, backup /
-restore timing, and service/COM lifecycle acceptance.
+run did not isolate a source defect. The paired local-delivery queue runner now
+passes `1,000/1,000` on each side with full SQL/Data baseline restoration. The
+bounded drain measurements are C++ `223.060 msg/s` and Net10 `87.130 msg/s`;
+the ratio is not a general product claim. The next slice is remote-delivery
+retry/defer throughput with identical disposable SQL/Data fixtures and
+resource accounting. Performance remains **RED** pending remote retry, long
+soak, FTS, backup/restore timing, and service/COM lifecycle acceptance.
 
 ## Current authoritative continuation (2026-09-02, IMAP STORE ACL mutation hardening)
 

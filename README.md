@@ -42,10 +42,13 @@ The C++ run used a temporary disposable SCM service. The .NET 10 concurrent
 run used the live process runner, so the host-mode difference is recorded and
 no service-lifecycle parity claim is made. In this run throughput was nearly
 equal (`19.909` C++ versus `19.910` .NET 10 sessions/s); .NET 10 IMAP p95/p99
-and POP3 latency were higher. This is bounded evidence, not a general speed-up
-or performance-superiority claim. The performance release gate remains
-**RED** pending paired queue/remote-delivery throughput, long soak, SQL FTS,
-backup/restore timing, and lifecycle acceptance.
+and POP3 latency were higher. The paired local-delivery queue cell also passed
+`1,000/1,000` on each side: C++ `223.060 msg/s` versus Net10 `87.130 msg/s`
+with full SQL/Data cleanup and baseline restoration. That ratio applies only
+to this queue-drain cell, not the whole product. This is bounded evidence, not
+a general speed-up or performance-superiority claim. The performance release
+gate remains **RED** pending paired remote-retry throughput, long soak, SQL
+FTS, backup/restore timing, and lifecycle acceptance.
 
 ## Current authoritative status (2026-09-01, mixed-recipient delivery acceptance)
 

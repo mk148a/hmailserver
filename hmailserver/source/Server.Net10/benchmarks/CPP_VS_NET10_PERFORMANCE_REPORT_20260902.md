@@ -89,6 +89,62 @@ load, or SQL-server load. The deliberate 50 ms launch stagger also controls
 the observed completion rate, so `19.91 sessions/s` is not maximum server
 capacity.
 
+## Local-delivery queue drain
+
+The same manifest-bound fixture was seeded with 1,000 byte-matched marker
+messages in each disposable SQL/Data clone. The C++ side ran through a
+temporary `NT AUTHORITY\\LocalService` SCM service; the .NET 10 side ran as a
+direct process with its SQL connection and Data directory explicitly bound to
+the disposable clone. This queue-only cell intentionally did not require SMTP,
+IMAP, or POP3 listeners. Both sides completed `1,000/1,000` local deliveries,
+removed the marker queue/recipient rows and files, and restored the original
+SQL/Data baseline hashes.
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Drain throughput | Private bytes after | Handles | Threads |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ service | PASS 1,000/1,000 | 1,473.590 | 4,055.290 | 4,279.550 | 223.060 msg/s | 17.16 MB | 522 | 76 |
+| .NET 10 process | PASS 1,000/1,000 | 7,485.040 | 11,017.310 | 11,476.320 | 87.130 msg/s | 44.84 MB | 576 | 28 |
+
+```mermaid
+xychart-beta
+    title "Local-delivery queue drain throughput"
+    x-axis [C++, .NET10]
+    y-axis "Messages per second" 0 --> 250
+    bar [223.060, 87.130]
+```
+
+```mermaid
+xychart-beta
+    title "Local-delivery queue p95 drain latency"
+    x-axis [C++, .NET10]
+    y-axis "Milliseconds" 0 --> 12000
+    bar [4055.290, 11017.310]
+```
+
+This cell measures time from worker start until each marker appears in the
+target Inbox, so the approximately `2.56x` C++/Net10 throughput ratio is a
+bounded local-delivery observation, not a product-wide speed-up claim. The
+fixture still crosses the legacy schema `5708` and Net10 schema `6000`
+boundary, uses the C++ native SQL layer versus `Microsoft.Data.SqlClient`, and
+compares a service host with a direct .NET process. The queue seed is direct
+SQL/Data setup rather than SMTP admission, and remote retry throughput is not
+covered.
+
+Legacy queue anchors inspected for this cell were
+`hmailserver/source/Server/SMTP/SMTPDeliveryManager.cpp:67-104`
+(`SMTPDeliveryManager::DoWork`),
+`hmailserver/source/Server/SMTP/DeliveryTask.cpp:30-36`
+(`DeliveryTask::DoWork`),
+`hmailserver/source/Server/SMTP/SMTPDeliverer.cpp:69-151`
+(`SMTPDeliverer::DeliverMessage`), and
+`hmailserver/source/Server/SMTP/DeliveryQueue.cpp:147-160`
+(`DeliveryQueue::StartDelivery`). Net10 anchors inspected were
+`hmailserver/source/Server.Net10/src/HMailServer.Delivery/DeliveryQueueWorker.cs`,
+`DeliveryQueueProcessor.cs`,
+`hmailserver/source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerDeliveryQueueLeaseStore.cs`,
+`SqlServerDeliveryQueueMessageStore.cs`, and
+`hmailserver/source/Server.Net10/src/HMailServer.Service/DeliveryQueueProcessorHostedService.cs`.
+
 ## Interpretation and remaining gates
 
 The fresh run proves that the current C++ disposable service path and current
@@ -101,7 +157,8 @@ resolution.
 The performance release gate remains **RED** because the following acceptance
 cells are still open or not equivalent:
 
-- service-backed paired delivery-queue throughput and remote retry throughput;
+- service-backed paired remote retry throughput (the local-delivery queue cell
+  above is complete, but remote retry remains open);
 - 100k-mailbox acceptance for every protocol where required and larger SMTP
   waves;
 - 24-hour memory/handle/thread/socket soak with comparable C++ baseline;

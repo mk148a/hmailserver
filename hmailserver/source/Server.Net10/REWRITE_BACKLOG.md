@@ -1,18 +1,21 @@
-## Current authoritative next slice (2026-09-02, paired protocol/load evidence)
+## Current authoritative next slice (2026-09-02, paired local-delivery queue evidence)
 
 The current disposable C++ Release x64 service path and current .NET 10
 listener both pass the fresh manifest-bound 25-iteration SMTP/IMAP/POP3
 protocol cell and the 1,000-session Full-profile IMAP cell with zero errors and
-zero timeouts. The C++ run is service-backed through a temporary SCM service;
-the .NET 10 concurrent run is process-backed. The evidence and graphs are in
+zero timeouts. The paired local-delivery queue cell also passes `1,000/1,000`
+on each side with SQL/Data baseline restoration: C++ `223.060 msg/s` and Net10
+`87.130 msg/s`. The C++ queue run is service-backed through a temporary SCM
+service; the Net10 queue run is process-backed. The evidence and graphs are in
 `hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`.
-No general speed-up or performance-superiority claim is valid yet.
+The queue ratio is bounded to this scenario; no general speed-up or
+performance-superiority claim is valid.
 
-**Next smallest independent slice:** implement and validate a supported paired
-C++/.NET queue and remote-delivery throughput runner on isolated SQL/Data
-fixtures, including p50/p95/p99, throughput, errors, retry/defer outcomes, and
-resource evidence. Keep the performance gate **RED** until that runner and the
-long-soak gates pass.
+**Next smallest independent slice:** extend the supported paired C++/.NET
+runner to remote-delivery retry/defer throughput on isolated SQL/Data fixtures,
+including accepted/transient recipient outcomes, p50/p95/p99, throughput,
+errors, and resource evidence. Keep the performance gate **RED** until remote
+retry and long-soak gates pass.
 
 ## Historical authoritative slice (2026-09-02, IMAP STORE ACL mutation hardening)
 
