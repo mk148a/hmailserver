@@ -20,6 +20,10 @@ not paired C++ Full-Text timing, 24-hour soak evidence, or a performance
 winner. Registered out-of-process COM/Admin activation, SEC-18 caller-token
 proof, installer/service/Data rollback, AD/SSPI, DKIM/DMARC/SPF, and long-soak
 resource gates remain open; release and performance gates remain **RED**.
+The latest focused COM run is `1/6` (`5` registered activations return
+`E_NOINTERFACE`), while the AD verifier slice is `3/5` with two real-domain
+tests explicitly inconclusive. The full Debug result remains
+`2795/95/5`.
 
 ## Current authoritative status (2026-09-02, IMAP STORE ACL mutation hardening)
 

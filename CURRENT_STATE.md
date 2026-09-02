@@ -1,10 +1,10 @@
 # Current State
-- UTC and local timestamp: 2026-09-02T09:25:34Z / 2026-09-02T12:25:34+03:00
+- UTC and local timestamp: 2026-09-02T09:29:58Z / 2026-09-02T12:29:58+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `679a7ae40` (disposable Full-Text acceptance documentation commit)
+- Current HEAD: `26bda9585` (COM and AD gate evidence documentation commit)
 - Last successfully pushed commit: `55eff58bb`
-- Push status: not pushed; local is ahead 158 and behind 0; full Net10 has 5 known registered-COM failures; performance gate RED.
-- Latest focused-test result: disposable Net10 Full-Text preparation `1/1 PASS`, repeated live SEARCH `25/25 PASS`, and report validator PASS with 1,000/1,000 indexed matches and SEARCH p50/p95/p99 `11.001/22.849/73.038 ms`. Isolated backup -> restore -> backup remains `25/25 PASS` in `55.140 s`; paired TCP 451 retry/defer and normalized 20-wave Full/Admission IMAP resource repeatability remain PASS.
+- Push status: not pushed; local is ahead 159 and behind 0; full Net10 has 5 known registered-COM failures; performance gate RED.
+- Latest focused-test result: disposable Net10 Full-Text preparation `1/1 PASS`, repeated live SEARCH `25/25 PASS`, and report validator PASS with 1,000/1,000 indexed matches and SEARCH p50/p95/p99 `11.001/22.849/73.038 ms`; registered COM host `1/6` with five `E_NOINTERFACE` activations; AD verifier `3/5` with two real-domain tests inconclusive. Isolated backup -> restore -> backup remains `25/25 PASS` in `55.140 s`; paired TCP 451 retry/defer and normalized 20-wave Full/Admission IMAP resource repeatability remain PASS.
 - Latest full Net10 result: Debug `2795 passed, 95 skipped, 5 failed / 2895`; all five failures are known registered local-server COM activation checks returning `E_NOINTERFACE` (`0x80004002`).
 - Opt-in tests passed/skipped/blocked: fresh paired SMTP/IMAP/POP3 protocol `25/25` each, fresh paired 1,000-session IMAP `1,000/1,000` each, paired local-delivery queue `1,000/1,000` each, paired SMTP, TCP `451 -> 250`, service-backed local delivery, controlled IMAP 100/500/1000, five-wave 5,000-session IMAP, 100k IMAP SEARCH/SORT, POP3 100k, SQL backup projection, queue unit diagnostics, live Net10 mixed-recipient SQL/TCP acceptance, and disposable C++ mixed-recipient recovery `3/3` pass. The fresh concurrent C++ cell is service-backed; the fresh Net10 concurrent cell is process-backed. SQL master-auth integration is skipped; restore/installer rollback, registered COM, SEC-18 caller proof, native AD/SSPI, lifecycle acceptance, and long soak remain blocked or unproven.
 - Current bounded slice: disposable Net10 SQL Full-Text backfill/search acceptance and fail-closed report validation are recorded with 1/1 preparation and 25/25 live SEARCH sessions; no paired C++ timing claim is made. No C++ production source, COM identity, SQL schema, service, Data, or listener state changed.

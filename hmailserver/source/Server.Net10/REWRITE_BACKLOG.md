@@ -19,6 +19,13 @@ lifecycle and Administrator activation acceptance on an isolated installation;
 retain paired backup timing, restore semantic equivalence, and long-soak gates
 as release blockers.
 
+The focused registered COM host test was rerun after this slice: `1/6` passed
+and the five activation tests all returned `E_NOINTERFACE` at
+`ComLocalServerHostTests.cs:107,165,220,337,461`. The pure legacy COM manifest
+checks remain separate from this runtime failure. AD verifier coverage is
+`3/5`; the two real AD/SSPI integration tests are inconclusive without a
+disposable domain and credential. Full Debug remains `2795/95/5`.
+
 ## Historical authoritative next slice (2026-09-02, paired resource repeatability)
 
 The current disposable C++ Release x64 service path and current .NET 10

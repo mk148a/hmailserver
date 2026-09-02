@@ -17,6 +17,10 @@ made. The release gate remains **RED**.
 Next: isolated service-backed registered COM lifecycle and Administrator
 activation acceptance. Keep paired backup timing/semantic equivalence, Full
 profile resource growth investigation, and 24-hour soak open.
+The focused COM host run remains `1/6` with the same five `E_NOINTERFACE`
+activation failures; AD verifier tests are `3/5` with two real AD/SSPI tests
+inconclusive because no disposable domain/credential is available. The full
+Debug suite is `2795 passed, 95 skipped, 5 failed / 2895`.
 
 ## Current authoritative continuation (2026-09-02, paired queue evidence)
 
