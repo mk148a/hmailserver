@@ -17,6 +17,48 @@ namespace HMailServer.Net10.Tests;
 public sealed class ProductionHostCompositionTests
 {
     [TestMethod]
+    public void HostBuild_UsesLegacyIniDatabaseAndDataSettingsWhenOverridesAreAbsent()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            $"hmailserver-net10-host-legacy-config-{Guid.NewGuid():N}");
+        var dataDirectory = Path.Combine(root, "Data");
+        var initializationFile = Path.Combine(root, "hMailServer.ini");
+        Directory.CreateDirectory(root);
+        File.WriteAllText(
+            initializationFile,
+            "[Database]\n"
+            + "Type=MSSQL\n"
+            + "Server=127.0.0.1\n"
+            + "Database=NeverOpened\n"
+            + "Username=never\n"
+            + $"Password={HMailServer.Security.LegacyBlowfishPasswordCipher.Encrypt("never-password")}\n"
+            + "Passwordencryption=1\n"
+            + "\n[Directories]\n"
+            + $"DataFolder={dataDirectory}\n");
+
+        try
+        {
+            var composition = HMailServer.Service.Host.Build(
+                [
+                    $"--InitializationFile={initializationFile}",
+                    "--Imap:Enabled=false",
+                    "--Pop3:Enabled=false",
+                    "--Smtp:Enabled=false",
+                    "--ExternalFetch:Enabled=false"
+                ]);
+
+            using var host = composition.Host;
+            Assert.AreEqual(Path.GetFullPath(dataDirectory), composition.DataDirectory);
+            Assert.AreEqual(Path.GetFullPath(initializationFile), composition.InitializationFile);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [TestMethod]
     public void HostBuild_ExternalFetchEgressPolicyDefaultsToEnforcedAndHonorsExplicitOverride()
     {
         foreach (var (egressEnforce, expected) in new (string? Value, bool Expected)[]

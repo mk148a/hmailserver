@@ -11,6 +11,7 @@ using HMailServer.Scripting;
 using HMailServer.Search.SqlServer;
 using HMailServer.Security;
 using HMailServer.Storage.SqlServer;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -45,13 +46,17 @@ public static class Host
     builder.Services.AddSingleton<IBackupTaskQueue>(
         serviceProvider => serviceProvider.GetRequiredService<BackupTaskQueue>());
 
-    var connectionString = builder.Configuration["ConnectionStrings:hMailServer"]
-        ?? builder.Configuration["HMAILSERVER_SQLSERVER_CONNECTION"]
-        ?? throw new InvalidOperationException("Missing SQL Server connection string.");
+    var configuredConnectionString = builder.Configuration["ConnectionStrings:hMailServer"]
+        ?? builder.Configuration["HMAILSERVER_SQLSERVER_CONNECTION"];
+    var connectionString = string.IsNullOrWhiteSpace(configuredConnectionString)
+        ? BuildLegacySqlServerConnectionString(databaseConfiguration)
+        : configuredConnectionString;
 
-    var dataDirectory = builder.Configuration["DataDirectory"]
-        ?? builder.Configuration["HMAILSERVER_DATA_DIRECTORY"]
-        ?? throw new InvalidOperationException("Missing hMailServer data directory.");
+    var configuredDataDirectory = builder.Configuration["DataDirectory"]
+        ?? builder.Configuration["HMAILSERVER_DATA_DIRECTORY"];
+    var dataDirectory = string.IsNullOrWhiteSpace(configuredDataDirectory)
+        ? LoadLegacyDataDirectory(initializationFile)
+        : configuredDataDirectory;
 
     var leaseOwner = $"{Environment.MachineName}-{Environment.ProcessId}";
     var deliveryStatusSqlEnabled = ReadBool(
@@ -1116,6 +1121,65 @@ public static class Host
         }
 
         return bool.Parse(value);
+    }
+
+    static string LoadLegacyDataDirectory(string initializationFile)
+    {
+        var directories = new LegacyDirectoryAdministrationStore(initializationFile)
+            .GetDirectoriesAsync(CancellationToken.None)
+            .GetAwaiter()
+            .GetResult();
+        if (string.IsNullOrWhiteSpace(directories.DataDirectory))
+        {
+            throw new InvalidOperationException(
+                "Missing hMailServer data directory. Configure DataDirectory or legacy [Directories] DataFolder.");
+        }
+
+        return directories.DataDirectory;
+    }
+
+    static string BuildLegacySqlServerConnectionString(LegacyDatabaseConfiguration configuration)
+    {
+        if (configuration.DatabaseType != 2)
+        {
+            throw new InvalidOperationException(
+                "Missing SQL Server connection string. Legacy INI fallback supports MSSQL only.");
+        }
+
+        if (string.IsNullOrWhiteSpace(configuration.ServerName)
+            || string.IsNullOrWhiteSpace(configuration.DatabaseName))
+        {
+            throw new InvalidOperationException(
+                "Missing SQL Server connection string and incomplete legacy [Database] settings.");
+        }
+
+        var serverName = configuration.ServerName.Trim();
+        if (configuration.Port > 0
+            && !serverName.Contains(',')
+            && !serverName.Contains('\\'))
+        {
+            serverName = $"{serverName},{configuration.Port}";
+        }
+
+        var builder = new SqlConnectionStringBuilder
+        {
+            DataSource = serverName,
+            InitialCatalog = configuration.DatabaseName.Trim(),
+            IntegratedSecurity = string.IsNullOrEmpty(configuration.Username)
+        };
+        builder["Encrypt"] = "False";
+        if (!string.IsNullOrEmpty(configuration.Username))
+        {
+            builder.UserID = configuration.Username;
+            builder.Password = configuration.Password;
+        }
+
+        if (!string.IsNullOrWhiteSpace(configuration.FailoverPartner))
+        {
+            builder.FailoverPartner = configuration.FailoverPartner.Trim();
+        }
+
+        return builder.ConnectionString;
     }
 
     static int ReadInt(string? value, int defaultValue)

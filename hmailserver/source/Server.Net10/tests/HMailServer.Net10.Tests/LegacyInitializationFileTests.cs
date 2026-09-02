@@ -75,6 +75,40 @@ public sealed class LegacyInitializationFileTests
     }
 
     [TestMethod]
+    public void LoadDatabaseConfiguration_ReadsLegacySqlCredentialsAndDecryptsPassword()
+    {
+        var path = CreateTemporaryInitializationFile(
+            "[Database]\n"
+            + "Type=MSSQL\n"
+            + "Server=sql01\\INSTANCE\n"
+            + "Database=hmail\n"
+            + "Username=hmail_user\n"
+            + $"Password={LegacyBlowfishPasswordCipher.Encrypt("secret-password")}\n"
+            + "Passwordencryption=1\n"
+            + "Port=51433\n"
+            + "Provider=MSOLEDBSQL\n"
+            + "ServerFailoverPartner=sql02\\INSTANCE\n");
+
+        try
+        {
+            var configuration = LegacyInitializationFile.LoadDatabaseConfiguration(path);
+
+            Assert.AreEqual(2, configuration.DatabaseType);
+            Assert.AreEqual("sql01\\INSTANCE", configuration.ServerName);
+            Assert.AreEqual("hmail", configuration.DatabaseName);
+            Assert.AreEqual("hmail_user", configuration.Username);
+            Assert.AreEqual("secret-password", configuration.Password);
+            Assert.AreEqual(51433, configuration.Port);
+            Assert.AreEqual("MSOLEDBSQL", configuration.Provider);
+            Assert.AreEqual("sql02\\INSTANCE", configuration.FailoverPartner);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [TestMethod]
     public void SaveAdministratorPasswordHash_AtomicallyReplacesHashAndPreservesOtherSettings()
     {
         var path = CreateTemporaryInitializationFile(

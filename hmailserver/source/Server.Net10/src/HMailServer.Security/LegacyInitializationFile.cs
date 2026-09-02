@@ -187,12 +187,29 @@ public static class LegacyInitializationFile
             .Build();
 
         var databaseType = ParseDatabaseType(configuration["Database:Type"]);
+        var password = configuration["Database:Password"] ?? string.Empty;
+        var passwordEncryption = ParseInteger(configuration["Database:Passwordencryption"]);
+        if (passwordEncryption == 1 && !LegacyBlowfishPasswordCipher.TryDecrypt(password, out password))
+        {
+            throw new InvalidOperationException("The legacy database password could not be decrypted.");
+        }
+
+        if (passwordEncryption is not (0 or 1))
+        {
+            throw new InvalidOperationException(
+                $"The legacy database password encryption type {passwordEncryption} is unsupported.");
+        }
 
         return new LegacyDatabaseConfiguration(
             DatabaseType: databaseType,
             DatabaseExists: databaseType != 0,
             ServerName: configuration["Database:Server"] ?? string.Empty,
-            DatabaseName: configuration["Database:Database"] ?? string.Empty);
+            DatabaseName: configuration["Database:Database"] ?? string.Empty,
+            Username: configuration["Database:Username"] ?? string.Empty,
+            Password: password,
+            Port: ParseInteger(configuration["Database:Port"]),
+            Provider: configuration["Database:Provider"] ?? string.Empty,
+            FailoverPartner: configuration["Database:ServerFailoverPartner"] ?? string.Empty);
     }
 
     public static string LoadUserInterfaceLanguage(string path)
@@ -352,6 +369,9 @@ public static class LegacyInitializationFile
         };
     }
 
+    private static int ParseInteger(string? value) =>
+        int.TryParse(value, out var parsed) ? parsed : 0;
+
     [System.Runtime.InteropServices.DllImport(
         "kernel32.dll",
         CharSet = System.Runtime.InteropServices.CharSet.Unicode,
@@ -405,4 +425,9 @@ public sealed record LegacyDatabaseConfiguration(
     int DatabaseType,
     bool DatabaseExists,
     string ServerName,
-    string DatabaseName);
+    string DatabaseName,
+    string Username = "",
+    string Password = "",
+    int Port = 0,
+    string Provider = "",
+    string FailoverPartner = "");

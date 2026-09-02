@@ -1,6 +1,7 @@
 Param(
     [string]$Configuration = 'Release',
     [string]$BinDirectory,
+    [string]$InitializationFile,
     [switch]$ReplaceExisting,
     [string]$BackupArchive,
     [switch]$Start
@@ -34,6 +35,12 @@ if (-not (Test-Path -LiteralPath $executable)) {
 }
 if (-not (Test-Path -LiteralPath $typeLibrary)) {
     throw "Type library was not found: $typeLibrary"
+}
+if (-not [string]::IsNullOrWhiteSpace($InitializationFile)) {
+    $InitializationFile = [IO.Path]::GetFullPath($InitializationFile)
+    if (-not (Test-Path -LiteralPath $InitializationFile -PathType Leaf)) {
+        throw "Initialization file was not found: $InitializationFile"
+    }
 }
 
 $serviceName = 'hMailServer'
@@ -81,13 +88,17 @@ try {
     }
 
     $quotedExecutable = '"{0}"' -f $executable
+    $servicePath = $quotedExecutable
+    if (-not [string]::IsNullOrWhiteSpace($InitializationFile)) {
+        $servicePath = '{0} --InitializationFile "{1}"' -f $quotedExecutable, $InitializationFile
+    }
     if ($serviceExists) {
         $serviceMutationAttempted = $true
-        & sc.exe config $serviceName "binPath= $quotedExecutable" 'start= auto' 'DisplayName= hMailServer'
+        & sc.exe config $serviceName "binPath= $servicePath" 'start= auto' 'DisplayName= hMailServer'
     }
     else {
         $serviceMutationAttempted = $true
-        & sc.exe create $serviceName "binPath= $quotedExecutable" 'start= auto' 'error= normal' 'DisplayName= hMailServer' 'depend= RPCSS'
+        & sc.exe create $serviceName "binPath= $servicePath" 'start= auto' 'error= normal' 'DisplayName= hMailServer' 'depend= RPCSS'
     }
     if ($LASTEXITCODE -ne 0) {
         throw "Windows service registration failed with exit code $LASTEXITCODE."

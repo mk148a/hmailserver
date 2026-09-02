@@ -15,6 +15,7 @@
     <ProjectReference Include="..\HMailServer.Storage.SqlServer\HMailServer.Storage.SqlServer.csproj" />
     <ProjectReference Include="..\HMailServer.Search.SqlServer\HMailServer.Search.SqlServer.csproj" />
     <ProjectReference Include="..\HMailServer.Security\HMailServer.Security.csproj" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.9" />
     <Content Include="..\..\assets\public_suffix_list.dat" Link="public_suffix_list.dat" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\assets\public_suffix_list.meta.json" Link="public_suffix_list.meta.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
