@@ -22,6 +22,23 @@ if (TryHandleComRegistrationCommand(args))
     return;
 }
 
+int? upgradeExitCode;
+try
+{
+    upgradeExitCode = await LegacyUpgradeCommand.TryRunAsync(args).ConfigureAwait(false);
+}
+catch (Exception exception)
+{
+    Console.Error.WriteLine($"hMailServer upgrade command failed: {exception.Message}");
+    Environment.ExitCode = 1;
+    return;
+}
+if (upgradeExitCode is { } exitCode)
+{
+    Environment.ExitCode = exitCode;
+    return;
+}
+
 var hostComposition = HMailServer.Service.Host.Build(args);
 var host = hostComposition.Host;
 var dataDirectory = hostComposition.DataDirectory;

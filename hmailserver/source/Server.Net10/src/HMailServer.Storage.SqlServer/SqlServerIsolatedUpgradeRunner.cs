@@ -54,6 +54,31 @@ public sealed class SqlServerIsolatedUpgradeRunner
         string scriptPath,
         string reportPath,
         CancellationToken cancellationToken)
+        => await RunCoreAsync(
+            backupCheckpoint,
+            scriptPath,
+            reportPath,
+            reinitializeAfterMigration: true,
+            cancellationToken).ConfigureAwait(false);
+
+    public async ValueTask<SqlServerUpgradeRunResult> RunOfflineAsync(
+        SqlServerVerifiedBackupCheckpoint? backupCheckpoint,
+        string scriptPath,
+        string reportPath,
+        CancellationToken cancellationToken)
+        => await RunCoreAsync(
+            backupCheckpoint,
+            scriptPath,
+            reportPath,
+            reinitializeAfterMigration: false,
+            cancellationToken).ConfigureAwait(false);
+
+    private async ValueTask<SqlServerUpgradeRunResult> RunCoreAsync(
+        SqlServerVerifiedBackupCheckpoint? backupCheckpoint,
+        string scriptPath,
+        string reportPath,
+        bool reinitializeAfterMigration,
+        CancellationToken cancellationToken)
     {
         var checkpointError = await ValidateCheckpointAsync(backupCheckpoint, cancellationToken).ConfigureAwait(false);
         if (checkpointError is not null)
@@ -96,19 +121,22 @@ public sealed class SqlServerIsolatedUpgradeRunner
             return failed;
         }
 
-        try
+        if (reinitializeAfterMigration)
         {
-            await _reinitializeAsync(cancellationToken).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            var failed = new SqlServerUpgradeRunResult(
-                SqlServerUpgradeRunStatus.ReinitializeFailed,
-                backupCheckpoint,
-                migration,
-                exception.Message);
-            await WriteReportAsync(reportPath, failed, cancellationToken).ConfigureAwait(false);
-            return failed;
+            try
+            {
+                await _reinitializeAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                var failed = new SqlServerUpgradeRunResult(
+                    SqlServerUpgradeRunStatus.ReinitializeFailed,
+                    backupCheckpoint,
+                    migration,
+                    exception.Message);
+                await WriteReportAsync(reportPath, failed, cancellationToken).ConfigureAwait(false);
+                return failed;
+            }
         }
 
         var completed = new SqlServerUpgradeRunResult(

@@ -12,6 +12,8 @@ public sealed class SqlServerConnectionFactory
         _connectionString = connectionString;
     }
 
+    internal string ConnectionString => _connectionString;
+
     public async ValueTask<SqlConnection> OpenAsync(CancellationToken cancellationToken)
     {
         var connection = new SqlConnection(_connectionString);

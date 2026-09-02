@@ -9,6 +9,8 @@ $scriptPath = Join-Path $PSScriptRoot 'upgrade-net10-from-legacy.ps1'
 $installerPath = Join-Path $PSScriptRoot 'install-net10-service.ps1'
 $hostPath = Join-Path $repoRoot 'hmailserver\source\Server.Net10\src\HMailServer.Service\Host.cs'
 $initializationPath = Join-Path $repoRoot 'hmailserver\source\Server.Net10\src\HMailServer.Security\LegacyInitializationFile.cs'
+$commandPath = Join-Path $repoRoot 'hmailserver\source\Server.Net10\src\HMailServer.Service\LegacyUpgradeCommand.cs'
+$rollbackPath = Join-Path $repoRoot 'hmailserver\source\Server.Net10\src\HMailServer.Storage.SqlServer\SqlServerDatabaseRollbackStore.cs'
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -17,7 +19,7 @@ function Assert-True {
     }
 }
 
-foreach ($path in @($scriptPath, $installerPath, $hostPath, $initializationPath)) {
+foreach ($path in @($scriptPath, $installerPath, $hostPath, $initializationPath, $commandPath, $rollbackPath)) {
     Assert-True (Test-Path -LiteralPath $path -PathType Leaf) "Required upgrade source is missing: $path"
 }
 
@@ -29,6 +31,8 @@ $source = Get-Content -LiteralPath $scriptPath -Raw
 $installer = Get-Content -LiteralPath $installerPath -Raw
 $hostSource = Get-Content -LiteralPath $hostPath -Raw
 $initialization = Get-Content -LiteralPath $initializationPath -Raw
+$command = Get-Content -LiteralPath $commandPath -Raw
+$rollback = Get-Content -LiteralPath $rollbackPath -Raw
 
 Assert-True ($source -match 'mode = if \(\$Execute\) \{ ''Execute'' \} else \{ ''PlanOnly'' \}') 'Upgrade defaults to neither explicit plan nor execute mode.'
 Assert-True ($source -match 'Assert-UpgradeHandoff') 'Upgrade does not require a completed handoff manifest.'
@@ -39,6 +43,9 @@ Assert-True ($source -match "'-ReplaceExisting'") 'Upgrade does not use replacem
 Assert-True ($source -match "'-InitializationFile'") 'Upgrade does not carry the legacy initialization file into the new service.'
 Assert-True ($source -match 'if \(-not \$Execute\)') 'Upgrade does not stop after a non-mutating plan.'
 Assert-True ($source -notmatch 'sc\.exe\s+(config|create|delete)') 'Upgrade script performs direct SCM mutation outside the guarded installer.'
+Assert-True ($source -match 'SqlRollbackBackupPath') 'Executing upgrade does not require a SQL rollback backup path.'
+Assert-True ($source -match '--upgrade-database') 'Executing upgrade does not run the database migration command.'
+Assert-True ($source -match '--restore-upgrade-database') 'Cutover failure does not invoke SQL database rollback.'
 
 Assert-True ($installer -match '\[string\]\$InitializationFile') 'Installer does not accept a legacy initialization file.'
 Assert-True ($installer -match 'servicePath') 'Installer does not construct a service command line.'
@@ -46,5 +53,10 @@ Assert-True ($installer -match '--InitializationFile') 'Installer does not persi
 Assert-True ($hostSource -match 'BuildLegacySqlServerConnectionString') 'Host does not support legacy SQL configuration fallback.'
 Assert-True ($hostSource -match 'LoadLegacyDataDirectory') 'Host does not support legacy DataFolder fallback.'
 Assert-True ($initialization -match 'LegacyBlowfishPasswordCipher\.TryDecrypt') 'Legacy database password decryption is not wired.'
+Assert-True ($command -match 'RunOfflineAsync') 'Upgrade command does not use the offline migration path.'
+Assert-True ($command -match 'CreateCopyOnlyBackupAsync') 'Upgrade command does not create a SQL rollback backup.'
+Assert-True ($command -match 'SqlServerUpgradeArtifactHandoff') 'Upgrade command does not produce the guarded handoff.'
+Assert-True ($rollback -match 'BACKUP DATABASE') 'SQL rollback store does not create a database backup.'
+Assert-True ($rollback -match 'RESTORE DATABASE') 'SQL rollback store does not restore a database backup.'
 
 Write-Output 'hMailServer legacy upgrade guard tests passed.'

@@ -7,6 +7,8 @@ param(
     [Parameter(Mandatory)][string]$UpgradeReportPath,
     [Parameter(Mandatory)][string]$HandoffManifestPath,
     [Parameter(Mandatory)][string]$ExpectedTargetIdentity,
+    [string]$UpgradeScriptPath,
+    [string]$SqlRollbackBackupPath,
     [string]$OutputDirectory,
     [switch]$Execute,
     [switch]$Start
@@ -24,6 +26,9 @@ $bin = [IO.Path]::GetFullPath($BinDirectory)
 $executable = Join-Path $bin 'hMailServer.exe'
 $typeLibrary = Join-Path $bin 'hMailServer.tlb'
 $installerPath = Join-Path $PSScriptRoot 'install-net10-service.ps1'
+if ([string]::IsNullOrWhiteSpace($UpgradeScriptPath)) {
+    $UpgradeScriptPath = Join-Path $repoRoot 'hmailserver\source\DBScripts\Upgrade5708to6000MSSQL.sql'
+}
 
 . (Join-Path $PSScriptRoot 'net10-rollback-archive-preflight.ps1')
 . (Join-Path $PSScriptRoot 'net10-service-rollback.ps1')
@@ -111,12 +116,7 @@ Assert-RequiredFile -Path $executable -Description 'Net10 service executable'
 Assert-RequiredFile -Path $typeLibrary -Description 'Net10 type library'
 Assert-RequiredFile -Path $installerPath -Description 'Net10 installer'
 Assert-RequiredFile -Path $InitializationFile -Description 'Legacy initialization file'
-
-$handoff = Assert-UpgradeHandoff `
-    -ManifestPath $HandoffManifestPath `
-    -RequestedBackupArchive $BackupArchive `
-    -RequestedUpgradeReport $UpgradeReportPath `
-    -TargetIdentity $ExpectedTargetIdentity
+Assert-RequiredFile -Path $UpgradeScriptPath -Description 'SQL upgrade script'
 
 $sevenZip = Join-Path $bin '7za.exe'
 Assert-Net10RollbackArchivePreflight -BackupArchive $BackupArchive -SevenZipPath $sevenZip
@@ -145,12 +145,14 @@ $plan = [ordered]@{
     typeLibrary = $typeLibrary
     initializationFile = [IO.Path]::GetFullPath($InitializationFile)
     backupArchive = [IO.Path]::GetFullPath($BackupArchive)
+    sqlRollbackBackup = if ($SqlRollbackBackupPath) { [IO.Path]::GetFullPath($SqlRollbackBackupPath) } else { $null }
+    upgradeScript = [IO.Path]::GetFullPath($UpgradeScriptPath)
     upgradeReport = [IO.Path]::GetFullPath($UpgradeReportPath)
     handoffManifest = [IO.Path]::GetFullPath($HandoffManifestPath)
     targetIdentity = $ExpectedTargetIdentity
     serviceMutation = 'install-net10-service.ps1 -ReplaceExisting'
     startRequested = [bool]$Start
-    rollback = 'net10-service-rollback.ps1 plus legacy /Register on installer failure'
+    rollback = 'SQL COPY_ONLY restore plus net10-service-rollback.ps1 and legacy /Register on cutover failure'
 }
 
 if (-not [string]::IsNullOrWhiteSpace($OutputDirectory)) {
@@ -171,6 +173,55 @@ if (-not [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsI
     throw 'Run an executing upgrade from an elevated PowerShell session.'
 }
 
+if ([string]::IsNullOrWhiteSpace($SqlRollbackBackupPath)) {
+    throw '-SqlRollbackBackupPath is required for -Execute so a failed service cutover can restore the legacy database.'
+}
+
+$SqlRollbackBackupPath = [IO.Path]::GetFullPath($SqlRollbackBackupPath)
+if ([string]::Equals(
+        $SqlRollbackBackupPath,
+        [IO.Path]::GetFullPath($BackupArchive),
+        [StringComparison]::OrdinalIgnoreCase)) {
+    throw '-SqlRollbackBackupPath must be different from -BackupArchive.'
+}
+
+$sevenZip = Join-Path $bin '7za.exe'
+Assert-Net10RollbackArchivePreflight -BackupArchive $BackupArchive -SevenZipPath $sevenZip
+$rollbackSnapshot = New-Net10ServiceRollbackSnapshot -Service $legacyService
+$databaseRollbackNeeded = $false
+$serviceMutationStarted = $false
+
+try {
+    $upgradeArguments = @(
+        '--upgrade-database'
+        '--AllowOfflineDatabaseMutation'
+        '--InitializationFile'
+        ([IO.Path]::GetFullPath($InitializationFile))
+        '--BackupArchive'
+        ([IO.Path]::GetFullPath($BackupArchive))
+        '--UpgradeScriptPath'
+        ([IO.Path]::GetFullPath($UpgradeScriptPath))
+        '--UpgradeReportPath'
+        ([IO.Path]::GetFullPath($UpgradeReportPath))
+        '--HandoffManifestPath'
+        ([IO.Path]::GetFullPath($HandoffManifestPath))
+        '--TargetIdentity'
+        $ExpectedTargetIdentity
+        '--SqlRollbackBackupPath'
+        $SqlRollbackBackupPath
+    )
+    & $executable @upgradeArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Net10 database migration command failed with exit code $LASTEXITCODE. The command owns SQL rollback for migration failure."
+    }
+    $databaseRollbackNeeded = $true
+
+    $handoff = Assert-UpgradeHandoff `
+        -ManifestPath $HandoffManifestPath `
+        -RequestedBackupArchive $BackupArchive `
+        -RequestedUpgradeReport $UpgradeReportPath `
+        -TargetIdentity $ExpectedTargetIdentity
+
 $installerArguments = @(
     '-NoProfile'
     '-ExecutionPolicy'
@@ -189,9 +240,50 @@ if ($Start) {
     $installerArguments += '-Start'
 }
 
+$serviceMutationStarted = $true
 & powershell.exe @installerArguments
 if ($LASTEXITCODE -ne 0) {
     throw "Net10 installer failed with exit code $LASTEXITCODE. Its compensating service/COM rollback was invoked."
+}
+
+    $databaseRollbackNeeded = $false
+}
+catch {
+    $upgradeError = $_.Exception.Message
+    $rollbackErrors = [System.Collections.Generic.List[string]]::new()
+    if ($databaseRollbackNeeded) {
+        try {
+            & $executable @(
+                '--restore-upgrade-database'
+                '--AllowOfflineDatabaseMutation'
+                '--InitializationFile'
+                ([IO.Path]::GetFullPath($InitializationFile))
+                '--SqlRollbackBackupPath'
+                $SqlRollbackBackupPath
+            )
+            if ($LASTEXITCODE -ne 0) {
+                throw "SQL rollback command failed with exit code $LASTEXITCODE."
+            }
+        }
+        catch {
+            $rollbackErrors.Add($_.Exception.Message)
+        }
+    }
+
+    if ($serviceMutationStarted) {
+        try {
+            Invoke-Net10ServiceRollback -Snapshot $rollbackSnapshot -LegacyExecutable $legacyExecutable
+        }
+        catch {
+            $rollbackErrors.Add($_.Exception.Message)
+        }
+    }
+
+    if ($rollbackErrors.Count -gt 0) {
+        throw "Legacy upgrade failed: $upgradeError Rollback failed: $($rollbackErrors -join ' | ')"
+    }
+
+    throw "Legacy upgrade failed and rollback completed: $upgradeError"
 }
 
 [pscustomobject]$plan
