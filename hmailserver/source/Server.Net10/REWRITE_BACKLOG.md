@@ -1,3 +1,24 @@
+## Current authoritative next slice (2026-09-03, backup semantic comparison)
+
+Build/test commit `f326c25bb` adds
+`build/compare-backup-semantic-payloads.ps1` and its focused harness
+`build/test-backup-semantic-comparison.ps1`. The comparator accepts directories
+or 7z archives, rejects absolute/traversal entries, uses DTD-disabled XML
+parsing, canonicalizes XML, and compares `DataBackup` files by size and
+SHA-256. Equal and mismatch fixture cases pass, and the disposable C++ archive
+passes an archive self-compare. The tool does not access SQL, services, or live
+Data directories.
+
+This closes the repository-only comparison infrastructure gap, not the paired
+backup gate. The current Net10 round-trip runner does not retain a comparable
+archive and the available C++ and Net10 results are not proven to share the
+same fixture. Same-fixture semantic equivalence and timing therefore remain
+RED. Next: retain a Net10 archive from the same disposable fixture and mode,
+then run this comparator; until that host/output exists, do not claim backup
+equivalence or a speed ratio. Registered COM/Admin, installer/Data rollback,
+SEC-18, AD/SSPI, DKIM/DMARC/SPF, exact Full-Text transaction equivalence, and
+long soak remain open.
+
 ## Current authoritative next slice (2026-09-03, legacy SORT fallback)
 
 Code/test commit `b2c6d40ab` closes the bounded legacy-compatible IMAP SORT

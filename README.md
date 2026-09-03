@@ -1,6 +1,23 @@
 hMailServer
 ===========
 
+## Current backup semantic comparator (2026-09-03)
+
+Build/test commit `f326c25bb` adds
+`build/compare-backup-semantic-payloads.ps1`. It accepts two backup payload
+directories or 7z archives, rejects absolute/traversal archive entries, parses
+XML with DTD processing disabled, compares canonical XML, and compares every
+`DataBackup` file by size and SHA-256. It emits JSON, CSV, and Markdown and
+never accesses SQL, services, or live Data directories. Its focused fixture
+harness passes equal, XML-mismatch, and DataBackup-mismatch cases; the real
+disposable C++ archive also passes a self-compare archive extraction check.
+
+This is comparison infrastructure, not same-fixture evidence. A PASS proves
+equality only for the supplied payloads and does not prove that C++ and Net10
+inputs came from the same fixture. A retained Net10 archive from the same
+fixture and backup mode is still required before paired semantic equivalence or
+a backup speed ratio can be claimed.
+
 ## Current legacy-compatible IMAP SORT fallback (2026-09-03)
 
 Code/test commit `b2c6d40ab` closes the bounded SORT fallback gap. Legacy

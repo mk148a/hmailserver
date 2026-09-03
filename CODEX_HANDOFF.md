@@ -1,5 +1,21 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-03, backup semantic comparison)
+
+Build/test commit `f326c25bb` adds the repository-only
+`build/compare-backup-semantic-payloads.ps1` comparator and
+`build/test-backup-semantic-comparison.ps1` harness. It supports directories
+and 7z archives, rejects unsafe archive entries, parses XML with DTD disabled,
+and compares canonical XML plus `DataBackup` file hashes. Equal, XML mismatch,
+DataBackup mismatch, and disposable C++ archive self-compare checks pass.
+
+This does not prove C++/Net10 equivalence: the current Net10 round-trip does
+not retain an archive and the available inputs are not proven same-fixture or
+same-mode. Next: retain a Net10 archive on the same disposable fixture and run
+the comparator. Keep paired backup timing/equivalence, registered COM/Admin,
+installer/Data rollback, SEC-18, AD/SSPI, exact Full-Text transaction
+equivalence, and long soak RED.
+
 ## Current authoritative continuation (2026-09-03, legacy SORT fallback)
 
 Code/test commit `b2c6d40ab` closes the bounded legacy-compatible IMAP SORT
