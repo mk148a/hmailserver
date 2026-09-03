@@ -1,8 +1,8 @@
 # Current State
-- UTC and local timestamp: 2026-09-03T08:51:10Z / 2026-09-03T11:51:10+03:00
+- UTC and local timestamp: 2026-09-03T08:50:32Z / 2026-09-03T11:50:32+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `f326c25bb` (`Add backup semantic comparison harness`)
-- Last successfully pushed commit: `7a7406551`
+- Current HEAD: `e98be3bca` (`Document backup semantic comparison gate`)
+- Last successfully pushed commit: `e98be3bca`
 - Latest focused-test result: paired disposable performance cells `25/25` protocol per target, `5,000/5,000` concurrent IMAP sessions per target, three fresh SMTP repeat pairs at `500/500` per target, an independent SMTP readback pair at `500/500`, paired local-delivery queue `1000/1000` per target, paired TCP `451` retry/recovery `25/25` per target, `25/25` 1,000-message POP3 iterations per target, `3/3` 100,000-message POP3 iterations per target, `1/1` 100,000-message IMAP SEARCH/SORT per target, FTS-not-ready SEARCH fallback `27/27`, FTS-not-ready SORT fallback `3/3`, related SORT/planner/session coverage `76/76`, isolated Net10 backup/restore `25/25`, and backup comparator equal/mismatch plus C++ archive self-compare checks; all had zero errors. Concurrent-IMAP, query-state, paired-SMTP, paired-queue, paired-retry, focused-search, SORT, backup-report, and comparator checks passed. Disposable legacy COM mode-7 archive and XML/7z validation also passed.
 - Latest full Net10 result: Debug `2808 passed, 95 skipped, 0 failed / 2903`.
 - Opt-in tests passed/skipped/blocked: C++ disposable service-backed protocol/IMAP/SMTP and direct-process POP3 evidence passed; SQL FTS parity timing, backup/restore timing, registered out-of-process COM/Admin, SEC-18, AD/SSPI, cloned installer rollback, and live lifecycle cells remain skipped or blocked.
