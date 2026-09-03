@@ -130,6 +130,37 @@ xychart-beta
     bar [11.032, 18.648]
 ```
 
+## SMTP repeatability, three fresh fixtures
+
+To separate run variance from the single clean cell above, three additional
+independent paired fixtures were provisioned from the same 1,000-message
+backup/Data baseline. Each target accepted `500/500` messages with zero errors.
+These runs used the same C++ disposable service wrapper and Net10 process
+runner; lower latency is better and higher throughput is better.
+
+| Fixture | Implementation | p50 ms | p95 ms | p99 ms | Throughput |
+| --- | --- | ---: | ---: | ---: | ---: |
+| r4 | Legacy C++ service | 6.687 | 7.542 | 8.593 | 19.653 msg/s |
+| r4 | .NET 10 process | 5.406 | 6.982 | 7.809 | 18.703 msg/s |
+| r5 | Legacy C++ service | 6.779 | 9.712 | 10.834 | 19.385 msg/s |
+| r5 | .NET 10 process | 5.128 | 6.434 | 8.749 | 19.488 msg/s |
+| r6 | Legacy C++ service | 6.826 | 10.178 | 14.356 | 19.256 msg/s |
+| r6 | .NET 10 process | 5.008 | 6.419 | 7.695 | 19.335 msg/s |
+| Average | Legacy C++ service | 6.764 | 9.144 | 11.261 | 19.431 msg/s |
+| Average | .NET 10 process | 5.181 | 6.612 | 8.084 | 19.175 msg/s |
+
+The three-run average is effectively tied on throughput (`0.987x` Net10/C++).
+Net10 had lower average p95 by `2.532 ms` in this small local workload. This
+repeat removes the earlier single-run outlier from
+any general interpretation; neither side is declared a product-wide winner.
+
+An independent r7 fixture additionally ran with local-delivery readback and
+passed the focused paired validator: C++ `500/500`, p95 `7.944 ms`, throughput
+`19.386 msg/s`; Net10 `500/500`, p95 `6.898 ms`, throughput `18.687 msg/s`.
+Both began with 1,000 rows, reached 1,500 rows, proved the readback state, and
+reported valid post-run accounting. This confirms the acceptance and cleanup
+path, but it is not a replacement for larger delivery/queue testing.
+
 ## 100,000-message IMAP SEARCH/SORT acceptance
 
 The same 100,000-message SQL/Data fixture was exercised with one Full-profile
