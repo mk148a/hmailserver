@@ -39,6 +39,12 @@ the full Debug suite is `2805 passed, 95 skipped, 0 failed / 2900`. Exact SQL
 Full-Text migration equivalence, SORT fallback, and paired backup/restore timing
 remain open, so the performance release gate stays **RED**.
 
+Disposable backup evidence now exists on both sides: the legacy COM mode-7
+backup produced and validated a 7z archive, while Net10’s isolated
+backup→restore→backup suite passed `25/25` in `42.608 s`. Those operations are
+not the same benchmark shape, so no backup speed ratio is claimed; same-fixture,
+same-mode paired timing and semantic equivalence remain release gates.
+
 ```mermaid
 xychart-beta
     title "Current paired p95 latency (ms)"

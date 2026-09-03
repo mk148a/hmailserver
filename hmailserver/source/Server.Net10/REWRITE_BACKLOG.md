@@ -30,8 +30,15 @@ Full-Text or the search index is unavailable. The 100,000-message cell is
 therefore not a valid FTS speed comparison: the C++ clone has no search-document
 table while the Net10 clone has 100,000 indexed rows.
 
-**Next smallest independent slice:** complete paired backup/restore timing and
-semantic-equivalence evidence on the disposable fixture. Keep SQL Full-Text
+The disposable C++ COM mode-7 backup now produced a valid archive in `1.034 s`
+with 7z/XML validation. Net10’s isolated backup -> restore -> backup suite
+passed `25/25` in `42.608 s`; it uses test-owned SQL/Data roots and no
+production targets. These are complementary results, not paired timing,
+because the C++ result is one live COM operation and the Net10 result is a
+25-test round-trip suite.
+
+**Next smallest independent slice:** implement a same-fixture, same-mode paired
+backup timing and semantic-equivalence runner. Keep SQL Full-Text
 optimization/SORT fallback, migration DDL transaction equivalence, registered
 COM/Admin, installer rollback, SEC-18, AD/SSPI, protocol lifecycle, and
 long-soak gates RED.

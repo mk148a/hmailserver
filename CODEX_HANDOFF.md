@@ -18,6 +18,12 @@ message-file source filters text. Focused search coverage is `27/27`; full
 Debug is `2805 passed, 95 skipped, 0 failed / 2900`. This does not implement
 SORT fallback or prove exact SQL Full-Text migration transaction equivalence.
 
+The current disposable backup check also passed on both sides: legacy C++ COM
+mode 7 produced a validated 7z/XML archive in `1.034 s`, while the isolated
+Net10 backup -> restore -> backup suite passed `25/25` in `42.608 s`. These
+durations are not a same-mode paired timing result; exact backup timing and
+semantic equivalence remain open.
+
 Legacy search behavior is anchored by
 `IMAPCommandSEARCH::ExecuteCommand` and `DoesMessageMatch_`
 (`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-432`): C++ scans the

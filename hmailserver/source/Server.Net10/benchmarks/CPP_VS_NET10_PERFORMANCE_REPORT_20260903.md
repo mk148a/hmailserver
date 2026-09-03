@@ -288,6 +288,25 @@ xychart-beta
     bar [0.015, 0.097]
 ```
 
+## Backup evidence, not a paired timing claim
+
+The disposable C++ service was authenticated through the legacy COM
+`Application.Authenticate` path and executed `Settings.Backup` plus
+`BackupManager.StartBackup` with mode `7` (settings, domains, messages) and
+raw destination files. The archive completed in `1.034 s`; the resulting 7z
+was tested successfully, and extracted XML proved `Mode=7`, version
+`1.0.0-B0`, and a `DataFiles` element. The first attempt exposed only a
+staging helper-path issue (`ProgramFolder\Bin\7za.exe`); the disposable
+`Bin\Bin\7za.exe` helper was removed after the successful run.
+
+The current Net10 isolated backup -> restore -> backup acceptance also passed
+`25/25` in `42.608 s`, with isolated Integrated Security SQL/Data roots and no
+production targets. These are complementary acceptance results, not a paired
+latency comparison: the C++ row is one live COM mode-7 backup, while the Net10
+duration is a 25-test round-trip suite. No backup speed ratio is reported.
+Exact same-fixture, same-mode C++/Net10 backup timing and semantic equivalence
+remain open, as do installed COM and production rollback gates.
+
 ## Previously accepted cells not rerun in this report
 
 The 2026-09-02 report records the earlier disposable cells: Net10 Full-Text
