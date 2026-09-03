@@ -1,5 +1,20 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-03, compressed DataBackup acceptance)
+
+Code/test commit `20160b564` adds a real local SQL opt-in acceptance test for
+non-DB-only compressed domains/messages backup. The legacy reference is
+`BackupExecuter::StartBackup` and `BackupDataDirectory_`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209`):
+it copies the data tree beside the destination, removes root files, preserves
+nested message files, embeds the sibling as `DataBackup` in 7z, and deletes
+that sibling after compression. Net10 raw and compressed disposable SQL
+tests pass `2/2`; the compressed test verifies mode `14`, `Format="7z"`,
+`Size="0"`, embedded nested message data, source preservation, and staging
+cleanup. The older raw-staging blocker is stale. Next is a shared-fixture
+C++/Net10 archive comparison and timing run; paired equivalence and a backup
+speed ratio remain RED.
+
 ## Current authoritative continuation (2026-09-03, retained backup evidence)
 
 Code/test commit `c15fbe1f3` adds opt-in retention to

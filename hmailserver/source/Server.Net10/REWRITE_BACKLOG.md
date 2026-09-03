@@ -1,3 +1,20 @@
+## Current authoritative next slice (2026-09-03, raw/compressed DataBackup acceptance)
+
+Code/test commit `20160b564` adds a real local SQL opt-in acceptance cell for
+legacy `BODomains|BOMessages|BOCompression` behavior. Legacy
+`BackupExecuter::StartBackup` and `BackupDataDirectory_`
+(`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209`)
+stage the data directory beside the destination, omit root files, preserve
+nested message files, embed `DataBackup` into the 7z archive, and remove the
+staging sibling after compression. Net10 now has focused disposable SQL
+coverage for both raw and compressed non-DB-only modes; the run passed `2/2`,
+including mode `14`, `Format="7z"`, legacy pre-archive `Size="0"`, embedded
+nested message data, source preservation, and staging cleanup. The prior raw
+staging item is stale and is superseded by this acceptance record. The next
+independent slice is a same-fixture C++/Net10 archive comparison and timing
+run; do not claim cross-implementation backup equivalence or a speed ratio
+until that fixture is shared.
+
 ## Current authoritative next slice (2026-09-03, paired backup evidence)
 
 Code/test commit `c15fbe1f3` extends the repository-only

@@ -1,6 +1,19 @@
 hMailServer
 ===========
 
+## Current non-DB-only backup acceptance (2026-09-03)
+
+Code/test commit `20160b564` adds disposable local SQL acceptance for both
+legacy non-DB-only `BODomains|BOMessages` raw staging and
+`BODomains|BOMessages|BOCompression` compressed staging. The tests pass `2/2`
+and verify the legacy C++ `BackupExecuter::StartBackup` /
+`BackupDataDirectory_` behavior: root files are omitted from `DataBackup`,
+nested message files are retained, compressed archives contain the
+`DataBackup` tree, source data remains unchanged, and the compressed staging
+sibling is removed. The old raw-staging backlog item is stale. This is
+disposable SQL acceptance only; same-fixture C++/Net10 semantic comparison
+and paired timing are still required before any cross-implementation claim.
+
 ## Current backup semantic comparator (2026-09-03)
 
 Code/test commit `c15fbe1f3` extends
