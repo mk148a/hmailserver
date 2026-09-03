@@ -1,5 +1,25 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-03, legacy SORT fallback)
+
+Code/test commit `b2c6d40ab` closes the bounded legacy-compatible IMAP SORT
+fallback. Legacy `IMAPCommandSEARCH::ExecuteCommand` and `IMAPSort::Sort`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp`) enumerate the selected
+folder snapshot, inspect message files, and sort matching messages. Net10’s
+`FileBackedImapSortIndex` at
+`hmailserver/source/Server.Net10/src/HMailServer.Protocols/Imap/FileBackedImapSortIndex.cs`
+now strips text predicates only when Full-Text is disabled or not ready,
+retains SQL candidate order, and filters message files in batches. The ready
+SQL `CONTAINS` path is unchanged. Focused fallback coverage is `3/3`, related
+SORT/planner/session coverage is `76/76`, and full Debug is `2808 passed, 95
+skipped, 0 failed / 2903`.
+
+The release gate remains RED. Exact Full-Text migration transaction
+equivalence, same-fixture backup timing/semantic equivalence, registered
+COM/Admin and installer lifecycle, SEC-18, AD/SSPI, and long soak remain open.
+Next: implement the smallest repository-only backup semantic comparator, then
+continue with isolated registered lifecycle evidence.
+
 ## Current authoritative continuation (2026-09-03, legacy search parity)
 
 The current paired disposable performance evidence is complete through

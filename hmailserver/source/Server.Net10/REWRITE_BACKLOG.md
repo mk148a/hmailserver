@@ -1,3 +1,26 @@
+## Current authoritative next slice (2026-09-03, legacy SORT fallback)
+
+Code/test commit `b2c6d40ab` closes the bounded legacy-compatible IMAP SORT
+fallback. Legacy `IMAPCommandSEARCH::ExecuteCommand` and `IMAPSort::Sort`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp`) enumerate the selected
+folder snapshot, inspect message files, and sort the matching messages. Net10
+now uses `FileBackedImapSortIndex` in
+`hmailserver/source/Server.Net10/src/HMailServer.Protocols/Imap/FileBackedImapSortIndex.cs`:
+when SQL Full-Text is disabled or not ready, `SqlServerMessageSortIndex`
+provides the non-text candidate order and the message-file document source
+filters Subject/Header/Body/TEXT criteria in batches. The ready-index SQL
+`CONTAINS` path is unchanged. Focused fallback coverage is `3/3`, related SORT,
+planner, and session coverage is `76/76`, and full Debug is `2808 passed, 95
+skipped, 0 failed / 2903`.
+
+This closes SORT fallback only. Exact Full-Text migration transaction
+equivalence, same-fixture backup timing/semantic equivalence, registered
+COM/Admin, installer/Data rollback, SEC-18, AD/SSPI, DKIM/DMARC/SPF, and long
+soak remain release blockers. The next smallest independent slice is a
+repository-only backup semantic comparator; if exact paired timing is still
+required after that, it remains environment-blocked until a live comparable
+Net10 backup host exists.
+
 ## Current authoritative next slice (2026-09-03, legacy search parity)
 
 The paired disposable performance work is current through code/test commits

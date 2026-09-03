@@ -1,6 +1,25 @@
 hMailServer
 ===========
 
+## Current legacy-compatible IMAP SORT fallback (2026-09-03)
+
+Code/test commit `b2c6d40ab` closes the bounded SORT fallback gap. Legacy
+`IMAPCommandSEARCH::ExecuteCommand` in
+`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp` enumerates the selected
+folder snapshot, applies message-file criteria, and then calls
+`IMAPSort::Sort`; Net10 now preserves that behavior in
+`hmailserver/source/Server.Net10/src/HMailServer.Protocols/Imap/FileBackedImapSortIndex.cs`.
+When SQL Full-Text is disabled or not ready, the SQL sort index supplies only
+the non-text candidate set and database sort order, while the existing message
+file document source applies Subject/Header/Body/TEXT filtering in batches.
+When Full-Text is ready, the existing SQL `CONTAINS` path is unchanged.
+
+Focused SORT coverage is `3/3`; related IMAP SORT/planner/session coverage is
+`76/76`; the full Debug suite is `2808 passed, 95 skipped, 0 failed / 2903`.
+This closes the SORT fallback only. Exact Full-Text migration transaction
+equivalence, same-fixture backup timing/semantic equivalence, registered
+COM/Admin, installer rollback, SEC-18, and long-soak gates remain RED.
+
 ## Current paired C++/.NET 10 performance evidence (2026-09-03)
 
 The legacy C++ disposable service blocker is resolved for isolated benchmarking:
@@ -32,12 +51,14 @@ C++ versus `145.195` Net10 messages/s. The TCP `451` recovery cell also passed
 `25/25` on both sides with a deterministic `451` then `250` sink and cleanups;
 it is descriptive retry evidence, not a performance winner claim.
 
-Net10 now preserves the legacy file-backed search path when SQL Full-Text is
-unavailable or not ready: bootstrap records warnings, and IMAP text searches
-fall back to message-file filtering. Focused fallback coverage is `27/27` and
-the full Debug suite is `2805 passed, 95 skipped, 0 failed / 2900`. Exact SQL
-Full-Text migration equivalence, SORT fallback, and paired backup/restore timing
-remain open, so the performance release gate stays **RED**.
+Net10 now preserves the legacy file-backed SEARCH and SORT paths when SQL
+Full-Text is unavailable or not ready: bootstrap records warnings, SEARCH uses
+message-file filtering, and SORT preserves SQL candidate order while applying
+the same file-backed text criteria. Focused SEARCH fallback coverage is `27/27`,
+focused SORT fallback coverage is `3/3`, and the full Debug suite is `2808
+passed, 95 skipped, 0 failed / 2903`. Exact SQL Full-Text migration
+equivalence and paired backup/restore timing remain open, so the performance
+release gate stays **RED**.
 
 Disposable backup evidence now exists on both sides: the legacy COM mode-7
 backup produced and validated a 7z archive, while Net10’s isolated
