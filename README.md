@@ -1,7 +1,46 @@
 hMailServer
 ===========
 
-## Current authoritative status (2026-09-02, executable legacy upgrade guard)
+## Current paired C++/.NET 10 performance evidence (2026-09-03)
+
+The legacy C++ disposable service blocker is resolved for isolated benchmarking:
+the corrected staging INI points `ProgramFolder` at `Bin`, and the temporary
+SCM runner starts the C++ server as `NT AUTHORITY\LocalService` on loopback.
+The new manifest-bound run covers 25 protocol iterations, `5,000/5,000`
+1,000-session IMAP connections, clean `500/500` SMTP acceptance from matching
+1,000-message fixtures, and read-only POP3 acceptance for 1,000 and 100,000
+message mailboxes. All completed cells had zero errors; the detailed table,
+hashes, commands, limitations, and graphs are in
+[`CPP_VS_NET10_PERFORMANCE_REPORT_20260903.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260903.md).
+
+There is no universal speed winner. The 1,000-session IMAP throughput was
+`19.904` C++ versus `19.908` Net10 sessions/s, while p95 was `326.243` versus
+`376.039` ms. In the clean SMTP cell throughput was `11.032` versus `18.648`
+msg/s. For POP3, C++ was lower at 1,000 messages, while Net10 was lower at
+100,000 messages. These are bounded observations, not a product-wide
+performance claim. The performance release gate remains **RED** pending the
+remaining FTS, delivery/retry, backup/restore timing, lifecycle, and soak
+acceptance gates.
+
+```mermaid
+xychart-beta
+    title "Current paired p95 latency (ms)"
+    x-axis [SMTP, IMAP, POP3, IMAP-1k, POP3-100k]
+    y-axis "Milliseconds" 0 --> 9000
+    bar [2.264, 232.942, 3.156, 326.243, 8794.889]
+    bar [23.725, 324.948, 28.244, 376.039, 7177.200]
+```
+
+```mermaid
+xychart-beta
+    title "Current paired throughput"
+    x-axis [IMAP, SMTP]
+    y-axis "Throughput" 0 --> 22
+    bar [19.904, 11.032]
+    bar [19.908, 18.648]
+```
+
+## Historical status (2026-09-02, executable legacy upgrade guard)
 
 Code/test commit `d31c0b1dc` adds executable, rollback-aware legacy upgrade
 orchestration on top of code/test commit `4c781a0b1`, which closes the
