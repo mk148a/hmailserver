@@ -1,5 +1,29 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-03, paired backup collector blocked)
+
+The paired C++/Net10 SQL/Data fixture is valid and was provisioned with two
+disposable databases and matching 1,000-message Data copies. The disposable
+legacy service was restored to `C:\hMailServer57-Legacy-Disposable` and is
+Running. The service-backed C++ COM backup attempt is not evidence: the legacy
+log recorded HM5401 while launching
+`C:\hMailServer57-Legacy-Disposable\Bin\Bin\7za.exe`, and the corrected
+configuration retry produced no verifiable archive before worker teardown.
+Consequently no semantic comparison or speed ratio exists, and the paired
+collector is blocked until new legacy `ProgramFolder`/7-Zip contract evidence
+or a supported disposable installation is available. Do not claim a backup
+performance winner.
+
+The exact legacy anchors are `BackupExecuter::StartBackup` and
+`BackupDataDirectory_` at
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209`.
+Net10 raw and compressed non-DB-only DataBackup acceptance is complete in
+`20160b564` (`2/2` focused SQL tests); current docs are at `1c6d91b66`.
+Next: isolated registered COM/Admin lifecycle evidence, SEC-18 caller-token
+and session evidence, then the next bounded COM/Admin mutation slice. Keep
+paired backup equivalence/timing, installer rollback, Full-Text transaction
+equivalence, AD/SSPI, and long soak RED.
+
 ## Current authoritative continuation (2026-09-03, compressed DataBackup acceptance)
 
 Code/test commit `20160b564` adds a real local SQL opt-in acceptance test for

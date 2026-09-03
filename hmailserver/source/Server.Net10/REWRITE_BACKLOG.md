@@ -1,3 +1,35 @@
+## Current authoritative status (2026-09-03, paired backup collector blocked)
+
+The disposable paired fixture was provisioned successfully: the C++ and Net10
+targets use separate disposable SQL databases, each with 1,000 matching message
+rows and identical Data-file count, bytes, and SHA-256. The legacy C++ service
+was restored to `C:\hMailServer57-Legacy-Disposable` and is Running after the
+test.
+
+The requested same-fixture backup comparison is not accepted. The first
+service-backed COM run reached the legacy XML stage but logged HM5401 because
+`BackupExecuter::StartBackup` resolved the external compressor as
+`C:\hMailServer57-Legacy-Disposable\Bin\Bin\7za.exe`; the corrected disposable
+configuration retry still produced no verifiable archive before COM worker
+teardown. No semantic comparison or timing ratio can be calculated. This is an
+environment/legacy-installation blocker, not a Net10 PASS or a performance
+failure. Do not rerun this collector without new evidence about the legacy
+binary's `ProgramFolder`/7-Zip contract or a supported disposable installation.
+
+Legacy behavior remains anchored by `BackupExecuter::StartBackup` and
+`BackupDataDirectory_` in
+`hmailserver/source/Server/Common/Application/BackupExecuter.cpp:57-209`.
+Net10 raw and compressed non-DB-only DataBackup acceptance remains complete in
+code/test commit `20160b564` with focused SQL acceptance `2/2`; the current
+documentation state is pushed in `1c6d91b66`. Paired backup equivalence/timing,
+registered COM/Admin lifecycle, installer/Data rollback, SEC-18, AD/SSPI,
+exact Full-Text transaction equivalence, and long soak remain RED.
+
+**Next independent slices:** isolated registered COM/Admin lifecycle evidence
+when its supported fixture is available; SEC-18 caller-token/session evidence;
+then the next legacy-anchored COM/Admin mutation. The paired backup collector
+is blocked pending new legacy evidence.
+
 ## Current authoritative next slice (2026-09-03, raw/compressed DataBackup acceptance)
 
 Code/test commit `20160b564` adds a real local SQL opt-in acceptance cell for
