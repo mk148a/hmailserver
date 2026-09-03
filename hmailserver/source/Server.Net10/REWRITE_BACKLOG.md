@@ -1,4 +1,42 @@
-## Current authoritative next slice (2026-09-02, disposable upgrade/rollback drill)
+## Current authoritative next slice (2026-09-03, legacy search parity)
+
+The paired disposable performance work is current through code/test commits
+`000d1de0a` and docs commit `8d91afc49`. The corrected disposable C++ service
+now runs from `C:\hMailServer57-Legacy-Disposable\Bin\hMailServer.exe` with
+`ProgramFolder` pointing at `Bin`; the manifest-bound queue drain passed
+`1000/1000` per target, and the TCP `451` then `250` retry/recovery cell passed
+`25/25` per target with zero errors, timeouts, and cleanup failures. The
+measurements are descriptive because C++ is service-backed and Net10 is a
+process runner; no product-wide winner is claimed. See
+`hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260903.md`.
+
+Code/test commit `350781de7` now preserves the legacy file-backed SEARCH path
+when SQL Full-Text is unavailable or not ready: bootstrap logs warnings instead
+of blocking readiness, and `ImapSearchExecutor` removes SQL text predicates so
+the existing message-file source performs filtering. Focused search coverage
+is `27/27`; the full Debug suite is `2805 passed, 95 skipped, 0 failed / 2900`.
+This closes only the SEARCH fallback slice. SORT still depends on the SQL
+search-document path, and exact SQL Full-Text migration transaction equivalence
+remains open.
+
+The next implementation gate is legacy-compatible IMAP search behavior. C++
+`IMAPCommandSEARCH::ExecuteCommand` and `DoesMessageMatch_`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-432`) enumerate the
+folder snapshot and inspect message files. Net10
+`SqlServerImapSearchPlanner` and `SqlServerImapSortPlanner` join
+`hm_message_search_documents` and emit SQL `CONTAINS`; the backfill path is
+`MessageSearchBackfillProcessor`. Net10 also hard-fails bootstrap when SQL
+Full-Text or the search index is unavailable. The 100,000-message cell is
+therefore not a valid FTS speed comparison: the C++ clone has no search-document
+table while the Net10 clone has 100,000 indexed rows.
+
+**Next smallest independent slice:** complete paired backup/restore timing and
+semantic-equivalence evidence on the disposable fixture. Keep SQL Full-Text
+optimization/SORT fallback, migration DDL transaction equivalence, registered
+COM/Admin, installer rollback, SEC-18, AD/SSPI, protocol lifecycle, and
+long-soak gates RED.
+
+## Historical authoritative next slice (2026-09-02, disposable upgrade/rollback drill)
 
 Code/test commit `d31c0b1dc` completes executable rollback-aware upgrade
 orchestration on top of code/test commit `4c781a0b1`, which closes the legacy

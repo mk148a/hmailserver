@@ -1,6 +1,40 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-02, executable legacy upgrade)
+## Current authoritative continuation (2026-09-03, legacy search parity)
+
+The current paired disposable performance evidence is complete through
+code/test commits `000d1de0a` and `cc5012322`, with documentation commit
+`8d91afc49`. The C++ disposable service now starts from the corrected
+`C:\hMailServer57-Legacy-Disposable\Bin` configuration. Local queue drain
+passed `1000/1000` per target and deterministic TCP `451` then `250`
+retry/recovery passed `25/25` per target. Cleanup and loopback safety checks
+passed; the report remains descriptive because C++ is service-backed while
+Net10 is process-backed. No product-wide performance winner is claimed.
+
+Code/test commit `350781de7` closes the bounded legacy-compatible SEARCH
+fallback: when SQL Full-Text is unavailable or not ready, bootstrap logs a
+warning and `ImapSearchExecutor` removes SQL text predicates so the existing
+message-file source filters text. Focused search coverage is `27/27`; full
+Debug is `2805 passed, 95 skipped, 0 failed / 2900`. This does not implement
+SORT fallback or prove exact SQL Full-Text migration transaction equivalence.
+
+Legacy search behavior is anchored by
+`IMAPCommandSEARCH::ExecuteCommand` and `DoesMessageMatch_`
+(`hmailserver/source/Server/IMAP/IMAPCommandSearch.cpp:40-432`): C++ scans the
+folder message snapshot and reads message files. Net10
+`SqlServerImapSearchPlanner`, `SqlServerImapSortPlanner`, and
+`SqlServerMessageSearchIndex` depend on `hm_message_search_documents` and SQL
+`CONTAINS`, populated by `MessageSearchBackfillProcessor`; bootstrap currently
+requires SQL Full-Text and a ready index. The 100k SEARCH/SORT result is not
+paired FTS evidence because the C++ clone lacks the search-document table while
+Net10 has 100,000 indexed documents.
+
+**Next slice:** complete paired backup/restore timing and semantic-equivalence
+evidence on the disposable fixture. Retain RED status for exact FTS
+transaction equivalence, SORT fallback, registered COM/Admin and installer
+lifecycle, SEC-18, AD/SSPI, and long soak.
+
+## Historical authoritative continuation (2026-09-02, executable legacy upgrade)
 
 Code/test commit `d31c0b1dc` adds executable rollback-aware upgrade
 orchestration on top of code/test commit `4c781a0b1`, which makes the upgrade

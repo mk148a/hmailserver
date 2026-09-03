@@ -32,6 +32,13 @@ C++ versus `145.195` Net10 messages/s. The TCP `451` recovery cell also passed
 `25/25` on both sides with a deterministic `451` then `250` sink and cleanups;
 it is descriptive retry evidence, not a performance winner claim.
 
+Net10 now preserves the legacy file-backed search path when SQL Full-Text is
+unavailable or not ready: bootstrap records warnings, and IMAP text searches
+fall back to message-file filtering. Focused fallback coverage is `27/27` and
+the full Debug suite is `2805 passed, 95 skipped, 0 failed / 2900`. Exact SQL
+Full-Text migration equivalence, SORT fallback, and paired backup/restore timing
+remain open, so the performance release gate stays **RED**.
+
 ```mermaid
 xychart-beta
     title "Current paired p95 latency (ms)"
