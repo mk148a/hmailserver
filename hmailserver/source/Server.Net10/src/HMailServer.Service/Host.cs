@@ -768,7 +768,12 @@ public static class Host
     builder.Services.AddSingleton<MessageFilePathResolver>();
     builder.Services.AddSingleton<MessageFileDeletionRuntime>();
     builder.Services.AddSingleton<IMessageSearchIndex, SqlServerMessageSearchIndex>();
-    builder.Services.AddSingleton<IMessageSortIndex, SqlServerMessageSortIndex>();
+    builder.Services.AddSingleton<SqlServerMessageSortIndex>();
+    builder.Services.AddSingleton<IMessageSortIndex>(serviceProvider =>
+        new FileBackedImapSortIndex(
+            serviceProvider.GetRequiredService<SqlServerMessageSortIndex>(),
+            serviceProvider.GetRequiredService<IMessageSearchDocumentSource>(),
+            serviceProvider.GetRequiredService<IMessageIndexingAdministrationStore>()));
     builder.Services.AddSingleton<IAutoBanLogonFailureRecorder, SqlServerAutoBanLogonFailureRecorder>();
     builder.Services.AddSingleton<IImapSequenceNumberResolver, SqlServerImapSequenceNumberResolver>();
     builder.Services.AddSingleton<IImapAccountAuthenticator, SqlServerImapAccountAuthenticator>();
