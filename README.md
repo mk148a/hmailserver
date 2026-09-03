@@ -3,20 +3,21 @@ hMailServer
 
 ## Current backup semantic comparator (2026-09-03)
 
-Build/test commit `f326c25bb` adds
-`build/compare-backup-semantic-payloads.ps1`. It accepts two backup payload
-directories or 7z archives, rejects absolute/traversal archive entries, parses
-XML with DTD processing disabled, compares canonical XML, and compares every
-`DataBackup` file by size and SHA-256. It emits JSON, CSV, and Markdown and
-never accesses SQL, services, or live Data directories. Its focused fixture
-harness passes equal, XML-mismatch, and DataBackup-mismatch cases; the real
-disposable C++ archive also passes a self-compare archive extraction check.
+Code/test commit `c15fbe1f3` extends
+`build/compare-backup-semantic-payloads.ps1` to accept a retained test
+directory containing one 7z archive plus an external `DataBackup` sibling. It
+rejects unsafe archive entries, parses XML with DTD processing disabled,
+normalizes legacy volatile attributes, compares canonical XML, and compares
+every DataBackup file by size and SHA-256. It emits JSON, CSV, and Markdown and
+never accesses SQL, services, or live Data directories. Its focused harness
+covers equal, XML-mismatch, DataBackup-mismatch, and archive-directory cases.
 
-This is comparison infrastructure, not same-fixture evidence. A PASS proves
-equality only for the supplied payloads and does not prove that C++ and Net10
-inputs came from the same fixture. A retained Net10 archive from the same
-fixture and backup mode is still required before paired semantic equivalence or
-a backup speed ratio can be claimed.
+The isolated Net10 retention run passed `25/25`, retained eight disposable
+roots and twelve generated archives, and the retained backup -> restore ->
+backup outputs compared `PASS`. This proves Net10 self-equivalence for those
+inputs only. A C++/Net10 same-fixture, same-mode archive and timing comparison
+is still required before paired semantic equivalence or a backup speed ratio
+can be claimed.
 
 ## Current legacy-compatible IMAP SORT fallback (2026-09-03)
 

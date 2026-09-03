@@ -1,20 +1,24 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-03, backup semantic comparison)
+## Current authoritative continuation (2026-09-03, retained backup evidence)
 
-Build/test commit `f326c25bb` adds the repository-only
-`build/compare-backup-semantic-payloads.ps1` comparator and
-`build/test-backup-semantic-comparison.ps1` harness. It supports directories
-and 7z archives, rejects unsafe archive entries, parses XML with DTD disabled,
-and compares canonical XML plus `DataBackup` file hashes. Equal, XML mismatch,
-DataBackup mismatch, and disposable C++ archive self-compare checks pass.
+Code/test commit `c15fbe1f3` adds opt-in retention to
+`build/test-net10-backup-restore-roundtrip.ps1` and the
+`BackupRestoreRoundTripIntegrationTests` disposable root. With
+`-RetainArtifacts`, the runner passed `25/25`, dropped every disposable SQL
+database, and retained eight test roots containing twelve generated archives.
+The comparator now reads a directory containing one 7z archive plus an external
+`DataBackup` sibling, normalizes legacy volatile XML attributes, and its
+focused harness covers equal, XML mismatch, DataBackup mismatch, and this
+archive-directory form. Comparing the two retained Net10 backup outputs passed
+semantic XML/DataBackup equality.
 
-This does not prove C++/Net10 equivalence: the current Net10 round-trip does
-not retain an archive and the available inputs are not proven same-fixture or
-same-mode. Next: retain a Net10 archive on the same disposable fixture and run
-the comparator. Keep paired backup timing/equivalence, registered COM/Admin,
-installer/Data rollback, SEC-18, AD/SSPI, exact Full-Text transaction
-equivalence, and long soak RED.
+This is Net10 self-equivalence evidence only. A C++/Net10 same-fixture,
+same-mode archive and timing comparison is still required; no backup speed
+ratio or cross-implementation equivalence claim is made. Next: generate the
+matching C++ archive and run the comparator/timing harness. Keep paired backup
+timing, registered COM/Admin, installer/Data rollback, SEC-18, AD/SSPI, exact
+Full-Text transaction equivalence, and long soak RED.
 
 ## Current authoritative continuation (2026-09-03, legacy SORT fallback)
 

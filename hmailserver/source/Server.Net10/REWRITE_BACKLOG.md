@@ -1,23 +1,23 @@
-## Current authoritative next slice (2026-09-03, backup semantic comparison)
+## Current authoritative next slice (2026-09-03, paired backup evidence)
 
-Build/test commit `f326c25bb` adds
-`build/compare-backup-semantic-payloads.ps1` and its focused harness
-`build/test-backup-semantic-comparison.ps1`. The comparator accepts directories
-or 7z archives, rejects absolute/traversal entries, uses DTD-disabled XML
-parsing, canonicalizes XML, and compares `DataBackup` files by size and
-SHA-256. Equal and mismatch fixture cases pass, and the disposable C++ archive
-passes an archive self-compare. The tool does not access SQL, services, or live
-Data directories.
+Code/test commit `c15fbe1f3` extends the repository-only
+`build/compare-backup-semantic-payloads.ps1` and its focused harness. The
+comparator now accepts a retained test directory containing one 7z archive plus
+an external `DataBackup` sibling, skips only the archive's own 7-Zip listing
+header, rejects other absolute/traversal entries, parses XML with DTD disabled,
+normalizes legacy volatile attributes, and compares DataBackup files by size
+and SHA-256.
 
-This closes the repository-only comparison infrastructure gap, not the paired
-backup gate. The current Net10 round-trip runner does not retain a comparable
-archive and the available C++ and Net10 results are not proven to share the
-same fixture. Same-fixture semantic equivalence and timing therefore remain
-RED. Next: retain a Net10 archive from the same disposable fixture and mode,
-then run this comparator; until that host/output exists, do not claim backup
-equivalence or a speed ratio. Registered COM/Admin, installer/Data rollback,
-SEC-18, AD/SSPI, DKIM/DMARC/SPF, exact Full-Text transaction equivalence, and
-long soak remain open.
+The isolated Net10 runner was executed with retention enabled: `25/25` tests
+passed, eight disposable roots and twelve generated archives were retained,
+and the two Net10 backup outputs from the backup -> restore -> backup semantic
+test compared `PASS`. The disposable SQL databases were still dropped and no
+production service, SQL database, or Data directory was used. This closes the
+retention and Net10 self-equivalence evidence step, but not C++/Net10
+same-fixture equivalence or paired backup timing. Next: produce a C++ archive
+from the same fixture and mode, then run the comparator and timing harness.
+Keep registered COM/Admin, installer/Data rollback, SEC-18, AD/SSPI,
+DKIM/DMARC/SPF, exact Full-Text transaction equivalence, and long soak open.
 
 ## Current authoritative next slice (2026-09-03, legacy SORT fallback)
 
