@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Xml.Linq;
 using HMailServer.ComInterop;
 using HMailServer.Core.Abstractions;
@@ -115,6 +116,118 @@ public sealed class BackupRawSqlDataStagingIntegrationTests
         }
 
         Assert.IsFalse(Directory.Exists(root));
+    }
+
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task CompressedDomainsAndMessagesBackup_EmbedsDataBackupAndCleansStagingSibling()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var targetName = $"hmail_perf_backup_compressed_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var databaseConnectionString = WithDatabase(serverConnectionString, targetName);
+        var root = Path.Combine(Path.GetTempPath(), targetName);
+        var dataDirectory = Path.Combine(root, "Data");
+        var destination = Path.Combine(root, "Destination");
+        var nestedMessagePath = Path.Combine(
+            dataDirectory,
+            "legacy.example",
+            "user",
+            "nested",
+            "message.eml");
+        var sevenZipPath = Path.Combine(AppContext.BaseDirectory, "7za.exe");
+
+        if (!File.Exists(sevenZipPath))
+        {
+            Assert.Inconclusive($"The test fixture is missing {sevenZipPath}.");
+        }
+
+        await CreateDatabaseAsync(masterConnectionString, targetName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(databaseConnectionString).ConfigureAwait(false);
+            Directory.CreateDirectory(Path.GetDirectoryName(nestedMessagePath)!);
+            Directory.CreateDirectory(destination);
+            await File.WriteAllTextAsync(nestedMessagePath, "From: sender@example.test\r\n\r\ncompressed message")
+                .ConfigureAwait(false);
+            await File.WriteAllTextAsync(Path.Combine(dataDirectory, "root-file.txt"), "must be omitted")
+                .ConfigureAwait(false);
+
+            var factory = new SqlServerConnectionFactory(databaseConnectionString);
+            var payloadRuntime = new BackupXmlPayloadRuntime(
+                new SqlServerSettingsAdministrationStore(factory),
+                new SqlServerDomainAdministrationStore(factory),
+                new SqlServerDomainAliasAdministrationStore(factory),
+                new SqlServerAccountAdministrationStore(factory),
+                new SqlServerAliasAdministrationStore(factory),
+                distributionListStore: null,
+                distributionListRecipientStore: null,
+                folderStore: new SqlServerImapFolderAdministrationStore(factory),
+                messageStore: new SqlServerMessageAdministrationStore(factory));
+            var archiveRuntime = new SevenZipBackupArchiveRuntime(
+                sevenZipPath,
+                "10.0.0-test",
+                localNow: static () => new DateTime(2026, 9, 1, 1, 2, 4),
+                payloadProvider: payloadRuntime.GetPayloadAsync,
+                dataDirectory: dataDirectory);
+            var evidence = new BackupStartPlanEvidence(
+                Destination: destination,
+                BackupOptions: BackupStartPlan.BackupDomainsFlag
+                    | BackupStartPlan.BackupMessagesFlag
+                    | BackupStartPlan.BackupCompressionFlag,
+                BackupMessagesDbOnly: false,
+                AllMessageFilesInDataDirectory: true,
+                DestinationExists: true);
+
+            await archiveRuntime.CreateAsync(evidence, CancellationToken.None).ConfigureAwait(false);
+
+            var archivePath = Path.Combine(destination, "HMBackup 2026-09-01 010204.7z");
+            Assert.IsTrue(File.Exists(archivePath), archivePath);
+            var metadataXml = new SevenZipBackupArchiveMetadataReader(sevenZipPath)
+                .ReadMetadataXml(archivePath);
+            var document = XDocument.Parse(metadataXml);
+            var backupInformation = document.Root!.Element("BackupInformation")!;
+            var dataFiles = backupInformation.Element("DataFiles")!;
+            Assert.AreEqual("14", (string?)backupInformation.Attribute("Mode"));
+            Assert.AreEqual("7z", (string?)dataFiles.Attribute("Format"));
+            Assert.AreEqual("0", (string?)dataFiles.Attribute("Size"));
+            Assert.IsTrue(SevenZipContainsEntry(sevenZipPath, archivePath, "DataBackup/legacy.example/user/nested/message.eml"));
+            Assert.IsFalse(Directory.Exists(Path.Combine(destination, "DataBackup")));
+            Assert.IsTrue(File.Exists(Path.Combine(dataDirectory, "root-file.txt")));
+            Assert.IsFalse(File.Exists(Path.Combine(destination, "hMailServerBackup.xml")));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, targetName).ConfigureAwait(false);
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+
+        Assert.IsFalse(Directory.Exists(root));
+    }
+
+    private static bool SevenZipContainsEntry(string sevenZipPath, string archivePath, string expectedEntry)
+    {
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = sevenZipPath,
+            Arguments = $"l -slt \"{archivePath}\"",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        })!;
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        Assert.AreEqual(0, process.ExitCode, process.StandardError.ReadToEnd());
+        return output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.StartsWith("Path = ", StringComparison.Ordinal)
+                ? line[7..].Replace('\\', '/')
+                : line)
+            .Any(line => line.Equals(expectedEntry, StringComparison.Ordinal));
     }
 
     private static string GetApprovedConnectionStringOrInconclusive()
