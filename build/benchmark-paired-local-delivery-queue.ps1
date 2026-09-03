@@ -309,6 +309,7 @@ function Invoke-SideBenchmark {
             $processStartInfo.UseShellExecute = $false
             $processStartInfo.Environment['HMAILSERVER_SQLSERVER_CONNECTION'] = "Server=localhost;Database=$database;Integrated Security=True;TrustServerCertificate=True;"
             $processStartInfo.Environment['HMAILSERVER_DATA_DIRECTORY'] = $dataRoot
+            $processStartInfo.Environment['HMAILSERVER_COM_LOCAL_SERVER_ENABLED'] = 'false'
             $process = [Diagnostics.Process]::Start($processStartInfo)
             $workerPid = $process.Id
             foreach ($failure in @(Wait-ForProcessReadiness $process)) { $readinessFailures.Add([string]$failure) }
