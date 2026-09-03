@@ -139,7 +139,8 @@ $environmentNames = @(
     "HMAILSERVER_NET10_LIVE_SQL_DELIVERY_DIAGNOSTIC",
     "HMAILSERVER_NET10_LIVE_SQL_CONNECTION",
     "HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT",
-    "HMAILSERVER_NET10_LIVE_SQL_DELIVERY_RECOVERY_REPORT"
+    "HMAILSERVER_NET10_LIVE_SQL_DELIVERY_RECOVERY_REPORT",
+    "HMAILSERVER_COM_LOCAL_SERVER_ENABLED"
 )
 $originalEnvironment = @{}
 foreach ($name in $environmentNames) { $originalEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process") }
@@ -160,6 +161,7 @@ try {
         [Environment]::SetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_CONNECTION", "Server=localhost;Database=$($net10Fixture.database);Integrated Security=True;TrustServerCertificate=True;Connect Timeout=10", "Process")
         [Environment]::SetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DATA_ROOT", $net10Fixture.dataRoot, "Process")
         [Environment]::SetEnvironmentVariable("HMAILSERVER_NET10_LIVE_SQL_DELIVERY_RECOVERY_REPORT", $net10ReportPath, "Process")
+        [Environment]::SetEnvironmentVariable("HMAILSERVER_COM_LOCAL_SERVER_ENABLED", "false", "Process")
 
         $net10Child = Invoke-BenchmarkChild -FilePath $dotnet -Arguments @(
             "test", $testProject, "--configuration", "Release",

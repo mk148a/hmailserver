@@ -38,6 +38,7 @@ foreach ($required in @(
         "p95_ms",
         "p99_ms",
         "throughput_messages_per_second",
+        "HMAILSERVER_COM_LOCAL_SERVER_ENABLED",
         "resource",
         "cleanup",
         "Start-Process",
