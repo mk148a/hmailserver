@@ -19,6 +19,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
 {
     private const string ConnectionEnvironmentVariable = "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION";
     private const string AllowDatabaseCreateEnvironmentVariable = "HMAILSERVER_NET10_SQLSERVER_INTEGRATION_ALLOW_ISOLATED_CREATE";
+    private const string RetainArtifactsEnvironmentVariable = "HMAILSERVER_NET10_BACKUP_RETAIN_ARTIFACTS";
+    private const string RetainArtifactsOutputEnvironmentVariable = "HMAILSERVER_NET10_BACKUP_RETAIN_OUTPUT";
 
     private static readonly string NonDbArchiveXml = $"""
         <Backup>
@@ -362,6 +364,50 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             {
                 Directory.Delete(root, recursive: true);
             }
+        }
+    }
+
+    private static bool TryRetainTestRoot(string root, string testName)
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable(RetainArtifactsEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal)
+            || !Directory.Exists(root))
+        {
+            return false;
+        }
+
+        var output = Environment.GetEnvironmentVariable(RetainArtifactsOutputEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            throw new InvalidOperationException(
+                $"{RetainArtifactsOutputEnvironmentVariable} is required when {RetainArtifactsEnvironmentVariable}=1.");
+        }
+
+        output = Path.GetFullPath(output);
+        Directory.CreateDirectory(output);
+        var retainedRoot = Path.Combine(output, $"{testName}-{Guid.NewGuid():N}");
+        CopyDirectory(root, retainedRoot);
+        Directory.Delete(root, recursive: true);
+        return true;
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = directory.Substring(source.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            Directory.CreateDirectory(Path.Combine(destination, relativePath));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relativePath = file.Substring(source.Length).TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var target = Path.Combine(destination, relativePath);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
         }
     }
 
@@ -1766,7 +1812,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         {
             SqlConnection.ClearAllPools();
             await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
-            if (Directory.Exists(root))
+            if (!TryRetainTestRoot(root, name) && Directory.Exists(root))
             {
                 Directory.Delete(root, recursive: true);
             }

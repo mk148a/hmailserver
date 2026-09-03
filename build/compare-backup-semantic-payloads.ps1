@@ -29,10 +29,14 @@ function Get-ArchiveEntries([string]$ArchivePath, [string]$SevenZip) {
     }
 
     $entries = [Collections.Generic.List[string]]::new()
+    $archiveHeaderSkipped = $false
     foreach ($line in $listing) {
         if ($line -match '^Path = (.+)$') {
             $entry = $Matches[1].Trim()
-            if ($entry -eq $ArchivePath) { continue }
+            if (-not $archiveHeaderSkipped) {
+                $archiveHeaderSkipped = $true
+                continue
+            }
             $normalized = $entry.Replace('\', '/')
             Assert-True (-not [IO.Path]::IsPathRooted($normalized)) "Archive contains an absolute path: $entry"
             Assert-True ($normalized -notmatch '(^|/)\.\.?(/|$)') "Archive contains a traversal path: $entry"
@@ -48,6 +52,33 @@ function Resolve-InputRoot([string]$InputPath, [string]$Label, [string]$WorkRoot
     Assert-True (Test-Path -LiteralPath $fullPath) "$Label input does not exist: $fullPath"
 
     if (Test-Path -LiteralPath $fullPath -PathType Container) {
+        $xmlFiles = @(Get-ChildItem -LiteralPath $fullPath -Filter '*.xml' -File -Recurse)
+        if ($xmlFiles.Count -eq 0) {
+            $archives = @(Get-ChildItem -LiteralPath $fullPath -Filter '*.7z' -File)
+            Assert-True ($archives.Count -eq 1) "$Label directory must contain backup XML or exactly one .7z archive: $fullPath"
+            $archive = $archives[0].FullName
+            Get-ArchiveEntries -ArchivePath $archive -SevenZip $SevenZip | Out-Null
+            $destination = Join-Path $WorkRoot $Label
+            New-Item -ItemType Directory -Force -Path $destination | Out-Null
+            & $SevenZip x -y "-o$destination" $archive | Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Unable to extract backup archive: $archive"
+            }
+
+            $externalDataBackup = Join-Path $fullPath 'DataBackup'
+            if (Test-Path -LiteralPath $externalDataBackup -PathType Container) {
+                $destinationDataBackup = Join-Path $destination 'DataBackup'
+                New-Item -ItemType Directory -Force -Path $destinationDataBackup | Out-Null
+                Copy-Item -Path (Join-Path $externalDataBackup '*') -Destination $destinationDataBackup -Recurse -Force
+            }
+
+            return [pscustomobject]@{
+                Root = $destination
+                Extracted = $true
+                Source = $fullPath
+            }
+        }
+
         return [pscustomobject]@{
             Root = $fullPath
             Extracted = $false
@@ -86,7 +117,9 @@ function Escape-XmlValue([string]$Value) {
 }
 
 function Convert-XmlElementToCanonical([Xml.XmlElement]$Element) {
-    $attributes = @($Element.Attributes | Sort-Object Name | ForEach-Object {
+    $attributes = @($Element.Attributes |
+        Where-Object Name -notin @('Version', 'ID', 'CreateTime', 'LastLogonTime', 'Date') |
+        Sort-Object Name | ForEach-Object {
             ' ' + $_.Name + '="' + (Escape-XmlValue $_.Value) + '"'
         }) -join ''
     $children = @($Element.ChildNodes | ForEach-Object {

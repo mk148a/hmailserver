@@ -1,6 +1,7 @@
 param(
     [string]$SqlConnection = $env:HMAILSERVER_NET10_SQLSERVER_INTEGRATION_CONNECTION,
-    [string]$OutputDirectory = ""
+    [string]$OutputDirectory = "",
+    [switch]$RetainArtifacts
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,6 +31,16 @@ if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
 }
 $OutputDirectory = [IO.Path]::GetFullPath($OutputDirectory)
 New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
+$retainedArtifactRoot = Join-Path $OutputDirectory "retained-test-roots"
+if ($RetainArtifacts) {
+    New-Item -ItemType Directory -Force -Path $retainedArtifactRoot | Out-Null
+    $env:HMAILSERVER_NET10_BACKUP_RETAIN_ARTIFACTS = "1"
+    $env:HMAILSERVER_NET10_BACKUP_RETAIN_OUTPUT = $retainedArtifactRoot
+}
+else {
+    Remove-Item Env:HMAILSERVER_NET10_BACKUP_RETAIN_ARTIFACTS -ErrorAction SilentlyContinue
+    Remove-Item Env:HMAILSERVER_NET10_BACKUP_RETAIN_OUTPUT -ErrorAction SilentlyContinue
+}
 $trxPath = Join-Path $OutputDirectory "backup-restore-roundtrip.trx"
 $logPath = Join-Path $OutputDirectory "backup-restore-roundtrip.log"
 $reportPath = Join-Path $OutputDirectory "backup-restore-roundtrip.json"
@@ -77,6 +88,11 @@ $report = [ordered]@{
     productionTargetsUsed = $false
     hmailDbTest5700Used = $false
     hmailServerServiceUsed = $false
+    retainedArtifactsRequested = [bool]$RetainArtifacts
+    retainedArtifactRoot = if ($RetainArtifacts) { $retainedArtifactRoot } else { $null }
+    retainedArtifactCount = if ($RetainArtifacts -and (Test-Path -LiteralPath $retainedArtifactRoot)) {
+        @(Get-ChildItem -LiteralPath $retainedArtifactRoot -Directory).Count
+    } else { 0 }
     rollback = "test finally blocks drop SQL databases and delete temporary Data roots"
 }
 $json = $report | ConvertTo-Json -Depth 5
@@ -90,6 +106,7 @@ $markdown = @"
 - SQL: ``localhost``, Integrated Security
 - Database pattern: ``hmailserver_net10_*`` with drop in test ``finally``
 - Data roots: test-owned temporary roots with delete in ``finally``
+- Retained test roots: ``$($report.retainedArtifactCount)`` under ``$($report.retainedArtifactRoot)``
 - Production service/database/Data directory used: ``$($report.productionTargetsUsed)``
 
 This is isolated restore evidence; it does not prove production backup/restore, installer rollback, or service rollback.

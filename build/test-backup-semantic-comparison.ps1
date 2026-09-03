@@ -3,7 +3,10 @@ $root = Join-Path $env:TEMP ("hmailserver-backup-semantic-test-" + [Guid]::NewGu
 $left = Join-Path $root 'left'
 $right = Join-Path $root 'right'
 $output = Join-Path $root 'output'
+$archiveDirectory = Join-Path $root 'archive-directory'
+$archiveSource = Join-Path $root 'archive-source'
 $compare = Join-Path $PSScriptRoot 'compare-backup-semantic-payloads.ps1'
+$sevenZip = Join-Path (Split-Path $PSScriptRoot -Parent) 'hmailserver\installation\Extras\7za.exe'
 
 function Assert-True {
     param([bool]$Condition, [string]$Message)
@@ -37,6 +40,16 @@ try {
     Assert-True ($LASTEXITCODE -eq 0) 'Equal fixture comparison failed.'
     $report = Get-Content (Join-Path $output 'backup-semantic-comparison.json') -Raw | ConvertFrom-Json
     Assert-True ($report.status -eq 'PASS' -and $report.xmlEqual -and $report.dataBackupEqual) 'Equal fixture was not reported PASS.'
+
+    New-Item -ItemType Directory -Force -Path $archiveSource, $archiveDirectory | Out-Null
+    Copy-Item -LiteralPath (Join-Path $left 'hMailServerBackup.xml') -Destination $archiveSource
+    & $sevenZip a -t7z (Join-Path $archiveDirectory 'backup.7z') (Join-Path $archiveSource '*') | Out-Null
+    Assert-True ($LASTEXITCODE -eq 0) 'Could not create directory archive fixture.'
+    Copy-Item -LiteralPath (Join-Path $left 'DataBackup') -Destination $archiveDirectory -Recurse
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $compare -LeftInput $left -RightInput $archiveDirectory -OutputDirectory $output
+    Assert-True ($LASTEXITCODE -eq 0) 'Archive directory comparison failed.'
+    $report = Get-Content (Join-Path $output 'backup-semantic-comparison.json') -Raw | ConvertFrom-Json
+    Assert-True ($report.status -eq 'PASS' -and $report.archiveInputsExtracted) 'Archive directory was not reported PASS.'
 
     New-Fixture $right 'different' 'same-body'
     Assert-True ((Invoke-ExpectedFailure $compare $left $right $output) -ne 0) 'XML mismatch was not rejected.'
