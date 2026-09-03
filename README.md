@@ -10,7 +10,8 @@ The new manifest-bound run covers 25 protocol iterations, `5,000/5,000`
 1,000-session IMAP connections, clean `500/500` SMTP acceptance from matching
 1,000-message fixtures, three fresh SMTP repeat pairs, one-session 100,000-message
 IMAP `SEARCH/SORT` acceptance, and read-only POP3 acceptance for 1,000 and
-100,000 message mailboxes. All completed cells had zero errors; the detailed table,
+100,000 message mailboxes, a 1,000-message local-delivery queue drain, and a
+25-message TCP `451` retry/defer recovery cell. All completed cells had zero errors; the detailed table,
 hashes, commands, limitations, and graphs are in
 [`CPP_VS_NET10_PERFORMANCE_REPORT_20260903.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260903.md).
 
@@ -24,8 +25,12 @@ For POP3, C++ was lower at 1,000 messages, while Net10 was lower at
 C++ versus `1,043.234` ms for Net10, but SQL Full-Text state was asymmetric and
 the host modes differed. These are bounded observations, not a product-wide
 performance claim. The performance release gate remains **RED** pending the
-remaining FTS, delivery/retry, backup/restore timing, lifecycle, and soak
-acceptance gates.
+remaining FTS, remote retry matrix, backup/restore timing, lifecycle, and soak
+acceptance gates. The current 1,000-message local-delivery queue cell passed
+`1000/1000` on both sides with baseline cleanup; throughput averaged `260.688`
+C++ versus `145.195` Net10 messages/s. The TCP `451` recovery cell also passed
+`25/25` on both sides with a deterministic `451` then `250` sink and cleanups;
+it is descriptive retry evidence, not a performance winner claim.
 
 ```mermaid
 xychart-beta

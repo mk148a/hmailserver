@@ -161,6 +161,35 @@ Both began with 1,000 rows, reached 1,500 rows, proved the readback state, and
 reported valid post-run accounting. This confirms the acceptance and cleanup
 path, but it is not a replacement for larger delivery/queue testing.
 
+## Local-delivery queue drain, 1,000 messages
+
+The current manifest-bound queue cell seeded 1,000 marker messages in each
+disposable SQL/Data clone, drained them through the C++ disposable SCM service
+and Net10 process, and restored both SQL/Data baselines. Both sides passed
+`1000/1000`; marker rows/files were absent after cleanup.
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput | Baseline cleanup |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ disposable service | PASS 1000/1000 | 1,178.437 | 3,421.946 | 3,628.268 | 260.688 msg/s | PASS |
+| .NET 10 process | PASS 1000/1000 | 3,911.817 | 6,696.517 | 6,887.304 | 145.195 msg/s | PASS |
+
+The bounded Net10/C++ throughput ratio is `0.557x`; C++ is faster in this
+queue-only cell. This is not a product-wide speed claim. The fixture uses
+legacy schema `5708` versus Net10 schema `6000`, and the hosts differ between
+service-backed C++ and process-backed Net10. The first attempt was correctly
+blocked by the existing COM registration because this queue launcher did not
+disable the Net10 COM local server; the benchmark-only environment assignment
+`HMAILSERVER_COM_LOCAL_SERVER_ENABLED=false` now matches the SMTP runner and
+is covered by `build/test-paired-local-delivery-queue.ps1`.
+
+```mermaid
+xychart-beta
+    title "1,000-message local-delivery queue throughput"
+    x-axis [C++, .NET10]
+    y-axis "Messages per second" 0 --> 300
+    bar [260.688, 145.195]
+```
+
 ## 100,000-message IMAP SEARCH/SORT acceptance
 
 The same 100,000-message SQL/Data fixture was exercised with one Full-profile
@@ -231,11 +260,38 @@ result because mailbox size dominates the operation. At 100,000 messages Net10
 was lower on p95 and p99; at 1,000 messages C++ was lower. This reinforces the
 no-universal-winner conclusion.
 
+## TCP 451 retry/defer recovery, 25 messages
+
+The same manifest-bound retry cell sent 25 messages through each disposable
+target with a deterministic loopback sink returning `451` on the first
+attempt and `250` on recovery. Both implementations completed `25/25` with
+zero errors, zero timeouts, and cleanup of every per-iteration SQL/Data clone.
+
+| Implementation | Result | p50 ms | p95 ms | p99 ms | Throughput | Cleanup |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Legacy C++ disposable service | PASS 25/25 | 66,190.728 | 66,971.866 | 67,367.404 | 0.015 msg/s | PASS |
+| .NET 10 process | PASS 25/25 | 9,609.576 | 10,123.811 | 23,982.852 | 0.097 msg/s | PASS |
+
+The cell is descriptive retry/recovery evidence only. Its elapsed time is
+dominated by implementation-specific retry scheduling, so no throughput or
+latency winner is claimed. It does not replace remote-delivery retry coverage,
+longer queue waves, or service/COM lifecycle acceptance. The retry launcher
+sets `HMAILSERVER_COM_LOCAL_SERVER_ENABLED=false` for the isolated Net10 child;
+the first attempt exposed that harness precondition and was preserved as a
+non-production failed artifact.
+
+```mermaid
+xychart-beta
+    title "25-message TCP 451 recovery throughput"
+    x-axis [C++, .NET10]
+    y-axis "Messages per second" 0 --> 0.12
+    bar [0.015, 0.097]
+```
+
 ## Previously accepted cells not rerun in this report
 
-The 2026-09-02 report records additional disposable cells: local-delivery
-queue drain (`1,000/1,000` per side), TCP 451 retry/defer (`25/25` per side),
-Net10 Full-Text backfill/search, and normalized 20-wave IMAP repeatability.
+The 2026-09-02 report records the earlier disposable cells: Net10 Full-Text
+backfill/search and normalized 20-wave IMAP repeatability.
 Those results remain bounded evidence, but they are not silently merged into
 the current run's fixture or host-mode claims. See
 [`CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md`](CPP_VS_NET10_PERFORMANCE_REPORT_20260902.md)
