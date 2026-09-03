@@ -1,8 +1,8 @@
 # Current State
-- UTC and local timestamp: 2026-09-03T08:09:30Z / 2026-09-03T11:09:30+03:00
+- UTC and local timestamp: 2026-09-03T08:13:40Z / 2026-09-03T11:13:40+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
 - Current HEAD: `HEAD` (`Fallback to file search when SQL FTS is unavailable`; verify with `git rev-parse HEAD`)
-- Last successfully pushed commit: `55eff58bb`
+- Last successfully pushed commit: `16c9cfd7b`
 - Latest focused-test result: paired disposable performance cells `25/25` protocol per target, `5,000/5,000` concurrent IMAP sessions per target, three fresh SMTP repeat pairs at `500/500` per target, an independent SMTP readback pair at `500/500`, paired local-delivery queue `1000/1000` per target, paired TCP `451` retry/recovery `25/25` per target, `25/25` 1,000-message POP3 iterations per target, `3/3` 100,000-message POP3 iterations per target, `1/1` 100,000-message IMAP SEARCH/SORT per target, and FTS-not-ready file fallback `27/27`; all had zero errors. Concurrent-IMAP, query-state, paired-SMTP, paired-queue, paired-retry, and focused-search validators passed.
 - Latest full Net10 result: Debug `2805 passed, 95 skipped, 0 failed / 2900`.
 - Opt-in tests passed/skipped/blocked: C++ disposable service-backed protocol/IMAP/SMTP and direct-process POP3 evidence passed; SQL FTS parity timing, backup/restore timing, registered out-of-process COM/Admin, SEC-18, AD/SSPI, cloned installer rollback, and live lifecycle cells remain skipped or blocked.
