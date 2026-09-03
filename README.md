@@ -8,8 +8,9 @@ the corrected staging INI points `ProgramFolder` at `Bin`, and the temporary
 SCM runner starts the C++ server as `NT AUTHORITY\LocalService` on loopback.
 The new manifest-bound run covers 25 protocol iterations, `5,000/5,000`
 1,000-session IMAP connections, clean `500/500` SMTP acceptance from matching
-1,000-message fixtures, and read-only POP3 acceptance for 1,000 and 100,000
-message mailboxes. All completed cells had zero errors; the detailed table,
+1,000-message fixtures, one-session 100,000-message IMAP `SEARCH/SORT`
+acceptance, and read-only POP3 acceptance for 1,000 and 100,000 message
+mailboxes. All completed cells had zero errors; the detailed table,
 hashes, commands, limitations, and graphs are in
 [`CPP_VS_NET10_PERFORMANCE_REPORT_20260903.md`](hmailserver/source/Server.Net10/benchmarks/CPP_VS_NET10_PERFORMANCE_REPORT_20260903.md).
 
@@ -17,7 +18,10 @@ There is no universal speed winner. The 1,000-session IMAP throughput was
 `19.904` C++ versus `19.908` Net10 sessions/s, while p95 was `326.243` versus
 `376.039` ms. In the clean SMTP cell throughput was `11.032` versus `18.648`
 msg/s. For POP3, C++ was lower at 1,000 messages, while Net10 was lower at
-100,000 messages. These are bounded observations, not a product-wide
+100,000 messages. The 100,000-message IMAP `SEARCH/SORT` cell passed
+`100000/100000` on both sides; its single-session p95 was `13,471.490` ms for
+C++ versus `1,043.234` ms for Net10, but SQL Full-Text state was asymmetric and
+the host modes differed. These are bounded observations, not a product-wide
 performance claim. The performance release gate remains **RED** pending the
 remaining FTS, delivery/retry, backup/restore timing, lifecycle, and soak
 acceptance gates.
