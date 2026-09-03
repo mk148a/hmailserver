@@ -45,7 +45,8 @@ public sealed class ServerBootstrapper : BackgroundService
 
             if (!fullTextReady)
             {
-                throw new InvalidOperationException("SQL Server Full-Text Search is required for hMailServer .NET 10 fast mode.");
+                _logger.LogWarning(
+                    "SQL Server Full-Text Search is unavailable; IMAP SEARCH/SORT will use the legacy file-backed fallback where possible.");
             }
 
             var searchIndexReady = await _messageSearchIndex
@@ -54,7 +55,8 @@ public sealed class ServerBootstrapper : BackgroundService
 
             if (!searchIndexReady)
             {
-                throw new InvalidOperationException("The hMailServer message search Full-Text index is not ready. Apply Upgrade5708to6000MSSQL.sql first.");
+                _logger.LogWarning(
+                    "The hMailServer message search Full-Text index is not ready; IMAP SEARCH/SORT will use the legacy file-backed fallback where possible.");
             }
 
             _serverReadinessSignal.SetBootstrapComplete();

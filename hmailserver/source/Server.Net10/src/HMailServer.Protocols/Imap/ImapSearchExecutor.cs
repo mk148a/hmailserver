@@ -328,6 +328,6 @@ public sealed class ImapSearchExecutor
         var status = await _indexingAdministrationStore
             .GetStatusAsync(cancellationToken)
             .ConfigureAwait(false);
-        return status.TotalIndexedCount < status.TotalMessageCount;
+        return !status.IsFullTextReady || status.TotalIndexedCount < status.TotalMessageCount;
     }
 }

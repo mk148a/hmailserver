@@ -156,6 +156,29 @@ public sealed class ImapSearchExecutorTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_TextWithFullTextNotReady_UsesFileBackedFallback()
+    {
+        var identity = new MessageIdentity(1, 10, 20, 101);
+        var index = new FakeMessageSearchIndex([identity]);
+        var executor = new ImapSearchExecutor(
+            index,
+            documentSource: new FakeDocumentSource(CreateDocument(identity, plainBodyText: "legacy body")),
+            indexingAdministrationStore: new FakeAdministrationStore(
+                enabled: true,
+                totalMessageCount: 1,
+                totalIndexedCount: 1,
+                fullTextReady: false));
+
+        var response = await executor.ExecuteAsync(
+            CreateRequest(returnUid: true) with { AnyText = null, AnyTerms = ["legacy"] },
+            CancellationToken.None);
+
+        Assert.AreEqual("* SEARCH 101\r\n", response);
+        Assert.IsNotNull(index.LastRequest);
+        Assert.AreEqual(0, index.LastRequest.GetAnyTerms().Count);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_TextWithIndexingDisabled_MatchesDecodedHeader()
     {
         var response = await ExecuteTextFallbackAsync(
@@ -668,15 +691,18 @@ public sealed class ImapSearchExecutorTests
         private readonly bool _enabled;
         private readonly int _totalMessageCount;
         private readonly int _totalIndexedCount;
+        private readonly bool _fullTextReady;
 
         public FakeAdministrationStore(
             bool enabled,
             int totalMessageCount = 0,
-            int totalIndexedCount = 0)
+            int totalIndexedCount = 0,
+            bool fullTextReady = true)
         {
             _enabled = enabled;
             _totalMessageCount = totalMessageCount;
             _totalIndexedCount = totalIndexedCount;
+            _fullTextReady = fullTextReady;
         }
 
         public ValueTask<bool> IsEnabledAsync(CancellationToken cancellationToken)
@@ -693,7 +719,7 @@ public sealed class ImapSearchExecutorTests
                     _totalMessageCount,
                     _totalIndexedCount,
                     _enabled,
-                    IsFullTextReady: true,
+                    IsFullTextReady: _fullTextReady,
                     QueuedMessageCount: 0,
                     LastError: string.Empty));
         }
