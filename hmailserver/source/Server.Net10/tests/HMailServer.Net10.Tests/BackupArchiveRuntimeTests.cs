@@ -1303,6 +1303,59 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesLegacyDnsBlackListsAfterSurblServersInAttributeOrder()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: new SettingsAdministrationSnapshot("host", "smtp", "pop3", "imap"),
+                Domains: null,
+                SurblServers: new[]
+                {
+                    new SurblServerAdministrationSnapshot(8, true, "surbl.example.test", "Reject", 5)
+                },
+                DnsBlackLists: new[]
+                {
+                    new DnsBlackListAdministrationSnapshot(
+                        9,
+                        false,
+                        "dnsbl.example.test",
+                        "Reject & test",
+                        "127.0.0.2",
+                        4)
+                }));
+
+        var root = XDocument.Parse(xml).Root!;
+        CollectionAssert.AreEqual(
+            new[] { "BackupInformation", "Properties", "SURBLServers", "DNSBlackLists" },
+            root.Elements().Select(static element => element.Name.LocalName).ToArray());
+        var blackList = root.Element("DNSBlackLists")!.Element("DNSBlackList")!;
+        CollectionAssert.AreEqual(
+            new[] { "Name", "Active", "RejectMessage", "ExpectedResult", "Score" },
+            blackList.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("dnsbl.example.test", blackList.Attribute("Name")?.Value);
+        Assert.AreEqual("0", blackList.Attribute("Active")?.Value);
+        Assert.AreEqual("Reject & test", blackList.Attribute("RejectMessage")?.Value);
+        Assert.AreEqual("127.0.0.2", blackList.Attribute("ExpectedResult")?.Value);
+        Assert.AreEqual("4", blackList.Attribute("Score")?.Value);
+    }
+
+    [TestMethod]
+    public void MetadataXmlOmitsEmptyDnsBlackListsContainer()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: new SettingsAdministrationSnapshot("host", "smtp", "pop3", "imap"),
+                Domains: null,
+                DnsBlackLists: Array.Empty<DnsBlackListAdministrationSnapshot>()));
+
+        Assert.IsFalse(xml.Contains("DNSBlackLists", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void MetadataXmlWritesEveryModeledSettingsPropertyInLegacyNameOrderWithoutCredentials()
     {
         var settings = new SettingsAdministrationSnapshot(

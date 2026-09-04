@@ -26,6 +26,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(ITcpIpPortAdministrationStore),
                 typeof(IBlockedAttachmentAdministrationStore),
                 typeof(ISurblServerAdministrationStore),
+                typeof(IDnsBlackListAdministrationStore),
                 typeof(IGroupAdministrationStore),
                 typeof(IGroupMemberAdministrationStore),
                 typeof(IAccountAdministrationStore),
@@ -104,7 +105,14 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 "pop3",
                 "imap")),
             new FixedBackupSettingsPropertyStore(
-                new BackupSettingsPropertySnapshot("defaultdomain", 0, "snapshot.example")));
+                new BackupSettingsPropertySnapshot("defaultdomain", 0, "snapshot.example")),
+            new FixedDnsBlackListStore(new DnsBlackListAdministrationSnapshot(
+                33,
+                true,
+                "dnsbl.snapshot.example",
+                "Reject snapshot",
+                "127.0.0.2",
+                4)));
         var runtime = new BackupXmlPayloadRuntime(
             new EmptySettingsStore(),
             new ThrowingDomainStore(),
@@ -129,11 +137,13 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         Assert.AreEqual("snapshot-host", payload.Settings!.HostName);
         Assert.AreEqual("defaultdomain", payload.SettingsProperties![0].Name);
         Assert.AreEqual("snapshot.example", payload.SettingsProperties[0].StringValue);
+        Assert.AreEqual("dnsbl.snapshot.example", payload.DnsBlackLists![0].DnsHost);
     }
 
     private sealed class RecordingSnapshotFactory(
         ISettingsAdministrationStore? settingsStore = null,
-        IBackupSettingsPropertyStore? backupSettingsPropertyStore = null)
+        IBackupSettingsPropertyStore? backupSettingsPropertyStore = null,
+        IDnsBlackListAdministrationStore? dnsBlackListStore = null)
         : IBackupDomainProjectionSnapshotFactory
     {
         public int BeginCount { get; private set; }
@@ -146,13 +156,15 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 new RecordingSnapshot(
                     this,
                     settingsStore ?? new EmptySettingsStore(),
-                    backupSettingsPropertyStore ?? new EmptyBackupSettingsPropertyStore()));
+                    backupSettingsPropertyStore ?? new EmptyBackupSettingsPropertyStore(),
+                    dnsBlackListStore ?? new EmptyDnsBlackListStore()));
         }
 
         private sealed class RecordingSnapshot(
             RecordingSnapshotFactory owner,
             ISettingsAdministrationStore settingsStore,
-            IBackupSettingsPropertyStore backupSettingsPropertyStore)
+            IBackupSettingsPropertyStore backupSettingsPropertyStore,
+            IDnsBlackListAdministrationStore dnsBlackListStore)
             : IBackupDomainProjectionSnapshot
         {
             public IDomainAdministrationStore DomainStore { get; } =
@@ -163,6 +175,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             public ITcpIpPortAdministrationStore TcpIpPortStore { get; } = new EmptyTcpIpPortStore();
             public IBlockedAttachmentAdministrationStore BlockedAttachmentStore { get; } = new EmptyBlockedAttachmentStore();
             public ISurblServerAdministrationStore SurblServerStore { get; } = new EmptySurblServerStore();
+            public IDnsBlackListAdministrationStore DnsBlackListStore { get; } = dnsBlackListStore;
             public IGroupAdministrationStore GroupStore { get; } = new EmptyGroupStore();
             public IGroupMemberAdministrationStore GroupMemberStore { get; } = new EmptyGroupMemberStore();
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
@@ -249,6 +262,22 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<SurblServerAdministrationSnapshot>>(
                 Array.Empty<SurblServerAdministrationSnapshot>());
+    }
+
+    private sealed class EmptyDnsBlackListStore : IDnsBlackListAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DnsBlackListAdministrationSnapshot>> GetDnsBlackListsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DnsBlackListAdministrationSnapshot>>(
+                Array.Empty<DnsBlackListAdministrationSnapshot>());
+    }
+
+    private sealed class FixedDnsBlackListStore(DnsBlackListAdministrationSnapshot snapshot)
+        : IDnsBlackListAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<DnsBlackListAdministrationSnapshot>> GetDnsBlackListsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DnsBlackListAdministrationSnapshot>>(new[] { snapshot });
     }
 
     private sealed class FixedSettingsStore(SettingsAdministrationSnapshot snapshot)

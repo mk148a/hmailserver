@@ -20,6 +20,8 @@ public interface IBackupDomainProjectionSnapshot : IAsyncDisposable
 
     ISurblServerAdministrationStore SurblServerStore { get; }
 
+    IDnsBlackListAdministrationStore DnsBlackListStore { get; }
+
     IGroupAdministrationStore GroupStore { get; }
 
     IGroupMemberAdministrationStore GroupMemberStore { get; }

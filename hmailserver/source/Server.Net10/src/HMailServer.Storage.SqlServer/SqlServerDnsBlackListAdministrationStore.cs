@@ -11,8 +11,8 @@ SELECT
     sblid,
     sblactive,
     sbldnshost,
-    sblrejectmessage,
     sblresult,
+    sblrejectmessage,
     sblscore
 FROM hm_dnsbl
 ORDER BY sblid ASC;
@@ -42,6 +42,7 @@ WHERE sblid = @id;
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerDnsBlackListAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -49,11 +50,23 @@ WHERE sblid = @id;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerDnsBlackListAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<DnsBlackListAdministrationSnapshot>> GetDnsBlackListsAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetDnsBlackListsSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetDnsBlackListsSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);
@@ -66,8 +79,8 @@ WHERE sblid = @id;
                     Id: reader.GetInt32(0),
                     Active: reader.GetInt32(1) != 0,
                     DnsHost: reader.GetString(2),
-                    RejectMessage: reader.GetString(3),
-                    ExpectedResult: reader.GetString(4),
+                    RejectMessage: reader.GetString(4),
+                    ExpectedResult: reader.GetString(3),
                     Score: reader.GetInt32(5)));
         }
 

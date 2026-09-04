@@ -21,6 +21,23 @@ public sealed class SqlServerDnsBlackListAdministrationStoreTests
     }
 
     [TestMethod]
+    public void GetDnsBlackListsSql_ProjectsOnlyLegacyBackupFields()
+    {
+        var sql = SqlServerDnsBlackListAdministrationStore.GetDnsBlackListsSql;
+        var selectStart = sql.IndexOf("SELECT", StringComparison.OrdinalIgnoreCase) + "SELECT".Length;
+        var fromStart = sql.IndexOf("FROM", StringComparison.OrdinalIgnoreCase);
+        var selectList = sql[selectStart..fromStart];
+        var columns = new[] { "sblid", "sblactive", "sbldnshost", "sblresult", "sblrejectmessage", "sblscore" };
+        var previousIndex = -1;
+        foreach (var column in columns)
+        {
+            var currentIndex = selectList.IndexOf(column, StringComparison.OrdinalIgnoreCase);
+            Assert.IsTrue(currentIndex > previousIndex, $"Expected {column} in legacy SELECT order.");
+            previousIndex = currentIndex;
+        }
+    }
+
+    [TestMethod]
     public void GetDnsBlackListsSql_RemainsReadOnlyAndDoesNotTouchDnsOrSmtpRuntime()
     {
         var sql = SqlServerDnsBlackListAdministrationStore.GetDnsBlackListsSql;

@@ -388,6 +388,7 @@ public sealed class SevenZipBackupArchiveRuntime
         WriteTcpIpPorts(writer, payload?.TcpIpPorts);
         WriteBlockedAttachments(writer, payload?.BlockedAttachments);
         WriteSurblServers(writer, payload?.SurblServers);
+        WriteDnsBlackLists(writer, payload?.DnsBlackLists);
         WritePublicFolders(writer, payload?.PublicFolders);
         WriteGroups(writer, payload?.Groups);
     }
@@ -485,6 +486,30 @@ public sealed class SevenZipBackupArchiveRuntime
             WriteLegacyAttribute(writer, "Active", (server.Active ? 1 : 0).ToString(CultureInfo.InvariantCulture));
             WriteLegacyAttribute(writer, "RejectMessage", server.RejectMessage);
             WriteLegacyAttribute(writer, "Score", server.Score.ToString(CultureInfo.InvariantCulture));
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WriteDnsBlackLists(
+        XmlWriter writer,
+        IReadOnlyList<DnsBlackListAdministrationSnapshot>? blackLists)
+    {
+        if (blackLists is null || blackLists.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartElement("DNSBlackLists");
+        foreach (var blackList in blackLists)
+        {
+            writer.WriteStartElement("DNSBlackList");
+            WriteLegacyAttribute(writer, "Name", blackList.DnsHost);
+            WriteLegacyAttribute(writer, "Active", (blackList.Active ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "RejectMessage", blackList.RejectMessage);
+            WriteLegacyAttribute(writer, "ExpectedResult", blackList.ExpectedResult);
+            WriteLegacyAttribute(writer, "Score", blackList.Score.ToString(CultureInfo.InvariantCulture));
             writer.WriteEndElement();
         }
 
@@ -1371,7 +1396,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyList<SecurityRangeAdministrationSnapshot>? SecurityRanges = null,
     IReadOnlyList<TcpIpPortAdministrationSnapshot>? TcpIpPorts = null,
     IReadOnlyList<BlockedAttachmentAdministrationSnapshot>? BlockedAttachments = null,
-    IReadOnlyList<SurblServerAdministrationSnapshot>? SurblServers = null);
+    IReadOnlyList<SurblServerAdministrationSnapshot>? SurblServers = null,
+    IReadOnlyList<DnsBlackListAdministrationSnapshot>? DnsBlackLists = null);
 
 [ComVisible(false)]
 public sealed record BackupPublicFolderPermission(
@@ -1399,6 +1425,7 @@ public sealed class BackupXmlPayloadRuntime
     private readonly ITcpIpPortAdministrationStore? _tcpIpPortStore;
     private readonly IBlockedAttachmentAdministrationStore? _blockedAttachmentStore;
     private readonly ISurblServerAdministrationStore? _surblServerStore;
+    private readonly IDnsBlackListAdministrationStore? _dnsBlackListStore;
     private readonly IDomainAdministrationStore _domainStore;
     private readonly IDomainAliasAdministrationStore _domainAliasStore;
     private readonly IAccountAdministrationStore _accountStore;
@@ -1478,7 +1505,8 @@ public sealed class BackupXmlPayloadRuntime
         ISecurityRangeAdministrationStore? securityRangeStore = null,
         ITcpIpPortAdministrationStore? tcpIpPortStore = null,
         IBlockedAttachmentAdministrationStore? blockedAttachmentStore = null,
-        ISurblServerAdministrationStore? surblServerStore = null)
+        ISurblServerAdministrationStore? surblServerStore = null,
+        IDnsBlackListAdministrationStore? dnsBlackListStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -1490,6 +1518,7 @@ public sealed class BackupXmlPayloadRuntime
         _tcpIpPortStore = tcpIpPortStore;
         _blockedAttachmentStore = blockedAttachmentStore;
         _surblServerStore = surblServerStore;
+        _dnsBlackListStore = dnsBlackListStore;
         _domainStore = domainStore;
         _domainAliasStore = domainAliasStore;
         _accountStore = accountStore;
@@ -1554,6 +1583,9 @@ public sealed class BackupXmlPayloadRuntime
             : null;
         var surblServers = includesSettings && _surblServerStore is not null
             ? await _surblServerStore.GetSurblServersAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+        var dnsBlackLists = includesSettings && _dnsBlackListStore is not null
+            ? await _dnsBlackListStore.GetDnsBlackListsAsync(cancellationToken).ConfigureAwait(false)
             : null;
         var domains = (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
             ? await _domainStore.GetDomainsAsync(cancellationToken).ConfigureAwait(false)
@@ -1823,7 +1855,8 @@ public sealed class BackupXmlPayloadRuntime
             SecurityRanges: securityRanges,
             TcpIpPorts: tcpIpPorts,
             BlockedAttachments: blockedAttachments,
-            SurblServers: surblServers);
+            SurblServers: surblServers,
+            DnsBlackLists: dnsBlackLists);
     }
 
     private async ValueTask<BackupArchiveXmlPayload> GetDomainOnlyPayloadFromSnapshotAsync(
@@ -1866,6 +1899,11 @@ public sealed class BackupXmlPayloadRuntime
         var surblServers = includeSettings
             ? await snapshot.SurblServerStore
                 .GetSurblServersAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : null;
+        var dnsBlackLists = includeSettings
+            ? await snapshot.DnsBlackListStore
+                .GetDnsBlackListsAsync(cancellationToken)
                 .ConfigureAwait(false)
             : null;
         var domainAliases = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
@@ -1994,7 +2032,8 @@ public sealed class BackupXmlPayloadRuntime
             SecurityRanges: securityRanges,
             TcpIpPorts: tcpIpPorts,
             BlockedAttachments: blockedAttachments,
-            SurblServers: surblServers);
+            SurblServers: surblServers,
+            DnsBlackLists: dnsBlackLists);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(
