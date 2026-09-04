@@ -8,7 +8,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutputDirectory,
 
-    [string]$SevenZipPath = ""
+    [string]$SevenZipPath = "",
+
+    [switch]$AllowKnownLegacyDifferences
 )
 
 $ErrorActionPreference = "Stop"
@@ -148,6 +150,115 @@ function Get-CanonicalXml([string]$Path) {
     return Convert-XmlElementToCanonical $document.DocumentElement
 }
 
+function Read-SafeXmlDocument([string]$Path) {
+    $settings = [Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
+    $settings.XmlResolver = $null
+    $reader = [Xml.XmlReader]::Create($Path, $settings)
+    try {
+        $document = [Xml.XmlDocument]::new()
+        $document.Load($reader)
+    } finally {
+        $reader.Dispose()
+    }
+    Assert-True ($null -ne $document.DocumentElement) "Backup XML has no document element: $Path"
+    return $document
+}
+
+function Get-FirstMatchingAccount([Xml.XmlNodeList]$Accounts, [string]$Name) {
+    foreach ($account in $Accounts) {
+        if ($account.GetAttribute('Name') -eq $Name) {
+            return $account
+        }
+    }
+    return $null
+}
+
+function Get-KnownLegacyDifferenceCodes(
+    [Xml.XmlDocument]$LeftDocument,
+    [Xml.XmlDocument]$RightDocument) {
+    $codes = [Collections.Generic.List[string]]::new()
+    foreach ($name in @('SecurityRanges', 'TCPIPPorts', 'BlockedAttachments', 'SURBLServers', 'DNSBlackLists')) {
+        $left = $LeftDocument.DocumentElement.SelectSingleNode("*[local-name()='$name']")
+        $right = $RightDocument.DocumentElement.SelectSingleNode("*[local-name()='$name']")
+        $leftEmpty = $null -ne $left -and @($left.ChildNodes | Where-Object { $_ -is [Xml.XmlElement] }).Count -eq 0
+        $rightEmpty = $null -ne $right -and @($right.ChildNodes | Where-Object { $_ -is [Xml.XmlElement] }).Count -eq 0
+        if ($leftEmpty -and $null -eq $right) {
+            $codes.Add("legacy-empty-top-level:$name")
+        } elseif ($rightEmpty -and $null -eq $left) {
+            $codes.Add("net10-empty-top-level:$name")
+        }
+    }
+
+    $leftProperty = $LeftDocument.DocumentElement.SelectSingleNode("*[local-name()='Properties']/*[local-name()='smtprelayerpassword']")
+    $rightProperty = $RightDocument.DocumentElement.SelectSingleNode("*[local-name()='Properties']/*[local-name()='smtprelayerpassword']")
+    if (($null -ne $leftProperty) -xor ($null -ne $rightProperty)) {
+        $codes.Add('legacy-sensitive-property-omitted:smtprelayerpassword')
+    }
+
+    $leftAccounts = $LeftDocument.SelectNodes("//*[local-name()='Account']")
+    $rightAccounts = $RightDocument.SelectNodes("//*[local-name()='Account']")
+    foreach ($leftAccount in $leftAccounts) {
+        $rightAccount = Get-FirstMatchingAccount $rightAccounts $leftAccount.GetAttribute('Name')
+        if ($null -ne $rightAccount -and
+            $leftAccount.GetAttribute('PasswordEncryption') -eq '3' -and
+            $rightAccount.GetAttribute('PasswordEncryption') -eq '3' -and
+            $leftAccount.GetAttribute('Password') -ne $rightAccount.GetAttribute('Password')) {
+            if (-not $codes.Contains('legacy-salted-password-value')) {
+                $codes.Add('legacy-salted-password-value')
+            }
+        }
+    }
+    return $codes.ToArray()
+}
+
+function Remove-TopLevelElement([Xml.XmlDocument]$Document, [string]$Name) {
+    $element = $Document.DocumentElement.SelectSingleNode("*[local-name()='$Name']")
+    if ($null -ne $element) {
+        [void]$Document.DocumentElement.RemoveChild($element)
+    }
+}
+
+function Normalize-KnownLegacyDifferences(
+    [Xml.XmlDocument]$LeftDocument,
+    [Xml.XmlDocument]$RightDocument) {
+    $left = [Xml.XmlDocument]$LeftDocument.Clone()
+    $right = [Xml.XmlDocument]$RightDocument.Clone()
+    foreach ($name in @('SecurityRanges', 'TCPIPPorts', 'BlockedAttachments', 'SURBLServers', 'DNSBlackLists')) {
+        $leftElement = $left.DocumentElement.SelectSingleNode("*[local-name()='$name']")
+        $rightElement = $right.DocumentElement.SelectSingleNode("*[local-name()='$name']")
+        $leftEmpty = $null -ne $leftElement -and @($leftElement.ChildNodes | Where-Object { $_ -is [Xml.XmlElement] }).Count -eq 0
+        $rightEmpty = $null -ne $rightElement -and @($rightElement.ChildNodes | Where-Object { $_ -is [Xml.XmlElement] }).Count -eq 0
+        if ($leftEmpty -and $null -eq $rightElement) {
+            Remove-TopLevelElement $left $name
+        } elseif ($rightEmpty -and $null -eq $leftElement) {
+            Remove-TopLevelElement $right $name
+        }
+    }
+
+    $leftProperty = $left.DocumentElement.SelectSingleNode("*[local-name()='Properties']/*[local-name()='smtprelayerpassword']")
+    $rightProperty = $right.DocumentElement.SelectSingleNode("*[local-name()='Properties']/*[local-name()='smtprelayerpassword']")
+    if ($null -ne $leftProperty -and $null -eq $rightProperty) {
+        [void]$leftProperty.ParentNode.RemoveChild($leftProperty)
+    } elseif ($null -eq $leftProperty -and $null -ne $rightProperty) {
+        [void]$rightProperty.ParentNode.RemoveChild($rightProperty)
+    }
+
+    $leftAccounts = $left.SelectNodes("//*[local-name()='Account']")
+    $rightAccounts = $right.SelectNodes("//*[local-name()='Account']")
+    foreach ($leftAccount in $leftAccounts) {
+        $rightAccount = Get-FirstMatchingAccount $rightAccounts $leftAccount.GetAttribute('Name')
+        if ($null -ne $rightAccount -and
+            $leftAccount.GetAttribute('PasswordEncryption') -eq '3' -and
+            $rightAccount.GetAttribute('PasswordEncryption') -eq '3' -and
+            $leftAccount.GetAttribute('Password') -ne $rightAccount.GetAttribute('Password')) {
+            $leftAccount.SetAttribute('Password', '__legacy-salted-sha256__')
+            $rightAccount.SetAttribute('Password', '__legacy-salted-sha256__')
+        }
+    }
+    return [pscustomobject]@{ Left = $left; Right = $right }
+}
+
 function Get-Sha256Text([string]$Text) {
     $bytes = [Text.Encoding]::UTF8.GetBytes($Text)
     return ([Security.Cryptography.SHA256]::Create().ComputeHash($bytes) | ForEach-Object ToString x2) -join ''
@@ -208,16 +319,30 @@ try {
     $right = Resolve-InputRoot -InputPath $rightPath -Label 'right' -WorkRoot $work -SevenZip $sevenZip
     $leftXml = Get-BackupXml -Root $left.Root -Label 'Left'
     $rightXml = Get-BackupXml -Root $right.Root -Label 'Right'
-    $leftCanonical = Get-CanonicalXml $leftXml.FullName
-    $rightCanonical = Get-CanonicalXml $rightXml.FullName
+    $leftDocument = Read-SafeXmlDocument $leftXml.FullName
+    $rightDocument = Read-SafeXmlDocument $rightXml.FullName
+    $leftCanonical = Convert-XmlElementToCanonical $leftDocument.DocumentElement
+    $rightCanonical = Convert-XmlElementToCanonical $rightDocument.DocumentElement
     $leftData = Get-DataBackupFiles $left.Root
     $rightData = Get-DataBackupFiles $right.Root
     $dataDifferences = @(Compare-DataFiles $leftData $rightData)
     $xmlEqual = [StringComparer]::Ordinal.Equals($leftCanonical, $rightCanonical)
+    $knownDifferenceCodes = @(Get-KnownLegacyDifferenceCodes $leftDocument $rightDocument)
+    $normalized = Normalize-KnownLegacyDifferences $leftDocument $rightDocument
+    $normalizedLeftCanonical = Convert-XmlElementToCanonical $normalized.Left.DocumentElement
+    $normalizedRightCanonical = Convert-XmlElementToCanonical $normalized.Right.DocumentElement
+    $normalizedXmlEqual = [StringComparer]::Ordinal.Equals($normalizedLeftCanonical, $normalizedRightCanonical)
     $dataEqual = $dataDifferences.Count -eq 0
+    $profileAcceptsXml = $xmlEqual -or (
+        $AllowKnownLegacyDifferences -and
+        $knownDifferenceCodes.Count -gt 0 -and
+        $normalizedXmlEqual)
+    $status = if ($profileAcceptsXml -and $dataEqual) {
+        if ($xmlEqual) { 'PASS' } else { 'PASS_EXPECTED_DIFFERENCES' }
+    } else { 'FAIL' }
     $report = [ordered]@{
-        schema = 'backup-semantic-comparison-v1'
-        status = if ($xmlEqual -and $dataEqual) { 'PASS' } else { 'FAIL' }
+        schema = 'backup-semantic-comparison-v2'
+        status = $status
         generatedUtc = [DateTimeOffset]::UtcNow
         leftInput = $leftPath
         rightInput = $rightPath
@@ -226,6 +351,12 @@ try {
         leftXmlSha256 = Get-Sha256Text $leftCanonical
         rightXmlSha256 = Get-Sha256Text $rightCanonical
         xmlEqual = $xmlEqual
+        compatibilityProfileEnabled = [bool]$AllowKnownLegacyDifferences
+        compatibilityProfileStatus = if ($normalizedXmlEqual) {
+            if ($knownDifferenceCodes.Count -eq 0) { 'EXACT' } else { 'KNOWN_DIFFERENCES_ONLY' }
+        } else { 'UNEXPECTED_DIFFERENCES' }
+        knownLegacyDifferenceCodes = $knownDifferenceCodes
+        normalizedXmlEqual = $normalizedXmlEqual
         leftDataBackupFileCount = $leftData.Count
         rightDataBackupFileCount = $rightData.Count
         dataBackupEqual = $dataEqual
@@ -240,23 +371,29 @@ try {
     $csvPath = Join-Path $output 'backup-semantic-comparison.csv'
     $mdPath = Join-Path $output 'backup-semantic-comparison.md'
     $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $jsonPath -Encoding utf8 -NoNewline
-    "status,xml_equal,data_backup_equal,left_xml_sha256,right_xml_sha256,left_data_files,right_data_files`n$($report.status),$xmlEqual,$dataEqual,$($report.leftXmlSha256),$($report.rightXmlSha256),$($report.leftDataBackupFileCount),$($report.rightDataBackupFileCount)" | Set-Content -LiteralPath $csvPath -Encoding utf8 -NoNewline
+    "status,xml_equal,compatibility_profile_status,normalized_xml_equal,data_backup_equal,left_xml_sha256,right_xml_sha256,left_data_files,right_data_files`n$($report.status),$xmlEqual,$($report.compatibilityProfileStatus),$normalizedXmlEqual,$dataEqual,$($report.leftXmlSha256),$($report.rightXmlSha256),$($report.leftDataBackupFileCount),$($report.rightDataBackupFileCount)" | Set-Content -LiteralPath $csvPath -Encoding utf8 -NoNewline
     @"
 # Backup semantic comparison
 
 - Result: ``$($report.status)``
 - XML equal: ``$xmlEqual``
+- Compatibility profile: ``$($report.compatibilityProfileStatus)``
+- Known legacy differences: ``$($knownDifferenceCodes -join ', ')``
 - DataBackup equal: ``$dataEqual``
 - Left XML SHA-256: ``$($report.leftXmlSha256)``
 - Right XML SHA-256: ``$($report.rightXmlSha256)``
 - DataBackup files: ``$($report.leftDataBackupFileCount)`` left / ``$($report.rightDataBackupFileCount)`` right
 
 This comparator only reads the two supplied payloads. It does not access SQL,
-services, or live Data directories. A PASS proves payload equality for the
-supplied inputs; it does not prove that the inputs came from the same fixture.
+services, or live Data directories. The default mode requires exact normalized
+XML and DataBackup equality. ``-AllowKnownLegacyDifferences`` accepts only the
+explicit legacy empty-container, salted-password, and sensitive-property
+differences listed in the JSON report; any residual XML difference remains a
+failure. A PASS proves payload equality for the supplied inputs; it does not
+prove that the inputs came from the same fixture.
 "@ | Set-Content -LiteralPath $mdPath -Encoding utf8 -NoNewline
 
-    if ($report.status -ne 'PASS') {
+    if ($report.status -eq 'FAIL') {
         throw "Backup semantic comparison failed. See $jsonPath"
     }
     Write-Host "Backup semantic comparison passed. Report: $jsonPath"
