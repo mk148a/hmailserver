@@ -1,4 +1,26 @@
-## Current authoritative status (2026-09-04, DNSBL backup projection)
+## Current authoritative status (2026-09-04, SecurityRanges restore)
+
+Code/test commit `d244c6042` completes the bounded `SecurityRanges` restore
+slice. Legacy `Configuration::XMLLoad` and
+`Collection<SecurityRange, PersistentSecurityRange>::XMLLoad` delete the
+existing collection, treat a missing `SecurityRanges` node as an empty
+replacement, and insert new identities in XML order. The C++ anchors are
+`hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`,
+`hmailserver/source/Server/Common/BO/Collection.h:61-125`, and
+`hmailserver/source/Server/Common/BO/SecurityRange.cpp:297-311`.
+Net10 now uses `ParseSecurityRanges`, a transaction-scoped security-range
+store/delete operation, and `RestoreSecurityRangesAsync`; invalid expiry
+dates use the legacy `2001-01-01` fallback. Focused coverage is `70/70`; full
+Debug is `2824 passed, 97 skipped, 0 failed / 2921`.
+
+This slice is limited to `SecurityRanges`. Restore parsing/application for
+`TCPIPPorts`, `BlockedAttachments`, `SURBLServers`, and `DNSBlackLists`
+remains open. The paired comparator needs a fresh post-projection archive and
+equivalent backup timing is still unavailable. Next bounded slice:
+`TCPIPPorts` restore with the same isolated transaction pattern. Keep the
+release gate RED.
+
+## Historical status (2026-09-04, DNSBL backup projection)
 
 Code/test commit `1003f134d` completes the bounded legacy
 `DNSBlackLists` settings-backup projection. The C++ anchors are

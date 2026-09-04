@@ -3,6 +3,24 @@ hMailServer
 
 ## Current backup projection status (2026-09-04)
 
+Code/test commit `d244c6042` adds the bounded `SecurityRanges` restore slice.
+Legacy `Configuration::XMLLoad` and
+`Collection<SecurityRange, PersistentSecurityRange>::XMLLoad` delete the
+existing collection, treat a missing `SecurityRanges` container as an empty
+replacement, and insert fresh identities in XML order. The relevant legacy
+code is `hmailserver/source/Server/Common/Application/Configuration.cpp:716-758`,
+`hmailserver/source/Server/Common/BO/Collection.h:61-125`, and
+`hmailserver/source/Server/Common/BO/SecurityRange.cpp:297-311`. Net10 now
+parses the seven legacy attributes, uses the legacy `2001-01-01` invalid-date
+fallback, deletes and reinserts through a transaction-scoped store, and rolls
+back the whole SQL transaction on failure. Focused restore coverage is
+`70/70`; the full Debug suite is `2824 passed, 97 skipped, 0 failed / 2921`.
+
+This slice does not restore `TCPIPPorts`, `BlockedAttachments`,
+`SURBLServers`, or `DNSBlackLists`; those emitted backup nodes remain
+projection-only. A fresh paired archive comparison and equivalent backup
+timing are also still required. The performance/release gate remains **RED**.
+
 Code/test commit `1003f134d` adds the bounded legacy `DNSBlackLists`
 settings-backup projection. The C++ anchors are `DNSBlackLists::Refresh` in
 `hmailserver/source/Server/Common/BO/DNSBlackLists.cpp:31` and

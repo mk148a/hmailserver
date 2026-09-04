@@ -1,6 +1,28 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-04, SURBL projection)
+## Current authoritative continuation (2026-09-04, SecurityRanges restore)
+
+Code/test commit `d244c6042` completes the bounded `SecurityRanges` restore
+slice. Legacy `Configuration::XMLLoad` and
+`Collection<SecurityRange, PersistentSecurityRange>::XMLLoad` replace the
+collection by deleting existing rows and inserting fresh identities in XML
+order; an absent `SecurityRanges` node means an empty replacement. Net10 now
+implements this through `BackupArchiveXmlSnapshotParser.ParseSecurityRanges`,
+`BackupRestoreMetadataWriter.RestoreSecurityRangesAsync`, and a
+transaction-scoped SQL store/delete path. Focused coverage is `70/70`; full
+Debug is `2824 passed, 97 skipped, 0 failed / 2921`.
+
+The slice is limited to SecurityRanges. Restore parsing/application for
+`TCPIPPorts`, `BlockedAttachments`, `SURBLServers`, and `DNSBlackLists`
+remains open, as do the fresh paired archive comparison and equivalent timing
+acceptance. Next bounded slice: restore `TCPIPPorts` with the same isolated
+transaction pattern after a fresh legacy parity inspection. Registered
+COM/Admin, SEC-18 caller-token, installer rollback, AD/SSPI, DKIM/DMARC/SPF,
+exact Full-Text transaction equivalence, and performance acceptance remain
+release blockers. Production service, DB, Data, COM registration, and DCOM
+ACLs remain untouched.
+
+## Historical status (2026-09-04, DNSBL projection)
 
 Code/test commit `1003f134d` completes the bounded legacy `DNSBlackLists`
 settings-backup projection. The C++ references are
