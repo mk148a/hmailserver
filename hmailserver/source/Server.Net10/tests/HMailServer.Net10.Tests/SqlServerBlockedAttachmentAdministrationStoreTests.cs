@@ -15,6 +15,9 @@ public sealed class SqlServerBlockedAttachmentAdministrationStoreTests
         StringAssert.Contains(sql, "bawildcard");
         StringAssert.Contains(sql, "badescription");
         StringAssert.Contains(sql, "ORDER BY bawildcard ASC");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

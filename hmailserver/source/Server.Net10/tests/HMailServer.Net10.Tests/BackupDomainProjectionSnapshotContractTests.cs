@@ -24,6 +24,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(IBackupSettingsPropertyStore),
                 typeof(ISecurityRangeAdministrationStore),
                 typeof(ITcpIpPortAdministrationStore),
+                typeof(IBlockedAttachmentAdministrationStore),
                 typeof(IGroupAdministrationStore),
                 typeof(IGroupMemberAdministrationStore),
                 typeof(IAccountAdministrationStore),
@@ -159,6 +160,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; } = backupSettingsPropertyStore;
             public ISecurityRangeAdministrationStore SecurityRangeStore { get; } = new EmptySecurityRangeStore();
             public ITcpIpPortAdministrationStore TcpIpPortStore { get; } = new EmptyTcpIpPortStore();
+            public IBlockedAttachmentAdministrationStore BlockedAttachmentStore { get; } = new EmptyBlockedAttachmentStore();
             public IGroupAdministrationStore GroupStore { get; } = new EmptyGroupStore();
             public IGroupMemberAdministrationStore GroupMemberStore { get; } = new EmptyGroupMemberStore();
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
@@ -229,6 +231,14 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<TcpIpPortAdministrationSnapshot>>(
                 Array.Empty<TcpIpPortAdministrationSnapshot>());
+    }
+
+    private sealed class EmptyBlockedAttachmentStore : IBlockedAttachmentAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>(
+                Array.Empty<BlockedAttachmentAdministrationSnapshot>());
     }
 
     private sealed class FixedSettingsStore(SettingsAdministrationSnapshot snapshot)

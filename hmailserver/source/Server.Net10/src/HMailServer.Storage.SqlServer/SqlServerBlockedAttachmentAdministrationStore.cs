@@ -35,6 +35,7 @@ WHERE baid = @id;
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerBlockedAttachmentAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -42,11 +43,23 @@ WHERE baid = @id;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerBlockedAttachmentAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetBlockedAttachmentsSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetBlockedAttachmentsSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);

@@ -1232,6 +1232,40 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesLegacyBlockedAttachmentsAfterTcpIpPorts()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: new SettingsAdministrationSnapshot(
+                    HostName: "mail.example.test",
+                    WelcomeSmtp: "smtp",
+                    WelcomePop3: "pop3",
+                    WelcomeImap: "imap"),
+                Domains: null,
+                TcpIpPorts: new[]
+                {
+                    new TcpIpPortAdministrationSnapshot(1, 1, 25, "0.0.0.0", 0, 0)
+                },
+                BlockedAttachments: new[]
+                {
+                    new BlockedAttachmentAdministrationSnapshot(7, "*.exe", "Executable file & test")
+                }));
+
+        var document = XDocument.Parse(xml);
+        CollectionAssert.AreEqual(
+            new[] { "BackupInformation", "Properties", "TCPIPPorts", "BlockedAttachments" },
+            document.Root!.Elements().Select(static element => element.Name.LocalName).ToArray());
+        var attachment = document.Root.Element("BlockedAttachments")!.Element("BlockedAttachment")!;
+        CollectionAssert.AreEqual(
+            new[] { "Name", "Description" },
+            attachment.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("*.exe", attachment.Attribute("Name")?.Value);
+        Assert.AreEqual("Executable file & test", attachment.Attribute("Description")?.Value);
+    }
+
+    [TestMethod]
     public void MetadataXmlWritesEveryModeledSettingsPropertyInLegacyNameOrderWithoutCredentials()
     {
         var settings = new SettingsAdministrationSnapshot(
@@ -2088,7 +2122,9 @@ public sealed class BackupArchiveRuntimeTests
                         new DateTime(2026, 9, 4, 1, 2, 3))
                 }),
             tcpIpPortStore: new FixedTcpIpPortAdministrationStore(
-                new[] { new TcpIpPortAdministrationSnapshot(1, 1, 25, "0.0.0.0", 0, 0) }));
+                new[] { new TcpIpPortAdministrationSnapshot(1, 1, 25, "0.0.0.0", 0, 0) }),
+            blockedAttachmentStore: new FixedBlockedAttachmentAdministrationStore(
+                new[] { new BlockedAttachmentAdministrationSnapshot(7, "*.exe", "Executable") }));
 
         var payload = await runtime.GetPayloadAsync(
             new BackupStartPlanEvidence("unused", 1, false, true, true),
@@ -2102,6 +2138,8 @@ public sealed class BackupArchiveRuntimeTests
         Assert.AreEqual("Trusted", payload.SecurityRanges[0].Name);
         Assert.AreEqual(1, payload.TcpIpPorts!.Count);
         Assert.AreEqual(25, payload.TcpIpPorts[0].PortNumber);
+        Assert.AreEqual(1, payload.BlockedAttachments!.Count);
+        Assert.AreEqual("*.exe", payload.BlockedAttachments[0].Wildcard);
     }
 
     [TestMethod]
@@ -3646,6 +3684,15 @@ public sealed class BackupArchiveRuntimeTests
         public ValueTask<IReadOnlyList<TcpIpPortAdministrationSnapshot>> GetTcpIpPortsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(ports);
+    }
+
+    private sealed class FixedBlockedAttachmentAdministrationStore(
+        IReadOnlyList<BlockedAttachmentAdministrationSnapshot> attachments)
+        : IBlockedAttachmentAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(attachments);
     }
 
     private sealed class RecordingDistributionListAdministrationStore(
