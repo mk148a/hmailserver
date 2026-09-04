@@ -24,10 +24,13 @@ public sealed class ComLocalServerRegistration
 public sealed class ComLocalServerHost : IDisposable
 {
     private const uint CoinitMultithreaded = 0;
+    private const int RpcAuthnLevelConnect = 2;
+    private const int RpcImpLevelImpersonate = 3;
     private const uint ClsctxLocalServer = 0x4;
     private const uint RegclsMultipleUse = 0x1;
     private const uint RegclsSuspended = 0x4;
 
+    private static readonly object ComSecuritySync = new();
     private readonly IReadOnlyList<ComLocalServerRegistration> _registrations;
     private readonly ManualResetEventSlim _stop = new(initialState: false);
     private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -104,6 +107,7 @@ public sealed class ComLocalServerHost : IDisposable
         {
             Marshal.ThrowExceptionForHR(CoInitializeEx(nint.Zero, CoinitMultithreaded));
             initialized = true;
+            EnsureComSecurityInitialized();
 
             foreach (var registration in _registrations)
             {
@@ -149,9 +153,47 @@ public sealed class ComLocalServerHost : IDisposable
         }
     }
 
+    private static void EnsureComSecurityInitialized()
+    {
+        lock (ComSecuritySync)
+        {
+            if (_comSecurityInitialized)
+            {
+                return;
+            }
+
+            Marshal.ThrowExceptionForHR(CoInitializeSecurity(
+                nint.Zero,
+                -1,
+                nint.Zero,
+                nint.Zero,
+                RpcAuthnLevelConnect,
+                RpcImpLevelImpersonate,
+                nint.Zero,
+                0,
+                nint.Zero));
+            _comSecurityInitialized = true;
+        }
+    }
+
+    private static bool _comSecurityInitialized;
+
     [DllImport("ole32.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static extern int CoInitializeEx(nint reserved, uint coInit);
+
+    [DllImport("ole32.dll", ExactSpelling = true)]
+    [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+    private static extern int CoInitializeSecurity(
+        nint securityDescriptor,
+        int authenticationServiceCount,
+        nint authenticationServices,
+        nint reserved,
+        int authenticationLevel,
+        int impersonationLevel,
+        nint authenticationInformation,
+        uint capabilities,
+        nint reserved2);
 
     [DllImport("ole32.dll", ExactSpelling = true)]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
