@@ -22,6 +22,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(IDomainAdministrationStore),
                 typeof(ISettingsAdministrationStore),
                 typeof(IBackupSettingsPropertyStore),
+                typeof(ISecurityRangeAdministrationStore),
                 typeof(IGroupAdministrationStore),
                 typeof(IGroupMemberAdministrationStore),
                 typeof(IAccountAdministrationStore),
@@ -155,6 +156,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 new FixedDomainStore(new DomainAdministrationSnapshot(7, "snapshot.example", true));
             public ISettingsAdministrationStore SettingsStore { get; } = settingsStore;
             public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; } = backupSettingsPropertyStore;
+            public ISecurityRangeAdministrationStore SecurityRangeStore { get; } = new EmptySecurityRangeStore();
             public IGroupAdministrationStore GroupStore { get; } = new EmptyGroupStore();
             public IGroupMemberAdministrationStore GroupMemberStore { get; } = new EmptyGroupMemberStore();
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
@@ -194,6 +196,29 @@ public sealed class BackupDomainProjectionSnapshotContractTests
         public ValueTask<IReadOnlyList<BackupSettingsPropertySnapshot>>
             GetBackupSettingsPropertiesAsync(CancellationToken cancellationToken) =>
             throw new AssertFailedException("The domain-only snapshot path must not read settings.");
+    }
+
+    private sealed class EmptySecurityRangeStore : ISecurityRangeAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<SecurityRangeAdministrationSnapshot>> GetSecurityRangesAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<SecurityRangeAdministrationSnapshot>>(
+                Array.Empty<SecurityRangeAdministrationSnapshot>());
+
+        public ValueTask<int> InsertSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask UpdateSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask DeleteSecurityRangeByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 
     private sealed class FixedSettingsStore(SettingsAdministrationSnapshot snapshot)

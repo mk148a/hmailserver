@@ -51,6 +51,7 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         var settingsStore = new SqlServerSettingsAdministrationStore(context);
         SettingsStore = settingsStore;
         BackupSettingsPropertyStore = settingsStore;
+        SecurityRangeStore = new SqlServerSecurityRangeAdministrationStore(context);
         GroupStore = new SqlServerGroupAdministrationStore(context);
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         DomainStore = new SqlServerDomainAdministrationStore(context);
@@ -73,6 +74,8 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
     public ISettingsAdministrationStore SettingsStore { get; }
 
     public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; }
+
+    public ISecurityRangeAdministrationStore SecurityRangeStore { get; }
 
     public IGroupAdministrationStore GroupStore { get; }
 

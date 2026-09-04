@@ -1147,6 +1147,46 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesLegacySecurityRangesAfterProperties()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: new SettingsAdministrationSnapshot(
+                    HostName: "mail.example.test",
+                    WelcomeSmtp: "smtp",
+                    WelcomePop3: "pop3",
+                    WelcomeImap: "imap"),
+                Domains: null,
+                SecurityRanges: new[]
+                {
+                    new SecurityRangeAdministrationSnapshot(
+                        7,
+                        "Trusted",
+                        "10.0.0.1",
+                        "10.0.0.9",
+                        42,
+                        123,
+                        true,
+                        new DateTime(2026, 9, 4, 1, 2, 3))
+                }));
+
+        var document = XDocument.Parse(xml);
+        CollectionAssert.AreEqual(
+            new[] { "BackupInformation", "Properties", "SecurityRanges" },
+            document.Root!.Elements().Select(static element => element.Name.LocalName).ToArray());
+        var range = document.Root.Element("SecurityRanges")!.Element("SecurityRange")!;
+        Assert.AreEqual("Trusted", range.Attribute("Name")?.Value);
+        Assert.AreEqual("10.0.0.1", range.Attribute("LowerIP")?.Value);
+        Assert.AreEqual("10.0.0.9", range.Attribute("UpperIP")?.Value);
+        Assert.AreEqual("42", range.Attribute("Priority")?.Value);
+        Assert.AreEqual("123", range.Attribute("Options")?.Value);
+        Assert.AreEqual("2026-09-04 01:02:03", range.Attribute("ExpiresTime")?.Value);
+        Assert.AreEqual("1", range.Attribute("Expires")?.Value);
+    }
+
+    [TestMethod]
     public void MetadataXmlWritesEveryModeledSettingsPropertyInLegacyNameOrderWithoutCredentials()
     {
         var settings = new SettingsAdministrationSnapshot(
@@ -1988,6 +2028,19 @@ public sealed class BackupArchiveRuntimeTests
                 new Dictionary<int, IReadOnlyList<GroupMemberAdministrationSnapshot>>
                 {
                     [77] = new[] { new GroupMemberAdministrationSnapshot(88, 77, 20) }
+                }),
+            securityRangeStore: new FixedSecurityRangeAdministrationStore(
+                new[]
+                {
+                    new SecurityRangeAdministrationSnapshot(
+                        7,
+                        "Trusted",
+                        "10.0.0.1",
+                        "10.0.0.9",
+                        42,
+                        123,
+                        true,
+                        new DateTime(2026, 9, 4, 1, 2, 3))
                 }));
 
         var payload = await runtime.GetPayloadAsync(
@@ -1998,6 +2051,8 @@ public sealed class BackupArchiveRuntimeTests
         Assert.AreEqual(1, payload.Groups!.Count);
         Assert.AreEqual("Editors", payload.Groups[0].Group.Name);
         CollectionAssert.AreEqual(new[] { "user@example.test" }, payload.Groups[0].MemberNames.ToArray());
+        Assert.AreEqual(1, payload.SecurityRanges!.Count);
+        Assert.AreEqual("Trusted", payload.SecurityRanges[0].Name);
     }
 
     [TestMethod]
@@ -3510,6 +3565,30 @@ public sealed class BackupArchiveRuntimeTests
             RouteId: 0,
             AbortSpamFlagged: false,
             SortOrder: 1);
+
+    private sealed class FixedSecurityRangeAdministrationStore(
+        IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges)
+        : ISecurityRangeAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<SecurityRangeAdministrationSnapshot>> GetSecurityRangesAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(ranges);
+
+        public ValueTask<int> InsertSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask UpdateSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public ValueTask DeleteSecurityRangeByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
 
     private sealed class RecordingDistributionListAdministrationStore(
         IReadOnlyDictionary<int, IReadOnlyList<DistributionListAdministrationSnapshot>> lists)

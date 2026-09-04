@@ -384,8 +384,35 @@ public sealed class SevenZipBackupArchiveRuntime
             WriteModeledSettings(writer, payload?.Settings);
         }
 
+        WriteSecurityRanges(writer, payload?.SecurityRanges);
         WritePublicFolders(writer, payload?.PublicFolders);
         WriteGroups(writer, payload?.Groups);
+    }
+
+    private static void WriteSecurityRanges(
+        XmlWriter writer,
+        IReadOnlyList<SecurityRangeAdministrationSnapshot>? ranges)
+    {
+        if (ranges is null || ranges.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartElement("SecurityRanges");
+        foreach (var range in ranges)
+        {
+            writer.WriteStartElement("SecurityRange");
+            WriteLegacyAttribute(writer, "Name", range.Name);
+            WriteLegacyAttribute(writer, "LowerIP", range.LowerIp);
+            WriteLegacyAttribute(writer, "UpperIP", range.UpperIp);
+            WriteLegacyAttribute(writer, "Priority", range.Priority.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "Options", range.Options.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "ExpiresTime", range.ExpiresTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "Expires", (range.Expires ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
     }
 
     private static void WriteRawSettings(
@@ -1264,7 +1291,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<ImapFolderAdministrationSnapshot>>? Folders = null,
     IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? FolderMessages = null,
     IReadOnlyList<BackupPublicFolderEntry>? PublicFolders = null,
-    IReadOnlyList<BackupGroupEntry>? Groups = null);
+    IReadOnlyList<BackupGroupEntry>? Groups = null,
+    IReadOnlyList<SecurityRangeAdministrationSnapshot>? SecurityRanges = null);
 
 [ComVisible(false)]
 public sealed record BackupPublicFolderPermission(
@@ -1288,6 +1316,7 @@ public sealed record BackupGroupEntry(
 public sealed class BackupXmlPayloadRuntime
 {
     private readonly ISettingsAdministrationStore _settingsStore;
+    private readonly ISecurityRangeAdministrationStore? _securityRangeStore;
     private readonly IDomainAdministrationStore _domainStore;
     private readonly IDomainAliasAdministrationStore _domainAliasStore;
     private readonly IAccountAdministrationStore _accountStore;
@@ -1363,7 +1392,8 @@ public sealed class BackupXmlPayloadRuntime
         bool requireSqlTransaction = false,
         IGroupAdministrationStore? groupStore = null,
         IGroupMemberAdministrationStore? groupMemberStore = null,
-        IBackupDomainProjectionSnapshotFactory? domainProjectionSnapshotFactory = null)
+        IBackupDomainProjectionSnapshotFactory? domainProjectionSnapshotFactory = null,
+        ISecurityRangeAdministrationStore? securityRangeStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -1371,6 +1401,7 @@ public sealed class BackupXmlPayloadRuntime
         ArgumentNullException.ThrowIfNull(accountStore);
         ArgumentNullException.ThrowIfNull(aliasStore);
         _settingsStore = settingsStore;
+        _securityRangeStore = securityRangeStore;
         _domainStore = domainStore;
         _domainAliasStore = domainAliasStore;
         _accountStore = accountStore;
@@ -1424,6 +1455,9 @@ public sealed class BackupXmlPayloadRuntime
             (evidence.BackupOptions & BackupStartPlan.BackupSettingsFlag) != 0
                 ? evidence.BackupSettingsProperties
                 : null;
+        var securityRanges = includesSettings && _securityRangeStore is not null
+            ? await _securityRangeStore.GetSecurityRangesAsync(cancellationToken).ConfigureAwait(false)
+            : null;
         var domains = (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
             ? await _domainStore.GetDomainsAsync(cancellationToken).ConfigureAwait(false)
             : null;
@@ -1688,7 +1722,8 @@ public sealed class BackupXmlPayloadRuntime
             folders,
             folderMessages,
             publicFolders,
-            backupGroups);
+            backupGroups,
+            SecurityRanges: securityRanges);
     }
 
     private async ValueTask<BackupArchiveXmlPayload> GetDomainOnlyPayloadFromSnapshotAsync(
@@ -1711,6 +1746,11 @@ public sealed class BackupXmlPayloadRuntime
         var settingsProperties = includeSettings
             ? await snapshot.BackupSettingsPropertyStore
                 .GetBackupSettingsPropertiesAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : null;
+        var securityRanges = includeSettings
+            ? await snapshot.SecurityRangeStore
+                .GetSecurityRangesAsync(cancellationToken)
                 .ConfigureAwait(false)
             : null;
         var domainAliases = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
@@ -1835,7 +1875,8 @@ public sealed class BackupXmlPayloadRuntime
             Folders: folders,
             FolderMessages: folderMessages,
             PublicFolders: publicFolders,
-            Groups: backupGroups);
+            Groups: backupGroups,
+            SecurityRanges: securityRanges);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(

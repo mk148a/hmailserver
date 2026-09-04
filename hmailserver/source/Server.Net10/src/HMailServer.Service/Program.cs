@@ -98,7 +98,8 @@ BackupManagerRuntimeHost.Configure(
                  groupStore: host.Services.GetRequiredService<IGroupAdministrationStore>(),
                  groupMemberStore: host.Services.GetRequiredService<IGroupMemberAdministrationStore>(),
                  domainProjectionSnapshotFactory: host.Services
-                     .GetRequiredService<IBackupDomainProjectionSnapshotFactory>())
+                     .GetRequiredService<IBackupDomainProjectionSnapshotFactory>(),
+                 securityRangeStore: host.Services.GetRequiredService<ISecurityRangeAdministrationStore>())
                 .GetPayloadAsync,
              dataDirectory: dataDirectory,
              restoreReinitializer: reinitializationCoordinator.ReinitializeAsync,

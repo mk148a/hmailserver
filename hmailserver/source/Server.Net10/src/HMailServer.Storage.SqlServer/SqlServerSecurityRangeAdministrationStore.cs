@@ -51,6 +51,7 @@ WHERE rangeid = @id;
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerSecurityRangeAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -58,11 +59,23 @@ WHERE rangeid = @id;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerSecurityRangeAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<SecurityRangeAdministrationSnapshot>> GetSecurityRangesAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetSecurityRangesSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetSecurityRangesSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);
@@ -112,8 +125,12 @@ WHERE rangeid = @id;
         var upperIp = ParseLegacyAddress(range.UpperIp);
         ValidateRange(lowerIp, upperIp);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(InsertSecurityRangeSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertSecurityRangeSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = name;
         command.Parameters.Add("@priority", SqlDbType.Int).Value = range.Priority;
         AddLegacyAddressParameters(command, "@lowerIp1", "@lowerIp2", lowerIp);
@@ -142,8 +159,12 @@ WHERE rangeid = @id;
         var upperIp = ParseLegacyAddress(range.UpperIp);
         ValidateRange(lowerIp, upperIp);
 
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(UpdateSecurityRangeSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            UpdateSecurityRangeSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@id", SqlDbType.Int).Value = range.Id;
         command.Parameters.Add("@name", SqlDbType.NVarChar, 100).Value = name;
         command.Parameters.Add("@priority", SqlDbType.Int).Value = range.Priority;
@@ -159,8 +180,12 @@ WHERE rangeid = @id;
         int databaseId,
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(DeleteSecurityRangeByIdSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteSecurityRangeByIdSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
