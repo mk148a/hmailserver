@@ -1,5 +1,28 @@
 # CODEX_HANDOFF.md
 
+## Current authoritative continuation (2026-09-04, paired backup projection)
+
+Code/test commit `3f5603e44` implements the legacy account-backup projection
+parity slice. The C++ reference is `PersistentAccount::ReadObject` in
+`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:146-195`;
+it hashes plaintext `accountpwencryption=0` rows with the preferred salted
+SHA-256 algorithm and carries the full vacation expiry string. Net10 now
+matches that behavior in
+`hmailserver/source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerAccountAdministrationStore.cs`.
+Focused disposable SQL coverage passed `2/2`; full Debug passed `2808 passed,
+97 skipped, 0 failed / 2905`.
+
+The paired disposable C++ COM backup is verified: mode 15 produced a 7z
+archive in `3.633 s`, and the Net10 paired runner produced its archive from a
+separate SQL/Data clone. DataBackup comparison passed `1000/1000` file hashes.
+The XML comparator remains RED because C++ emits empty top-level containers,
+password hashes use independent salts, and Net10 intentionally excludes
+`smtprelayerpassword`. No backup timing ratio or exact XML equivalence claim is
+valid yet. Next: document/validate those remaining compatibility differences
+and capture equivalent timing, then proceed to registered COM/Admin and SEC-18
+caller-token evidence. Production service, DB, Data, COM registration, and
+DCOM ACLs remain untouched.
+
 ## Current authoritative continuation (2026-09-03, paired backup collector blocked)
 
 The paired C++/Net10 SQL/Data fixture is valid and was provisioned with two

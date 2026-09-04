@@ -10389,3 +10389,29 @@ skipped, 5 failed` with the existing registered COM `E_NOINTERFACE` failures.
 Next slice: attest SQL connection-pool usage and IMAP session/query fan-out on
 a fresh disposable fixture, then rerun the required levels with unchanged
 failure accounting.
+## Current authoritative status (2026-09-04, paired backup account projection)
+
+Code/test commit `3f5603e44` closes a legacy account-backup projection gap.
+Legacy `PersistentAccount::ReadObject`
+(`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:146-195`)
+normalizes plaintext account rows to the preferred salted SHA-256 format and
+preserves the DB-provided vacation expiry string. Net10 now does the same in
+`SqlServerAccountAdministrationStore.GetBackupAccountsAsync` and formats SQL
+datetime values through `GetBackupAccountsSql` as `yyyy-MM-dd HH:mm:ss`.
+The disposable SQL regression passed `2/2`, including password verification
+without plaintext exposure and a full timestamp assertion. The full Debug
+suite passed `2808/2808` with `97` intentional opt-in skips.
+
+The paired disposable C++ COM backup is no longer environment-blocked: mode 15
+produced a verified 7z archive in `3.633 s`, and the paired Net10 run produced
+its archive. DataBackup comparison passed for `1000/1000` files. XML semantic
+comparison remains RED because C++ emits empty top-level containers, password
+hashes have independent salts, and Net10 intentionally omits
+`smtprelayerpassword`. Do not claim exact backup equivalence or a backup speed
+ratio from this evidence.
+
+**Next independent slices:** complete a documented compatibility profile for
+the remaining backup XML differences and run equivalent backup timing; then
+continue the isolated registered COM/Admin lifecycle and SEC-18 caller-token
+gates. Restore/installer rollback, AD/SSPI, exact Full-Text transaction
+equivalence, DKIM/DMARC/SPF, and soak remain release blockers.

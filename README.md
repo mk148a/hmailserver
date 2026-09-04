@@ -14,6 +14,28 @@ sibling is removed. The old raw-staging backlog item is stale. This is
 disposable SQL acceptance only; same-fixture C++/Net10 semantic comparison
 and paired timing are still required before any cross-implementation claim.
 
+## Current paired COM backup evidence (2026-09-04)
+
+The disposable paired fixture now has a verified legacy C++ COM backup and a
+Net10 backup from separate SQL/Data clones containing the same 1,000 message
+rows and byte-matched Data trees. The legacy run used
+`BackupExecuter::StartBackup` through `Settings.Backup` and completed in
+`3.633 s`; the C++ archive and worker were disposable and the installed
+Application registry graph was unchanged. The Net10 run produced the matching
+compressed `DataBackup` payload. The payload comparator found `1000/1000`
+DataBackup files equal by size and SHA-256.
+
+This does not make the XML comparison a PASS: C++ emits empty top-level
+containers that Net10 intentionally omits, legacy salted password values are
+not byte-comparable, and Net10 intentionally excludes `smtprelayerpassword`
+from the settings backup projection. The Net10 backup account projection now
+matches the legacy `PersistentAccount::ReadObject` behavior by converting a
+plaintext `accountpwencryption=0` row to a legacy salted SHA-256 value and by
+preserving the full `accountvacationexpiredate` timestamp. Focused disposable
+SQL coverage is `2/2`; full Debug is `2808 passed, 97 skipped, 0 failed / 2905`.
+No backup speed ratio or release-ready parity claim is made. The performance
+gate remains **RED**.
+
 ## Current backup semantic comparator (2026-09-03)
 
 Code/test commit `c15fbe1f3` extends

@@ -288,24 +288,35 @@ xychart-beta
     bar [0.015, 0.097]
 ```
 
-## Backup evidence, not a paired timing claim
+## Paired backup evidence, semantic comparison still RED
 
 The disposable C++ service was authenticated through the legacy COM
 `Application.Authenticate` path and executed `Settings.Backup` plus
-`BackupManager.StartBackup` with mode `7` (settings, domains, messages) and
-raw destination files. The archive completed in `1.034 s`; the resulting 7z
-was tested successfully, and extracted XML proved `Mode=7`, version
-`1.0.0-B0`, and a `DataFiles` element. The first attempt exposed only a
-staging helper-path issue (`ProgramFolder\Bin\7za.exe`); the disposable
-`Bin\Bin\7za.exe` helper was removed after the successful run.
+`BackupManager.StartBackup` with mode `15` (settings, domains, messages, and
+compression) against the paired disposable C++ SQL/Data clone. The corrected
+disposable service used the rebuilt stage executable
+`28BD6E090E7412F9D9194FDED1AEA31BE6941232E7B7DE44E5C3683C3CA8DAA0`; COM
+backup completed in `3.633 s`, produced a `7,330` byte 7z archive, and left
+the installed Application registry graph unchanged. No production service,
+database, Data directory, or DCOM configuration was used.
 
-The current Net10 isolated backup -> restore -> backup acceptance also passed
-`25/25` in `42.608 s`, with isolated Integrated Security SQL/Data roots and no
-production targets. These are complementary acceptance results, not a paired
-latency comparison: the C++ row is one live COM mode-7 backup, while the Net10
-duration is a 25-test round-trip suite. No backup speed ratio is reported.
-Exact same-fixture, same-mode C++/Net10 backup timing and semantic equivalence
-remain open, as do installed COM and production rollback gates.
+The matching Net10 run used its paired SQL/Data clone and produced a `15,691`
+byte 7z archive. The retained payload comparator found `1000/1000`
+DataBackup files equal by length and SHA-256. XML comparison remains `FAIL`
+for explicit compatibility differences: C++ emits empty top-level containers
+that Net10 currently omits, password hashes contain independent salts, and
+Net10 excludes `smtprelayerpassword` from its settings projection. The Net10
+account backup projection now follows legacy
+`PersistentAccount::ReadObject` (`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:146-195`):
+plaintext password rows are converted to the preferred salted SHA-256 format
+before serialization, and the backup SQL projection preserves the full
+`yyyy-MM-dd HH:mm:ss` vacation-expiry value. The focused SQL regression is
+`BackupAccounts_HashPlaintextRowsWithLegacySaltedSha256`.
+
+This is paired archive evidence, not a backup speed ratio: the Net10 runner did
+not capture an equivalent elapsed-time sample. Exact XML semantic equivalence,
+backup timing acceptance, installed COM lifecycle, and production rollback
+remain open. The performance gate remains **RED**.
 
 ## Previously accepted cells not rerun in this report
 
