@@ -1,6 +1,27 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-04, blocked-attachment projection)
+## Current authoritative continuation (2026-09-04, SURBL projection)
+
+Code/test commit `452715330` adds the bounded legacy `SURBLServers` settings
+backup projection. The C++ references are `SURBLServers::Refresh` at
+`hmailserver/source/Server/Common/BO/SURBLServers.cpp:27` and
+`SURBLServer::XMLStore` at
+`hmailserver/source/Server/Common/BO/SURBLServer.cpp:24-47`. Net10 reads
+`hm_surblservers` inside the backup snapshot transaction and emits the legacy
+item attributes in order. Focused coverage is `75/75`; the latest full Debug
+suite is `2812 passed, 97 skipped, 0 failed / 2909`.
+
+The projection is not restore parity. Restore parsing/application for
+`SecurityRanges`, `TCPIPPorts`, `BlockedAttachments`, and `SURBLServers`
+remains open. The paired comparator still fails on non-empty `DNSBlackLists`,
+and equivalent backup timing is missing. Next bounded slice: `DNSBlackLists`
+backup projection, after fresh legacy parity inspection. Registered COM/Admin,
+SEC-18 caller-token, restore/installer rollback, AD/SSPI, DKIM/DMARC/SPF,
+exact Full-Text transaction equivalence, and performance acceptance remain
+release blockers. Production service, DB, Data, COM registration, and DCOM
+ACLs remain untouched.
+
+## Historical status (2026-09-04, blocked-attachment projection)
 
 Code/test commit `778b83f81` adds the bounded legacy
 `BlockedAttachments` settings-backup projection after the previously

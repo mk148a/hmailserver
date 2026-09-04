@@ -3,6 +3,23 @@ hMailServer
 
 ## Current backup projection status (2026-09-04)
 
+Code/test commit `452715330` adds the bounded legacy `SURBLServers` settings
+backup projection. The C++ anchors are `SURBLServers::Refresh` in
+`hmailserver/source/Server/Common/BO/SURBLServers.cpp:27` and
+`SURBLServer::XMLStore` in
+`hmailserver/source/Server/Common/BO/SURBLServer.cpp:24-47`. Net10 reads
+`hm_surblservers` through the backup snapshot transaction and writes the
+legacy `SURBLServers`/`SURBLServer` nodes in the established settings order
+with `Name`, `Active`, `RejectMessage`, and `Score` attributes. Focused
+coverage is `75/75`; the full Debug suite is `2812 passed, 97 skipped, 0
+failed / 2909`.
+
+This remains backup-side projection only. Restore parsing/application for
+`SecurityRanges`, `TCPIPPorts`, `BlockedAttachments`, and `SURBLServers` is
+still open. The paired comparator still fails because the disposable legacy
+fixture has non-empty `DNSBlackLists`, and equivalent paired backup timing is
+not available. The performance/release gate remains **RED**.
+
 Code/test commits `bac62c914`, `09c2748fe`, and `778b83f81` add legacy
 settings-backup projection for `SecurityRanges`, `TCPIPPorts`, and
 `BlockedAttachments`. The C++ references are

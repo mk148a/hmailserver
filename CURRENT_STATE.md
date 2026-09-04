@@ -1,14 +1,14 @@
 # Current State
-- UTC and local timestamp: 2026-09-04T09:00:00Z / 2026-09-04T12:00:00+03:00
+- UTC and local timestamp: 2026-09-04T10:52:08Z / 2026-09-04T13:52:08+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `778b83f81` (`Project blocked attachments in backup metadata`; docs commit follows)
-- Last successfully pushed commit: `49c5321be98eb7903b190c51a8aa82d61eb93661`
-- Latest focused-test result: SecurityRanges/TCPIPPorts/BlockedAttachments backup projection `73 passed`; BlockedAttachments SQL store filter `5 passed, 1 isolated opt-in skipped`; comparator harness passed
-- Latest full Net10 result: Debug `2811 passed, 97 skipped, 0 failed / 2908`
+- Current HEAD: `452715330` (`Project SURBL servers in backup metadata`; docs commit follows)
+- Last successfully pushed commit: `689ec1f73564926d0df8066f7ddcb1c2eb4a2364`
+- Latest focused-test result: SURBL backup projection, snapshot contract, and SQL store tests `75 passed, 0 skipped, 0 failed`; comparator harness remains passed for its covered inputs
+- Latest full Net10 result: Debug `2812 passed, 97 skipped, 0 failed / 2909`
 - Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for the BlockedAttachments mutation cell; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
-- Current bounded slice: BlockedAttachments backup projection completed; next is SURBLServers projection
+- Current bounded slice: SURBLServers backup projection completed; next is DNSBlackLists projection
 - Completed milestones: disposable C++ service launch; paired protocol/SMTP/IMAP/POP3/queue/retry evidence; 100,000-message IMAP SEARCH/SORT; file-backed SEARCH/SORT fallback; raw/compressed DataBackup staging; Net10 backup/restore round trip; Full-Text acceptance; IMAP ACL hardening; legacy INI handoff; rollback-aware upgrade guard; paired C++ COM backup archive generation
-- Open production blockers: restore parsing/application for projected `SecurityRanges`, `TCPIPPorts`, and `BlockedAttachments`; non-empty `SURBLServers` and `DNSBlackLists` backup projections and equivalent timing; installed out-of-process COM/Admin lifecycle; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18; AD/SSPI; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision.
+- Open production blockers: restore parsing/application for projected `SecurityRanges`, `TCPIPPorts`, `BlockedAttachments`, and `SURBLServers`; non-empty `DNSBlackLists` projection and equivalent backup timing; installed out-of-process COM/Admin lifecycle; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18; AD/SSPI; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision.
 - Environment-blocked work: independent COM caller-token evidence, AD/SSPI credentials, production-equivalent installer lifecycle, equivalent paired Full-Text timing, and long resource soak
 - Protected/do-not-touch areas: production service/SQL/Data; installed Application COM/DCOM registration; production IIS/firewall; dirty `AGENTS.md`; pre-existing benchmark, migration, staging, and deleted/untracked artifacts
-- Next three independent slices: SURBLServers backup projection; equivalent paired backup timing; restore parser/application for projected settings collections
+- Next three independent slices: DNSBlackLists backup projection; restore parser/application for projected settings collections; equivalent paired backup timing

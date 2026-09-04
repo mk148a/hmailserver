@@ -1,6 +1,24 @@
-## Current authoritative status (2026-09-04, blocked-attachment backup projection)
+## Current authoritative status (2026-09-04, SURBL backup projection)
 
-### Superseded by current backup projection commits
+Code/test commit `452715330` completes the bounded legacy
+`SURBLServers` settings-backup projection. The C++ anchors are
+`SURBLServers::Refresh` in
+`hmailserver/source/Server/Common/BO/SURBLServers.cpp:27` and
+`SURBLServer::XMLStore` in
+`hmailserver/source/Server/Common/BO/SURBLServer.cpp:24-47`.
+Net10 reads `hm_surblservers` through the snapshot transaction and emits the
+legacy item attributes `Name`, `Active`, `RejectMessage`, and `Score` in the
+established settings order. Focused coverage is `75/75`; full Debug is
+`2812 passed, 97 skipped, 0 failed / 2909`.
+
+This is still a backup projection, not restore parity. Restore parsing and
+transactional application for `SecurityRanges`, `TCPIPPorts`,
+`BlockedAttachments`, and `SURBLServers` remains open. The paired comparator
+still fails on non-empty legacy `DNSBlackLists`, and equivalent paired backup
+timing is not available. Next bounded slice: inspect and project
+`DNSBlackLists` against the legacy C++ behavior. Keep the release gate RED.
+
+## Historical status (2026-09-04, blocked-attachment projection)
 
 Code/test commit `778b83f81` now projects legacy `BlockedAttachments` after
 the earlier `SecurityRanges` and `TCPIPPorts` slices. The C++ anchors are
