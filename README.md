@@ -3,22 +3,22 @@ hMailServer
 
 ## Current backup restore status (2026-09-04)
 
-Code/test commit `baf9bc728` completes the bounded `TCPIPPorts` restore slice.
-Legacy `Configuration::XMLLoad` dispatches the node at
-`hmailserver/source/Server/Common/Application/Configuration.cpp:742`, while
-`TCPIPPort::XMLLoad` (`hmailserver/source/Server/Common/BO/TCPIPPort.cpp:57-75`)
-parses protocol, port, address, connection security, and certificate name.
-`TCPIPPort::XMLStore` (`TCPIPPort.cpp:38-55`) defines the archive attributes;
-`TCPIPPorts::Refresh` (`TCPIPPorts.cpp:26-35`) defines the legacy SQL ordering.
-Net10 now parses those nodes, replaces the collection in a shared SQL
-transaction, resolves `SSLCertificateName`, inserts generated identities,
-and rolls back on failure. Focused coverage is `63/63`; the full Debug suite
-is `2830 passed, 97 skipped, 0 failed / 2927`.
+Code/test commit `c52fbc3f0` completes the bounded `BlockedAttachments`
+restore slice. Legacy `Configuration::XMLLoad` dispatches the node at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:745`,
+`Collection<T,P>::XMLLoad` deletes the existing collection and inserts direct
+children in XML order (`hmailserver/source/Server/Common/BO/Collection.h:99-125`),
+and `BlockedAttachment::XMLLoad` parses `Name` and `Description`
+(`hmailserver/source/Server/Common/BO/BlockedAttachment.cpp:35-42`).
+`BlockedAttachments::Refresh` preserves SQL ordering by `bawildcard ASC`
+(`hmailserver/source/Server/Common/BO/BlockedAttachments.cpp:27-34`). Net10
+now applies the same replacement through a shared SQL transaction, assigns
+generated IDs, and rolls back on failure. Focused coverage is `67/67`; the
+full Debug suite is `2835 passed, 97 skipped, 0 failed / 2932`.
 
-Restore parsing/application for `BlockedAttachments`, `SURBLServers`, and
-`DNSBlackLists` remains open. Fresh paired archive comparison and equivalent
-backup timing are still required. The performance/release gate remains
-**RED**.
+Restore parsing/application for `SURBLServers` and `DNSBlackLists` remains
+open. Fresh paired archive comparison and equivalent backup timing are still
+required. The performance/release gate remains **RED**.
 
 Code/test commit `1003f134d` adds the bounded legacy `DNSBlackLists`
 settings-backup projection. The C++ anchors are `DNSBlackLists::Refresh` in

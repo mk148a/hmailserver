@@ -1,6 +1,28 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-04, TCPIPPorts restore)
+## Current authoritative continuation (2026-09-04, BlockedAttachments restore)
+
+Code/test commit `c52fbc3f0` completes the bounded `BlockedAttachments`
+restore slice. The legacy anchors are `Configuration::XMLLoad` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:745`,
+`Collection<T,P>::XMLLoad` at `hmailserver/source/Server/Common/BO/Collection.h:99-125`,
+`BlockedAttachment::XMLLoad` at
+`hmailserver/source/Server/Common/BO/BlockedAttachment.cpp:35-42`, and
+`BlockedAttachments::Refresh` at
+`hmailserver/source/Server/Common/BO/BlockedAttachments.cpp:27-34`. Net10
+now parses the legacy attributes, replaces the collection in the shared SQL
+transaction, assigns generated IDs, and rolls back failed inserts. Focused
+coverage is `67/67`; full Debug is `2835 passed, 97 skipped, 0 failed / 2932`.
+
+Next bounded slice: restore `SURBLServers` after a fresh legacy XML and SQL
+inspection. `DNSBlackLists` restore, fresh paired archive comparison,
+equivalent backup timing, registered COM/Admin lifecycle, SEC-18 caller-token
+evidence, installer rollback drill, AD/SSPI credentials, DKIM/DMARC/SPF,
+exact Full-Text transaction equivalence, and performance acceptance remain
+release blockers. Production service, DB, Data, COM registration, DCOM ACLs,
+IIS, and firewall state remain untouched.
+
+## Historical continuation (2026-09-04, TCPIPPorts restore)
 
 Code/test commit `baf9bc728` completes the bounded `TCPIPPorts` restore slice.
 The legacy anchors are `Configuration::XMLLoad` at

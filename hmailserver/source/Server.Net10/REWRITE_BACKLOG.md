@@ -10520,3 +10520,41 @@ Next bounded slice: restore `BlockedAttachments` using the same isolated
 transaction pattern after a fresh legacy XML/SQL inspection. Restore for
 `SURBLServers` and `DNSBlackLists`, fresh paired archive comparison, and
 equivalent backup timing remain open. Keep the release gate RED.
+## Current authoritative status (2026-09-04, BlockedAttachments restore)
+
+Code/test commit `c52fbc3f0` completes the bounded `BlockedAttachments`
+restore slice. Legacy `Configuration::XMLLoad` dispatches the node at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:745`.
+`Collection<T,P>::XMLLoad` deletes the existing collection and inserts direct
+children in XML order (`hmailserver/source/Server/Common/BO/Collection.h:99-125`);
+`BlockedAttachment::XMLLoad` parses `Name` and `Description` at
+`hmailserver/source/Server/Common/BO/BlockedAttachment.cpp:35-42`.
+`BlockedAttachments::Refresh` orders by `bawildcard ASC` at
+`hmailserver/source/Server/Common/BO/BlockedAttachments.cpp:27-34`. Net10
+now parses the node, replaces it through the shared SQL transaction, assigns
+generated IDs, and rolls back failed inserts. Focused coverage is `67/67`;
+full Debug is `2835 passed, 97 skipped, 0 failed / 2932`.
+
+Next bounded slice: restore `SURBLServers` using the same isolated transaction
+pattern after a fresh legacy XML/SQL inspection. Restore for `DNSBlackLists`,
+fresh paired archive comparison, and equivalent backup timing remain open.
+Keep the release gate RED.
+## Current authoritative status (2026-09-04, BlockedAttachments restore)
+
+Code/test commit `c52fbc3f0` completes the bounded `BlockedAttachments`
+restore slice. Legacy `Configuration::XMLLoad` dispatches the node at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:745`.
+`Collection<T,P>::XMLLoad` deletes the existing collection and inserts direct
+children in XML order (`hmailserver/source/Server/Common/BO/Collection.h:99-125`);
+`BlockedAttachment::XMLLoad` parses `Name` and `Description` at
+`hmailserver/source/Server/Common/BO/BlockedAttachment.cpp:35-42`.
+`BlockedAttachments::Refresh` orders by `bawildcard ASC` at
+`hmailserver/source/Server/Common/BO/BlockedAttachments.cpp:27-34`. Net10
+now parses the node, replaces it through the shared SQL transaction, assigns
+generated IDs, and rolls back failed inserts. Focused coverage is `67/67`;
+full Debug is `2835 passed, 97 skipped, 0 failed / 2932`.
+
+Next bounded slice: restore `SURBLServers` using the same isolated transaction
+pattern after a fresh legacy XML/SQL inspection. Restore for `DNSBlackLists`,
+fresh paired archive comparison, and equivalent backup timing remain open.
+Keep the release gate RED.
