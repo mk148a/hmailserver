@@ -1,6 +1,28 @@
 hMailServer
 ===========
 
+## Current authoritative status (2026-09-04, DNSBlackLists restore)
+
+Code/test commit `7457665fd` completes the bounded `DNSBlackLists` restore
+slice. Legacy `DNSBlackLists::Refresh()` reads `hm_dnsbl` in `sblid ASC`
+order (`hmailserver/source/Server/Common/BO/DNSBlackLists.cpp:24-32`),
+while `DNSBlackList::XMLStore/XMLLoad()` preserves `Name`, `Active`,
+`RejectMessage`, `ExpectedResult`, and `Score`
+(`hmailserver/source/Server/Common/BO/DNSBlackList.cpp:26-48`). The generic
+`Collection<T,P>::XMLLoad()` replaces the collection and saves direct XML
+children in order (`hmailserver/source/Server/Common/BO/Collection.h:85-130`).
+Net10 now parses and replaces DNSBL rows inside the shared SQL transaction,
+assigns generated IDs, and rolls back failed inserts. Focused coverage is
+`76/76`; full Debug is `2845 passed, 97 skipped, 0 failed / 2942`.
+
+The next restore gap is complete round-trip validation against a fresh legacy
+archive. Fresh paired archive comparison and equivalent backup timing,
+registered COM/Admin lifecycle, SEC-18 caller-token evidence, installer and
+upgrade rollback drill, AD/SSPI credentials, exact Full-Text transaction
+equivalence, DKIM/DMARC/SPF, and performance acceptance remain release
+blockers. The 24-hour soak is deferred by user decision and the release gate
+remains **RED**.
+
 ## Current backup restore status (2026-09-04)
 
 Code/test commit `c52fbc3f0` completes the bounded `BlockedAttachments`

@@ -1,3 +1,26 @@
+## Current authoritative status (2026-09-04, DNSBlackLists restore)
+
+Code/test commit `7457665fd` completes the bounded `DNSBlackLists` restore
+slice. Legacy `DNSBlackLists::Refresh()` reads `hm_dnsbl` in `sblid ASC`
+order (`hmailserver/source/Server/Common/BO/DNSBlackLists.cpp:24-32`), and
+`DNSBlackList::XMLStore/XMLLoad()` preserves `Name`, `Active`,
+`RejectMessage`, `ExpectedResult`, and `Score`
+(`hmailserver/source/Server/Common/BO/DNSBlackList.cpp:26-48`). The generic
+`Collection<T,P>::XMLLoad()` replaces the collection and saves direct XML
+children in order (`hmailserver/source/Server/Common/BO/Collection.h:85-130`).
+Net10 now parses and applies DNSBL rows through the shared SQL transaction,
+assigns generated IDs, and rolls back failed inserts. Focused coverage is
+`76/76`; full Debug is `2845 passed, 97 skipped, 0 failed / 2942`.
+
+Next bounded slice: fresh legacy/.NET backup -> restore -> backup round-trip
+comparison for the projected settings collections. Registered COM/Admin
+lifecycle, SEC-18 caller-token evidence, installer and upgrade rollback,
+AD/SSPI credentials, DKIM/DMARC/SPF, exact Full-Text transaction
+equivalence, fresh paired timing, and performance acceptance remain open.
+The release gate remains **RED**; the 24-hour soak is deferred by user
+decision. Production service, DB, Data, COM registration, DCOM ACLs, IIS, and
+firewall state remain untouched.
+
 ## Historical status (2026-09-04, SecurityRanges restore)
 
 Code/test commit `d244c6042` completes the bounded `SecurityRanges` restore

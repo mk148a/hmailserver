@@ -1,26 +1,26 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-04, BlockedAttachments restore)
+## Current authoritative continuation (2026-09-04, DNSBlackLists restore)
 
-Code/test commit `c52fbc3f0` completes the bounded `BlockedAttachments`
-restore slice. The legacy anchors are `Configuration::XMLLoad` at
-`hmailserver/source/Server/Common/Application/Configuration.cpp:745`,
-`Collection<T,P>::XMLLoad` at `hmailserver/source/Server/Common/BO/Collection.h:99-125`,
-`BlockedAttachment::XMLLoad` at
-`hmailserver/source/Server/Common/BO/BlockedAttachment.cpp:35-42`, and
-`BlockedAttachments::Refresh` at
-`hmailserver/source/Server/Common/BO/BlockedAttachments.cpp:27-34`. Net10
-now parses the legacy attributes, replaces the collection in the shared SQL
-transaction, assigns generated IDs, and rolls back failed inserts. Focused
-coverage is `67/67`; full Debug is `2835 passed, 97 skipped, 0 failed / 2932`.
+Code/test commit `7457665fd` completes the bounded `DNSBlackLists` restore
+slice. Legacy `DNSBlackLists::Refresh()` reads `hm_dnsbl` ordered by
+`sblid ASC` at `hmailserver/source/Server/Common/BO/DNSBlackLists.cpp:24-32`;
+`DNSBlackList::XMLStore/XMLLoad()` at
+`hmailserver/source/Server/Common/BO/DNSBlackList.cpp:26-48` preserves the
+five legacy attributes. `Collection<T,P>::XMLLoad()` at
+`hmailserver/source/Server/Common/BO/Collection.h:85-130` replaces the
+collection and saves direct XML children in order. Net10 now performs the
+same replacement through a shared SQL transaction, assigns generated IDs,
+and rolls back failed inserts. Focused coverage is `76/76`; full Debug is
+`2845 passed, 97 skipped, 0 failed / 2942`.
 
-Next bounded slice: restore `SURBLServers` after a fresh legacy XML and SQL
-inspection. `DNSBlackLists` restore, fresh paired archive comparison,
-equivalent backup timing, registered COM/Admin lifecycle, SEC-18 caller-token
-evidence, installer rollback drill, AD/SSPI credentials, DKIM/DMARC/SPF,
-exact Full-Text transaction equivalence, and performance acceptance remain
-release blockers. Production service, DB, Data, COM registration, DCOM ACLs,
-IIS, and firewall state remain untouched.
+Next bounded slice: fresh legacy/.NET backup -> restore -> backup round-trip
+comparison for the projected settings collections. Fresh paired archive
+comparison, equivalent backup timing, registered COM/Admin lifecycle,
+SEC-18 caller-token evidence, installer and upgrade rollback drill, AD/SSPI
+credentials, DKIM/DMARC/SPF, exact Full-Text transaction equivalence, and
+performance acceptance remain release blockers. Production service, DB, Data,
+COM registration, DCOM ACLs, IIS, and firewall state remain untouched.
 
 ## Historical continuation (2026-09-04, TCPIPPorts restore)
 

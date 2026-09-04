@@ -1,14 +1,14 @@
 # Current State
-- UTC and local timestamp: 2026-09-04T12:35:00Z / 2026-09-04T15:35:00+03:00
+- UTC and local timestamp: 2026-09-04T14:20:00Z / 2026-09-04T17:20:00+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `a8e901193` (`Record blocked attachment restore continuation`)
-- Last successfully pushed commit: `a8e901193c4ba4351e06040e17245fff97706d16`
-- Latest focused-test result: TCPIPPorts and BlockedAttachments parser/restore execution and related SQL store tests `67 passed, 0 skipped, 0 failed`
-- Latest full Net10 result: Debug `2835 passed, 97 skipped, 0 failed / 2932`
-- Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for the BlockedAttachments mutation cell; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
-- Current bounded slice: BlockedAttachments restore completed in `c52fbc3f0`; docs/backlog/handoff recorded in `a8e901193`
+- Current HEAD: `7457665fd` (`Restore DNS blacklists from backup metadata`)
+- Last successfully pushed commit: `cd9e1eb19afa88101f752e9851923123d1149f76`
+- Latest focused-test result: DNSBL parser/restore execution and SQL store tests `76 passed, 0 skipped, 0 failed`
+- Latest full Net10 result: Debug `2845 passed, 97 skipped, 0 failed / 2942`
+- Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for restore mutation acceptance; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
+- Current bounded slice: DNSBlackLists restore completed in `7457665fd`; docs/backlog/handoff pending in this docs commit
 - Completed milestones: disposable C++ service launch; paired protocol/SMTP/IMAP/POP3/queue/retry evidence; 100,000-message IMAP SEARCH/SORT; file-backed SEARCH/SORT fallback; raw/compressed DataBackup staging; Net10 backup/restore round trip; Full-Text acceptance; IMAP ACL hardening; legacy INI handoff; rollback-aware upgrade guard; paired C++ COM backup archive generation
-- Open production blockers: restore parsing/application for projected `SURBLServers` and `DNSBlackLists`; fresh paired comparator evidence and equivalent backup timing; installed out-of-process COM/Admin lifecycle; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18; AD/SSPI; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision.
+- Open production blockers: fresh backup -> restore -> backup round-trip against a legacy archive; fresh paired comparator evidence and equivalent backup timing; installed out-of-process COM/Admin lifecycle; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18; AD/SSPI; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision.
 - Environment-blocked work: independent COM caller-token evidence, AD/SSPI credentials, production-equivalent installer lifecycle, equivalent paired Full-Text timing, and long resource soak
 - Protected/do-not-touch areas: production service/SQL/Data; installed Application COM/DCOM registration; production IIS/firewall; dirty `AGENTS.md`; pre-existing benchmark, migration, staging, and deleted/untracked artifacts
-- Next three independent slices: SURBL/DNSBL restore; fresh paired backup comparator; isolated installer rollback drill when disposable infrastructure returns
+- Next three independent slices: fresh projected-settings round-trip comparator; isolated installer rollback drill when disposable infrastructure returns; repository-only COM/Admin retained-object and direct-activation matrix expansion
