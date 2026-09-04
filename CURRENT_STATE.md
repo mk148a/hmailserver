@@ -1,8 +1,8 @@
 # Current State
 - UTC and local timestamp: 2026-09-04T11:51:51Z / 2026-09-04T14:51:51+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `4d6835c98` (`Document security range restore gate`)
-- Last successfully pushed commit: `4d6835c989dfd2ab8b88f6dc5229c3640bdaf9f6`
+- Current HEAD: `1c0ed3e70` (`Record verified security range restore push`)
+- Last successfully pushed commit: `1c0ed3e70780996713aaa6c38f87ef1e4936aa04`
 - Latest focused-test result: SecurityRanges parser, restore writer, execution, and SQL store tests `70 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: Debug `2824 passed, 97 skipped, 0 failed / 2921`
 - Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for the BlockedAttachments mutation cell; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
