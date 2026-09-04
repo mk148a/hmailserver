@@ -38,6 +38,10 @@ DELETE FROM hm_surblservers
 WHERE surblid = @id;
 """;
 
+    public const string DeleteAllSurblServersSql = """
+DELETE FROM hm_surblservers;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
@@ -98,6 +102,37 @@ WHERE surblid = @id;
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<int> InsertSurblServerForRestoreAsync(
+        SurblServerAdministrationSnapshot server,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(server);
+
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertSurblServerSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
+        command.Parameters.Add("@active", SqlDbType.Bit).Value = server.Active;
+        command.Parameters.Add("@dnsHost", SqlDbType.NVarChar, 255).Value = server.DnsHost;
+        command.Parameters.Add("@rejectMessage", SqlDbType.NVarChar, 255).Value = server.RejectMessage;
+        command.Parameters.Add("@score", SqlDbType.Int).Value = server.Score;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    internal async ValueTask DeleteAllSurblServersForRestoreAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteAllSurblServersSql,
+            cancellationToken).ConfigureAwait(false);
+        await commandLease.Command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<bool> UpdateSurblServerAsync(

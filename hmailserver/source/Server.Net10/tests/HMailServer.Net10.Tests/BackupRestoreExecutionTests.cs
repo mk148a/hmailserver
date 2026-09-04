@@ -118,6 +118,19 @@ public sealed class BackupRestoreExecutionTests
         </Backup>
         """;
 
+    private const string SettingsSurblServersArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="1" />
+          <Properties><hostname LongValue="0" StringValue="restored.example" /></Properties>
+          <SURBLServers>
+            <SURBLServer Name="multi.surbl.org" Active="1"
+                         RejectMessage="Rejected" Score="3" />
+            <SURBLServer Name="black.example" Active="0"
+                         RejectMessage="Blocked" Score="5" />
+          </SURBLServers>
+        </Backup>
+        """;
+
     [TestMethod]
     public async Task ExecuteAsync_RestoresOnlyQueuedMetadataSections()
     {
@@ -588,6 +601,64 @@ public sealed class BackupRestoreExecutionTests
         Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
         Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
         Assert.IsEmpty(stores.BlockedAttachments.Items);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SettingsOnlyReplacesSurblServersInsideTheSqlTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsSurblServersArchiveXml);
+        var stores = new RecordingStores();
+        stores.SurblServers.Items.Add(new SurblServerAdministrationSnapshot(
+            99, true, "old.example", "Old", 1));
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, transactionFactory.SurblServerDeleteCount);
+        Assert.AreEqual(2, stores.SurblServers.InsertAttempts);
+        CollectionAssert.AreEqual(
+            new[] { "multi.surbl.org", "black.example" },
+            stores.SurblServers.Items.Select(static item => item.DnsHost).ToArray());
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SurblServerFailureDisposesTransactionWithoutCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsSurblServersArchiveXml);
+        var stores = new RecordingStores();
+        stores.SurblServers.Fail = true;
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.SurblServerDeleteCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
+        Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
+        Assert.IsEmpty(stores.SurblServers.Items);
     }
 
     [TestMethod]
@@ -1270,6 +1341,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingSecurityRangeStore SecurityRanges { get; } = new();
         public RecordingTcpIpPortStore TcpIpPorts { get; } = new();
         public RecordingBlockedAttachmentStore BlockedAttachments { get; } = new();
+        public RecordingSurblServerStore SurblServers { get; } = new();
         public RecordingPublicFolderRestoreStore PublicFolders { get; } = new();
         public RecordingPublicMessageRestoreStore PublicMessages { get; } = new();
         public RecordingPublicFolderPermissionRestoreStore PublicPermissions { get; } = new();
@@ -1391,6 +1463,7 @@ public sealed class BackupRestoreExecutionTests
         public int SecurityRangeDeleteCount { get; private set; }
         public int TcpIpPortDeleteCount { get; private set; }
         public int BlockedAttachmentDeleteCount { get; private set; }
+        public int SurblServerDeleteCount { get; private set; }
         public bool FailDelete { get; set; }
         public RecordingMetadataTransaction? LastTransaction { get; private set; }
 
@@ -1439,6 +1512,13 @@ public sealed class BackupRestoreExecutionTests
             stores.BlockedAttachments.Items.Clear();
             return ValueTask.CompletedTask;
         }
+
+        public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken)
+        {
+            SurblServerDeleteCount++;
+            stores.SurblServers.Items.Clear();
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class CommitGatedMetadataTransactionFactory(
@@ -1470,6 +1550,7 @@ public sealed class BackupRestoreExecutionTests
         public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
         public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
         public IBlockedAttachmentAdministrationStore BlockedAttachmentStore => stores.BlockedAttachments;
+        public ISurblServerAdministrationStore SurblServerStore => stores.SurblServers;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
@@ -1481,6 +1562,9 @@ public sealed class BackupRestoreExecutionTests
             ValueTask.CompletedTask;
 
         public ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
@@ -1510,6 +1594,7 @@ public sealed class BackupRestoreExecutionTests
         public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
         public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
         public IBlockedAttachmentAdministrationStore BlockedAttachmentStore => stores.BlockedAttachments;
+        public ISurblServerAdministrationStore SurblServerStore => stores.SurblServers;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
@@ -1532,6 +1617,9 @@ public sealed class BackupRestoreExecutionTests
         public ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken)
             => factory.DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken);
 
+        public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken)
+            => factory.DeleteAllSurblServersForRestoreAsync(cancellationToken);
+
         public ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             CommitCount++;
@@ -1550,6 +1638,7 @@ public sealed class BackupRestoreExecutionTests
                 stores.SecurityRanges.Items.Clear();
                 stores.TcpIpPorts.Items.Clear();
                 stores.BlockedAttachments.Items.Clear();
+                stores.SurblServers.Items.Clear();
                 stores.Settings.Properties.Clear();
             }
 
@@ -1692,6 +1781,45 @@ public sealed class BackupRestoreExecutionTests
         public ValueTask DeleteBlockedAttachmentByIdAsync(
             int databaseId,
             CancellationToken cancellationToken) => ValueTask.CompletedTask;
+    }
+
+    private sealed class RecordingSurblServerStore : ISurblServerAdministrationStore
+    {
+        public List<SurblServerAdministrationSnapshot> Items { get; } = [];
+        public bool Fail { get; set; }
+        public int InsertAttempts { get; private set; }
+
+        public ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<SurblServerAdministrationSnapshot>>(Items);
+
+        public ValueTask<int> InsertSurblServerForRestoreAsync(
+            SurblServerAdministrationSnapshot server,
+            CancellationToken cancellationToken)
+        {
+            InsertAttempts++;
+            if (Fail)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Injected SURBL server restore failure."));
+            }
+
+            Items.Add(server with { Id = 900 + InsertAttempts });
+            return ValueTask.FromResult(900 + InsertAttempts);
+        }
+
+        public ValueTask<int> InsertSurblServerAsync(
+            SurblServerAdministrationSnapshot server,
+            CancellationToken cancellationToken) =>
+            InsertSurblServerForRestoreAsync(server, cancellationToken);
+
+        public ValueTask<bool> UpdateSurblServerAsync(
+            SurblServerAdministrationSnapshot server,
+            CancellationToken cancellationToken) => ValueTask.FromResult(true);
+
+        public ValueTask<bool> DeleteSurblServerByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken) => ValueTask.FromResult(true);
     }
 
     private sealed class RecordingPublicFolderRestoreStore : IImapFolderAdministrationRestoreStore

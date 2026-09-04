@@ -93,4 +93,15 @@ public sealed class SqlServerSurblServerAdministrationStoreTests
             new[] { typeof(int), typeof(CancellationToken) },
             method.GetParameters().Select(parameter => parameter.ParameterType).ToArray());
     }
+
+    [TestMethod]
+    public void DeleteAllSurblServersSql_ReplacesTheWholeLegacyCollection()
+    {
+        var sql = SqlServerSurblServerAdministrationStore.DeleteAllSurblServersSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_surblservers");
+        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+    }
 }

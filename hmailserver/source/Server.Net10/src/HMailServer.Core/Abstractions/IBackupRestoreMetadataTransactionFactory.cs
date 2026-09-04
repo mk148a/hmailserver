@@ -44,6 +44,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     IBlockedAttachmentAdministrationStore? BlockedAttachmentStore => null;
 
+    ISurblServerAdministrationStore? SurblServerStore => null;
+
     ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped domain deletion for restore is not implemented by this transaction.");
@@ -67,6 +69,10 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
     ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped blocked-attachment deletion for restore is not implemented by this transaction.");
+
+    ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Transaction-scoped SURBL server deletion for restore is not implemented by this transaction.");
 
     ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

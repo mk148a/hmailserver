@@ -263,6 +263,38 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseSurblServers_PreservesLegacyAttributesAndOrder()
+    {
+        const string xml = """
+            <Backup>
+              <Nested><SURBLServers><SURBLServer Name="ignored" /></SURBLServers></Nested>
+              <SURBLServers>
+                <SURBLServer Name="multi.surbl.org" Active="1"
+                             RejectMessage="Rejected" Score="3" />
+                <SURBLServer Name="black.example" Active="0"
+                             RejectMessage="Blocked" Score="5" />
+              </SURBLServers>
+            </Backup>
+            """;
+
+        var servers = BackupArchiveXmlSnapshotParser.ParseSurblServers(xml);
+
+        Assert.AreEqual(2, servers.Count);
+        Assert.IsTrue(servers[0].Server.Active);
+        Assert.AreEqual("multi.surbl.org", servers[0].Server.DnsHost);
+        Assert.AreEqual("Rejected", servers[0].Server.RejectMessage);
+        Assert.AreEqual(3, servers[0].Server.Score);
+        Assert.IsFalse(servers[1].Server.Active);
+        Assert.AreEqual("black.example", servers[1].Server.DnsHost);
+    }
+
+    [TestMethod]
+    public void ParseSurblServers_MissingContainerMeansEmpty()
+    {
+        Assert.IsEmpty(BackupArchiveXmlSnapshotParser.ParseSurblServers("<Backup />"));
+    }
+
+    [TestMethod]
     public void ParseGroupEntries_PreservesLegacyGroupAndMemberNames()
     {
         const string xml = """

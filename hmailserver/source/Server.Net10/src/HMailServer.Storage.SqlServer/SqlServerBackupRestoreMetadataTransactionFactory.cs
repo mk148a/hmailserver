@@ -45,6 +45,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     private readonly SqlServerSecurityRangeAdministrationStore _securityRangeStore;
     private readonly SqlServerTcpIpPortAdministrationStore _tcpIpPortStore;
     private readonly SqlServerBlockedAttachmentAdministrationStore _blockedAttachmentStore;
+    private readonly SqlServerSurblServerAdministrationStore _surblServerStore;
     private bool _commitStarted;
     private bool _committed;
 
@@ -61,11 +62,13 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         _securityRangeStore = new SqlServerSecurityRangeAdministrationStore(context);
         _tcpIpPortStore = new SqlServerTcpIpPortAdministrationStore(context);
         _blockedAttachmentStore = new SqlServerBlockedAttachmentAdministrationStore(context);
+        _surblServerStore = new SqlServerSurblServerAdministrationStore(context);
         GroupStore = _groupStore;
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         SecurityRangeStore = _securityRangeStore;
         TcpIpPortStore = _tcpIpPortStore;
         BlockedAttachmentStore = _blockedAttachmentStore;
+        SurblServerStore = _surblServerStore;
         DomainStore = _domainStore;
         AccountStore = new SqlServerAccountAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
@@ -117,6 +120,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public IBlockedAttachmentAdministrationStore BlockedAttachmentStore { get; }
 
+    public ISurblServerAdministrationStore SurblServerStore { get; }
+
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);
 
@@ -134,6 +139,9 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken) =>
         _blockedAttachmentStore.DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken);
+
+    public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken) =>
+        _surblServerStore.DeleteAllSurblServersForRestoreAsync(cancellationToken);
 
     public ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

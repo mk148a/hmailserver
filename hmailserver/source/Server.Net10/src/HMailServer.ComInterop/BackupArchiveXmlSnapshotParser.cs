@@ -72,6 +72,10 @@ public sealed record RestoreTcpIpPortEntry(
 public sealed record RestoreBlockedAttachmentEntry(
     BlockedAttachmentAdministrationSnapshot Attachment);
 
+[ComVisible(false)]
+public sealed record RestoreSurblServerEntry(
+    SurblServerAdministrationSnapshot Server);
+
 public static class BackupArchiveXmlSnapshotParser
 {
     public static IReadOnlyList<DomainAdministrationSnapshot> ParseDomains(string archiveXml)
@@ -263,6 +267,27 @@ public static class BackupArchiveXmlSnapshotParser
                     Id: 0,
                     Wildcard: element.Attribute("Name")?.Value ?? string.Empty,
                     Description: element.Attribute("Description")?.Value ?? string.Empty)))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<RestoreSurblServerEntry> ParseSurblServers(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var container = document.Root?.Elements("SURBLServers").FirstOrDefault();
+        if (container is null)
+        {
+            return Array.Empty<RestoreSurblServerEntry>();
+        }
+
+        return container.Elements("SURBLServer")
+            .Select(element => new RestoreSurblServerEntry(
+                new SurblServerAdministrationSnapshot(
+                    Id: 0,
+                    Active: element.Attribute("Active")?.Value == "1",
+                    DnsHost: element.Attribute("Name")?.Value ?? string.Empty,
+                    RejectMessage: element.Attribute("RejectMessage")?.Value ?? string.Empty,
+                    Score: IntAttr(element, "Score"))))
             .ToArray();
     }
 

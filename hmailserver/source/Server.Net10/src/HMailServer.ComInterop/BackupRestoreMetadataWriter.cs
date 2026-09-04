@@ -19,7 +19,8 @@ public sealed record BackupRestoreMetadataResult(
     int RestoredMessages = 0,
     int RestoredSecurityRanges = 0,
     int RestoredTcpIpPorts = 0,
-    int RestoredBlockedAttachments = 0);
+    int RestoredBlockedAttachments = 0,
+    int RestoredSurblServers = 0);
 
 [ComVisible(false)]
 public static class BackupRestoreMetadataWriter
@@ -220,6 +221,42 @@ public static class BackupRestoreMetadataWriter
             RestoredAliases: 0, RestoredDistributionLists: 0, RestoredRecipients: 0,
             RestoredTcpIpPorts: 0,
             RestoredBlockedAttachments: restored);
+    }
+
+    public static async ValueTask<BackupRestoreMetadataResult> RestoreSurblServersAsync(
+        IReadOnlyList<RestoreSurblServerEntry> servers,
+        ISurblServerAdministrationStore store,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
+    {
+        ArgumentNullException.ThrowIfNull(servers);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var restored = 0;
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var entry in servers)
+                {
+                    var insertedId = await store.InsertSurblServerForRestoreAsync(entry.Server, ct)
+                        .ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
+                    restored++;
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return new BackupRestoreMetadataResult(
+            RestoredDomains: 0,
+            RestoredAccounts: 0,
+            RestoredAliases: 0,
+            RestoredDistributionLists: 0,
+            RestoredRecipients: 0,
+            RestoredSurblServers: restored);
     }
 
     public static async ValueTask<BackupRestoreMetadataResult> RestoreFetchAccountsAsync(

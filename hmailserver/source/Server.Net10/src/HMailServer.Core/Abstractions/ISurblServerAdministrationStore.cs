@@ -10,6 +10,11 @@ public interface ISurblServerAdministrationStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("SURBL server insertion is not available in this store.");
 
+    ValueTask<int> InsertSurblServerForRestoreAsync(
+        SurblServerAdministrationSnapshot server,
+        CancellationToken cancellationToken) =>
+        InsertSurblServerAsync(server, cancellationToken);
+
     ValueTask<bool> UpdateSurblServerAsync(
         SurblServerAdministrationSnapshot server,
         CancellationToken cancellationToken) =>
