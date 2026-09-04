@@ -80,6 +80,19 @@ public sealed class BackupRestoreExecutionTests
         </Backup>
         """;
 
+    private const string SettingsSecurityRangesArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="1" />
+          <Properties><hostname LongValue="0" StringValue="restored.example" /></Properties>
+          <SecurityRanges>
+            <SecurityRange Name="first" LowerIP="10.0.0.1" UpperIP="10.0.0.9"
+                           Priority="7" Options="11" ExpiresTime="2026-07-01 12:30:00" Expires="1" />
+            <SecurityRange Name="second" LowerIP="10.0.0.10" UpperIP="10.0.0.19"
+                           Priority="3" Options="5" ExpiresTime="2026-07-02 12:30:00" Expires="0" />
+          </SecurityRanges>
+        </Backup>
+        """;
+
     [TestMethod]
     public async Task ExecuteAsync_RestoresOnlyQueuedMetadataSections()
     {
@@ -374,6 +387,65 @@ public sealed class BackupRestoreExecutionTests
         Assert.AreEqual(1, transactionFactory.BeginCount);
         Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
         Assert.AreEqual(0, stores.Settings.Properties.Count);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SettingsOnlyReplacesSecurityRangesInsideTheSqlTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsSecurityRangesArchiveXml);
+        var stores = new RecordingStores();
+        stores.SecurityRanges.Items.Add(
+            new SecurityRangeAdministrationSnapshot(99, "old", "192.0.2.1", "192.0.2.2", 1, 0, false, new DateTime(2026, 1, 1)));
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, transactionFactory.SecurityRangeDeleteCount);
+        CollectionAssert.AreEqual(
+            new[] { "first", "second" },
+            stores.SecurityRanges.Items.Select(static range => range.Name).ToArray());
+        Assert.AreEqual(0, stores.SecurityRanges.Items[0].Id);
+        Assert.AreEqual(2, stores.SecurityRanges.InsertAttempts);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SecurityRangeFailureDisposesTransactionWithoutCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsSecurityRangesArchiveXml);
+        var stores = new RecordingStores();
+        stores.SecurityRanges.Fail = true;
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.SecurityRangeDeleteCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
+        Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
+        Assert.IsEmpty(stores.SecurityRanges.Items);
     }
 
     [TestMethod]
@@ -1053,6 +1125,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingDistributionListStore DistributionLists { get; } = new();
         public RecordingRecipientStore Recipients { get; } = new();
         public RecordingSettingsRestoreStore Settings { get; } = new();
+        public RecordingSecurityRangeStore SecurityRanges { get; } = new();
         public RecordingPublicFolderRestoreStore PublicFolders { get; } = new();
         public RecordingPublicMessageRestoreStore PublicMessages { get; } = new();
         public RecordingPublicFolderPermissionRestoreStore PublicPermissions { get; } = new();
@@ -1171,6 +1244,7 @@ public sealed class BackupRestoreExecutionTests
     {
         public int BeginCount { get; private set; }
         public int DeleteCount { get; private set; }
+        public int SecurityRangeDeleteCount { get; private set; }
         public bool FailDelete { get; set; }
         public RecordingMetadataTransaction? LastTransaction { get; private set; }
 
@@ -1196,6 +1270,13 @@ public sealed class BackupRestoreExecutionTests
             stores.Aliases.Items.Clear();
             stores.DistributionLists.Items.Clear();
             stores.Recipients.Items.Clear();
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken)
+        {
+            SecurityRangeDeleteCount++;
+            stores.SecurityRanges.Items.Clear();
             return ValueTask.CompletedTask;
         }
     }
@@ -1226,6 +1307,7 @@ public sealed class BackupRestoreExecutionTests
         public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore => stores.PublicPermissions;
         public IGroupAdministrationStore GroupStore => stores.Groups;
         public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
+        public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
@@ -1257,6 +1339,7 @@ public sealed class BackupRestoreExecutionTests
         public IImapFolderPermissionAdministrationRestoreStore FolderPermissionRestoreStore => stores.PublicPermissions;
         public IGroupAdministrationStore GroupStore => stores.Groups;
         public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
+        public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
@@ -1269,6 +1352,9 @@ public sealed class BackupRestoreExecutionTests
             stores.Events.Add("delete-all-groups");
             return ValueTask.CompletedTask;
         }
+
+        public ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken) =>
+            factory.DeleteAllSecurityRangesForRestoreAsync(cancellationToken);
 
         public ValueTask CommitAsync(CancellationToken cancellationToken)
         {
@@ -1285,6 +1371,7 @@ public sealed class BackupRestoreExecutionTests
                 stores.Groups.Inserted.Clear();
                 stores.GroupMembers.Inserted.Clear();
                 stores.PublicPermissions.Inserted.Clear();
+                stores.SecurityRanges.Items.Clear();
             }
 
             return ValueTask.CompletedTask;
@@ -1314,6 +1401,40 @@ public sealed class BackupRestoreExecutionTests
             Properties.AddRange(properties);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class RecordingSecurityRangeStore : ISecurityRangeAdministrationStore
+    {
+        public List<SecurityRangeAdministrationSnapshot> Items { get; } = [];
+        public bool Fail { get; set; }
+        public int InsertAttempts { get; private set; }
+
+        public ValueTask<IReadOnlyList<SecurityRangeAdministrationSnapshot>> GetSecurityRangesAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<SecurityRangeAdministrationSnapshot>>(Items);
+
+        public ValueTask<int> InsertSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken)
+        {
+            InsertAttempts++;
+            if (Fail)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Injected security-range restore failure."));
+            }
+
+            Items.Add(range);
+            return ValueTask.FromResult(500 + InsertAttempts);
+        }
+
+        public ValueTask UpdateSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+        public ValueTask DeleteSecurityRangeByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
     private sealed class RecordingPublicFolderRestoreStore : IImapFolderAdministrationRestoreStore

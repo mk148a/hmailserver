@@ -38,6 +38,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     IGroupMemberAdministrationStore? GroupMemberStore => null;
 
+    ISecurityRangeAdministrationStore? SecurityRangeStore => null;
+
     ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped domain deletion for restore is not implemented by this transaction.");
@@ -49,6 +51,10 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
     ValueTask DeleteAllGroupsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped group deletion for restore is not implemented by this transaction.");
+
+    ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Transaction-scoped security-range deletion for restore is not implemented by this transaction.");
 
     ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

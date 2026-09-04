@@ -42,6 +42,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     private readonly SqlServerDomainAdministrationStore _domainStore;
     private readonly SqlServerImapFolderAdministrationStore _publicFolderStore;
     private readonly SqlServerGroupAdministrationStore _groupStore;
+    private readonly SqlServerSecurityRangeAdministrationStore _securityRangeStore;
     private bool _commitStarted;
     private bool _committed;
 
@@ -55,8 +56,10 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         _domainStore = new SqlServerDomainAdministrationStore(context);
         _publicFolderStore = new SqlServerImapFolderAdministrationStore(context);
         _groupStore = new SqlServerGroupAdministrationStore(context);
+        _securityRangeStore = new SqlServerSecurityRangeAdministrationStore(context);
         GroupStore = _groupStore;
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
+        SecurityRangeStore = _securityRangeStore;
         DomainStore = _domainStore;
         AccountStore = new SqlServerAccountAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
@@ -102,6 +105,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public IGroupMemberAdministrationStore GroupMemberStore { get; }
 
+    public ISecurityRangeAdministrationStore SecurityRangeStore { get; }
+
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);
 
@@ -110,6 +115,9 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ValueTask DeleteAllGroupsForRestoreAsync(CancellationToken cancellationToken) =>
         _groupStore.DeleteAllGroupsForRestoreAsync(cancellationToken);
+
+    public ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken) =>
+        _securityRangeStore.DeleteAllSecurityRangesForRestoreAsync(cancellationToken);
 
     public ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

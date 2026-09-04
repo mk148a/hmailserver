@@ -202,6 +202,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var archiveXml = _metadataReader.ReadMetadataXml(backup.ArchivePath);
         EnsureArchiveIdentity(backup);
         var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
+        var securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
         var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
         if (properties.Any(static property =>
                 string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
@@ -225,6 +226,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var settingsStore = metadataTransaction.SettingsStore
             ?? throw new InvalidOperationException(
                 "Settings-only restore requires a transaction-scoped settings store.");
+        var securityRangeStore = metadataTransaction.SecurityRangeStore
+            ?? throw new InvalidOperationException(
+                "Settings-only restore requires a transaction-scoped security-range store.");
+        await metadataTransaction.DeleteAllSecurityRangesForRestoreAsync(cancellationToken)
+            .ConfigureAwait(false);
         await metadataTransaction.DeleteAllGroupsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
         if (archiveGroups.Count > 0)
@@ -255,6 +261,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         await settingsStore
             .RestoreSettingsPropertiesAsync(properties, cancellationToken)
             .ConfigureAwait(false);
+        await BackupRestoreMetadataWriter.RestoreSecurityRangesAsync(
+            securityRanges,
+            securityRangeStore,
+            static () => default,
+            cancellationToken).ConfigureAwait(false);
         await metadataTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -328,6 +339,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
+        IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         if (backup.RestoreSettings)
         {
@@ -336,6 +348,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         if (backup.RestoreSettings)
         {
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
+            securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -351,6 +364,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             authorizationLeaseFactory: backup.AcquireAuthorizationLeaseAsync,
             cancellationToken: cancellationToken,
             settingsProperties: settingsProperties,
+            securityRanges: securityRanges,
             archiveGroups: archiveGroups).ConfigureAwait(false);
     }
 
@@ -439,6 +453,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         }
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
+        IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null;
         if (fullRestore)
@@ -446,6 +461,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             publicFolders = BackupArchiveXmlSnapshotParser.ParsePublicFolderEntries(archiveXml);
             archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
+            securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -479,8 +495,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                     useSqlTransaction: fullRestore,
                     authorizationLeaseFactory: null,
                      cancellationToken: ct,
-                    settingsProperties: settingsProperties,
-                    restorePublicFolders: fullRestore,
+                     settingsProperties: settingsProperties,
+                     securityRanges: securityRanges,
+                     restorePublicFolders: fullRestore,
                     publicFolders: publicFolders,
                     archiveGroups: archiveGroups),
                 commitOutcomeMayBeAmbiguous: fullRestore)
@@ -494,6 +511,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         Func<CancellationToken, ValueTask<IDisposable?>>? authorizationLeaseFactory,
         CancellationToken cancellationToken,
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null,
+        IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null,
         bool restorePublicFolders = false,
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null,
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null)
@@ -564,10 +582,16 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var groupStore = metadataTransaction?.GroupStore ?? _groupStore;
             var groupMemberStore = metadataTransaction?.GroupMemberStore ?? _groupMemberStore;
             var settingsStore = metadataTransaction?.SettingsStore;
+            var securityRangeStore = metadataTransaction?.SecurityRangeStore;
             if (settingsProperties is not null && settingsStore is null)
             {
                 throw new InvalidOperationException(
                     "Settings restore requires a transaction-scoped settings store.");
+            }
+            if (securityRanges is not null && securityRangeStore is null)
+            {
+                throw new InvalidOperationException(
+                    "Settings restore requires a transaction-scoped security-range store.");
             }
             if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Folders.Count > 0)
                 && folderRestoreStore is null)
@@ -624,6 +648,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 {
                     await metadataTransaction
                         .DeleteAllGroupsForRestoreAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                if (securityRanges is not null)
+                {
+                    await metadataTransaction
+                        .DeleteAllSecurityRangesForRestoreAsync(cancellationToken)
                         .ConfigureAwait(false);
                 }
                 if (restorePublicFolders)
@@ -823,6 +853,14 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                         await settingsStore!
                             .RestoreSettingsPropertiesAsync(settingsProperties, ct)
                             .ConfigureAwait(false);
+                    }
+                    if (securityRanges is not null)
+                    {
+                        await BackupRestoreMetadataWriter.RestoreSecurityRangesAsync(
+                            securityRanges,
+                            securityRangeStore!,
+                            static () => default,
+                            ct).ConfigureAwait(false);
                     }
                 },
                 commitAsync,

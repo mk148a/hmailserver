@@ -50,6 +50,10 @@ DELETE FROM hm_securityranges
 WHERE rangeid = @id;
 """;
 
+    public const string DeleteAllSecurityRangesForRestoreSql = """
+DELETE FROM hm_securityranges;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
@@ -188,6 +192,17 @@ WHERE rangeid = @id;
         var command = commandLease.Command;
         command.Parameters.Add("@id", SqlDbType.Int).Value = databaseId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    internal async ValueTask DeleteAllSecurityRangesForRestoreAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteAllSecurityRangesForRestoreSql,
+            cancellationToken).ConfigureAwait(false);
+        await commandLease.Command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static string FormatLegacyAddress(long address1, long? address2)

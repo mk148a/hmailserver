@@ -141,6 +141,54 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseSecurityRanges_UsesFirstDirectContainerAndPreservesChildOrder()
+    {
+        const string xml = """
+            <Backup>
+              <Nested><SecurityRanges><SecurityRange Name="ignored" /></SecurityRanges></Nested>
+              <SecurityRanges>
+                <SecurityRange Name="first" LowerIP="10.0.0.1" UpperIP="10.0.0.9"
+                               Priority="7" Options="11" ExpiresTime="2026-07-01 12:30:00" Expires="1" />
+                <Nested><SecurityRange Name="ignored-child" /></Nested>
+                <SecurityRange Name="second" LowerIP="::1" UpperIP="::2"
+                               Priority="3" Options="5" ExpiresTime="2026-07-02 12:30:00" Expires="01" />
+              </SecurityRanges>
+              <SecurityRanges><SecurityRange Name="ignored-container" /></SecurityRanges>
+            </Backup>
+            """;
+
+        var ranges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(xml);
+
+        Assert.AreEqual(2, ranges.Count);
+        Assert.AreEqual(0, ranges[0].Id);
+        Assert.AreEqual("first", ranges[0].Name);
+        Assert.AreEqual("10.0.0.1", ranges[0].LowerIp);
+        Assert.AreEqual("10.0.0.9", ranges[0].UpperIp);
+        Assert.AreEqual(7, ranges[0].Priority);
+        Assert.AreEqual(11, ranges[0].Options);
+        Assert.IsTrue(ranges[0].Expires);
+        Assert.AreEqual(new DateTime(2026, 7, 1, 12, 30, 0), ranges[0].ExpiresTime);
+        Assert.AreEqual("second", ranges[1].Name);
+        Assert.IsFalse(ranges[1].Expires);
+    }
+
+    [TestMethod]
+    public void ParseSecurityRanges_MissingOrEmptyContainerMeansEmpty()
+    {
+        Assert.IsEmpty(BackupArchiveXmlSnapshotParser.ParseSecurityRanges("<Backup />"));
+        Assert.IsEmpty(BackupArchiveXmlSnapshotParser.ParseSecurityRanges("<Backup><SecurityRanges /></Backup>"));
+    }
+
+    [TestMethod]
+    public void ParseSecurityRanges_UsesLegacyExpiryFallbackForMissingOrInvalidDate()
+    {
+        var ranges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(
+            "<Backup><SecurityRanges><SecurityRange Name=\"range\" ExpiresTime=\"invalid\" /></SecurityRanges></Backup>");
+
+        Assert.AreEqual(new DateTime(2001, 1, 1), ranges[0].ExpiresTime);
+    }
+
+    [TestMethod]
     public void ParseGroupEntries_PreservesLegacyGroupAndMemberNames()
     {
         const string xml = """

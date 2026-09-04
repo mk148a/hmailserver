@@ -315,6 +315,81 @@ public sealed class BackupRestoreMetadataWriterTests
             events);
     }
 
+    [TestMethod]
+    public async Task RestoreSecurityRangesAsync_InsertsInArchiveOrderAndReturnsGeneratedIds()
+    {
+        var store = new RecordingSecurityRangeStore();
+        var insertedIds = new List<int>();
+        var ranges = new[]
+        {
+            new SecurityRangeAdministrationSnapshot(0, "first", "10.0.0.1", "10.0.0.9", 7, 11, true, new DateTime(2026, 7, 1)),
+            new SecurityRangeAdministrationSnapshot(0, "second", "::1", "::2", 3, 5, false, new DateTime(2026, 7, 2))
+        };
+
+        var result = await BackupRestoreMetadataWriter.RestoreSecurityRangesAsync(
+            ranges,
+            store,
+            () => default,
+            CancellationToken.None,
+            insertedIds.Add);
+
+        Assert.AreEqual(2, result.RestoredSecurityRanges);
+        CollectionAssert.AreEqual(new[] { "first", "second" }, store.Inserted.Select(static range => range.Name).ToArray());
+        CollectionAssert.AreEqual(new[] { 401, 402 }, insertedIds);
+        Assert.IsTrue(store.Inserted.All(static range => range.Id == 0));
+    }
+
+    [TestMethod]
+    public async Task RestoreSecurityRangesAsync_RollsBackAfterInsertFailure()
+    {
+        var store = new RecordingSecurityRangeStore(failOnInsert: 2);
+        var rollbackCalls = 0;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            BackupRestoreMetadataWriter.RestoreSecurityRangesAsync(
+                new[]
+                {
+                    new SecurityRangeAdministrationSnapshot(0, "first", "10.0.0.1", "10.0.0.9", 1, 0, false, new DateTime(2026, 7, 1)),
+                    new SecurityRangeAdministrationSnapshot(0, "second", "10.0.0.10", "10.0.0.19", 2, 0, false, new DateTime(2026, 7, 1))
+                },
+                store,
+                () =>
+                {
+                    rollbackCalls++;
+                    return default;
+                },
+                CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, store.Inserted.Count);
+        Assert.AreEqual(1, rollbackCalls);
+    }
+
+    [TestMethod]
+    public async Task RestoreSecurityRangesAsync_RollsBackOnCancellationBeforeMutation()
+    {
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var store = new RecordingSecurityRangeStore();
+        var rollbackCalls = 0;
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(() =>
+            BackupRestoreMetadataWriter.RestoreSecurityRangesAsync(
+                new[]
+                {
+                    new SecurityRangeAdministrationSnapshot(0, "first", "10.0.0.1", "10.0.0.9", 1, 0, false, new DateTime(2026, 7, 1))
+                },
+                store,
+                () =>
+                {
+                    rollbackCalls++;
+                    return default;
+                },
+                cancellation.Token).AsTask());
+
+        Assert.IsEmpty(store.Inserted);
+        Assert.AreEqual(1, rollbackCalls);
+    }
+
     private sealed class RecordingDomainStore : IDomainAdministrationStore
     {
         public List<DomainAdministrationSnapshot> Inserted { get; } = new();
@@ -327,6 +402,37 @@ public sealed class BackupRestoreMetadataWriterTests
             Inserted.Add(domain);
             return ValueTask.FromResult(Inserted.Count);
         }
+    }
+
+    private sealed class RecordingSecurityRangeStore(int? failOnInsert = null) : ISecurityRangeAdministrationStore
+    {
+        public List<SecurityRangeAdministrationSnapshot> Inserted { get; } = [];
+
+        public ValueTask<IReadOnlyList<SecurityRangeAdministrationSnapshot>> GetSecurityRangesAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<SecurityRangeAdministrationSnapshot>>(Inserted);
+
+        public ValueTask<int> InsertSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken)
+        {
+            if (failOnInsert == Inserted.Count + 1)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Simulated security-range insert failure."));
+            }
+
+            Inserted.Add(range);
+            return ValueTask.FromResult(400 + Inserted.Count);
+        }
+
+        public ValueTask UpdateSecurityRangeAsync(
+            SecurityRangeAdministrationSnapshot range,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+        public ValueTask DeleteSecurityRangeByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
     private sealed class FailingDomainStore : IDomainAdministrationStore

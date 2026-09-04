@@ -81,4 +81,15 @@ public sealed class SqlServerSecurityRangeAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteAllSecurityRangesForRestoreSql_DeletesOnlyTheLegacySecurityRangeTable()
+    {
+        var sql = SqlServerSecurityRangeAdministrationStore.DeleteAllSecurityRangesForRestoreSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_securityranges");
+        Assert.IsFalse(sql.Contains("WHERE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+    }
 }

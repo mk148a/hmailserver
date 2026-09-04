@@ -189,6 +189,29 @@ public static class BackupArchiveXmlSnapshotParser
             .ToArray();
     }
 
+    public static IReadOnlyList<SecurityRangeAdministrationSnapshot> ParseSecurityRanges(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var container = document.Root?.Elements("SecurityRanges").FirstOrDefault();
+        if (container is null)
+        {
+            return Array.Empty<SecurityRangeAdministrationSnapshot>();
+        }
+
+        return container.Elements("SecurityRange")
+            .Select(element => new SecurityRangeAdministrationSnapshot(
+                Id: 0,
+                Name: element.Attribute("Name")?.Value ?? string.Empty,
+                LowerIp: element.Attribute("LowerIP")?.Value ?? string.Empty,
+                UpperIp: element.Attribute("UpperIP")?.Value ?? string.Empty,
+                Priority: IntAttr(element, "Priority"),
+                Options: IntAttr(element, "Options"),
+                Expires: element.Attribute("Expires")?.Value == "1",
+                ExpiresTime: SecurityRangeDateTimeAttr(element, "ExpiresTime")))
+            .ToArray();
+    }
+
     public static IReadOnlyList<RestorePublicFolderEntry> ParsePublicFolderEntries(string archiveXml)
     {
         ArgumentException.ThrowIfNullOrEmpty(archiveXml);
@@ -534,6 +557,15 @@ public static class BackupArchiveXmlSnapshotParser
             out var value)
             ? value
             : new DateTime(2026, 1, 1);
+
+    private static DateTime SecurityRangeDateTimeAttr(XElement element, string name) =>
+        DateTime.TryParse(
+            element.Attribute(name)?.Value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var value)
+            ? value
+            : new DateTime(2001, 1, 1);
 
     private static DomainAdministrationSnapshot ParseDomain(XElement element)
     {

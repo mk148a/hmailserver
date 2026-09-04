@@ -16,7 +16,8 @@ public sealed record BackupRestoreMetadataResult(
     int RestoredRuleCriteria = 0,
     int RestoredRuleActions = 0,
     int RestoredFolders = 0,
-    int RestoredMessages = 0);
+    int RestoredMessages = 0,
+    int RestoredSecurityRanges = 0);
 
 [ComVisible(false)]
 public static class BackupRestoreMetadataWriter
@@ -113,6 +114,41 @@ public static class BackupRestoreMetadataWriter
             cancellationToken: cancellationToken);
 
         return new BackupRestoreMetadataResult(RestoredDomains: 0, RestoredAccounts: 0, restored, RestoredDistributionLists: 0, RestoredRecipients: 0);
+    }
+
+    public static async ValueTask<BackupRestoreMetadataResult> RestoreSecurityRangesAsync(
+        IReadOnlyList<SecurityRangeAdministrationSnapshot> ranges,
+        ISecurityRangeAdministrationStore store,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
+    {
+        ArgumentNullException.ThrowIfNull(ranges);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var restored = 0;
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var range in ranges)
+                {
+                    var insertedId = await store.InsertSecurityRangeAsync(range, ct).ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
+                    restored++;
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return new BackupRestoreMetadataResult(
+            RestoredDomains: 0,
+            RestoredAccounts: 0,
+            RestoredAliases: 0,
+            RestoredDistributionLists: 0,
+            RestoredRecipients: 0,
+            RestoredSecurityRanges: restored);
     }
 
     public static async ValueTask<BackupRestoreMetadataResult> RestoreFetchAccountsAsync(
