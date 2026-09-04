@@ -1,14 +1,14 @@
 # Current State
 - UTC and local timestamp: 2026-09-04T09:00:00Z / 2026-09-04T12:00:00+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `ac2014a8` (`Add explicit backup compatibility profile`; current docs commit records this slice)
+- Current HEAD: `09c2748fe` (`Project TCPIPPorts in backup metadata`; docs commit follows)
 - Last successfully pushed commit: `b075e2ed4e390fac9870a5ae59c629abe004c017`
-- Latest focused-test result: backup comparator equal/mismatch/profile harness passed; real paired C++/Net10 DataBackup `1000/1000` equal, compatibility profile `FAIL` for non-empty legacy collections
-- Latest full Net10 result: Debug `2806 passed, 97 skipped, 2 failed / 2905`; both failures are antivirus-denied temporary scanner files
-- Opt-in tests passed/skipped/blocked: focused SQL opt-in passed; comparator profile passed; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
-- Current bounded slice: explicit backup compatibility profile completed; next is equivalent paired backup timing and non-empty legacy collection projection
+- Latest focused-test result: SecurityRanges/TCPIPPorts backup projection `72 passed`; TCP/IP SQL store filter `5 passed, 1 isolated opt-in skipped`; comparator harness passed
+- Latest full Net10 result: Debug `2810 passed, 97 skipped, 0 failed / 2907`
+- Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for the TCP/IP mutation cell; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
+- Current bounded slice: SecurityRanges and TCPIPPorts backup projection completed; next is BlockedAttachments projection
 - Completed milestones: disposable C++ service launch; paired protocol/SMTP/IMAP/POP3/queue/retry evidence; 100,000-message IMAP SEARCH/SORT; file-backed SEARCH/SORT fallback; raw/compressed DataBackup staging; Net10 backup/restore round trip; Full-Text acceptance; IMAP ACL hardening; legacy INI handoff; rollback-aware upgrade guard; paired C++ COM backup archive generation
-- Open production blockers: non-empty backup XML collection projections and timing; installed out-of-process COM/Admin lifecycle; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18; AD/SSPI; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision. Full Debug is not green because antivirus blocked two scanner tests.
+- Open production blockers: restore parsing/application for projected `SecurityRanges` and `TCPIPPorts`; non-empty `BlockedAttachments`, `SURBLServers`, and `DNSBlackLists` backup projections and equivalent timing; installed out-of-process COM/Admin lifecycle; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18; AD/SSPI; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision.
 - Environment-blocked work: independent COM caller-token evidence, AD/SSPI credentials, production-equivalent installer lifecycle, equivalent paired Full-Text timing, and long resource soak
 - Protected/do-not-touch areas: production service/SQL/Data; installed Application COM/DCOM registration; production IIS/firewall; dirty `AGENTS.md`; pre-existing benchmark, migration, staging, and deleted/untracked artifacts
-- Next three independent slices: equivalent paired backup timing and non-empty legacy backup collection projections; isolated registered COM/Admin lifecycle evidence; SEC-18 caller-token/session evidence
+- Next three independent slices: BlockedAttachments backup projection; equivalent paired backup timing; isolated registered COM/Admin lifecycle evidence

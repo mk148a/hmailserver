@@ -1,6 +1,29 @@
 hMailServer
 ===========
 
+## Current backup projection status (2026-09-04)
+
+Code/test commits `bac62c914` and `09c2748fe` add legacy settings-backup
+projection for `SecurityRanges` and `TCPIPPorts`. The C++ references are
+`Configuration::XMLStore` (`hmailserver/source/Server/Common/Application/Configuration.cpp:687-710`),
+`SecurityRanges::Refresh`, `SecurityRange::XMLStore`, `TCPIPPorts::Refresh`,
+and `TCPIPPort::XMLStore` (`hmailserver/source/Server/Common/BO/TCPIPPort.cpp:38-63`).
+Net10 reads both collections through the snapshot transaction, preserves the
+legacy XML order and item attributes, and resolves TCP/IP certificate names
+without changing listener or COM behavior. Focused coverage is `72/72`; the
+related SQL store filter is `5 passed, 1 isolated opt-in skipped`.
+
+This is a backup-side projection only. Restore parsing/execution for
+`SecurityRanges` and `TCPIPPorts` is still open and must be completed before
+calling backup/restore parity green.
+
+The full Debug suite after `09c2748fe` is `2810 passed, 97 skipped, 0 failed /
+2907`. The real disposable C++/Net10 pair still has non-empty
+`BlockedAttachments`, `SURBLServers`, and `DNSBlackLists` that are not yet
+projected, so the compatibility comparator remains **FAIL** and no backup
+speed ratio or complete XML-parity claim is valid. The performance/release
+gate remains **RED**.
+
 ## Current non-DB-only backup acceptance (2026-09-03)
 
 Code/test commit `20160b564` adds disposable local SQL acceptance for both
@@ -25,8 +48,9 @@ Application registry graph was unchanged. The Net10 run produced the matching
 compressed `DataBackup` payload. The payload comparator found `1000/1000`
 DataBackup files equal by size and SHA-256.
 
-This does not make the XML comparison a PASS: the paired C++ fixture emits
-non-empty default top-level collections that Net10 does not yet project,
+This does not make the XML comparison a PASS: the paired C++ fixture still
+emits non-empty `BlockedAttachments`, `SURBLServers`, and `DNSBlackLists`
+that Net10 does not yet project,
 legacy salted password values are not byte-comparable, and Net10 intentionally
 excludes `smtprelayerpassword` from the settings backup projection. The new
 compatibility profile in `build/compare-backup-semantic-payloads.ps1` accepts

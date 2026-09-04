@@ -1,5 +1,26 @@
 ## Current authoritative status (2026-09-04, paired backup account projection)
 
+### Superseded by current backup projection commits
+
+Code/test commits `bac62c914` and `09c2748fe` now project legacy
+`SecurityRanges` and `TCPIPPorts` into settings backups. The C++ anchors are
+`Configuration::XMLStore`, `SecurityRange::XMLStore`, and
+`TCPIPPort::XMLStore`; Net10 symbols are `BackupXmlPayloadRuntime`,
+`SevenZipBackupArchiveRuntime.WriteSettings`, and
+`SqlServerBackupDomainProjectionSnapshot`. The focused projection suite is
+`72/72`, and full Debug is `2810 passed, 97 skipped, 0 failed / 2907`.
+
+The paired comparator remains **FAIL** because non-empty
+`BlockedAttachments`, `SURBLServers`, and `DNSBlackLists` remain absent from
+Net10 metadata. Next backup slice: `BlockedAttachments` projection. Do not
+claim complete backup XML parity or a backup speed ratio until the remaining
+non-empty collections and equivalent timing are accepted. Restore parsing and
+transactional application for the newly projected `SecurityRanges` and
+`TCPIPPorts` nodes is also a release blocker; backup projection alone is not
+round-trip parity.
+
+## Historical status (2026-09-04, paired backup account projection)
+
 Code/test commit `3f5603e44` closes a legacy account-backup projection gap.
 Legacy `PersistentAccount::ReadObject`
 (`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:146-195`)
