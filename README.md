@@ -3,6 +3,23 @@ hMailServer
 
 ## Current backup projection status (2026-09-04)
 
+Code/test commit `1003f134d` adds the bounded legacy `DNSBlackLists`
+settings-backup projection. The C++ anchors are `DNSBlackLists::Refresh` in
+`hmailserver/source/Server/Common/BO/DNSBlackLists.cpp:31` and
+`DNSBlackList::XMLStore` in
+`hmailserver/source/Server/Common/BO/DNSBlackList.cpp`; the legacy SQL path
+is `select * from hm_dnsbl order by sblid asc`. Net10 reads the explicit
+legacy column order through the backup snapshot transaction and writes
+`Name`, `Active`, `RejectMessage`, `ExpectedResult`, and `Score` in that order.
+Focused coverage is `77/77`; the full Debug suite is `2815 passed, 97
+skipped, 0 failed / 2912`.
+
+This remains backup-side projection only. Restore parsing/application for
+`SecurityRanges`, `TCPIPPorts`, `BlockedAttachments`, `SURBLServers`, and
+`DNSBlackLists` is still open. The paired comparator must be rerun against a
+fresh archive before parity can be reconsidered; equivalent paired backup
+timing is still unavailable. The performance/release gate remains **RED**.
+
 Code/test commit `452715330` adds the bounded legacy `SURBLServers` settings
 backup projection. The C++ anchors are `SURBLServers::Refresh` in
 `hmailserver/source/Server/Common/BO/SURBLServers.cpp:27` and

@@ -1,4 +1,26 @@
-## Current authoritative status (2026-09-04, SURBL backup projection)
+## Current authoritative status (2026-09-04, DNSBL backup projection)
+
+Code/test commit `1003f134d` completes the bounded legacy
+`DNSBlackLists` settings-backup projection. The C++ anchors are
+`DNSBlackLists::Refresh` in
+`hmailserver/source/Server/Common/BO/DNSBlackLists.cpp:31` and
+`DNSBlackList::XMLStore` in
+`hmailserver/source/Server/Common/BO/DNSBlackList.cpp`.
+The legacy query is `select * from hm_dnsbl order by sblid asc`; Net10 uses
+an explicit equivalent column order through the shared backup snapshot
+transaction and emits `Name`, `Active`, `RejectMessage`, `ExpectedResult`,
+and `Score` in that order. Focused coverage is `77/77`; full Debug is
+`2815 passed, 97 skipped, 0 failed / 2912`.
+
+This is still a backup projection, not restore parity. Restore parsing and
+transactional application for `SecurityRanges`, `TCPIPPorts`,
+`BlockedAttachments`, `SURBLServers`, and `DNSBlackLists` remains open. The
+paired comparator needs a fresh post-DNSBL archive, and equivalent paired
+backup timing is not available. Next bounded slice: inspect and implement
+restore parsing/application for the projected settings collections. Keep the
+release gate RED.
+
+## Historical status (2026-09-04, SURBL backup projection)
 
 Code/test commit `452715330` completes the bounded legacy
 `SURBLServers` settings-backup projection. The C++ anchors are
