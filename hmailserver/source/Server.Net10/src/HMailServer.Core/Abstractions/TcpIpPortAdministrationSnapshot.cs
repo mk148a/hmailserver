@@ -6,4 +6,7 @@ public sealed record TcpIpPortAdministrationSnapshot(
     int PortNumber,
     string Address,
     int ConnectionSecurity,
-    int SslCertificateId);
+    int SslCertificateId)
+{
+    public string? SslCertificateName { get; init; }
+}

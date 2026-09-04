@@ -385,6 +385,7 @@ public sealed class SevenZipBackupArchiveRuntime
         }
 
         WriteSecurityRanges(writer, payload?.SecurityRanges);
+        WriteTcpIpPorts(writer, payload?.TcpIpPorts);
         WritePublicFolders(writer, payload?.PublicFolders);
         WriteGroups(writer, payload?.Groups);
     }
@@ -409,6 +410,35 @@ public sealed class SevenZipBackupArchiveRuntime
             WriteLegacyAttribute(writer, "Options", range.Options.ToString(CultureInfo.InvariantCulture));
             WriteLegacyAttribute(writer, "ExpiresTime", range.ExpiresTime.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture));
             WriteLegacyAttribute(writer, "Expires", (range.Expires ? 1 : 0).ToString(CultureInfo.InvariantCulture));
+            writer.WriteEndElement();
+        }
+
+        writer.WriteEndElement();
+    }
+
+    private static void WriteTcpIpPorts(
+        XmlWriter writer,
+        IReadOnlyList<TcpIpPortAdministrationSnapshot>? ports)
+    {
+        if (ports is null || ports.Count == 0)
+        {
+            return;
+        }
+
+        writer.WriteStartElement("TCPIPPorts");
+        foreach (var port in ports)
+        {
+            writer.WriteStartElement("TCPIPPort");
+            WriteLegacyAttribute(writer, "Name", $"{port.Protocol}-{port.PortNumber}");
+            WriteLegacyAttribute(writer, "PortProtocol", port.Protocol.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "PortNumber", port.PortNumber.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "ConnectionSecurity", port.ConnectionSecurity.ToString(CultureInfo.InvariantCulture));
+            WriteLegacyAttribute(writer, "Address", port.Address);
+            if (port.SslCertificateId > 0)
+            {
+                WriteLegacyAttribute(writer, "SSLCertificateName", port.SslCertificateName ?? string.Empty);
+            }
+
             writer.WriteEndElement();
         }
 
@@ -1292,7 +1322,8 @@ public sealed record BackupArchiveXmlPayload(
     IReadOnlyDictionary<int, IReadOnlyList<MessageAdministrationSnapshot>>? FolderMessages = null,
     IReadOnlyList<BackupPublicFolderEntry>? PublicFolders = null,
     IReadOnlyList<BackupGroupEntry>? Groups = null,
-    IReadOnlyList<SecurityRangeAdministrationSnapshot>? SecurityRanges = null);
+    IReadOnlyList<SecurityRangeAdministrationSnapshot>? SecurityRanges = null,
+    IReadOnlyList<TcpIpPortAdministrationSnapshot>? TcpIpPorts = null);
 
 [ComVisible(false)]
 public sealed record BackupPublicFolderPermission(
@@ -1317,6 +1348,7 @@ public sealed class BackupXmlPayloadRuntime
 {
     private readonly ISettingsAdministrationStore _settingsStore;
     private readonly ISecurityRangeAdministrationStore? _securityRangeStore;
+    private readonly ITcpIpPortAdministrationStore? _tcpIpPortStore;
     private readonly IDomainAdministrationStore _domainStore;
     private readonly IDomainAliasAdministrationStore _domainAliasStore;
     private readonly IAccountAdministrationStore _accountStore;
@@ -1393,7 +1425,8 @@ public sealed class BackupXmlPayloadRuntime
         IGroupAdministrationStore? groupStore = null,
         IGroupMemberAdministrationStore? groupMemberStore = null,
         IBackupDomainProjectionSnapshotFactory? domainProjectionSnapshotFactory = null,
-        ISecurityRangeAdministrationStore? securityRangeStore = null)
+        ISecurityRangeAdministrationStore? securityRangeStore = null,
+        ITcpIpPortAdministrationStore? tcpIpPortStore = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(domainStore);
@@ -1402,6 +1435,7 @@ public sealed class BackupXmlPayloadRuntime
         ArgumentNullException.ThrowIfNull(aliasStore);
         _settingsStore = settingsStore;
         _securityRangeStore = securityRangeStore;
+        _tcpIpPortStore = tcpIpPortStore;
         _domainStore = domainStore;
         _domainAliasStore = domainAliasStore;
         _accountStore = accountStore;
@@ -1457,6 +1491,9 @@ public sealed class BackupXmlPayloadRuntime
                 : null;
         var securityRanges = includesSettings && _securityRangeStore is not null
             ? await _securityRangeStore.GetSecurityRangesAsync(cancellationToken).ConfigureAwait(false)
+            : null;
+        var tcpIpPorts = includesSettings && _tcpIpPortStore is not null
+            ? await _tcpIpPortStore.GetTcpIpPortsAsync(cancellationToken).ConfigureAwait(false)
             : null;
         var domains = (evidence.BackupOptions & BackupStartPlan.BackupDomainsFlag) != 0
             ? await _domainStore.GetDomainsAsync(cancellationToken).ConfigureAwait(false)
@@ -1723,7 +1760,8 @@ public sealed class BackupXmlPayloadRuntime
             folderMessages,
             publicFolders,
             backupGroups,
-            SecurityRanges: securityRanges);
+            SecurityRanges: securityRanges,
+            TcpIpPorts: tcpIpPorts);
     }
 
     private async ValueTask<BackupArchiveXmlPayload> GetDomainOnlyPayloadFromSnapshotAsync(
@@ -1751,6 +1789,11 @@ public sealed class BackupXmlPayloadRuntime
         var securityRanges = includeSettings
             ? await snapshot.SecurityRangeStore
                 .GetSecurityRangesAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : null;
+        var tcpIpPorts = includeSettings
+            ? await snapshot.TcpIpPortStore
+                .GetTcpIpPortsAsync(cancellationToken)
                 .ConfigureAwait(false)
             : null;
         var domainAliases = new Dictionary<int, IReadOnlyList<DomainAliasAdministrationSnapshot>>();
@@ -1876,7 +1919,8 @@ public sealed class BackupXmlPayloadRuntime
             FolderMessages: folderMessages,
             PublicFolders: publicFolders,
             Groups: backupGroups,
-            SecurityRanges: securityRanges);
+            SecurityRanges: securityRanges,
+            TcpIpPorts: tcpIpPorts);
     }
 
     private async ValueTask<IReadOnlyList<BackupGroupEntry>> BuildGroupsAsync(

@@ -14,6 +14,8 @@ public interface IBackupDomainProjectionSnapshot : IAsyncDisposable
 
     ISecurityRangeAdministrationStore SecurityRangeStore { get; }
 
+    ITcpIpPortAdministrationStore TcpIpPortStore { get; }
+
     IGroupAdministrationStore GroupStore { get; }
 
     IGroupMemberAdministrationStore GroupMemberStore { get; }

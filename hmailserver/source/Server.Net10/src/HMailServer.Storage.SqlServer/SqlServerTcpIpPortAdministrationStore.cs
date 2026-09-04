@@ -16,8 +16,10 @@ SELECT
     portaddress1,
     portaddress2,
     portconnectionsecurity,
-    portsslcertificateid
+    portsslcertificateid,
+    sslcertificatename
 FROM hm_tcpipports
+LEFT JOIN hm_sslcertificates ON sslcertificateid = portsslcertificateid
 ORDER BY portaddress1 ASC, portaddress2 ASC, portnumber ASC;
 """;
 
@@ -48,6 +50,7 @@ WHERE portid = @id;
         DELETE FROM hm_tcpipports;
         """;
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerTcpIpPortAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -55,11 +58,23 @@ WHERE portid = @id;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerTcpIpPortAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<TcpIpPortAdministrationSnapshot>> GetTcpIpPortsAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetTcpIpPortsSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetTcpIpPortsSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);
@@ -74,6 +89,7 @@ WHERE portid = @id;
             var address2 = reader.IsDBNull(4) ? null : (long?)reader.GetInt64(4);
             var connectionSecurity = Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture);
             var sslCertificateId = Convert.ToInt32(reader.GetValue(6), CultureInfo.InvariantCulture);
+            var sslCertificateName = reader.IsDBNull(7) ? null : reader.GetString(7);
 
             ports.Add(
                 new TcpIpPortAdministrationSnapshot(
@@ -82,7 +98,10 @@ WHERE portid = @id;
                     PortNumber: portNumber,
                     Address: FormatLegacyAddress(address1, address2),
                     ConnectionSecurity: connectionSecurity,
-                    SslCertificateId: sslCertificateId));
+                    SslCertificateId: sslCertificateId)
+                {
+                    SslCertificateName = sslCertificateName
+                });
         }
 
         return ports;

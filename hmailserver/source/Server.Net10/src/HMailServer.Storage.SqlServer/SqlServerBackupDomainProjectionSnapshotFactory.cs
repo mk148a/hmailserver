@@ -52,6 +52,7 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         SettingsStore = settingsStore;
         BackupSettingsPropertyStore = settingsStore;
         SecurityRangeStore = new SqlServerSecurityRangeAdministrationStore(context);
+        TcpIpPortStore = new SqlServerTcpIpPortAdministrationStore(context);
         GroupStore = new SqlServerGroupAdministrationStore(context);
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         DomainStore = new SqlServerDomainAdministrationStore(context);
@@ -76,6 +77,8 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
     public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; }
 
     public ISecurityRangeAdministrationStore SecurityRangeStore { get; }
+
+    public ITcpIpPortAdministrationStore TcpIpPortStore { get; }
 
     public IGroupAdministrationStore GroupStore { get; }
 

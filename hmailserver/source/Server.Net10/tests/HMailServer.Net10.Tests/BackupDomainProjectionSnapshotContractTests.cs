@@ -23,6 +23,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(ISettingsAdministrationStore),
                 typeof(IBackupSettingsPropertyStore),
                 typeof(ISecurityRangeAdministrationStore),
+                typeof(ITcpIpPortAdministrationStore),
                 typeof(IGroupAdministrationStore),
                 typeof(IGroupMemberAdministrationStore),
                 typeof(IAccountAdministrationStore),
@@ -157,6 +158,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             public ISettingsAdministrationStore SettingsStore { get; } = settingsStore;
             public IBackupSettingsPropertyStore BackupSettingsPropertyStore { get; } = backupSettingsPropertyStore;
             public ISecurityRangeAdministrationStore SecurityRangeStore { get; } = new EmptySecurityRangeStore();
+            public ITcpIpPortAdministrationStore TcpIpPortStore { get; } = new EmptyTcpIpPortStore();
             public IGroupAdministrationStore GroupStore { get; } = new EmptyGroupStore();
             public IGroupMemberAdministrationStore GroupMemberStore { get; } = new EmptyGroupMemberStore();
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
@@ -219,6 +221,14 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             int databaseId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class EmptyTcpIpPortStore : ITcpIpPortAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<TcpIpPortAdministrationSnapshot>> GetTcpIpPortsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<TcpIpPortAdministrationSnapshot>>(
+                Array.Empty<TcpIpPortAdministrationSnapshot>());
     }
 
     private sealed class FixedSettingsStore(SettingsAdministrationSnapshot snapshot)

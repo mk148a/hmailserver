@@ -18,8 +18,9 @@ public sealed class SqlServerTcpIpPortAdministrationStoreTests
         StringAssert.Contains(sql, "portaddress2");
         StringAssert.Contains(sql, "portconnectionsecurity");
         StringAssert.Contains(sql, "portsslcertificateid");
+        StringAssert.Contains(sql, "sslcertificatename");
+        StringAssert.Contains(sql, "LEFT JOIN hm_sslcertificates");
         StringAssert.Contains(sql, "ORDER BY portaddress1 ASC, portaddress2 ASC, portnumber ASC");
-        Assert.IsFalse(sql.Contains(" JOIN ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));

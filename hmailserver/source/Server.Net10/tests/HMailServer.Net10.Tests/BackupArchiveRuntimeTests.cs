@@ -1187,6 +1187,51 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesLegacyTcpIpPortsAfterSecurityRanges()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: new SettingsAdministrationSnapshot(
+                    HostName: "mail.example.test",
+                    WelcomeSmtp: "smtp",
+                    WelcomePop3: "pop3",
+                    WelcomeImap: "imap"),
+                Domains: null,
+                SecurityRanges: new[]
+                {
+                    new SecurityRangeAdministrationSnapshot(
+                        7, "Trusted", "10.0.0.1", "10.0.0.9", 42, 123, true,
+                        new DateTime(2026, 9, 4, 1, 2, 3))
+                },
+                TcpIpPorts: new[]
+                {
+                    new TcpIpPortAdministrationSnapshot(1, 1, 25, "0.0.0.0", 0, 0),
+                    new TcpIpPortAdministrationSnapshot(2, 2, 993, "::", 2, 9)
+                    {
+                        SslCertificateName = "imap-cert"
+                    }
+                }));
+
+        var document = XDocument.Parse(xml);
+        CollectionAssert.AreEqual(
+            new[] { "BackupInformation", "Properties", "SecurityRanges", "TCPIPPorts" },
+            document.Root!.Elements().Select(static element => element.Name.LocalName).ToArray());
+
+        var ports = document.Root.Element("TCPIPPorts")!.Elements("TCPIPPort").ToArray();
+        CollectionAssert.AreEqual(
+            new[] { "Name", "PortProtocol", "PortNumber", "ConnectionSecurity", "Address" },
+            ports[0].Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("1-25", ports[0].Attribute("Name")?.Value);
+        Assert.AreEqual("0.0.0.0", ports[0].Attribute("Address")?.Value);
+        CollectionAssert.AreEqual(
+            new[] { "Name", "PortProtocol", "PortNumber", "ConnectionSecurity", "Address", "SSLCertificateName" },
+            ports[1].Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("imap-cert", ports[1].Attribute("SSLCertificateName")?.Value);
+    }
+
+    [TestMethod]
     public void MetadataXmlWritesEveryModeledSettingsPropertyInLegacyNameOrderWithoutCredentials()
     {
         var settings = new SettingsAdministrationSnapshot(
@@ -2041,7 +2086,9 @@ public sealed class BackupArchiveRuntimeTests
                         123,
                         true,
                         new DateTime(2026, 9, 4, 1, 2, 3))
-                }));
+                }),
+            tcpIpPortStore: new FixedTcpIpPortAdministrationStore(
+                new[] { new TcpIpPortAdministrationSnapshot(1, 1, 25, "0.0.0.0", 0, 0) }));
 
         var payload = await runtime.GetPayloadAsync(
             new BackupStartPlanEvidence("unused", 1, false, true, true),
@@ -2053,6 +2100,8 @@ public sealed class BackupArchiveRuntimeTests
         CollectionAssert.AreEqual(new[] { "user@example.test" }, payload.Groups[0].MemberNames.ToArray());
         Assert.AreEqual(1, payload.SecurityRanges!.Count);
         Assert.AreEqual("Trusted", payload.SecurityRanges[0].Name);
+        Assert.AreEqual(1, payload.TcpIpPorts!.Count);
+        Assert.AreEqual(25, payload.TcpIpPorts[0].PortNumber);
     }
 
     [TestMethod]
@@ -3588,6 +3637,15 @@ public sealed class BackupArchiveRuntimeTests
             int databaseId,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class FixedTcpIpPortAdministrationStore(
+        IReadOnlyList<TcpIpPortAdministrationSnapshot> ports)
+        : ITcpIpPortAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<TcpIpPortAdministrationSnapshot>> GetTcpIpPortsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(ports);
     }
 
     private sealed class RecordingDistributionListAdministrationStore(
