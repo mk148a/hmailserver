@@ -1,3 +1,22 @@
+# Current authoritative status (2026-09-04, COM local-server security parity)
+
+Code/test commit `bc49a7dfd` closes the repository-only COM local-server
+security initialization gap. Legacy `hMailServer::RegisterObjects()` calls
+`CoInitializeSecurity(0, -1, 0, 0, RPC_C_AUTHN_LEVEL_CONNECT,
+RPC_C_IMP_LEVEL_IMPERSONATE, 0, 0, 0)` before class registration
+(`hmailserver/source/Server/hMailServer/hMailServer.cpp:129-143`). Net10
+`ComLocalServerHost.Run()` now applies the same process-wide configuration
+before `CoRegisterClassObject`, without changing the installed Application
+identity or direct activation boundaries. Focused COM/SEC-18/AD validator
+coverage is `20/20`; full Debug is `2845 passed, 97 skipped, 0 failed / 2942`.
+
+Installed COM/Admin lifecycle, DCOM ACL evidence, SEC-18 caller-token/IIS
+evidence, AD/SSPI credentials, installer/upgrade rollback, fresh paired
+backup timing/equivalence, and exact Full-Text transaction equivalence remain
+open. The release gate is **RED**; the 24-hour soak is deferred by user
+decision. No registry, service, DCOM, IIS, SQL, Data, or firewall state was
+changed.
+
 hMailServer
 ===========
 

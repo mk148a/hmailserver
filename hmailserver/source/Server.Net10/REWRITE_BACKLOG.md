@@ -1,4 +1,28 @@
-## Current authoritative status (2026-09-04, DNSBlackLists restore)
+## Current authoritative status (2026-09-04, COM local-server security parity)
+
+Code/test commit `bc49a7dfd` closes the repository-only COM local-server
+security initialization gap. Legacy `hMailServer::RegisterObjects()` calls
+`CoInitializeSecurity(0, -1, 0, 0, RPC_C_AUTHN_LEVEL_CONNECT,
+RPC_C_IMP_LEVEL_IMPERSONATE, 0, 0, 0)` before registering and resuming local
+class objects (`hmailserver/source/Server/hMailServer/hMailServer.cpp:129-143`).
+Net10 `ComLocalServerHost.Run()` now applies the same process-wide security
+configuration once before `CoRegisterClassObject`, while preserving the
+existing Application CLSID, IID, vtable, DISPID, type-library and direct
+activation boundaries. Focused COM/SEC-18/AD validator coverage is `20/20`;
+full Debug is `2845 passed, 97 skipped, 0 failed / 2942`.
+
+This is repository-level COM parity only. It does not register the service or
+modify registry/DCOM ACLs, and cannot prove installed out-of-process
+COM/Admin activation or an effective WebAdmin caller SID. The release gate
+remains **RED**. The 24-hour soak remains deferred by user decision.
+
+Next bounded slice: fresh legacy/.NET backup -> restore -> backup comparison
+for the projected settings collections, once disposable legacy C++ and
+isolated SQL/Data inputs are available. The next environment-gated work is
+registered COM/Admin lifecycle, SEC-18 caller-token evidence, AD/SSPI
+credentials, and installer/upgrade rollback.
+
+## Historical status (2026-09-04, DNSBlackLists restore)
 
 Code/test commit `7457665fd` completes the bounded `DNSBlackLists` restore
 slice. Legacy `DNSBlackLists::Refresh()` reads `hm_dnsbl` in `sblid ASC`

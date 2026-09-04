@@ -1,3 +1,23 @@
+# Current authoritative status (2026-09-04, COM local-server security parity)
+
+Code/test commit `bc49a7dfd` closes the repository-only COM local-server
+security initialization gap. Legacy `hMailServer::RegisterObjects()` calls
+`CoInitializeSecurity(0, -1, 0, 0, RPC_C_AUTHN_LEVEL_CONNECT,
+RPC_C_IMP_LEVEL_IMPERSONATE, 0, 0, 0)` before `RegisterClassObjects` and
+`CoResumeClassObjects` (`hmailserver/source/Server/hMailServer/hMailServer.cpp:129-143`).
+Net10 `ComLocalServerHost.Run()` now applies the same process-wide security
+configuration before class registration, preserving the installed Application
+COM identity and direct activation boundaries. Focused coverage is `20/20`;
+full Debug is `2845 passed, 97 skipped, 0 failed / 2942`.
+
+This does not register COM, modify DCOM ACLs, start a service, or prove
+installed out-of-process COM/Admin or SEC-18 caller-token behavior. The
+release gate remains **RED** and the 24-hour soak is deferred by user
+decision. Next slice: fresh projected-settings backup -> restore -> backup
+comparison when disposable legacy C++ and isolated SQL/Data inputs return;
+then registered COM/Admin, SEC-18, AD/SSPI, and installer/upgrade rollback
+evidence in their required isolated environments.
+
 # CODEX_HANDOFF.md
 
 ## Current authoritative continuation (2026-09-04, DNSBlackLists restore)
