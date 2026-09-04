@@ -1,4 +1,35 @@
-## Current authoritative status (2026-09-03, paired backup collector blocked)
+## Current authoritative status (2026-09-04, paired backup account projection)
+
+Code/test commit `3f5603e44` closes a legacy account-backup projection gap.
+Legacy `PersistentAccount::ReadObject`
+(`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:146-195`)
+normalizes plaintext account rows to the preferred salted SHA-256 format and
+preserves the DB-provided vacation expiry string. Net10 now does the same in
+`SqlServerAccountAdministrationStore.GetBackupAccountsAsync` and formats SQL
+datetime values through `GetBackupAccountsSql` as `yyyy-MM-dd HH:mm:ss`.
+The disposable SQL regression passed `2/2`, including password verification
+without plaintext exposure and a full timestamp assertion. The latest full
+Debug run was `2806 passed, 97 skipped, 2 failed / 2905`; both failures were
+antivirus-denied temporary scanner files.
+
+The paired disposable C++ COM backup is no longer environment-blocked: mode 15
+produced a verified 7z archive in `3.633 s`, and the paired Net10 run produced
+its archive. DataBackup comparison passed for `1000/1000` files. XML semantic
+comparison remains RED because this C++ fixture emits non-empty default
+top-level collections that Net10 does not yet project, password hashes have
+independent salts, and Net10 intentionally omits `smtprelayerpassword`.
+Code/test commit `ac2014a8` adds an explicit comparator compatibility profile;
+it accepts only empty-container, salted-password, and sensitive-property
+differences and leaves the non-empty collection gap as a failure. Do not claim
+exact backup equivalence or a backup speed ratio from this evidence.
+
+**Next independent slices:** capture equivalent backup timing and implement the
+remaining non-empty legacy collection projections; then continue the isolated
+registered COM/Admin lifecycle and SEC-18 caller-token
+gates. Restore/installer rollback, AD/SSPI, exact Full-Text transaction
+equivalence, DKIM/DMARC/SPF, and soak remain release blockers.
+
+## Historical status (2026-09-03, paired backup collector blocked)
 
 The disposable paired fixture was provisioned successfully: the C++ and Net10
 targets use separate disposable SQL databases, each with 1,000 matching message
@@ -10385,33 +10416,3 @@ sessions. The worker stayed alive and shut down cleanly, so the previous
 background indexing crash is isolated, but the high-load acceptance gate is
 still RED due to capacity/SQL contention. Full Debug is `2773 passed, 90
 skipped, 5 failed` with the existing registered COM `E_NOINTERFACE` failures.
-
-Next slice: attest SQL connection-pool usage and IMAP session/query fan-out on
-a fresh disposable fixture, then rerun the required levels with unchanged
-failure accounting.
-## Current authoritative status (2026-09-04, paired backup account projection)
-
-Code/test commit `3f5603e44` closes a legacy account-backup projection gap.
-Legacy `PersistentAccount::ReadObject`
-(`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:146-195`)
-normalizes plaintext account rows to the preferred salted SHA-256 format and
-preserves the DB-provided vacation expiry string. Net10 now does the same in
-`SqlServerAccountAdministrationStore.GetBackupAccountsAsync` and formats SQL
-datetime values through `GetBackupAccountsSql` as `yyyy-MM-dd HH:mm:ss`.
-The disposable SQL regression passed `2/2`, including password verification
-without plaintext exposure and a full timestamp assertion. The full Debug
-suite passed `2808/2808` with `97` intentional opt-in skips.
-
-The paired disposable C++ COM backup is no longer environment-blocked: mode 15
-produced a verified 7z archive in `3.633 s`, and the paired Net10 run produced
-its archive. DataBackup comparison passed for `1000/1000` files. XML semantic
-comparison remains RED because C++ emits empty top-level containers, password
-hashes have independent salts, and Net10 intentionally omits
-`smtprelayerpassword`. Do not claim exact backup equivalence or a backup speed
-ratio from this evidence.
-
-**Next independent slices:** complete a documented compatibility profile for
-the remaining backup XML differences and run equivalent backup timing; then
-continue the isolated registered COM/Admin lifecycle and SEC-18 caller-token
-gates. Restore/installer rollback, AD/SSPI, exact Full-Text transaction
-equivalence, DKIM/DMARC/SPF, and soak remain release blockers.

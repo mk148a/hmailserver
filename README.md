@@ -25,27 +25,35 @@ Application registry graph was unchanged. The Net10 run produced the matching
 compressed `DataBackup` payload. The payload comparator found `1000/1000`
 DataBackup files equal by size and SHA-256.
 
-This does not make the XML comparison a PASS: C++ emits empty top-level
-containers that Net10 intentionally omits, legacy salted password values are
-not byte-comparable, and Net10 intentionally excludes `smtprelayerpassword`
-from the settings backup projection. The Net10 backup account projection now
+This does not make the XML comparison a PASS: the paired C++ fixture emits
+non-empty default top-level collections that Net10 does not yet project,
+legacy salted password values are not byte-comparable, and Net10 intentionally
+excludes `smtprelayerpassword` from the settings backup projection. The new
+compatibility profile in `build/compare-backup-semantic-payloads.ps1` accepts
+only empty-container, salted-password, and sensitive-property differences;
+the real pair remains `FAIL` because its legacy collections are non-empty. The
+Net10 backup account projection now
 matches the legacy `PersistentAccount::ReadObject` behavior by converting a
 plaintext `accountpwencryption=0` row to a legacy salted SHA-256 value and by
 preserving the full `accountvacationexpiredate` timestamp. Focused disposable
-SQL coverage is `2/2`; full Debug is `2808 passed, 97 skipped, 0 failed / 2905`.
-No backup speed ratio or release-ready parity claim is made. The performance
-gate remains **RED**.
+SQL coverage is `2/2`; comparator coverage passes. The latest full Debug run is
+`2806 passed, 97 skipped, 2 failed / 2905`: both scanner failures were blocked
+by antivirus access denial in temporary test files. No backup speed ratio or
+release-ready parity claim is made. The performance gate remains **RED**.
 
-## Current backup semantic comparator (2026-09-03)
+## Current backup semantic comparator (2026-09-04)
 
 Code/test commit `c15fbe1f3` extends
 `build/compare-backup-semantic-payloads.ps1` to accept a retained test
 directory containing one 7z archive plus an external `DataBackup` sibling. It
 rejects unsafe archive entries, parses XML with DTD processing disabled,
 normalizes legacy volatile attributes, compares canonical XML, and compares
-every DataBackup file by size and SHA-256. It emits JSON, CSV, and Markdown and
-never accesses SQL, services, or live Data directories. Its focused harness
-covers equal, XML-mismatch, DataBackup-mismatch, and archive-directory cases.
+every DataBackup file by size and SHA-256. With
+`-AllowKnownLegacyDifferences`, it reports and normalizes only the explicitly
+reviewed empty top-level container, salted-password, and
+`smtprelayerpassword`-omission differences; non-empty collection gaps remain
+`FAIL`. It emits JSON, CSV, and Markdown and never accesses SQL, services, or
+live Data directories. Focused tooling coverage passes.
 
 The isolated Net10 retention run passed `25/25`, retained eight disposable
 roots and twelve generated archives, and the retained backup -> restore ->

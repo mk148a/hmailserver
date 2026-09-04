@@ -303,9 +303,12 @@ database, Data directory, or DCOM configuration was used.
 The matching Net10 run used its paired SQL/Data clone and produced a `15,691`
 byte 7z archive. The retained payload comparator found `1000/1000`
 DataBackup files equal by length and SHA-256. XML comparison remains `FAIL`
-for explicit compatibility differences: C++ emits empty top-level containers
-that Net10 currently omits, password hashes contain independent salts, and
-Net10 excludes `smtprelayerpassword` from its settings projection. The Net10
+for explicit compatibility differences: this paired C++ fixture emits
+non-empty default top-level collections that Net10 currently omits, password
+hashes contain independent salts, and Net10 excludes `smtprelayerpassword`
+from its settings projection. The new comparator profile accepts only
+empty-container, salted-password, and sensitive-property differences; it
+correctly leaves this non-empty collection gap as `FAIL`. The Net10
 account backup projection now follows legacy
 `PersistentAccount::ReadObject` (`hmailserver/source/Server/Common/Persistence/PersistentAccount.cpp:146-195`):
 plaintext password rows are converted to the preferred salted SHA-256 format

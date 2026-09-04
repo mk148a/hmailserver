@@ -9,19 +9,23 @@ it hashes plaintext `accountpwencryption=0` rows with the preferred salted
 SHA-256 algorithm and carries the full vacation expiry string. Net10 now
 matches that behavior in
 `hmailserver/source/Server.Net10/src/HMailServer.Storage.SqlServer/SqlServerAccountAdministrationStore.cs`.
-Focused disposable SQL coverage passed `2/2`; full Debug passed `2808 passed,
-97 skipped, 0 failed / 2905`.
+Focused disposable SQL coverage passed `2/2`; the latest full Debug run was
+`2806 passed, 97 skipped, 2 failed / 2905`; the two scanner failures were
+caused by antivirus access denial in temporary test files.
 
 The paired disposable C++ COM backup is verified: mode 15 produced a 7z
 archive in `3.633 s`, and the Net10 paired runner produced its archive from a
 separate SQL/Data clone. DataBackup comparison passed `1000/1000` file hashes.
-The XML comparator remains RED because C++ emits empty top-level containers,
-password hashes use independent salts, and Net10 intentionally excludes
-`smtprelayerpassword`. No backup timing ratio or exact XML equivalence claim is
-valid yet. Next: document/validate those remaining compatibility differences
-and capture equivalent timing, then proceed to registered COM/Admin and SEC-18
-caller-token evidence. Production service, DB, Data, COM registration, and
-DCOM ACLs remain untouched.
+The XML comparator remains RED because this C++ fixture emits non-empty default
+top-level collections, password hashes use independent salts, and Net10
+intentionally excludes `smtprelayerpassword`. Code/test commit `ac2014a8a` adds
+an explicit `-AllowKnownLegacyDifferences` profile that accepts only empty
+containers, independently salted `PasswordEncryption=3` values, and the
+sensitive-property omission; non-empty collection gaps remain failures. No
+backup timing ratio or exact XML equivalence claim is valid yet. Next: capture
+equivalent timing and implement the remaining non-empty collection projections,
+then proceed to registered COM/Admin and SEC-18 caller-token evidence.
+Production service, DB, Data, COM registration, and DCOM ACLs remain untouched.
 
 ## Current authoritative continuation (2026-09-03, paired backup collector blocked)
 
