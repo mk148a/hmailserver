@@ -1,6 +1,28 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-04, SecurityRanges restore)
+## Current authoritative continuation (2026-09-04, TCPIPPorts restore)
+
+Code/test commit `baf9bc728` completes the bounded `TCPIPPorts` restore slice.
+The legacy anchors are `Configuration::XMLLoad` at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:742`,
+`TCPIPPort::XMLLoad` at
+`hmailserver/source/Server/Common/BO/TCPIPPort.cpp:57-75`,
+`TCPIPPort::XMLStore` at `TCPIPPort.cpp:38-55`, and
+`TCPIPPorts::Refresh` at `TCPIPPorts.cpp:26-35`. Net10 now parses the
+legacy attributes, replaces the collection in the shared SQL transaction,
+resolves certificate names, assigns generated IDs, and rolls back failed
+inserts. Focused coverage is `63/63`; full Debug is
+`2830 passed, 97 skipped, 0 failed / 2927`.
+
+Next bounded slice: restore `BlockedAttachments` after a fresh legacy XML and
+SQL inspection. `SURBLServers` and `DNSBlackLists` restore, fresh paired
+archive comparison, equivalent backup timing, registered COM/Admin lifecycle,
+SEC-18 caller-token evidence, installer rollback drill, AD/SSPI credentials,
+DKIM/DMARC/SPF, exact Full-Text transaction equivalence, and performance
+acceptance remain release blockers. Production service, DB, Data, COM
+registration, DCOM ACLs, IIS, and firewall state remain untouched.
+
+## Historical continuation (2026-09-04, SecurityRanges restore)
 
 Code/test commit `d244c6042` completes the bounded `SecurityRanges` restore
 slice. Legacy `Configuration::XMLLoad` and

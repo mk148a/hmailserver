@@ -1,4 +1,4 @@
-## Current authoritative status (2026-09-04, SecurityRanges restore)
+## Historical status (2026-09-04, SecurityRanges restore)
 
 Code/test commit `d244c6042` completes the bounded `SecurityRanges` restore
 slice. Legacy `Configuration::XMLLoad` and
@@ -10499,3 +10499,24 @@ sessions. The worker stayed alive and shut down cleanly, so the previous
 background indexing crash is isolated, but the high-load acceptance gate is
 still RED due to capacity/SQL contention. Full Debug is `2773 passed, 90
 skipped, 5 failed` with the existing registered COM `E_NOINTERFACE` failures.
+## Current authoritative status (2026-09-04, TCPIPPorts restore)
+
+Code/test commit `baf9bc728` completes the bounded `TCPIPPorts` restore slice.
+Legacy `Configuration::XMLLoad` dispatches the node at
+`hmailserver/source/Server/Common/Application/Configuration.cpp:742`.
+`TCPIPPort::XMLLoad` at
+`hmailserver/source/Server/Common/BO/TCPIPPort.cpp:57-75` parses protocol,
+port number, address, connection security, and `SSLCertificateName`; its
+archive shape is defined by `TCPIPPort::XMLStore` at `TCPIPPort.cpp:38-55`.
+`TCPIPPorts::Refresh` at
+`hmailserver/source/Server/Common/BO/TCPIPPorts.cpp:26-35` defines the legacy
+address/port ordering. Net10 now parses the archive node, replaces the
+collection through a shared transaction-scoped store, resolves certificate
+names, assigns generated IDs, and rolls back the transaction on insert
+failure. Focused coverage is `63/63`; full Debug is
+`2830 passed, 97 skipped, 0 failed / 2927`.
+
+Next bounded slice: restore `BlockedAttachments` using the same isolated
+transaction pattern after a fresh legacy XML/SQL inspection. Restore for
+`SURBLServers` and `DNSBlackLists`, fresh paired archive comparison, and
+equivalent backup timing remain open. Keep the release gate RED.
