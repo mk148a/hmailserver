@@ -10,6 +10,11 @@ public interface ITcpIpPortAdministrationStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("TCP/IP port insertion is not implemented by this store.");
 
+    ValueTask<int> InsertTcpIpPortForRestoreAsync(
+        TcpIpPortAdministrationSnapshot port,
+        CancellationToken cancellationToken) =>
+        InsertTcpIpPortAsync(port, cancellationToken);
+
     ValueTask DeleteTcpIpPortByIdAsync(
         int databaseId,
         CancellationToken cancellationToken) =>

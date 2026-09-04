@@ -189,6 +189,52 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseTcpIpPorts_PreservesLegacyFieldsAndChildOrder()
+    {
+        const string xml = """
+            <Backup>
+              <Nested><TCPIPPorts><TCPIPPort PortNumber="999" /></TCPIPPorts></Nested>
+              <TCPIPPorts>
+                <TCPIPPort Name="smtp" PortProtocol="1" PortNumber="25"
+                           ConnectionSecurity="0" Address="0.0.0.0" />
+                <TCPIPPort Name="imap" PortProtocol="2" PortNumber="143"
+                           ConnectionSecurity="2" Address="127.0.0.1"
+                           SSLCertificateName="imap-cert" />
+                <Nested><TCPIPPort PortNumber="998" /></Nested>
+              </TCPIPPorts>
+            </Backup>
+            """;
+
+        var ports = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(xml);
+
+        Assert.AreEqual(2, ports.Count);
+        Assert.AreEqual(0, ports[0].Port.Id);
+        Assert.AreEqual(1, ports[0].Port.Protocol);
+        Assert.AreEqual(25, ports[0].Port.PortNumber);
+        Assert.AreEqual("0.0.0.0", ports[0].Port.Address);
+        Assert.AreEqual(0, ports[0].Port.ConnectionSecurity);
+        Assert.IsNull(ports[0].Port.SslCertificateName);
+        Assert.AreEqual(2, ports[1].Port.ConnectionSecurity);
+        Assert.AreEqual("imap-cert", ports[1].Port.SslCertificateName);
+    }
+
+    [TestMethod]
+    public void ParseTcpIpPorts_UseSslOneMapsToLegacySslSecurity()
+    {
+        var ports = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(
+            "<Backup><TCPIPPorts><TCPIPPort PortProtocol=\"2\" PortNumber=\"993\" UseSSL=\"1\" /></TCPIPPorts></Backup>");
+
+        Assert.AreEqual(1, ports.Count);
+        Assert.AreEqual(1, ports[0].Port.ConnectionSecurity);
+    }
+
+    [TestMethod]
+    public void ParseTcpIpPorts_MissingContainerMeansEmpty()
+    {
+        Assert.IsEmpty(BackupArchiveXmlSnapshotParser.ParseTcpIpPorts("<Backup />"));
+    }
+
+    [TestMethod]
     public void ParseGroupEntries_PreservesLegacyGroupAndMemberNames()
     {
         const string xml = """

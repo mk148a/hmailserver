@@ -49,6 +49,12 @@ WHERE portid = @id;
     public const string DeleteAllTcpIpPortsSql = """
         DELETE FROM hm_tcpipports;
         """;
+
+    public const string ResolveSslCertificateIdByNameSql = """
+SELECT TOP (1) sslcertificateid
+FROM hm_sslcertificates
+WHERE sslcertificatename = @name;
+""";
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
@@ -113,6 +119,17 @@ WHERE portid = @id;
         await using var command = new SqlCommand(DeleteAllTcpIpPortsSql, connection);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    internal async ValueTask DeleteAllTcpIpPortsForRestoreAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteAllTcpIpPortsSql,
+            cancellationToken).ConfigureAwait(false);
+        await commandLease.Command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
     public async ValueTask<int> InsertTcpIpPortAsync(
         TcpIpPortAdministrationSnapshot port,
         CancellationToken cancellationToken)
@@ -129,6 +146,37 @@ WHERE portid = @id;
             address.Address2.HasValue ? address.Address2.Value : DBNull.Value;
         command.Parameters.Add("@connectionSecurity", SqlDbType.TinyInt).Value = port.ConnectionSecurity;
         command.Parameters.Add("@sslCertificateId", SqlDbType.BigInt).Value = port.SslCertificateId;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<int> InsertTcpIpPortForRestoreAsync(
+        TcpIpPortAdministrationSnapshot port,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(port);
+        var sslCertificateId = port.SslCertificateId;
+        if (!string.IsNullOrEmpty(port.SslCertificateName))
+        {
+            sslCertificateId = await ResolveSslCertificateIdByNameAsync(
+                port.SslCertificateName,
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        var address = ParseLegacyAddress(port.Address);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertTcpIpPortSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
+        command.Parameters.Add("@protocol", SqlDbType.TinyInt).Value = port.Protocol;
+        command.Parameters.Add("@portNumber", SqlDbType.Int).Value = port.PortNumber;
+        command.Parameters.Add("@address1", SqlDbType.BigInt).Value = address.Address1;
+        command.Parameters.Add("@address2", SqlDbType.BigInt).Value =
+            address.Address2.HasValue ? address.Address2.Value : DBNull.Value;
+        command.Parameters.Add("@connectionSecurity", SqlDbType.TinyInt).Value = port.ConnectionSecurity;
+        command.Parameters.Add("@sslCertificateId", SqlDbType.BigInt).Value = sslCertificateId;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, CultureInfo.InvariantCulture);
     }
@@ -161,6 +209,22 @@ WHERE portid = @id;
         command.Parameters.Add("@connectionSecurity", SqlDbType.TinyInt).Value = port.ConnectionSecurity;
         command.Parameters.Add("@sslCertificateId", SqlDbType.BigInt).Value = port.SslCertificateId;
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private async ValueTask<int> ResolveSslCertificateIdByNameAsync(
+        string certificateName,
+        CancellationToken cancellationToken)
+    {
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            ResolveSslCertificateIdByNameSql,
+            cancellationToken).ConfigureAwait(false);
+        commandLease.Command.Parameters.Add("@name", SqlDbType.NVarChar, 255).Value = certificateName;
+        var value = await commandLease.Command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return value is null || value is DBNull
+            ? 0
+            : Convert.ToInt32(value, CultureInfo.InvariantCulture);
     }
 
     private static string FormatLegacyAddress(long address1, long? address2)

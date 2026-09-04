@@ -43,6 +43,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     private readonly SqlServerImapFolderAdministrationStore _publicFolderStore;
     private readonly SqlServerGroupAdministrationStore _groupStore;
     private readonly SqlServerSecurityRangeAdministrationStore _securityRangeStore;
+    private readonly SqlServerTcpIpPortAdministrationStore _tcpIpPortStore;
     private bool _commitStarted;
     private bool _committed;
 
@@ -57,9 +58,11 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         _publicFolderStore = new SqlServerImapFolderAdministrationStore(context);
         _groupStore = new SqlServerGroupAdministrationStore(context);
         _securityRangeStore = new SqlServerSecurityRangeAdministrationStore(context);
+        _tcpIpPortStore = new SqlServerTcpIpPortAdministrationStore(context);
         GroupStore = _groupStore;
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         SecurityRangeStore = _securityRangeStore;
+        TcpIpPortStore = _tcpIpPortStore;
         DomainStore = _domainStore;
         AccountStore = new SqlServerAccountAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
@@ -107,6 +110,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ISecurityRangeAdministrationStore SecurityRangeStore { get; }
 
+    public ITcpIpPortAdministrationStore TcpIpPortStore { get; }
+
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);
 
@@ -118,6 +123,9 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken) =>
         _securityRangeStore.DeleteAllSecurityRangesForRestoreAsync(cancellationToken);
+
+    public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken) =>
+        _tcpIpPortStore.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken);
 
     public ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

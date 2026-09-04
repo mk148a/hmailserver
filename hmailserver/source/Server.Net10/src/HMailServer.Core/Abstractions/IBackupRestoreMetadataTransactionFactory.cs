@@ -40,6 +40,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     ISecurityRangeAdministrationStore? SecurityRangeStore => null;
 
+    ITcpIpPortAdministrationStore? TcpIpPortStore => null;
+
     ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped domain deletion for restore is not implemented by this transaction.");
@@ -55,6 +57,10 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
     ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped security-range deletion for restore is not implemented by this transaction.");
+
+    ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Transaction-scoped TCP/IP port deletion for restore is not implemented by this transaction.");
 
     ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

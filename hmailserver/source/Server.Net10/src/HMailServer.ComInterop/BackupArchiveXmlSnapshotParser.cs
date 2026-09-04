@@ -64,6 +64,10 @@ public sealed record RestoreGroupEntry(
     GroupAdministrationSnapshot Group,
     IReadOnlyList<string> MemberNames);
 
+[ComVisible(false)]
+public sealed record RestoreTcpIpPortEntry(
+    TcpIpPortAdministrationSnapshot Port);
+
 public static class BackupArchiveXmlSnapshotParser
 {
     public static IReadOnlyList<DomainAdministrationSnapshot> ParseDomains(string archiveXml)
@@ -209,6 +213,33 @@ public static class BackupArchiveXmlSnapshotParser
                 Options: IntAttr(element, "Options"),
                 Expires: element.Attribute("Expires")?.Value == "1",
                 ExpiresTime: SecurityRangeDateTimeAttr(element, "ExpiresTime")))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<RestoreTcpIpPortEntry> ParseTcpIpPorts(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var container = document.Root?.Elements("TCPIPPorts").FirstOrDefault();
+        if (container is null)
+        {
+            return Array.Empty<RestoreTcpIpPortEntry>();
+        }
+
+        return container.Elements("TCPIPPort")
+            .Select(element => new RestoreTcpIpPortEntry(
+                new TcpIpPortAdministrationSnapshot(
+                    Id: 0,
+                    Protocol: IntAttr(element, "PortProtocol"),
+                    PortNumber: IntAttr(element, "PortNumber"),
+                    Address: element.Attribute("Address")?.Value ?? string.Empty,
+                    ConnectionSecurity: element.Attribute("UseSSL")?.Value == "1"
+                        ? 1
+                        : IntAttr(element, "ConnectionSecurity"),
+                    SslCertificateId: 0)
+                {
+                    SslCertificateName = element.Attribute("SSLCertificateName")?.Value
+                }))
             .ToArray();
     }
 

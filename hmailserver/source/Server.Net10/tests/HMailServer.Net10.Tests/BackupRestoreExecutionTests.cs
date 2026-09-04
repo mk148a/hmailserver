@@ -93,6 +93,20 @@ public sealed class BackupRestoreExecutionTests
         </Backup>
         """;
 
+    private const string SettingsTcpIpPortsArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="1" />
+          <Properties><hostname LongValue="0" StringValue="restored.example" /></Properties>
+          <TCPIPPorts>
+            <TCPIPPort Name="smtp" PortProtocol="1" PortNumber="25"
+                       ConnectionSecurity="0" Address="0.0.0.0" />
+            <TCPIPPort Name="imap" PortProtocol="2" PortNumber="993"
+                       ConnectionSecurity="1" Address="127.0.0.1"
+                       SSLCertificateName="imap-cert" />
+          </TCPIPPorts>
+        </Backup>
+        """;
+
     [TestMethod]
     public async Task ExecuteAsync_RestoresOnlyQueuedMetadataSections()
     {
@@ -446,6 +460,65 @@ public sealed class BackupRestoreExecutionTests
         Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
         Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
         Assert.IsEmpty(stores.SecurityRanges.Items);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SettingsOnlyReplacesTcpIpPortsInsideTheSqlTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsTcpIpPortsArchiveXml);
+        var stores = new RecordingStores();
+        stores.TcpIpPorts.Items.Add(new TcpIpPortAdministrationSnapshot(
+            99, 1, 2525, "192.0.2.1", 0, 0));
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, transactionFactory.TcpIpPortDeleteCount);
+        Assert.AreEqual(2, stores.TcpIpPorts.InsertAttempts);
+        Assert.AreEqual(2, stores.TcpIpPorts.Items.Count);
+        Assert.AreEqual(25, stores.TcpIpPorts.Items[0].PortNumber);
+        Assert.AreEqual(993, stores.TcpIpPorts.Items[1].PortNumber);
+        Assert.AreEqual("imap-cert", stores.TcpIpPorts.Items[1].SslCertificateName);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_TcpIpPortFailureDisposesTransactionWithoutCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsTcpIpPortsArchiveXml);
+        var stores = new RecordingStores();
+        stores.TcpIpPorts.Fail = true;
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.TcpIpPortDeleteCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
+        Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
+        Assert.IsEmpty(stores.TcpIpPorts.Items);
     }
 
     [TestMethod]
@@ -1126,6 +1199,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingRecipientStore Recipients { get; } = new();
         public RecordingSettingsRestoreStore Settings { get; } = new();
         public RecordingSecurityRangeStore SecurityRanges { get; } = new();
+        public RecordingTcpIpPortStore TcpIpPorts { get; } = new();
         public RecordingPublicFolderRestoreStore PublicFolders { get; } = new();
         public RecordingPublicMessageRestoreStore PublicMessages { get; } = new();
         public RecordingPublicFolderPermissionRestoreStore PublicPermissions { get; } = new();
@@ -1245,6 +1319,7 @@ public sealed class BackupRestoreExecutionTests
         public int BeginCount { get; private set; }
         public int DeleteCount { get; private set; }
         public int SecurityRangeDeleteCount { get; private set; }
+        public int TcpIpPortDeleteCount { get; private set; }
         public bool FailDelete { get; set; }
         public RecordingMetadataTransaction? LastTransaction { get; private set; }
 
@@ -1279,6 +1354,13 @@ public sealed class BackupRestoreExecutionTests
             stores.SecurityRanges.Items.Clear();
             return ValueTask.CompletedTask;
         }
+
+        public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken)
+        {
+            TcpIpPortDeleteCount++;
+            stores.TcpIpPorts.Items.Clear();
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class CommitGatedMetadataTransactionFactory(
@@ -1308,11 +1390,15 @@ public sealed class BackupRestoreExecutionTests
         public IGroupAdministrationStore GroupStore => stores.Groups;
         public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
         public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
+        public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
         public ValueTask DeleteAllGroupsForRestoreAsync(CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
@@ -1340,6 +1426,7 @@ public sealed class BackupRestoreExecutionTests
         public IGroupAdministrationStore GroupStore => stores.Groups;
         public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
         public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
+        public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
@@ -1355,6 +1442,9 @@ public sealed class BackupRestoreExecutionTests
 
         public ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllSecurityRangesForRestoreAsync(cancellationToken);
+
+        public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken)
+            => factory.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken);
 
         public ValueTask CommitAsync(CancellationToken cancellationToken)
         {
@@ -1372,6 +1462,8 @@ public sealed class BackupRestoreExecutionTests
                 stores.GroupMembers.Inserted.Clear();
                 stores.PublicPermissions.Inserted.Clear();
                 stores.SecurityRanges.Items.Clear();
+                stores.TcpIpPorts.Items.Clear();
+                stores.Settings.Properties.Clear();
             }
 
             return ValueTask.CompletedTask;
@@ -1434,6 +1526,45 @@ public sealed class BackupRestoreExecutionTests
 
         public ValueTask DeleteSecurityRangeByIdAsync(
             int databaseId,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+    }
+
+    private sealed class RecordingTcpIpPortStore : ITcpIpPortAdministrationStore
+    {
+        public List<TcpIpPortAdministrationSnapshot> Items { get; } = [];
+        public bool Fail { get; set; }
+        public int InsertAttempts { get; private set; }
+
+        public ValueTask<IReadOnlyList<TcpIpPortAdministrationSnapshot>> GetTcpIpPortsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<TcpIpPortAdministrationSnapshot>>(Items);
+
+        public ValueTask<int> InsertTcpIpPortForRestoreAsync(
+            TcpIpPortAdministrationSnapshot port,
+            CancellationToken cancellationToken)
+        {
+            InsertAttempts++;
+            if (Fail)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Injected TCP/IP port restore failure."));
+            }
+
+            Items.Add(port with { Id = 700 + InsertAttempts });
+            return ValueTask.FromResult(700 + InsertAttempts);
+        }
+
+        public ValueTask<int> InsertTcpIpPortAsync(
+            TcpIpPortAdministrationSnapshot port,
+            CancellationToken cancellationToken) =>
+            InsertTcpIpPortForRestoreAsync(port, cancellationToken);
+
+        public ValueTask DeleteTcpIpPortByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+        public ValueTask UpdateTcpIpPortAsync(
+            TcpIpPortAdministrationSnapshot port,
             CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 

@@ -17,7 +17,8 @@ public sealed record BackupRestoreMetadataResult(
     int RestoredRuleActions = 0,
     int RestoredFolders = 0,
     int RestoredMessages = 0,
-    int RestoredSecurityRanges = 0);
+    int RestoredSecurityRanges = 0,
+    int RestoredTcpIpPorts = 0);
 
 [ComVisible(false)]
 public static class BackupRestoreMetadataWriter
@@ -149,6 +150,42 @@ public static class BackupRestoreMetadataWriter
             RestoredDistributionLists: 0,
             RestoredRecipients: 0,
             RestoredSecurityRanges: restored);
+    }
+
+    public static async ValueTask<BackupRestoreMetadataResult> RestoreTcpIpPortsAsync(
+        IReadOnlyList<RestoreTcpIpPortEntry> ports,
+        ITcpIpPortAdministrationStore store,
+        Func<ValueTask> rollbackAsync,
+        CancellationToken cancellationToken,
+        Action<int>? onInserted = null)
+    {
+        ArgumentNullException.ThrowIfNull(ports);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(rollbackAsync);
+
+        var restored = 0;
+        await BackupRestoreTransactionBoundary.ExecuteAsync(
+            mutateAsync: async ct =>
+            {
+                foreach (var entry in ports)
+                {
+                    var insertedId = await store.InsertTcpIpPortForRestoreAsync(entry.Port, ct)
+                        .ConfigureAwait(false);
+                    onInserted?.Invoke(insertedId);
+                    restored++;
+                }
+            },
+            commitAsync: _ => default,
+            rollbackAsync: rollbackAsync,
+            cancellationToken: cancellationToken).ConfigureAwait(false);
+
+        return new BackupRestoreMetadataResult(
+            RestoredDomains: 0,
+            RestoredAccounts: 0,
+            RestoredAliases: 0,
+            RestoredDistributionLists: 0,
+            RestoredRecipients: 0,
+            RestoredTcpIpPorts: restored);
     }
 
     public static async ValueTask<BackupRestoreMetadataResult> RestoreFetchAccountsAsync(

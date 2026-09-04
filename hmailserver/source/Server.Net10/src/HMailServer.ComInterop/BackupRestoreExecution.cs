@@ -203,6 +203,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         EnsureArchiveIdentity(backup);
         var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
         var securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
+        var tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
         var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
         if (properties.Any(static property =>
                 string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
@@ -229,7 +230,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var securityRangeStore = metadataTransaction.SecurityRangeStore
             ?? throw new InvalidOperationException(
                 "Settings-only restore requires a transaction-scoped security-range store.");
+        var tcpIpPortStore = metadataTransaction.TcpIpPortStore
+            ?? throw new InvalidOperationException(
+                "Settings-only restore requires a transaction-scoped TCP/IP port store.");
         await metadataTransaction.DeleteAllSecurityRangesForRestoreAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await metadataTransaction.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
         await metadataTransaction.DeleteAllGroupsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -264,6 +270,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         await BackupRestoreMetadataWriter.RestoreSecurityRangesAsync(
             securityRanges,
             securityRangeStore,
+            static () => default,
+            cancellationToken).ConfigureAwait(false);
+        await BackupRestoreMetadataWriter.RestoreTcpIpPortsAsync(
+            tcpIpPorts,
+            tcpIpPortStore,
             static () => default,
             cancellationToken).ConfigureAwait(false);
         await metadataTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -340,6 +351,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
         IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null;
+        IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         if (backup.RestoreSettings)
         {
@@ -349,6 +361,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         {
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
             securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
+            tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -365,6 +378,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             cancellationToken: cancellationToken,
             settingsProperties: settingsProperties,
             securityRanges: securityRanges,
+            tcpIpPorts: tcpIpPorts,
             archiveGroups: archiveGroups).ConfigureAwait(false);
     }
 
@@ -454,6 +468,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
 
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
         IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null;
+        IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null;
         if (fullRestore)
@@ -462,6 +477,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
             securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
+            tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -497,6 +513,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                      cancellationToken: ct,
                      settingsProperties: settingsProperties,
                      securityRanges: securityRanges,
+                     tcpIpPorts: tcpIpPorts,
                      restorePublicFolders: fullRestore,
                     publicFolders: publicFolders,
                     archiveGroups: archiveGroups),
@@ -512,6 +529,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         CancellationToken cancellationToken,
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null,
         IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null,
+        IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null,
         bool restorePublicFolders = false,
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null,
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null)
@@ -583,6 +601,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var groupMemberStore = metadataTransaction?.GroupMemberStore ?? _groupMemberStore;
             var settingsStore = metadataTransaction?.SettingsStore;
             var securityRangeStore = metadataTransaction?.SecurityRangeStore;
+            var tcpIpPortStore = metadataTransaction?.TcpIpPortStore;
             if (settingsProperties is not null && settingsStore is null)
             {
                 throw new InvalidOperationException(
@@ -592,6 +611,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             {
                 throw new InvalidOperationException(
                     "Settings restore requires a transaction-scoped security-range store.");
+            }
+            if (tcpIpPorts is not null && tcpIpPortStore is null)
+            {
+                throw new InvalidOperationException(
+                    "Settings restore requires a transaction-scoped TCP/IP port store.");
             }
             if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Folders.Count > 0)
                 && folderRestoreStore is null)
@@ -654,6 +678,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 {
                     await metadataTransaction
                         .DeleteAllSecurityRangesForRestoreAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                if (tcpIpPorts is not null)
+                {
+                    await metadataTransaction
+                        .DeleteAllTcpIpPortsForRestoreAsync(cancellationToken)
                         .ConfigureAwait(false);
                 }
                 if (restorePublicFolders)
@@ -859,6 +889,14 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                         await BackupRestoreMetadataWriter.RestoreSecurityRangesAsync(
                             securityRanges,
                             securityRangeStore!,
+                            static () => default,
+                            ct).ConfigureAwait(false);
+                    }
+                    if (tcpIpPorts is not null)
+                    {
+                        await BackupRestoreMetadataWriter.RestoreTcpIpPortsAsync(
+                            tcpIpPorts,
+                            tcpIpPortStore!,
                             static () => default,
                             ct).ConfigureAwait(false);
                     }

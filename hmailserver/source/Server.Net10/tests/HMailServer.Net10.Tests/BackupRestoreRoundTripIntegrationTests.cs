@@ -2130,6 +2130,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             ? new FailingOnSecondRecipientAdministrationStore(inner.RecipientStore)
             : inner.RecipientStore;
         public ISecurityRangeAdministrationStore? SecurityRangeStore => inner.SecurityRangeStore;
+        public ITcpIpPortAdministrationStore? TcpIpPortStore => inner.TcpIpPortStore;
         public IFetchAccountAdministrationStore? FetchAccountStore => inner.FetchAccountStore;
         public IRuleAdministrationStore? RuleStore => inner.RuleStore;
         public IRuleCriteriaAdministrationStore? RuleCriteriaStore => inner.RuleCriteriaStore;
@@ -2147,6 +2148,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             inner.DeleteAllPublicFoldersForRestoreAsync(cancellationToken);
         public ValueTask DeleteAllSecurityRangesForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllSecurityRangesForRestoreAsync(cancellationToken);
+        public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken) =>
+            inner.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken);
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             await inner.CommitAsync(cancellationToken).ConfigureAwait(false);

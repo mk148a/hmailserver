@@ -82,4 +82,18 @@ public sealed class SqlServerTcpIpPortAdministrationStoreTests
         Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void ResolveSslCertificateIdByNameSql_UsesLegacyCertificateNameLookup()
+    {
+        var sql = SqlServerTcpIpPortAdministrationStore.ResolveSslCertificateIdByNameSql;
+
+        StringAssert.Contains(sql, "FROM hm_sslcertificates");
+        StringAssert.Contains(sql, "sslcertificateid");
+        StringAssert.Contains(sql, "sslcertificatename = @name");
+        StringAssert.Contains(sql, "TOP (1)");
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE", StringComparison.OrdinalIgnoreCase));
+    }
 }
