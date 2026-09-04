@@ -2133,6 +2133,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
         public ITcpIpPortAdministrationStore? TcpIpPortStore => inner.TcpIpPortStore;
         public IBlockedAttachmentAdministrationStore? BlockedAttachmentStore => inner.BlockedAttachmentStore;
         public ISurblServerAdministrationStore? SurblServerStore => inner.SurblServerStore;
+        public IDnsBlackListAdministrationStore? DnsBlackListStore => inner.DnsBlackListStore;
         public IFetchAccountAdministrationStore? FetchAccountStore => inner.FetchAccountStore;
         public IRuleAdministrationStore? RuleStore => inner.RuleStore;
         public IRuleCriteriaAdministrationStore? RuleCriteriaStore => inner.RuleCriteriaStore;
@@ -2156,6 +2157,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             inner.DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken);
         public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllSurblServersForRestoreAsync(cancellationToken);
+        public ValueTask DeleteAllDnsBlackListsForRestoreAsync(CancellationToken cancellationToken) =>
+            inner.DeleteAllDnsBlackListsForRestoreAsync(cancellationToken);
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             await inner.CommitAsync(cancellationToken).ConfigureAwait(false);

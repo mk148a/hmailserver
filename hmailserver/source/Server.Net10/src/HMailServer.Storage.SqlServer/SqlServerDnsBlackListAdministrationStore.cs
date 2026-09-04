@@ -41,6 +41,10 @@ DELETE FROM hm_dnsbl
 WHERE sblid = @id;
 """;
 
+    public const string DeleteAllDnsBlackListsSql = """
+DELETE FROM hm_dnsbl;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
@@ -103,6 +107,38 @@ WHERE sblid = @id;
 
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<int> InsertDnsBlackListForRestoreAsync(
+        DnsBlackListAdministrationSnapshot blackList,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(blackList);
+
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertDnsBlackListSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
+        command.Parameters.Add("@active", SqlDbType.Bit).Value = blackList.Active;
+        command.Parameters.Add("@dnsHost", SqlDbType.NVarChar, 255).Value = blackList.DnsHost;
+        command.Parameters.Add("@rejectMessage", SqlDbType.NVarChar, 255).Value = blackList.RejectMessage;
+        command.Parameters.Add("@expectedResult", SqlDbType.NVarChar, 255).Value = blackList.ExpectedResult;
+        command.Parameters.Add("@score", SqlDbType.Int).Value = blackList.Score;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    internal async ValueTask DeleteAllDnsBlackListsForRestoreAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteAllDnsBlackListsSql,
+            cancellationToken).ConfigureAwait(false);
+        await commandLease.Command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask<bool> UpdateDnsBlackListAsync(

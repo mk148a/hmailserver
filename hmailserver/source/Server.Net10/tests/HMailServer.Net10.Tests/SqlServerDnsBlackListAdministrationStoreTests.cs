@@ -95,4 +95,14 @@ public sealed class SqlServerDnsBlackListAdministrationStoreTests
         Assert.IsFalse(sql.Contains("SELECT *", StringComparison.OrdinalIgnoreCase));
         Assert.IsFalse(sql.Contains("hm_settings", StringComparison.OrdinalIgnoreCase));
     }
+
+    [TestMethod]
+    public void DeleteAllDnsBlackListsSql_ReplacesTheWholeLegacyCollection()
+    {
+        var sql = SqlServerDnsBlackListAdministrationStore.DeleteAllDnsBlackListsSql;
+
+        StringAssert.Contains(sql, "DELETE FROM hm_dnsbl");
+        Assert.IsFalse(sql.Contains("WHERE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("INSERT", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -10,6 +10,11 @@ public interface IDnsBlackListAdministrationStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("DNS blacklist insertion is not available in this store.");
 
+    ValueTask<int> InsertDnsBlackListForRestoreAsync(
+        DnsBlackListAdministrationSnapshot blackList,
+        CancellationToken cancellationToken) =>
+        InsertDnsBlackListAsync(blackList, cancellationToken);
+
     ValueTask<bool> UpdateDnsBlackListAsync(
         DnsBlackListAdministrationSnapshot blackList,
         CancellationToken cancellationToken) =>

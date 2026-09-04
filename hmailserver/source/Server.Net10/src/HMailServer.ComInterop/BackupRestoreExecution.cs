@@ -206,6 +206,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
         var blockedAttachments = BackupArchiveXmlSnapshotParser.ParseBlockedAttachments(archiveXml);
         var surblServers = BackupArchiveXmlSnapshotParser.ParseSurblServers(archiveXml);
+        var dnsBlackLists = BackupArchiveXmlSnapshotParser.ParseDnsBlackLists(archiveXml);
         var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
         if (properties.Any(static property =>
                 string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
@@ -241,6 +242,9 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var surblServerStore = metadataTransaction.SurblServerStore
             ?? throw new InvalidOperationException(
                 "Settings-only restore requires a transaction-scoped SURBL server store.");
+        var dnsBlackListStore = metadataTransaction.DnsBlackListStore
+            ?? throw new InvalidOperationException(
+                "Settings-only restore requires a transaction-scoped DNS blacklist store.");
         await metadataTransaction.DeleteAllSecurityRangesForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
         await metadataTransaction.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken)
@@ -248,6 +252,8 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         await metadataTransaction.DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
         await metadataTransaction.DeleteAllSurblServersForRestoreAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await metadataTransaction.DeleteAllDnsBlackListsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
         await metadataTransaction.DeleteAllGroupsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -297,6 +303,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         await BackupRestoreMetadataWriter.RestoreSurblServersAsync(
             surblServers,
             surblServerStore,
+            static () => default,
+            cancellationToken).ConfigureAwait(false);
+        await BackupRestoreMetadataWriter.RestoreDnsBlackListsAsync(
+            dnsBlackLists,
+            dnsBlackListStore,
             static () => default,
             cancellationToken).ConfigureAwait(false);
         await metadataTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -376,6 +387,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null;
         IReadOnlyList<RestoreBlockedAttachmentEntry>? blockedAttachments = null;
         IReadOnlyList<RestoreSurblServerEntry>? surblServers = null;
+        IReadOnlyList<RestoreDnsBlackListEntry>? dnsBlackLists = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         if (backup.RestoreSettings)
         {
@@ -388,6 +400,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
             blockedAttachments = BackupArchiveXmlSnapshotParser.ParseBlockedAttachments(archiveXml);
             surblServers = BackupArchiveXmlSnapshotParser.ParseSurblServers(archiveXml);
+            dnsBlackLists = BackupArchiveXmlSnapshotParser.ParseDnsBlackLists(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -407,6 +420,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             tcpIpPorts: tcpIpPorts,
             blockedAttachments: blockedAttachments,
             surblServers: surblServers,
+            dnsBlackLists: dnsBlackLists,
             archiveGroups: archiveGroups).ConfigureAwait(false);
     }
 
@@ -499,6 +513,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null;
         IReadOnlyList<RestoreBlockedAttachmentEntry>? blockedAttachments = null;
         IReadOnlyList<RestoreSurblServerEntry>? surblServers = null;
+        IReadOnlyList<RestoreDnsBlackListEntry>? dnsBlackLists = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null;
         if (fullRestore)
@@ -510,6 +525,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
             blockedAttachments = BackupArchiveXmlSnapshotParser.ParseBlockedAttachments(archiveXml);
             surblServers = BackupArchiveXmlSnapshotParser.ParseSurblServers(archiveXml);
+            dnsBlackLists = BackupArchiveXmlSnapshotParser.ParseDnsBlackLists(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -548,6 +564,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                      tcpIpPorts: tcpIpPorts,
                      blockedAttachments: blockedAttachments,
                      surblServers: surblServers,
+                     dnsBlackLists: dnsBlackLists,
                      restorePublicFolders: fullRestore,
                     publicFolders: publicFolders,
                     archiveGroups: archiveGroups),
@@ -566,6 +583,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null,
         IReadOnlyList<RestoreBlockedAttachmentEntry>? blockedAttachments = null,
         IReadOnlyList<RestoreSurblServerEntry>? surblServers = null,
+        IReadOnlyList<RestoreDnsBlackListEntry>? dnsBlackLists = null,
         bool restorePublicFolders = false,
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null,
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null)
@@ -640,6 +658,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var tcpIpPortStore = metadataTransaction?.TcpIpPortStore;
             var blockedAttachmentStore = metadataTransaction?.BlockedAttachmentStore;
             var surblServerStore = metadataTransaction?.SurblServerStore;
+            var dnsBlackListStore = metadataTransaction?.DnsBlackListStore;
             if (settingsProperties is not null && settingsStore is null)
             {
                 throw new InvalidOperationException(
@@ -664,6 +683,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             {
                 throw new InvalidOperationException(
                     "Settings restore requires a transaction-scoped SURBL server store.");
+            }
+            if (dnsBlackLists is not null && dnsBlackListStore is null)
+            {
+                throw new InvalidOperationException(
+                    "Settings restore requires a transaction-scoped DNS blacklist store.");
             }
             if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Folders.Count > 0)
                 && folderRestoreStore is null)
@@ -744,6 +768,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 {
                     await metadataTransaction
                         .DeleteAllSurblServersForRestoreAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                if (dnsBlackLists is not null)
+                {
+                    await metadataTransaction
+                        .DeleteAllDnsBlackListsForRestoreAsync(cancellationToken)
                         .ConfigureAwait(false);
                 }
                 if (restorePublicFolders)
@@ -973,6 +1003,14 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                         await BackupRestoreMetadataWriter.RestoreSurblServersAsync(
                             surblServers,
                             surblServerStore!,
+                            static () => default,
+                            ct).ConfigureAwait(false);
+                    }
+                    if (dnsBlackLists is not null)
+                    {
+                        await BackupRestoreMetadataWriter.RestoreDnsBlackListsAsync(
+                            dnsBlackLists,
+                            dnsBlackListStore!,
                             static () => default,
                             ct).ConfigureAwait(false);
                     }

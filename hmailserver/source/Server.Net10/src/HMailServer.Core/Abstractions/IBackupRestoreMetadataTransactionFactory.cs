@@ -46,6 +46,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     ISurblServerAdministrationStore? SurblServerStore => null;
 
+    IDnsBlackListAdministrationStore? DnsBlackListStore => null;
+
     ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped domain deletion for restore is not implemented by this transaction.");
@@ -73,6 +75,10 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
     ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped SURBL server deletion for restore is not implemented by this transaction.");
+
+    ValueTask DeleteAllDnsBlackListsForRestoreAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Transaction-scoped DNS blacklist deletion for restore is not implemented by this transaction.");
 
     ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

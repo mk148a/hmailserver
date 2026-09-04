@@ -295,6 +295,39 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseDnsBlackLists_PreservesLegacyAttributesAndOrder()
+    {
+        const string xml = """
+            <Backup>
+              <Nested><DNSBlackLists><DNSBlackList Name="ignored" /></DNSBlackLists></Nested>
+              <DNSBlackLists>
+                <DNSBlackList Name="zen.example" Active="1"
+                              RejectMessage="Rejected" ExpectedResult="127.0.0.2" Score="4" />
+                <DNSBlackList Name="bl.example" Active="0"
+                              RejectMessage="Blocked" ExpectedResult="127.0.0.3" Score="7" />
+              </DNSBlackLists>
+            </Backup>
+            """;
+
+        var blackLists = BackupArchiveXmlSnapshotParser.ParseDnsBlackLists(xml);
+
+        Assert.AreEqual(2, blackLists.Count);
+        Assert.IsTrue(blackLists[0].BlackList.Active);
+        Assert.AreEqual("zen.example", blackLists[0].BlackList.DnsHost);
+        Assert.AreEqual("Rejected", blackLists[0].BlackList.RejectMessage);
+        Assert.AreEqual("127.0.0.2", blackLists[0].BlackList.ExpectedResult);
+        Assert.AreEqual(4, blackLists[0].BlackList.Score);
+        Assert.IsFalse(blackLists[1].BlackList.Active);
+        Assert.AreEqual("bl.example", blackLists[1].BlackList.DnsHost);
+    }
+
+    [TestMethod]
+    public void ParseDnsBlackLists_MissingContainerMeansEmpty()
+    {
+        Assert.IsEmpty(BackupArchiveXmlSnapshotParser.ParseDnsBlackLists("<Backup />"));
+    }
+
+    [TestMethod]
     public void ParseGroupEntries_PreservesLegacyGroupAndMemberNames()
     {
         const string xml = """

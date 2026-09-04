@@ -46,6 +46,7 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
     private readonly SqlServerTcpIpPortAdministrationStore _tcpIpPortStore;
     private readonly SqlServerBlockedAttachmentAdministrationStore _blockedAttachmentStore;
     private readonly SqlServerSurblServerAdministrationStore _surblServerStore;
+    private readonly SqlServerDnsBlackListAdministrationStore _dnsBlackListStore;
     private bool _commitStarted;
     private bool _committed;
 
@@ -63,12 +64,14 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
         _tcpIpPortStore = new SqlServerTcpIpPortAdministrationStore(context);
         _blockedAttachmentStore = new SqlServerBlockedAttachmentAdministrationStore(context);
         _surblServerStore = new SqlServerSurblServerAdministrationStore(context);
+        _dnsBlackListStore = new SqlServerDnsBlackListAdministrationStore(context);
         GroupStore = _groupStore;
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         SecurityRangeStore = _securityRangeStore;
         TcpIpPortStore = _tcpIpPortStore;
         BlockedAttachmentStore = _blockedAttachmentStore;
         SurblServerStore = _surblServerStore;
+        DnsBlackListStore = _dnsBlackListStore;
         DomainStore = _domainStore;
         AccountStore = new SqlServerAccountAdministrationStore(context);
         AliasStore = new SqlServerAliasAdministrationStore(context);
@@ -122,6 +125,8 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ISurblServerAdministrationStore SurblServerStore { get; }
 
+    public IDnsBlackListAdministrationStore DnsBlackListStore { get; }
+
     public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         _domainStore.DeleteAllDomainsForRestoreAsync(cancellationToken);
 
@@ -142,6 +147,9 @@ internal sealed class SqlServerBackupRestoreMetadataTransaction
 
     public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken) =>
         _surblServerStore.DeleteAllSurblServersForRestoreAsync(cancellationToken);
+
+    public ValueTask DeleteAllDnsBlackListsForRestoreAsync(CancellationToken cancellationToken) =>
+        _dnsBlackListStore.DeleteAllDnsBlackListsForRestoreAsync(cancellationToken);
 
     public ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

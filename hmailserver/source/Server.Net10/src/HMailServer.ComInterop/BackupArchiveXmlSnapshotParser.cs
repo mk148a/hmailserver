@@ -76,6 +76,10 @@ public sealed record RestoreBlockedAttachmentEntry(
 public sealed record RestoreSurblServerEntry(
     SurblServerAdministrationSnapshot Server);
 
+[ComVisible(false)]
+public sealed record RestoreDnsBlackListEntry(
+    DnsBlackListAdministrationSnapshot BlackList);
+
 public static class BackupArchiveXmlSnapshotParser
 {
     public static IReadOnlyList<DomainAdministrationSnapshot> ParseDomains(string archiveXml)
@@ -287,6 +291,28 @@ public static class BackupArchiveXmlSnapshotParser
                     Active: element.Attribute("Active")?.Value == "1",
                     DnsHost: element.Attribute("Name")?.Value ?? string.Empty,
                     RejectMessage: element.Attribute("RejectMessage")?.Value ?? string.Empty,
+                    Score: IntAttr(element, "Score"))))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<RestoreDnsBlackListEntry> ParseDnsBlackLists(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var container = document.Root?.Elements("DNSBlackLists").FirstOrDefault();
+        if (container is null)
+        {
+            return Array.Empty<RestoreDnsBlackListEntry>();
+        }
+
+        return container.Elements("DNSBlackList")
+            .Select(element => new RestoreDnsBlackListEntry(
+                new DnsBlackListAdministrationSnapshot(
+                    Id: 0,
+                    Active: element.Attribute("Active")?.Value == "1",
+                    DnsHost: element.Attribute("Name")?.Value ?? string.Empty,
+                    RejectMessage: element.Attribute("RejectMessage")?.Value ?? string.Empty,
+                    ExpectedResult: element.Attribute("ExpectedResult")?.Value ?? string.Empty,
                     Score: IntAttr(element, "Score"))))
             .ToArray();
     }

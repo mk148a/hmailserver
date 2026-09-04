@@ -131,6 +131,19 @@ public sealed class BackupRestoreExecutionTests
         </Backup>
         """;
 
+    private const string SettingsDnsBlackListsArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="1" />
+          <Properties><hostname LongValue="0" StringValue="restored.example" /></Properties>
+          <DNSBlackLists>
+            <DNSBlackList Name="zen.example" Active="1"
+                          RejectMessage="Rejected" ExpectedResult="127.0.0.2" Score="4" />
+            <DNSBlackList Name="bl.example" Active="0"
+                          RejectMessage="Blocked" ExpectedResult="127.0.0.3" Score="7" />
+          </DNSBlackLists>
+        </Backup>
+        """;
+
     [TestMethod]
     public async Task ExecuteAsync_RestoresOnlyQueuedMetadataSections()
     {
@@ -659,6 +672,64 @@ public sealed class BackupRestoreExecutionTests
         Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
         Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
         Assert.IsEmpty(stores.SurblServers.Items);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SettingsOnlyReplacesDnsBlackListsInsideTheSqlTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsDnsBlackListsArchiveXml);
+        var stores = new RecordingStores();
+        stores.DnsBlackLists.Items.Add(new DnsBlackListAdministrationSnapshot(
+            1, true, "old.example", "old", "127.0.0.9", 1));
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, transactionFactory.DnsBlackListDeleteCount);
+        Assert.AreEqual(2, stores.DnsBlackLists.InsertAttempts);
+        CollectionAssert.AreEqual(
+            new[] { "zen.example", "bl.example" },
+            stores.DnsBlackLists.Items.Select(static item => item.DnsHost).ToArray());
+        Assert.AreEqual(1, transactionFactory.LastTransaction!.CommitCount);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_DnsBlackListFailureDisposesTransactionWithoutCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsDnsBlackListsArchiveXml);
+        var stores = new RecordingStores();
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        stores.DnsBlackLists.Fail = true;
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.DnsBlackListDeleteCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.RolledBack);
+        Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
+        Assert.IsEmpty(stores.DnsBlackLists.Items);
     }
 
     [TestMethod]
@@ -1342,6 +1413,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingTcpIpPortStore TcpIpPorts { get; } = new();
         public RecordingBlockedAttachmentStore BlockedAttachments { get; } = new();
         public RecordingSurblServerStore SurblServers { get; } = new();
+        public RecordingDnsBlackListStore DnsBlackLists { get; } = new();
         public RecordingPublicFolderRestoreStore PublicFolders { get; } = new();
         public RecordingPublicMessageRestoreStore PublicMessages { get; } = new();
         public RecordingPublicFolderPermissionRestoreStore PublicPermissions { get; } = new();
@@ -1464,6 +1536,7 @@ public sealed class BackupRestoreExecutionTests
         public int TcpIpPortDeleteCount { get; private set; }
         public int BlockedAttachmentDeleteCount { get; private set; }
         public int SurblServerDeleteCount { get; private set; }
+        public int DnsBlackListDeleteCount { get; private set; }
         public bool FailDelete { get; set; }
         public RecordingMetadataTransaction? LastTransaction { get; private set; }
 
@@ -1519,6 +1592,13 @@ public sealed class BackupRestoreExecutionTests
             stores.SurblServers.Items.Clear();
             return ValueTask.CompletedTask;
         }
+
+        public ValueTask DeleteAllDnsBlackListsForRestoreAsync(CancellationToken cancellationToken)
+        {
+            DnsBlackListDeleteCount++;
+            stores.DnsBlackLists.Items.Clear();
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class CommitGatedMetadataTransactionFactory(
@@ -1551,6 +1631,7 @@ public sealed class BackupRestoreExecutionTests
         public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
         public IBlockedAttachmentAdministrationStore BlockedAttachmentStore => stores.BlockedAttachments;
         public ISurblServerAdministrationStore SurblServerStore => stores.SurblServers;
+        public IDnsBlackListAdministrationStore DnsBlackListStore => stores.DnsBlackLists;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
@@ -1565,6 +1646,9 @@ public sealed class BackupRestoreExecutionTests
             ValueTask.CompletedTask;
 
         public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask DeleteAllDnsBlackListsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
@@ -1595,6 +1679,7 @@ public sealed class BackupRestoreExecutionTests
         public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
         public IBlockedAttachmentAdministrationStore BlockedAttachmentStore => stores.BlockedAttachments;
         public ISurblServerAdministrationStore SurblServerStore => stores.SurblServers;
+        public IDnsBlackListAdministrationStore DnsBlackListStore => stores.DnsBlackLists;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
@@ -1620,6 +1705,9 @@ public sealed class BackupRestoreExecutionTests
         public ValueTask DeleteAllSurblServersForRestoreAsync(CancellationToken cancellationToken)
             => factory.DeleteAllSurblServersForRestoreAsync(cancellationToken);
 
+        public ValueTask DeleteAllDnsBlackListsForRestoreAsync(CancellationToken cancellationToken)
+            => factory.DeleteAllDnsBlackListsForRestoreAsync(cancellationToken);
+
         public ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             CommitCount++;
@@ -1639,6 +1727,7 @@ public sealed class BackupRestoreExecutionTests
                 stores.TcpIpPorts.Items.Clear();
                 stores.BlockedAttachments.Items.Clear();
                 stores.SurblServers.Items.Clear();
+                stores.DnsBlackLists.Items.Clear();
                 stores.Settings.Properties.Clear();
             }
 
@@ -1818,6 +1907,45 @@ public sealed class BackupRestoreExecutionTests
             CancellationToken cancellationToken) => ValueTask.FromResult(true);
 
         public ValueTask<bool> DeleteSurblServerByIdAsync(
+            int databaseId,
+            CancellationToken cancellationToken) => ValueTask.FromResult(true);
+    }
+
+    private sealed class RecordingDnsBlackListStore : IDnsBlackListAdministrationStore
+    {
+        public List<DnsBlackListAdministrationSnapshot> Items { get; } = [];
+        public bool Fail { get; set; }
+        public int InsertAttempts { get; private set; }
+
+        public ValueTask<IReadOnlyList<DnsBlackListAdministrationSnapshot>> GetDnsBlackListsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<DnsBlackListAdministrationSnapshot>>(Items);
+
+        public ValueTask<int> InsertDnsBlackListForRestoreAsync(
+            DnsBlackListAdministrationSnapshot blackList,
+            CancellationToken cancellationToken)
+        {
+            InsertAttempts++;
+            if (Fail)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Injected DNS blacklist restore failure."));
+            }
+
+            Items.Add(blackList with { Id = 1000 + InsertAttempts });
+            return ValueTask.FromResult(1000 + InsertAttempts);
+        }
+
+        public ValueTask<int> InsertDnsBlackListAsync(
+            DnsBlackListAdministrationSnapshot blackList,
+            CancellationToken cancellationToken) =>
+            InsertDnsBlackListForRestoreAsync(blackList, cancellationToken);
+
+        public ValueTask<bool> UpdateDnsBlackListAsync(
+            DnsBlackListAdministrationSnapshot blackList,
+            CancellationToken cancellationToken) => ValueTask.FromResult(true);
+
+        public ValueTask<bool> DeleteDnsBlackListByIdAsync(
             int databaseId,
             CancellationToken cancellationToken) => ValueTask.FromResult(true);
     }
