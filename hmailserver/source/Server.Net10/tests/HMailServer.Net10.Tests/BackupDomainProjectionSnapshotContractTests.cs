@@ -25,6 +25,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
                 typeof(ISecurityRangeAdministrationStore),
                 typeof(ITcpIpPortAdministrationStore),
                 typeof(IBlockedAttachmentAdministrationStore),
+                typeof(ISurblServerAdministrationStore),
                 typeof(IGroupAdministrationStore),
                 typeof(IGroupMemberAdministrationStore),
                 typeof(IAccountAdministrationStore),
@@ -161,6 +162,7 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             public ISecurityRangeAdministrationStore SecurityRangeStore { get; } = new EmptySecurityRangeStore();
             public ITcpIpPortAdministrationStore TcpIpPortStore { get; } = new EmptyTcpIpPortStore();
             public IBlockedAttachmentAdministrationStore BlockedAttachmentStore { get; } = new EmptyBlockedAttachmentStore();
+            public ISurblServerAdministrationStore SurblServerStore { get; } = new EmptySurblServerStore();
             public IGroupAdministrationStore GroupStore { get; } = new EmptyGroupStore();
             public IGroupMemberAdministrationStore GroupMemberStore { get; } = new EmptyGroupMemberStore();
             public IAccountAdministrationStore AccountStore { get; } = new EmptyAccountStore();
@@ -239,6 +241,14 @@ public sealed class BackupDomainProjectionSnapshotContractTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>(
                 Array.Empty<BlockedAttachmentAdministrationSnapshot>());
+    }
+
+    private sealed class EmptySurblServerStore : ISurblServerAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<SurblServerAdministrationSnapshot>>(
+                Array.Empty<SurblServerAdministrationSnapshot>());
     }
 
     private sealed class FixedSettingsStore(SettingsAdministrationSnapshot snapshot)

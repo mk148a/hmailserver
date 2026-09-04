@@ -54,6 +54,7 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
         SecurityRangeStore = new SqlServerSecurityRangeAdministrationStore(context);
         TcpIpPortStore = new SqlServerTcpIpPortAdministrationStore(context);
         BlockedAttachmentStore = new SqlServerBlockedAttachmentAdministrationStore(context);
+        SurblServerStore = new SqlServerSurblServerAdministrationStore(context);
         GroupStore = new SqlServerGroupAdministrationStore(context);
         GroupMemberStore = new SqlServerGroupMemberAdministrationStore(context);
         DomainStore = new SqlServerDomainAdministrationStore(context);
@@ -82,6 +83,8 @@ internal sealed class SqlServerBackupDomainProjectionSnapshot
     public ITcpIpPortAdministrationStore TcpIpPortStore { get; }
 
     public IBlockedAttachmentAdministrationStore BlockedAttachmentStore { get; }
+
+    public ISurblServerAdministrationStore SurblServerStore { get; }
 
     public IGroupAdministrationStore GroupStore { get; }
 

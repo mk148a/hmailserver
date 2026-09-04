@@ -101,7 +101,8 @@ BackupManagerRuntimeHost.Configure(
                      .GetRequiredService<IBackupDomainProjectionSnapshotFactory>(),
                  securityRangeStore: host.Services.GetRequiredService<ISecurityRangeAdministrationStore>(),
                  tcpIpPortStore: host.Services.GetRequiredService<ITcpIpPortAdministrationStore>(),
-                 blockedAttachmentStore: host.Services.GetRequiredService<IBlockedAttachmentAdministrationStore>())
+                 blockedAttachmentStore: host.Services.GetRequiredService<IBlockedAttachmentAdministrationStore>(),
+                 surblServerStore: host.Services.GetRequiredService<ISurblServerAdministrationStore>())
                 .GetPayloadAsync,
              dataDirectory: dataDirectory,
              restoreReinitializer: reinitializationCoordinator.ReinitializeAsync,

@@ -39,6 +39,7 @@ WHERE surblid = @id;
 """;
 
     private readonly SqlServerConnectionFactory _connectionFactory;
+    private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
     public SqlServerSurblServerAdministrationStore(SqlServerConnectionFactory connectionFactory)
     {
@@ -46,11 +47,23 @@ WHERE surblid = @id;
         _connectionFactory = connectionFactory;
     }
 
+    internal SqlServerSurblServerAdministrationStore(
+        SqlServerBackupRestoreTransactionContext transactionContext)
+    {
+        ArgumentNullException.ThrowIfNull(transactionContext);
+        _connectionFactory = null!;
+        _transactionContext = transactionContext;
+    }
+
     public async ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
         CancellationToken cancellationToken)
     {
-        await using var connection = await _connectionFactory.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = new SqlCommand(GetSurblServersSql, connection);
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            GetSurblServersSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
         await using var reader = await command.ExecuteReaderAsync(
             CommandBehavior.SequentialAccess,
             cancellationToken).ConfigureAwait(false);

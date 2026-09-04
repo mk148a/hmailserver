@@ -17,6 +17,9 @@ public sealed class SqlServerSurblServerAdministrationStoreTests
         StringAssert.Contains(sql, "surblrejectmessage");
         StringAssert.Contains(sql, "surblscore");
         StringAssert.Contains(sql, "ORDER BY surblid ASC");
+        Assert.IsFalse(sql.Contains("INSERT ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("UPDATE ", StringComparison.OrdinalIgnoreCase));
+        Assert.IsFalse(sql.Contains("DELETE ", StringComparison.OrdinalIgnoreCase));
     }
 
     [TestMethod]

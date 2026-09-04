@@ -1266,6 +1266,43 @@ public sealed class BackupArchiveRuntimeTests
     }
 
     [TestMethod]
+    public void MetadataXmlWritesLegacySurblServersAfterBlockedAttachments()
+    {
+        var xml = SevenZipBackupArchiveRuntime.CreateMetadataXml(
+            1,
+            "10.0.0-B0",
+            new BackupArchiveXmlPayload(
+                Settings: new SettingsAdministrationSnapshot(
+                    HostName: "mail.example.test",
+                    WelcomeSmtp: "smtp",
+                    WelcomePop3: "pop3",
+                    WelcomeImap: "imap"),
+                Domains: null,
+                BlockedAttachments: new[]
+                {
+                    new BlockedAttachmentAdministrationSnapshot(7, "*.exe", "Executable")
+                },
+                SurblServers: new[]
+                {
+                    new SurblServerAdministrationSnapshot(
+                        8, true, "surbl.example.test", "Reject & test", 5)
+                }));
+
+        var document = XDocument.Parse(xml);
+        CollectionAssert.AreEqual(
+            new[] { "BackupInformation", "Properties", "BlockedAttachments", "SURBLServers" },
+            document.Root!.Elements().Select(static element => element.Name.LocalName).ToArray());
+        var server = document.Root.Element("SURBLServers")!.Element("SURBLServer")!;
+        CollectionAssert.AreEqual(
+            new[] { "Name", "Active", "RejectMessage", "Score" },
+            server.Attributes().Select(static attribute => attribute.Name.LocalName).ToArray());
+        Assert.AreEqual("surbl.example.test", server.Attribute("Name")?.Value);
+        Assert.AreEqual("1", server.Attribute("Active")?.Value);
+        Assert.AreEqual("Reject & test", server.Attribute("RejectMessage")?.Value);
+        Assert.AreEqual("5", server.Attribute("Score")?.Value);
+    }
+
+    [TestMethod]
     public void MetadataXmlWritesEveryModeledSettingsPropertyInLegacyNameOrderWithoutCredentials()
     {
         var settings = new SettingsAdministrationSnapshot(
@@ -2124,7 +2161,9 @@ public sealed class BackupArchiveRuntimeTests
             tcpIpPortStore: new FixedTcpIpPortAdministrationStore(
                 new[] { new TcpIpPortAdministrationSnapshot(1, 1, 25, "0.0.0.0", 0, 0) }),
             blockedAttachmentStore: new FixedBlockedAttachmentAdministrationStore(
-                new[] { new BlockedAttachmentAdministrationSnapshot(7, "*.exe", "Executable") }));
+                new[] { new BlockedAttachmentAdministrationSnapshot(7, "*.exe", "Executable") }),
+            surblServerStore: new FixedSurblServerAdministrationStore(
+                new[] { new SurblServerAdministrationSnapshot(8, true, "surbl.example.test", "Reject", 5) }));
 
         var payload = await runtime.GetPayloadAsync(
             new BackupStartPlanEvidence("unused", 1, false, true, true),
@@ -2140,6 +2179,8 @@ public sealed class BackupArchiveRuntimeTests
         Assert.AreEqual(25, payload.TcpIpPorts[0].PortNumber);
         Assert.AreEqual(1, payload.BlockedAttachments!.Count);
         Assert.AreEqual("*.exe", payload.BlockedAttachments[0].Wildcard);
+        Assert.AreEqual(1, payload.SurblServers!.Count);
+        Assert.AreEqual("surbl.example.test", payload.SurblServers[0].DnsHost);
     }
 
     [TestMethod]
@@ -3693,6 +3734,15 @@ public sealed class BackupArchiveRuntimeTests
         public ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(attachments);
+    }
+
+    private sealed class FixedSurblServerAdministrationStore(
+        IReadOnlyList<SurblServerAdministrationSnapshot> servers)
+        : ISurblServerAdministrationStore
+    {
+        public ValueTask<IReadOnlyList<SurblServerAdministrationSnapshot>> GetSurblServersAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(servers);
     }
 
     private sealed class RecordingDistributionListAdministrationStore(

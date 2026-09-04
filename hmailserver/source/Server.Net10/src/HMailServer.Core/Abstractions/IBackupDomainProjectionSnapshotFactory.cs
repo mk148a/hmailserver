@@ -18,6 +18,8 @@ public interface IBackupDomainProjectionSnapshot : IAsyncDisposable
 
     IBlockedAttachmentAdministrationStore BlockedAttachmentStore { get; }
 
+    ISurblServerAdministrationStore SurblServerStore { get; }
+
     IGroupAdministrationStore GroupStore { get; }
 
     IGroupMemberAdministrationStore GroupMemberStore { get; }
