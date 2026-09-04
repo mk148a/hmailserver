@@ -219,6 +219,47 @@ public sealed class SqlServerAccountAdministrationStoreIntegrationTests
         }
     }
 
+    [TestMethod]
+    [TestCategory("SqlServerIntegration")]
+    public async Task BackupAccounts_HashPlaintextRowsWithLegacySaltedSha256()
+    {
+        var serverConnectionString = GetApprovedConnectionStringOrInconclusive();
+        var databaseName = $"hmailserver_net10_backup_account_{Guid.NewGuid():N}";
+        var masterConnectionString = WithDatabase(serverConnectionString, "master");
+        var testConnectionString = WithDatabase(serverConnectionString, databaseName);
+        await CreateDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        try
+        {
+            await CreateSchemaAndSeedAsync(testConnectionString).ConfigureAwait(false);
+            await using (var connection = new SqlConnection(testConnectionString))
+            {
+                await connection.OpenAsync().ConfigureAwait(false);
+                await using var command = new SqlCommand(
+                    "UPDATE dbo.hm_accounts SET accountpassword = N'legacy-plain', accountpwencryption = 0, accountvacationexpiredate = N'2026-01-01 03:00:00' WHERE accountid = 1;",
+                    connection);
+                Assert.AreEqual(1, await command.ExecuteNonQueryAsync().ConfigureAwait(false));
+            }
+
+            var store = new SqlServerAccountAdministrationStore(
+                new SqlServerConnectionFactory(testConnectionString));
+            var backup = (await store.GetBackupAccountsAsync(100, CancellationToken.None).ConfigureAwait(false)).Single();
+
+            Assert.AreEqual(3, backup.PasswordEncryption);
+            Assert.AreNotEqual("legacy-plain", backup.Password);
+            Assert.AreEqual("2026-01-01 03:00:00", backup.Account.VacationMessageExpiresDate);
+            Assert.IsTrue(
+                LegacyPasswordVerifier.Verify(
+                    "legacy-plain",
+                    backup.Password,
+                    LegacyPasswordEncryptionType.SHA256));
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            await DropDatabaseAsync(masterConnectionString, databaseName).ConfigureAwait(false);
+        }
+    }
+
     private static string GetApprovedConnectionStringOrInconclusive()
     {
         var rawConnectionString = Environment.GetEnvironmentVariable(ConnectionEnvironmentVariable);

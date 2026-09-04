@@ -108,7 +108,7 @@ SELECT
     accountvacationmessage,
     accountvacationsubject,
     accountvacationexpires,
-    CONVERT(varchar(10), accountvacationexpiredate, 23) AS accountvacationexpiredate,
+    CONVERT(varchar(19), accountvacationexpiredate, 120) AS accountvacationexpiredate,
     accountvacationabortspamflagged,
     accountforwardenabled,
     accountforwardaddress,
@@ -444,11 +444,19 @@ ORDER BY accountaddress ASC;
         var accounts = new List<AccountBackupAdministrationSnapshot>();
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
+            var password = reader.GetString(4);
+            var passwordEncryption = Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture);
+            if (passwordEncryption == 0 && password.Length > 0)
+            {
+                password = LegacyPasswordHasher.CreateSaltedSha256(password);
+                passwordEncryption = 3;
+            }
+
             accounts.Add(
                 new AccountBackupAdministrationSnapshot(
                     Account: ReadAccountSnapshot(reader, adminLevelOrdinal: 6),
-                    Password: reader.GetString(4),
-                    PasswordEncryption: Convert.ToInt32(reader.GetValue(5), CultureInfo.InvariantCulture)));
+                    Password: password,
+                    PasswordEncryption: passwordEncryption));
         }
 
         return accounts;
