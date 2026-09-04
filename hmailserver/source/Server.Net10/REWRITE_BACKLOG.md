@@ -1,22 +1,22 @@
-## Current authoritative status (2026-09-04, paired backup account projection)
+## Current authoritative status (2026-09-04, blocked-attachment backup projection)
 
 ### Superseded by current backup projection commits
 
-Code/test commits `bac62c914` and `09c2748fe` now project legacy
-`SecurityRanges` and `TCPIPPorts` into settings backups. The C++ anchors are
-`Configuration::XMLStore`, `SecurityRange::XMLStore`, and
-`TCPIPPort::XMLStore`; Net10 symbols are `BackupXmlPayloadRuntime`,
+Code/test commit `778b83f81` now projects legacy `BlockedAttachments` after
+the earlier `SecurityRanges` and `TCPIPPorts` slices. The C++ anchors are
+`Configuration::XMLStore`, `BlockedAttachments::Refresh`, and
+`BlockedAttachment::XMLStore`; Net10 symbols are `BackupXmlPayloadRuntime`,
 `SevenZipBackupArchiveRuntime.WriteSettings`, and
 `SqlServerBackupDomainProjectionSnapshot`. The focused projection suite is
-`72/72`, and full Debug is `2810 passed, 97 skipped, 0 failed / 2907`.
+`73/73`, and full Debug is `2811 passed, 97 skipped, 0 failed / 2908`.
 
 The paired comparator remains **FAIL** because non-empty
-`BlockedAttachments`, `SURBLServers`, and `DNSBlackLists` remain absent from
-Net10 metadata. Next backup slice: `BlockedAttachments` projection. Do not
+`SURBLServers` and `DNSBlackLists` remain absent from
+Net10 metadata. Next backup slice: `SURBLServers` projection. Do not
 claim complete backup XML parity or a backup speed ratio until the remaining
 non-empty collections and equivalent timing are accepted. Restore parsing and
 transactional application for the newly projected `SecurityRanges` and
-`TCPIPPorts` nodes is also a release blocker; backup projection alone is not
+`TCPIPPorts`, and `BlockedAttachments` nodes is also a release blocker; backup projection alone is not
 round-trip parity.
 
 ## Historical status (2026-09-04, paired backup account projection)

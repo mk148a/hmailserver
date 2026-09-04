@@ -1,26 +1,26 @@
 # CODEX_HANDOFF.md
 
-## Current authoritative continuation (2026-09-04, SecurityRanges and TCPIPPorts projection)
+## Current authoritative continuation (2026-09-04, blocked-attachment projection)
 
-Code/test commits `bac62c914` and `09c2748fe` implement two bounded legacy
-settings-backup projection slices. Legacy `Configuration::XMLStore` writes
-`SecurityRanges` and `TCPIPPorts` in that order; `SecurityRange::XMLStore`
-and `TCPIPPort::XMLStore` define the item attributes. Net10 now retrieves
-both through `SqlServerBackupDomainProjectionSnapshot`, preserves the
-snapshot transaction, emits the legacy node/item order, and carries the
-conditional TCP/IP `SSLCertificateName`.
+Code/test commit `778b83f81` adds the bounded legacy
+`BlockedAttachments` settings-backup projection after the previously
+completed `SecurityRanges` and `TCPIPPorts` projections. Legacy
+`Configuration::XMLStore` and `BlockedAttachment::XMLStore` define the
+position and the exact `Name`/`Description` attributes. Net10 retrieves the
+collection through `SqlServerBackupDomainProjectionSnapshot`, preserves the
+snapshot transaction, and omits an empty collection.
 
-Focused coverage is `72/72`; the related SQL store filter is `5 passed` plus
+Focused coverage is `73/73`; the related SQL store filter is `5 passed` plus
 one isolated integration test skipped without a disposable SQL environment.
-The full Debug suite is `2810 passed, 97 skipped, 0 failed / 2907`.
+The full Debug suite is `2811 passed, 97 skipped, 0 failed / 2908`.
 
 The disposable C++/Net10 backup pair still compares **FAIL**: the remaining
-non-empty legacy collections are `BlockedAttachments`, `SURBLServers`, and
-`DNSBlackLists`. Equivalent per-operation backup timing is also not yet
+non-empty legacy collections are `SURBLServers` and `DNSBlackLists`. Equivalent
+per-operation backup timing is also not yet
 available, so no speed ratio or complete backup parity claim is permitted.
-The new `SecurityRanges` and `TCPIPPorts` metadata nodes are backup-side only;
+The new `SecurityRanges`, `TCPIPPorts`, and `BlockedAttachments` metadata nodes are backup-side only;
 restore parsing and transactional application remain open.
-Next bounded slice: `BlockedAttachments` backup projection. Registered
+Next bounded slice: `SURBLServers` backup projection. Registered
 COM/Admin, SEC-18 caller-token, restore/installer rollback, AD/SSPI,
 DKIM/DMARC/SPF, exact Full-Text transaction equivalence, and performance
 acceptance remain release blockers. Production service, DB, Data, COM

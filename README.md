@@ -3,23 +3,24 @@ hMailServer
 
 ## Current backup projection status (2026-09-04)
 
-Code/test commits `bac62c914` and `09c2748fe` add legacy settings-backup
-projection for `SecurityRanges` and `TCPIPPorts`. The C++ references are
+Code/test commits `bac62c914`, `09c2748fe`, and `778b83f81` add legacy
+settings-backup projection for `SecurityRanges`, `TCPIPPorts`, and
+`BlockedAttachments`. The C++ references are
 `Configuration::XMLStore` (`hmailserver/source/Server/Common/Application/Configuration.cpp:687-710`),
 `SecurityRanges::Refresh`, `SecurityRange::XMLStore`, `TCPIPPorts::Refresh`,
 and `TCPIPPort::XMLStore` (`hmailserver/source/Server/Common/BO/TCPIPPort.cpp:38-63`).
 Net10 reads both collections through the snapshot transaction, preserves the
 legacy XML order and item attributes, and resolves TCP/IP certificate names
-without changing listener or COM behavior. Focused coverage is `72/72`; the
+without changing listener or COM behavior. Focused coverage is `73/73`; the
 related SQL store filter is `5 passed, 1 isolated opt-in skipped`.
 
 This is a backup-side projection only. Restore parsing/execution for
-`SecurityRanges` and `TCPIPPorts` is still open and must be completed before
+`SecurityRanges`, `TCPIPPorts`, and `BlockedAttachments` is still open and must be completed before
 calling backup/restore parity green.
 
-The full Debug suite after `09c2748fe` is `2810 passed, 97 skipped, 0 failed /
-2907`. The real disposable C++/Net10 pair still has non-empty
-`BlockedAttachments`, `SURBLServers`, and `DNSBlackLists` that are not yet
+The full Debug suite after `778b83f81` is `2811 passed, 97 skipped, 0 failed /
+2908`. The real disposable C++/Net10 pair still has non-empty
+`SURBLServers` and `DNSBlackLists` that are not yet
 projected, so the compatibility comparator remains **FAIL** and no backup
 speed ratio or complete XML-parity claim is valid. The performance/release
 gate remains **RED**.
@@ -49,7 +50,7 @@ compressed `DataBackup` payload. The payload comparator found `1000/1000`
 DataBackup files equal by size and SHA-256.
 
 This does not make the XML comparison a PASS: the paired C++ fixture still
-emits non-empty `BlockedAttachments`, `SURBLServers`, and `DNSBlackLists`
+emits non-empty `SURBLServers` and `DNSBlackLists`
 that Net10 does not yet project,
 legacy salted password values are not byte-comparable, and Net10 intentionally
 excludes `smtprelayerpassword` from the settings backup projection. The new
