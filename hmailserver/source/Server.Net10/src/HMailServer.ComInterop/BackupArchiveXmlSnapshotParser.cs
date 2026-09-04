@@ -68,6 +68,10 @@ public sealed record RestoreGroupEntry(
 public sealed record RestoreTcpIpPortEntry(
     TcpIpPortAdministrationSnapshot Port);
 
+[ComVisible(false)]
+public sealed record RestoreBlockedAttachmentEntry(
+    BlockedAttachmentAdministrationSnapshot Attachment);
+
 public static class BackupArchiveXmlSnapshotParser
 {
     public static IReadOnlyList<DomainAdministrationSnapshot> ParseDomains(string archiveXml)
@@ -240,6 +244,25 @@ public static class BackupArchiveXmlSnapshotParser
                 {
                     SslCertificateName = element.Attribute("SSLCertificateName")?.Value
                 }))
+            .ToArray();
+    }
+
+    public static IReadOnlyList<RestoreBlockedAttachmentEntry> ParseBlockedAttachments(string archiveXml)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(archiveXml);
+        var document = ParseDocument(archiveXml);
+        var container = document.Root?.Elements("BlockedAttachments").FirstOrDefault();
+        if (container is null)
+        {
+            return Array.Empty<RestoreBlockedAttachmentEntry>();
+        }
+
+        return container.Elements("BlockedAttachment")
+            .Select(element => new RestoreBlockedAttachmentEntry(
+                new BlockedAttachmentAdministrationSnapshot(
+                    Id: 0,
+                    Wildcard: element.Attribute("Name")?.Value ?? string.Empty,
+                    Description: element.Attribute("Description")?.Value ?? string.Empty)))
             .ToArray();
     }
 

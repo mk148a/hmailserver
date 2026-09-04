@@ -34,6 +34,10 @@ DELETE FROM hm_blocked_attachments
 WHERE baid = @id;
 """;
 
+    public const string DeleteAllBlockedAttachmentsSql = """
+DELETE FROM hm_blocked_attachments;
+""";
+
     private readonly SqlServerConnectionFactory _connectionFactory;
     private readonly SqlServerBackupRestoreTransactionContext? _transactionContext;
 
@@ -89,6 +93,35 @@ WHERE baid = @id;
         command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = attachment.Description;
         var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
         return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    public async ValueTask<int> InsertBlockedAttachmentForRestoreAsync(
+        BlockedAttachmentAdministrationSnapshot attachment,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(attachment);
+
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            InsertBlockedAttachmentSql,
+            cancellationToken).ConfigureAwait(false);
+        var command = commandLease.Command;
+        command.Parameters.Add("@wildcard", SqlDbType.NVarChar, 255).Value = attachment.Wildcard;
+        command.Parameters.Add("@description", SqlDbType.NVarChar, 255).Value = attachment.Description;
+        var insertedId = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+        return Convert.ToInt32(insertedId, System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    internal async ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var commandLease = await SqlServerCommandLease.OpenAsync(
+            _connectionFactory,
+            _transactionContext,
+            DeleteAllBlockedAttachmentsSql,
+            cancellationToken).ConfigureAwait(false);
+        await commandLease.Command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask UpdateBlockedAttachmentAsync(

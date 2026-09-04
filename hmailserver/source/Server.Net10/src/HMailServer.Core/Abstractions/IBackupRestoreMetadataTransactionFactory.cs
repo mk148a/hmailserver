@@ -42,6 +42,8 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
 
     ITcpIpPortAdministrationStore? TcpIpPortStore => null;
 
+    IBlockedAttachmentAdministrationStore? BlockedAttachmentStore => null;
+
     ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped domain deletion for restore is not implemented by this transaction.");
@@ -61,6 +63,10 @@ public interface IBackupRestoreMetadataTransaction : IAsyncDisposable
     ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken) =>
         throw new NotSupportedException(
             "Transaction-scoped TCP/IP port deletion for restore is not implemented by this transaction.");
+
+    ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "Transaction-scoped blocked-attachment deletion for restore is not implemented by this transaction.");
 
     ValueTask<IReadOnlyList<ImapFolderAdministrationDeletedMessage>>
         DeleteAllPublicFoldersForRestoreWithManifestAsync(CancellationToken cancellationToken) =>

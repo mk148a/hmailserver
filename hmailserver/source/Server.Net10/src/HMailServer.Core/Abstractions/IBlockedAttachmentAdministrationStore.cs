@@ -10,6 +10,11 @@ public interface IBlockedAttachmentAdministrationStore
         CancellationToken cancellationToken) =>
         throw new NotSupportedException("Blocked attachment inserts are not implemented by this store.");
 
+    ValueTask<int> InsertBlockedAttachmentForRestoreAsync(
+        BlockedAttachmentAdministrationSnapshot attachment,
+        CancellationToken cancellationToken) =>
+        InsertBlockedAttachmentAsync(attachment, cancellationToken);
+
     ValueTask UpdateBlockedAttachmentAsync(
         BlockedAttachmentAdministrationSnapshot attachment,
         CancellationToken cancellationToken) =>

@@ -204,6 +204,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var properties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
         var securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
         var tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
+        var blockedAttachments = BackupArchiveXmlSnapshotParser.ParseBlockedAttachments(archiveXml);
         var archiveGroups = BackupArchiveXmlSnapshotParser.ParseGroupEntries(archiveXml);
         if (properties.Any(static property =>
                 string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
@@ -233,9 +234,14 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         var tcpIpPortStore = metadataTransaction.TcpIpPortStore
             ?? throw new InvalidOperationException(
                 "Settings-only restore requires a transaction-scoped TCP/IP port store.");
+        var blockedAttachmentStore = metadataTransaction.BlockedAttachmentStore
+            ?? throw new InvalidOperationException(
+                "Settings-only restore requires a transaction-scoped blocked-attachment store.");
         await metadataTransaction.DeleteAllSecurityRangesForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
         await metadataTransaction.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await metadataTransaction.DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
         await metadataTransaction.DeleteAllGroupsForRestoreAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -275,6 +281,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         await BackupRestoreMetadataWriter.RestoreTcpIpPortsAsync(
             tcpIpPorts,
             tcpIpPortStore,
+            static () => default,
+            cancellationToken).ConfigureAwait(false);
+        await BackupRestoreMetadataWriter.RestoreBlockedAttachmentsAsync(
+            blockedAttachments,
+            blockedAttachmentStore,
             static () => default,
             cancellationToken).ConfigureAwait(false);
         await metadataTransaction.CommitAsync(cancellationToken).ConfigureAwait(false);
@@ -352,6 +363,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
         IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null;
         IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null;
+        IReadOnlyList<RestoreBlockedAttachmentEntry>? blockedAttachments = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         if (backup.RestoreSettings)
         {
@@ -362,6 +374,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
             securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
             tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
+            blockedAttachments = BackupArchiveXmlSnapshotParser.ParseBlockedAttachments(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -379,6 +392,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             settingsProperties: settingsProperties,
             securityRanges: securityRanges,
             tcpIpPorts: tcpIpPorts,
+            blockedAttachments: blockedAttachments,
             archiveGroups: archiveGroups).ConfigureAwait(false);
     }
 
@@ -469,6 +483,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null;
         IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null;
         IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null;
+        IReadOnlyList<RestoreBlockedAttachmentEntry>? blockedAttachments = null;
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null;
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null;
         if (fullRestore)
@@ -478,6 +493,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             settingsProperties = BackupArchiveXmlSnapshotParser.ParseSettingsProperties(archiveXml);
             securityRanges = BackupArchiveXmlSnapshotParser.ParseSecurityRanges(archiveXml);
             tcpIpPorts = BackupArchiveXmlSnapshotParser.ParseTcpIpPorts(archiveXml);
+            blockedAttachments = BackupArchiveXmlSnapshotParser.ParseBlockedAttachments(archiveXml);
             if (settingsProperties.Any(static property =>
                     string.Equals(property.Name, "smtprelayerpassword", StringComparison.OrdinalIgnoreCase)))
             {
@@ -514,6 +530,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                      settingsProperties: settingsProperties,
                      securityRanges: securityRanges,
                      tcpIpPorts: tcpIpPorts,
+                     blockedAttachments: blockedAttachments,
                      restorePublicFolders: fullRestore,
                     publicFolders: publicFolders,
                     archiveGroups: archiveGroups),
@@ -530,6 +547,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
         IReadOnlyList<BackupSettingsPropertySnapshot>? settingsProperties = null,
         IReadOnlyList<SecurityRangeAdministrationSnapshot>? securityRanges = null,
         IReadOnlyList<RestoreTcpIpPortEntry>? tcpIpPorts = null,
+        IReadOnlyList<RestoreBlockedAttachmentEntry>? blockedAttachments = null,
         bool restorePublicFolders = false,
         IReadOnlyList<RestorePublicFolderEntry>? publicFolders = null,
         IReadOnlyList<RestoreGroupEntry>? archiveGroups = null)
@@ -602,6 +620,7 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             var settingsStore = metadataTransaction?.SettingsStore;
             var securityRangeStore = metadataTransaction?.SecurityRangeStore;
             var tcpIpPortStore = metadataTransaction?.TcpIpPortStore;
+            var blockedAttachmentStore = metadataTransaction?.BlockedAttachmentStore;
             if (settingsProperties is not null && settingsStore is null)
             {
                 throw new InvalidOperationException(
@@ -616,6 +635,11 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
             {
                 throw new InvalidOperationException(
                     "Settings restore requires a transaction-scoped TCP/IP port store.");
+            }
+            if (blockedAttachments is not null && blockedAttachmentStore is null)
+            {
+                throw new InvalidOperationException(
+                    "Settings restore requires a transaction-scoped blocked-attachment store.");
             }
             if (domains.SelectMany(static domain => domain.Accounts).Any(static account => account.Folders.Count > 0)
                 && folderRestoreStore is null)
@@ -684,6 +708,12 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                 {
                     await metadataTransaction
                         .DeleteAllTcpIpPortsForRestoreAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                if (blockedAttachments is not null)
+                {
+                    await metadataTransaction
+                        .DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken)
                         .ConfigureAwait(false);
                 }
                 if (restorePublicFolders)
@@ -897,6 +927,14 @@ internal sealed class MetadataBackupRestoreExecutor : IBackupRestoreExecutor
                         await BackupRestoreMetadataWriter.RestoreTcpIpPortsAsync(
                             tcpIpPorts,
                             tcpIpPortStore!,
+                            static () => default,
+                            ct).ConfigureAwait(false);
+                    }
+                    if (blockedAttachments is not null)
+                    {
+                        await BackupRestoreMetadataWriter.RestoreBlockedAttachmentsAsync(
+                            blockedAttachments,
+                            blockedAttachmentStore!,
                             static () => default,
                             ct).ConfigureAwait(false);
                     }

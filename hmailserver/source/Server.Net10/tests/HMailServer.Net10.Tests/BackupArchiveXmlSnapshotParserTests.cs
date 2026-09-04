@@ -235,6 +235,34 @@ public sealed class BackupArchiveXmlSnapshotParserTests
     }
 
     [TestMethod]
+    public void ParseBlockedAttachments_PreservesLegacyNamesAndDescriptionsInOrder()
+    {
+        const string xml = """
+            <Backup>
+              <Nested><BlockedAttachments><BlockedAttachment Name="ignored" /></BlockedAttachments></Nested>
+              <BlockedAttachments>
+                <BlockedAttachment Name="*.exe" Description="Executable" />
+                <BlockedAttachment Name="*.zip" Description="Archive" />
+              </BlockedAttachments>
+            </Backup>
+            """;
+
+        var attachments = BackupArchiveXmlSnapshotParser.ParseBlockedAttachments(xml);
+
+        Assert.AreEqual(2, attachments.Count);
+        Assert.AreEqual(0, attachments[0].Attachment.Id);
+        Assert.AreEqual("*.exe", attachments[0].Attachment.Wildcard);
+        Assert.AreEqual("Executable", attachments[0].Attachment.Description);
+        Assert.AreEqual("*.zip", attachments[1].Attachment.Wildcard);
+    }
+
+    [TestMethod]
+    public void ParseBlockedAttachments_MissingContainerMeansEmpty()
+    {
+        Assert.IsEmpty(BackupArchiveXmlSnapshotParser.ParseBlockedAttachments("<Backup />"));
+    }
+
+    [TestMethod]
     public void ParseGroupEntries_PreservesLegacyGroupAndMemberNames()
     {
         const string xml = """

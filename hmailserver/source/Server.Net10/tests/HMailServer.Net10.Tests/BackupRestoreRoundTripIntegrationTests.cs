@@ -2131,6 +2131,7 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             : inner.RecipientStore;
         public ISecurityRangeAdministrationStore? SecurityRangeStore => inner.SecurityRangeStore;
         public ITcpIpPortAdministrationStore? TcpIpPortStore => inner.TcpIpPortStore;
+        public IBlockedAttachmentAdministrationStore? BlockedAttachmentStore => inner.BlockedAttachmentStore;
         public IFetchAccountAdministrationStore? FetchAccountStore => inner.FetchAccountStore;
         public IRuleAdministrationStore? RuleStore => inner.RuleStore;
         public IRuleCriteriaAdministrationStore? RuleCriteriaStore => inner.RuleCriteriaStore;
@@ -2150,6 +2151,8 @@ public sealed class BackupRestoreRoundTripIntegrationTests
             inner.DeleteAllSecurityRangesForRestoreAsync(cancellationToken);
         public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken) =>
             inner.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken);
+        public ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken) =>
+            inner.DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken);
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             await inner.CommitAsync(cancellationToken).ConfigureAwait(false);

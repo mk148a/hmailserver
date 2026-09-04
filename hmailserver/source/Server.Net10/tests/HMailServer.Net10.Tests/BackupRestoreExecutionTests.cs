@@ -107,6 +107,17 @@ public sealed class BackupRestoreExecutionTests
         </Backup>
         """;
 
+    private const string SettingsBlockedAttachmentsArchiveXml = """
+        <Backup>
+          <BackupInformation Mode="1" />
+          <Properties><hostname LongValue="0" StringValue="restored.example" /></Properties>
+          <BlockedAttachments>
+            <BlockedAttachment Name="*.exe" Description="Executable" />
+            <BlockedAttachment Name="*.zip" Description="Archive" />
+          </BlockedAttachments>
+        </Backup>
+        """;
+
     [TestMethod]
     public async Task ExecuteAsync_RestoresOnlyQueuedMetadataSections()
     {
@@ -519,6 +530,64 @@ public sealed class BackupRestoreExecutionTests
         Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
         Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
         Assert.IsEmpty(stores.TcpIpPorts.Items);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_SettingsOnlyReplacesBlockedAttachmentsInsideTheSqlTransaction()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsBlockedAttachmentsArchiveXml);
+        var stores = new RecordingStores();
+        stores.BlockedAttachments.Items.Add(
+            new BlockedAttachmentAdministrationSnapshot(99, "*.old", "Old"));
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await executor.ExecuteAsync(backup, CancellationToken.None);
+
+        Assert.AreEqual(1, transactionFactory.BlockedAttachmentDeleteCount);
+        Assert.AreEqual(2, stores.BlockedAttachments.InsertAttempts);
+        CollectionAssert.AreEqual(
+            new[] { "*.exe", "*.zip" },
+            stores.BlockedAttachments.Items.Select(static item => item.Wildcard).ToArray());
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_BlockedAttachmentFailureDisposesTransactionWithoutCommit()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var fixture = await ArchiveFixture.CreateAsync(SettingsBlockedAttachmentsArchiveXml);
+        var stores = new RecordingStores();
+        stores.BlockedAttachments.Fail = true;
+        var transactionFactory = new RecordingMetadataTransactionFactory(stores);
+        var executor = stores.CreateExecutor(
+            fixture.DataDirectory,
+            metadataTransactionFactory: transactionFactory,
+            requireSqlTransaction: true);
+        var backup = Backup.CreateAuthorized(1, fixture.ArchivePath);
+        backup.RestoreSettings = true;
+
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => executor.ExecuteAsync(backup, CancellationToken.None).AsTask());
+
+        Assert.AreEqual(1, transactionFactory.BlockedAttachmentDeleteCount);
+        Assert.IsTrue(transactionFactory.LastTransaction!.Disposed);
+        Assert.IsTrue(transactionFactory.LastTransaction.RolledBack);
+        Assert.AreEqual(0, transactionFactory.LastTransaction.CommitCount);
+        Assert.IsEmpty(stores.BlockedAttachments.Items);
     }
 
     [TestMethod]
@@ -1200,6 +1269,7 @@ public sealed class BackupRestoreExecutionTests
         public RecordingSettingsRestoreStore Settings { get; } = new();
         public RecordingSecurityRangeStore SecurityRanges { get; } = new();
         public RecordingTcpIpPortStore TcpIpPorts { get; } = new();
+        public RecordingBlockedAttachmentStore BlockedAttachments { get; } = new();
         public RecordingPublicFolderRestoreStore PublicFolders { get; } = new();
         public RecordingPublicMessageRestoreStore PublicMessages { get; } = new();
         public RecordingPublicFolderPermissionRestoreStore PublicPermissions { get; } = new();
@@ -1320,6 +1390,7 @@ public sealed class BackupRestoreExecutionTests
         public int DeleteCount { get; private set; }
         public int SecurityRangeDeleteCount { get; private set; }
         public int TcpIpPortDeleteCount { get; private set; }
+        public int BlockedAttachmentDeleteCount { get; private set; }
         public bool FailDelete { get; set; }
         public RecordingMetadataTransaction? LastTransaction { get; private set; }
 
@@ -1361,6 +1432,13 @@ public sealed class BackupRestoreExecutionTests
             stores.TcpIpPorts.Items.Clear();
             return ValueTask.CompletedTask;
         }
+
+        public ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken)
+        {
+            BlockedAttachmentDeleteCount++;
+            stores.BlockedAttachments.Items.Clear();
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class CommitGatedMetadataTransactionFactory(
@@ -1391,6 +1469,7 @@ public sealed class BackupRestoreExecutionTests
         public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
         public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
         public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
+        public IBlockedAttachmentAdministrationStore BlockedAttachmentStore => stores.BlockedAttachments;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
@@ -1399,6 +1478,9 @@ public sealed class BackupRestoreExecutionTests
             ValueTask.CompletedTask;
 
         public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken) =>
+            ValueTask.CompletedTask;
+
+        public ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
 
         public async ValueTask CommitAsync(CancellationToken cancellationToken)
@@ -1427,6 +1509,7 @@ public sealed class BackupRestoreExecutionTests
         public IGroupMemberAdministrationStore GroupMemberStore => stores.GroupMembers;
         public ISecurityRangeAdministrationStore SecurityRangeStore => stores.SecurityRanges;
         public ITcpIpPortAdministrationStore TcpIpPortStore => stores.TcpIpPorts;
+        public IBlockedAttachmentAdministrationStore BlockedAttachmentStore => stores.BlockedAttachments;
 
         public ValueTask DeleteAllDomainsForRestoreAsync(CancellationToken cancellationToken) =>
             factory.DeleteAllDomainsForRestoreAsync(cancellationToken);
@@ -1446,6 +1529,9 @@ public sealed class BackupRestoreExecutionTests
         public ValueTask DeleteAllTcpIpPortsForRestoreAsync(CancellationToken cancellationToken)
             => factory.DeleteAllTcpIpPortsForRestoreAsync(cancellationToken);
 
+        public ValueTask DeleteAllBlockedAttachmentsForRestoreAsync(CancellationToken cancellationToken)
+            => factory.DeleteAllBlockedAttachmentsForRestoreAsync(cancellationToken);
+
         public ValueTask CommitAsync(CancellationToken cancellationToken)
         {
             CommitCount++;
@@ -1463,6 +1549,7 @@ public sealed class BackupRestoreExecutionTests
                 stores.PublicPermissions.Inserted.Clear();
                 stores.SecurityRanges.Items.Clear();
                 stores.TcpIpPorts.Items.Clear();
+                stores.BlockedAttachments.Items.Clear();
                 stores.Settings.Properties.Clear();
             }
 
@@ -1565,6 +1652,45 @@ public sealed class BackupRestoreExecutionTests
 
         public ValueTask UpdateTcpIpPortAsync(
             TcpIpPortAdministrationSnapshot port,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+    }
+
+    private sealed class RecordingBlockedAttachmentStore : IBlockedAttachmentAdministrationStore
+    {
+        public List<BlockedAttachmentAdministrationSnapshot> Items { get; } = [];
+        public bool Fail { get; set; }
+        public int InsertAttempts { get; private set; }
+
+        public ValueTask<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>> GetBlockedAttachmentsAsync(
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult<IReadOnlyList<BlockedAttachmentAdministrationSnapshot>>(Items);
+
+        public ValueTask<int> InsertBlockedAttachmentForRestoreAsync(
+            BlockedAttachmentAdministrationSnapshot attachment,
+            CancellationToken cancellationToken)
+        {
+            InsertAttempts++;
+            if (Fail)
+            {
+                return ValueTask.FromException<int>(
+                    new InvalidOperationException("Injected blocked-attachment restore failure."));
+            }
+
+            Items.Add(attachment with { Id = 800 + InsertAttempts });
+            return ValueTask.FromResult(800 + InsertAttempts);
+        }
+
+        public ValueTask<int> InsertBlockedAttachmentAsync(
+            BlockedAttachmentAdministrationSnapshot attachment,
+            CancellationToken cancellationToken) =>
+            InsertBlockedAttachmentForRestoreAsync(attachment, cancellationToken);
+
+        public ValueTask UpdateBlockedAttachmentAsync(
+            BlockedAttachmentAdministrationSnapshot attachment,
+            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+        public ValueTask DeleteBlockedAttachmentByIdAsync(
+            int databaseId,
             CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
