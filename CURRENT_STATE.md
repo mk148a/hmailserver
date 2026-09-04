@@ -1,12 +1,12 @@
 # Current State
-- UTC and local timestamp: 2026-09-04T14:20:00Z / 2026-09-04T17:20:00+03:00
+- UTC and local timestamp: 2026-09-04T14:30:00Z / 2026-09-04T17:30:00+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `7457665fd` (`Restore DNS blacklists from backup metadata`)
-- Last successfully pushed commit: `cd9e1eb19afa88101f752e9851923123d1149f76`
+- Current HEAD: `4d6f90280` (`Record DNS blacklist restore continuation`)
+- Last successfully pushed commit: `4d6f9028021a7e0accb7e75c1eec66c3e0bd2bfe`
 - Latest focused-test result: DNSBL parser/restore execution and SQL store tests `76 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: Debug `2845 passed, 97 skipped, 0 failed / 2942`
 - Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for restore mutation acceptance; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
-- Current bounded slice: DNSBlackLists restore completed in `7457665fd`; docs/backlog/handoff pending in this docs commit
+- Current bounded slice: DNSBlackLists restore completed in `7457665fd`; docs/backlog/handoff recorded in `4d6f90280`
 - Completed milestones: disposable C++ service launch; paired protocol/SMTP/IMAP/POP3/queue/retry evidence; 100,000-message IMAP SEARCH/SORT; file-backed SEARCH/SORT fallback; raw/compressed DataBackup staging; Net10 backup/restore round trip; Full-Text acceptance; IMAP ACL hardening; legacy INI handoff; rollback-aware upgrade guard; paired C++ COM backup archive generation
 - Open production blockers: fresh backup -> restore -> backup round-trip against a legacy archive; fresh paired comparator evidence and equivalent backup timing; installed out-of-process COM/Admin lifecycle; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18; AD/SSPI; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision.
 - Environment-blocked work: independent COM caller-token evidence, AD/SSPI credentials, production-equivalent installer lifecycle, equivalent paired Full-Text timing, and long resource soak
