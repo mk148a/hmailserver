@@ -1,8 +1,8 @@
 # Current State
-- UTC and local timestamp: 2026-09-04T15:20:00Z / 2026-09-04T18:20:00+03:00
+- UTC and local timestamp: 2026-09-04T15:30:00Z / 2026-09-04T18:30:00+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `48c56f07f` (`Record COM parity continuation and blockers`)
-- Last successfully pushed commit: `48c56f07f5e12689fc288af3c423e337e6b37b38`
+- Current HEAD: `9181b0a8c` (`Record verified COM parity push`)
+- Last successfully pushed commit: `9181b0a8cea5815dad506f24d69ed410c46048a9`
 - Latest focused-test result: COM local-server, SEC-18 caller guard, and Windows AD validator tests `20 passed, 0 skipped, 0 failed`
 - Latest full Net10 result: Debug `2845 passed, 97 skipped, 0 failed / 2942`
 - Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for restore mutation acceptance; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
