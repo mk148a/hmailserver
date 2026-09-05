@@ -1,14 +1,14 @@
 # Current State
-- UTC and local timestamp: 2026-09-04T15:30:00Z / 2026-09-04T18:30:00+03:00
+- UTC and local timestamp: 2026-09-05T13:30:00Z / 2026-09-05T16:30:00+03:00
 - Current branch and upstream: `net10-installer-rollback-guard` / `origin/net10-installer-rollback-guard`
-- Current HEAD: `9181b0a8c` (`Record verified COM parity push`)
-- Last successfully pushed commit: `9181b0a8cea5815dad506f24d69ed410c46048a9`
-- Latest focused-test result: COM local-server, SEC-18 caller guard, and Windows AD validator tests `20 passed, 0 skipped, 0 failed`
+- Current HEAD: `cb509e848` (`Add guarded Net10 legacy upgrade package`)
+- Last successfully pushed commit: not yet pushed; validation pending
+- Latest focused-test result: package verification `1269 passed`; upgrade guard, rollback preflight, and package tests passed
 - Latest full Net10 result: Debug `2845 passed, 97 skipped, 0 failed / 2942`
 - Opt-in tests passed/skipped/blocked: no disposable SQL integration environment for restore mutation acceptance; registered COM/Admin lifecycle, SEC-18 caller-token, AD/SSPI, cloned installer rollback, exact Full-Text transaction, equivalent backup timing, and long soak remain skipped or blocked
-- Current bounded slice: COM local-server security initialization completed in `bc49a7dfd`; legacy `CoInitializeSecurity` parameters are now applied once before class registration
+- Current bounded slice: self-contained Net10 legacy upgrade package and rollback guards in `cb509e848`
 - Completed milestones: disposable C++ service launch; paired protocol/SMTP/IMAP/POP3/queue/retry evidence; 100,000-message IMAP SEARCH/SORT; file-backed SEARCH/SORT fallback; raw/compressed DataBackup staging; Net10 backup/restore round trip; Full-Text acceptance; IMAP ACL hardening; legacy INI handoff; rollback-aware upgrade guard; paired C++ COM backup archive generation
 - Open production blockers: fresh backup -> restore -> backup round-trip against a legacy archive; fresh paired comparator evidence and equivalent backup timing; installed out-of-process COM/Admin lifecycle and DCOM ACL evidence; Full-Text transaction equivalence; legacy upgrade/installer/Data rollback; SEC-18 caller-token/IIS evidence; AD/SSPI credentials; DKIM/DMARC/SPF; unresolved P1 findings. The 24-hour soak is deferred by user decision.
 - Environment-blocked work: registered legacy/.NET COM/Admin activation, independent SEC-18 caller-token evidence, AD/SSPI credentials, production-equivalent installer lifecycle, equivalent paired Full-Text timing, and long resource soak
 - Protected/do-not-touch areas: production service/SQL/Data; installed Application COM/DCOM registration; production IIS/firewall; dirty `AGENTS.md`; pre-existing benchmark, migration, staging, and deleted/untracked artifacts
-- Next three independent slices: fresh projected-settings backup -> restore -> backup comparator when disposable C++/SQL/Data inputs return; isolated installer/upgrade rollback drill with a disposable registered legacy baseline; SEC-18 caller-token and broker registration gate on dedicated IIS staging
+- Next three independent slices: isolated disposable legacy SQL/Data upgrade and rollback drill; registered COM/Admin and DCOM validation; SEC-18 caller-token validation on isolated IIS staging

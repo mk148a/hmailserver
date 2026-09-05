@@ -1,4 +1,22 @@
-# Current authoritative status (2026-09-04, COM local-server security parity)
+# Current authoritative status (2026-09-05, Net10 upgrade package)
+
+Code/test commit `cb509e848` adds a guarded, self-contained `win-x64` upgrade
+package. Build it with `build/build-net10-upgrade-package.ps1`; the resulting
+ZIP contains the Net10 service, preserved legacy type library, migration SQL,
+and guarded upgrade/rollback scripts. `build/setup-net10-upgrade.ps1` defaults
+to PlanOnly, requires an explicit full compressed backup and a new SQL rollback
+backup path, and keeps the legacy INI/Data/binaries outside the package. The
+supported path is the existing local SQL Server hMailServer schema `5708` to
+`6000`; this package is not a first install and does not replace the legacy
+Inno payload. Package verification passed `1269` checks; full Debug passed
+`2845`, skipped `97`, failed `0`.
+
+The package is not a production-readiness claim. Registered out-of-process
+COM/Admin, DCOM ACL, SEC-18 caller-token, AD/SSPI, isolated restore/installer
+drill, and paired performance/release evidence remain open. Do not execute an
+upgrade without an offline maintenance window, verified backup, disposable
+validation, and an operator rollback decision.
+
 
 Code/test commit `bc49a7dfd` closes the repository-only COM local-server
 security initialization gap. Legacy `hMailServer::RegisterObjects()` calls

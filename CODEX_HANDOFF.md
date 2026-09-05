@@ -10583,3 +10583,16 @@ Next slice: refresh correlated SEC-18 IIS/worker and caller-token evidence when
 the isolated staging prerequisites exist; then run disposable native AD/SSPI
 and socket-level IMAP master-auth acceptance, followed by the next
 legacy-anchored IMAP command ACL gap.
+# Current authoritative continuation (2026-09-05, Net10 upgrade package)
+
+Code/test commit `cb509e848` is the current package milestone. It adds a
+self-contained `win-x64` ZIP builder and PlanOnly-first `Setup.ps1`, preserves
+the legacy install/Data tree, requires a full compressed backup plus a new SQL
+rollback path, and fixes rollback dependency capture for real `Win32_Service`
+objects and stop-before-restore ordering. Package tests passed `1269` checks;
+full Debug passed `2845`, skipped `97`, failed `0`.
+
+The package supports the guarded existing local-SQL migration path `5708 ->
+6000`; it has not been run against a production or shared database. The next
+slice is an isolated disposable legacy upgrade/rollback drill. COM/DCOM,
+SEC-18, AD/SSPI, and paired performance gates remain release blockers.

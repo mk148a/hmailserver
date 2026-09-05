@@ -10605,3 +10605,13 @@ Next bounded slice: restore `SURBLServers` using the same isolated transaction
 pattern after a fresh legacy XML/SQL inspection. Restore for `DNSBlackLists`,
 fresh paired archive comparison, and equivalent backup timing remain open.
 Keep the release gate RED.
+# Current authoritative next slice (2026-09-05)
+
+The installer slice is implemented in code/test commit `cb509e848`. The next
+independent release-gate slice is an isolated disposable SQL/Data legacy
+upgrade and rollback drill using the package produced by
+`build/build-net10-upgrade-package.ps1`. Do not advertise raw package creation
+as completed migration or production readiness. Registered COM/Admin, DCOM,
+SEC-18 caller-token, AD/SSPI, and paired load evidence remain blocked until
+their isolated prerequisites exist. The 24-hour soak remains deferred by user
+decision.
