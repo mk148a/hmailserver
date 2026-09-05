@@ -44,6 +44,8 @@ Assert-True ($source -match "'-InitializationFile'") 'Upgrade does not carry the
 Assert-True ($source -match 'if \(-not \$Execute\)') 'Upgrade does not stop after a non-mutating plan.'
 Assert-True ($source -notmatch 'sc\.exe\s+(config|create|delete)') 'Upgrade script performs direct SCM mutation outside the guarded installer.'
 Assert-True ($source -match 'SqlRollbackBackupPath') 'Executing upgrade does not require a SQL rollback backup path.'
+Assert-True ($source -match "ValidateSet\('hMailServer'\)") 'Upgrade permits replacing an arbitrary service.'
+Assert-True ($source -match 'Stop-Net10ServiceForRollback') 'Cutover failure does not stop the replacement before rollback.'
 Assert-True ($source -match '--upgrade-database') 'Executing upgrade does not run the database migration command.'
 Assert-True ($source -match '--restore-upgrade-database') 'Cutover failure does not invoke SQL database rollback.'
 
@@ -56,6 +58,7 @@ Assert-True ($initialization -match 'LegacyBlowfishPasswordCipher\.TryDecrypt') 
 Assert-True ($command -match 'RunOfflineAsync') 'Upgrade command does not use the offline migration path.'
 Assert-True ($command -match 'CreateCopyOnlyBackupAsync') 'Upgrade command does not create a SQL rollback backup.'
 Assert-True ($command -match 'SqlServerUpgradeArtifactHandoff') 'Upgrade command does not produce the guarded handoff.'
+Assert-True ($command -match 'EnsureDistinctOutputPaths') 'Upgrade command does not reject artifact path collisions.'
 Assert-True ($rollback -match 'BACKUP DATABASE') 'SQL rollback store does not create a database backup.'
 Assert-True ($rollback -match 'RESTORE DATABASE') 'SQL rollback store does not restore a database backup.'
 

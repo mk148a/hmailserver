@@ -31,10 +31,21 @@ function New-Net10ServiceRollbackSnapshot {
     )
 
     $dependencies = @()
-    if ($null -ne $Service.Dependencies) {
+    if ($null -ne $Service.PSObject.Properties['Dependencies']) {
         $dependencies = @($Service.Dependencies | ForEach-Object { [string]$_ } | Where-Object {
             -not [string]::IsNullOrWhiteSpace($_)
         })
+    }
+    else {
+        # Win32_Service does not expose dependencies. Read the SCM's persisted
+        # service and load-order-group dependencies without losing group names.
+        $serviceKey = Get-ItemProperty -LiteralPath (Join-Path 'HKLM:\SYSTEM\CurrentControlSet\Services' $Service.Name) -ErrorAction Stop
+        if ($null -ne $serviceKey.PSObject.Properties['DependOnService']) {
+            $dependencies += @($serviceKey.DependOnService)
+        }
+        if ($null -ne $serviceKey.PSObject.Properties['DependOnGroup']) {
+            $dependencies += @($serviceKey.DependOnGroup | ForEach-Object { '+' + $_ })
+        }
     }
 
     [pscustomobject]@{
@@ -45,6 +56,25 @@ function New-Net10ServiceRollbackSnapshot {
         DisplayName = [string]$Service.DisplayName
         Description = [string]$Service.Description
         Dependencies = [string[]]$dependencies
+    }
+}
+
+function Stop-Net10ServiceForRollback {
+    param([Parameter(Mandatory)][string]$ServiceName)
+
+    $service = Get-Service -Name $ServiceName -ErrorAction Stop
+    try {
+        if ($service.Status -ne [ServiceProcess.ServiceControllerStatus]::Stopped) {
+            Stop-Service -Name $ServiceName -ErrorAction Stop
+            $service.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(30))
+        }
+        $service.Refresh()
+        if ($service.Status -ne [ServiceProcess.ServiceControllerStatus]::Stopped) {
+            throw "Service '$ServiceName' did not stop; rollback cannot proceed."
+        }
+    }
+    finally {
+        $service.Dispose()
     }
 }
 
@@ -130,6 +160,7 @@ function Invoke-Net10ServiceRollback {
         [string]$LegacyExecutable
     )
 
+    Stop-Net10ServiceForRollback -ServiceName $Snapshot.ServiceName
     $errors = [System.Collections.Generic.List[string]]::new()
     try {
         Restore-Net10ServiceRollbackSnapshot -Snapshot $Snapshot

@@ -30,6 +30,7 @@ internal static class LegacyUpgradeCommand
     {
         RequireSwitch(arguments, "--AllowOfflineDatabaseMutation");
         var backupArchive = RequireValue(arguments, "--BackupArchive");
+        var initializationFile = RequireValue(arguments, "--InitializationFile");
         var upgradeScriptPath = RequireValue(arguments, "--UpgradeScriptPath");
         var upgradeReportPath = RequireValue(arguments, "--UpgradeReportPath");
         var handoffManifestPath = RequireValue(arguments, "--HandoffManifestPath");
@@ -37,6 +38,13 @@ internal static class LegacyUpgradeCommand
         var sqlRollbackBackupPath = RequireValue(arguments, "--SqlRollbackBackupPath");
         RequireFile(backupArchive, "Verified backup archive");
         RequireFile(upgradeScriptPath, "SQL upgrade script");
+        EnsureDistinctOutputPaths(
+            ("InitializationFile", initializationFile),
+            ("BackupArchive", backupArchive),
+            ("UpgradeScriptPath", upgradeScriptPath),
+            ("UpgradeReportPath", upgradeReportPath),
+            ("HandoffManifestPath", handoffManifestPath),
+            ("SqlRollbackBackupPath", sqlRollbackBackupPath));
 
         var composition = Host.Build(arguments);
         using var host = composition.Host;
@@ -164,6 +172,22 @@ internal static class LegacyUpgradeCommand
         if (!File.Exists(path))
         {
             throw new FileNotFoundException($"{description} was not found.", path);
+        }
+    }
+
+    private static void EnsureDistinctOutputPaths(params (string Name, string Path)[] paths)
+    {
+        var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, path) in paths)
+        {
+            var fullPath = System.IO.Path.GetFullPath(path);
+            if (seen.TryGetValue(fullPath, out var previous))
+            {
+                throw new ArgumentException(
+                    $"{name} must not use the same path as {previous}: {fullPath}");
+            }
+
+            seen.Add(fullPath, name);
         }
     }
 

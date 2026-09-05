@@ -2,7 +2,7 @@
 param(
     [string]$BinDirectory,
     [string]$InitializationFile,
-    [string]$ServiceName = 'hMailServer',
+    [ValidateSet('hMailServer')][string]$ServiceName = 'hMailServer',
     [Parameter(Mandatory)][string]$BackupArchive,
     [Parameter(Mandatory)][string]$UpgradeReportPath,
     [Parameter(Mandatory)][string]$HandoffManifestPath,
@@ -109,7 +109,7 @@ function Get-LegacyServiceState {
     param([Parameter(Mandatory)][string]$Name)
 
     $escapedName = $Name.Replace("'", "''")
-    return Get-CimInstance -ClassName Win32_Service -Filter "Name='$escapedName'" -ErrorAction SilentlyContinue
+    return Get-CimInstance -ClassName Win32_Service -Filter "Name='$escapedName'" -ErrorAction Stop
 }
 
 Assert-RequiredFile -Path $executable -Description 'Net10 service executable'
@@ -251,6 +251,14 @@ if ($LASTEXITCODE -ne 0) {
 catch {
     $upgradeError = $_.Exception.Message
     $rollbackErrors = [System.Collections.Generic.List[string]]::new()
+    if ($serviceMutationStarted) {
+        try {
+            Stop-Net10ServiceForRollback -ServiceName $ServiceName
+        }
+        catch {
+            throw "Legacy upgrade failed: $upgradeError Service could not be stopped; SQL and COM rollback were withheld: $($_.Exception.Message)"
+        }
+    }
     if ($databaseRollbackNeeded) {
         try {
             & $executable @(

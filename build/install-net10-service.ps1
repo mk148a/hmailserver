@@ -44,12 +44,15 @@ if (-not [string]::IsNullOrWhiteSpace($InitializationFile)) {
 }
 
 $serviceName = 'hMailServer'
-$existingService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+$existingService = Get-CimInstance -ClassName Win32_Service -Filter "Name='$serviceName'" -ErrorAction Stop
 $serviceExists = $null -ne $existingService
 $requiresRollbackArchive = $false
 $rollbackSnapshot = $null
 $legacyExecutable = $null
 if ($serviceExists) {
+    if ($existingService.State -ne 'Stopped') {
+        throw "Stop service '$serviceName' before installation or replacement."
+    }
     $existingExecutable = Get-Net10ServiceExecutablePath -PathName $existingService.PathName
     if (-not $existingExecutable.Equals($executable, [StringComparison]::OrdinalIgnoreCase)) {
         if (-not $ReplaceExisting) {
